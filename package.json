@@ -1,0 +1,24 @@
+{
+  "name": "gdacs-facilities-ai",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "axios": "^1.5.0",
+    "geolib": "^3.3.4",
+    "leaflet": "^1.9.4",
+    "next": "^13.4.19",
+    "openai": "^4.90.0",
+    "papaparse": "^5.4.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-leaflet": "^4.2.1",
+    "react-markdown": "^8.0.7",
+    "xlsx": "^0.18.5",
+    "xml2js": "^0.6.2"
+  }
+}
