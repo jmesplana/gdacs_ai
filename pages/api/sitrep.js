@@ -68,6 +68,10 @@ async function generateAISitrep(impactedFacilities, disasters, situationOverview
       apiKey: process.env.OPENAI_API_KEY,
     });
     
+    // Get current date and time
+    const date = new Date().toISOString().split('T')[0];
+    const time = new Date().toTimeString().split(' ')[0];
+    
     // Create prompt for GPT
     const prompt = `
 You are a disaster management professional tasked with creating a concise Situation Report (SitRep).
@@ -88,7 +92,10 @@ Your SitRep should include:
 5. Resource Requirements (If applicable)
 6. Next Steps
 
-Format your response in markdown for readability. Include the time period (${dateFilterText}) in your report title.
+Format your response in markdown for readability. The first line of your report MUST be:
+# Situation Report: Disaster Impact Assessment
+## Generated: ${date} | ${time} | Filter: ${dateFilterText}
+
 Keep the entire SitRep concise and actionable.
 `;
 
@@ -205,7 +212,7 @@ function generateMockSitrep(impactedFacilities, disasters, situationOverview, da
   
   // Generate the sitrep
   return `# Situation Report: Disaster Impact Assessment
-## Date: ${date} | Time: ${time} | Period: ${dateFilterText}
+## Generated: ${date} | ${time} | Filter: ${dateFilterText}
 
 ## Executive Summary
 Currently monitoring ${disasters.length} active disaster events from the ${dateFilterText} (${disasterTypeSummary}) with ${impactedFacilities.length} facilities potentially impacted. Immediate response actions recommended for high-risk facilities based on threat assessment.

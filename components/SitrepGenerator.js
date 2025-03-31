@@ -89,43 +89,72 @@ const SitrepGenerator = ({ sitrep, loading, onGenerate, hasImpactedFacilities, d
                   <button
                     className="button"
                     onClick={() => {
-                      const blob = new Blob([sitrep], { type: 'text/markdown' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.setAttribute('href', url);
-                      const date = new Date().toISOString().split('T')[0];
-                      a.setAttribute('download', `sitrep-${date}.md`);
-                      a.click();
+                      // Generate simple HTML with minimal formatting for Word
+                      const formattedHtml = sitrep
+                        .replace(/^# (.*?)$/gm, '<h1>$1</h1>')
+                        .replace(/^## (.*?)$/gm, '<h2>$1</h2>')
+                        .replace(/^### (.*?)$/gm, '<h3>$1</h3>')
+                        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+                        .replace(/\*(.*?)\*/g, '<i>$1</i>')
+                        .replace(/\n/g, '<br>');
+                      
+                      const htmlContent = `<!DOCTYPE html><html><head><title>Situation Report</title></head><body>${formattedHtml}</body></html>`;
+                      
+                      try {
+                        // Create a blob with correct MIME type
+                        const blob = new Blob([htmlContent], { type: 'application/msword' });
+                        const date = new Date().toISOString().split('T')[0];
+                        const filename = `sitrep-${date}.doc`;
+                        
+                        // For Edge/IE
+                        if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+                          window.navigator.msSaveOrOpenBlob(blob, filename);
+                        } 
+                        // For Chrome/Firefox/Safari
+                        else {
+                          const link = document.createElement('a');
+                          link.href = URL.createObjectURL(blob);
+                          link.download = filename;
+                          link.style.display = 'none';
+                          document.body.appendChild(link);
+                          link.click();
+                          setTimeout(() => {
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(link.href);
+                          }, 100);
+                        }
+                      } catch (e) {
+                        console.error('Error downloading Word document:', e);
+                        // Fallback to text download if Word fails
+                        const textBlob = new Blob([sitrep], { type: 'text/plain' });
+                        const textUrl = URL.createObjectURL(textBlob);
+                        const textLink = document.createElement('a');
+                        textLink.href = textUrl;
+                        textLink.download = `sitrep-${date}.txt`;
+                        document.body.appendChild(textLink);
+                        textLink.click();
+                        document.body.removeChild(textLink);
+                      }
                     }}
-                    style={{ marginRight: '10px' }}
                   >
-                    Download as Markdown
-                  </button>
-                  
-                  <button
-                    className="button"
-                    onClick={() => {
-                      const element = document.createElement('a');
-                      const file = new Blob([sitrep], {type: 'text/plain'});
-                      element.href = URL.createObjectURL(file);
-                      const date = new Date().toISOString().split('T')[0];
-                      element.download = `sitrep-${date}.txt`;
-                      document.body.appendChild(element);
-                      element.click();
-                    }}
-                  >
-                    Download as Text
+                    Download Report (.doc)
                   </button>
                 </div>
                 
                 <div style={{
                   backgroundColor: '#f5f5f5', 
-                  padding: '4px 8px',
+                  padding: '8px 12px',
                   borderRadius: '4px',
-                  fontSize: '12px',
-                  color: '#666'
+                  fontSize: '13px',
+                  color: '#666',
+                  display: 'flex',
+                  alignItems: 'center'
                 }}>
-                  Generated {new Date().toLocaleString()}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}>
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                  Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
                 </div>
               </div>
             </div>
@@ -138,6 +167,20 @@ const SitrepGenerator = ({ sitrep, loading, onGenerate, hasImpactedFacilities, d
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        .button-secondary {
+          background-color: #e0e0e0;
+          color: #333;
+          border: none;
+          padding: 8px 12px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 14px;
+        }
+        
+        .button-secondary:hover {
+          background-color: #d0d0d0;
         }
       `}</style>
     </div>

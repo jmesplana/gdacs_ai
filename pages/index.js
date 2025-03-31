@@ -56,6 +56,12 @@ export default function Home() {
       disastersWithCoordinates: disasters.filter(d => d.latitude && d.longitude).length,
       dateFilter: dateFilter
     });
+    
+    // Re-assess impact when filter changes if facilities are available
+    if (facilities.length > 0) {
+      console.log('Auto-refreshing impact assessment due to filter change');
+      assessImpact(facilities);
+    }
   }, [disasters, dateFilter]);
 
   // Initialize with disaster data on mount
@@ -262,8 +268,12 @@ export default function Home() {
           }
           
           console.log(`Loaded ${validFacilities.length} facilities`);
+          
+          // Clear any existing sitrep when facilities change
+          setSitrep('');
+          
+          // Update facilities and immediately assess impact
           setFacilities(validFacilities);
-          // Assess impact immediately after upload
           assessImpact(validFacilities);
         },
         error: (error) => {
@@ -412,12 +422,7 @@ export default function Home() {
     // Clear any existing sitrep when filter changes
     setSitrep('');
     
-    // Impact will be automatically re-assessed due to the useEffect
-    if (facilities.length > 0) {
-      setTimeout(() => {
-        assessImpact(facilities);
-      }, 100);
-    }
+    // Map will be automatically refreshed via useEffect dependency on dateFilter
   };
 
   // Generate mock disaster data (moved from API to here for fallback)

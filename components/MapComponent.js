@@ -176,6 +176,59 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
   const filteredDisasters = disasters.filter(disaster => 
     visibleDisasterTypes[disaster.eventType?.toLowerCase()]
   );
+
+  // Effect to refresh map view when data changes
+  useEffect(() => {
+    if (mapRef.current && mapRef.current._map) {
+      console.log('Updating map view after data change (disasters or facilities)');
+      
+      // Wait for map to be ready
+      setTimeout(() => {
+        try {
+          // Fit bounds if we have data
+          if ((filteredDisasters && filteredDisasters.length > 0) || 
+              (facilities && facilities.length > 0)) {
+            
+            // Create bounds from points
+            const points = [];
+            
+            // Add disaster points
+            filteredDisasters.forEach(disaster => {
+              if (disaster.latitude && disaster.longitude) {
+                const lat = parseFloat(disaster.latitude);
+                const lng = parseFloat(disaster.longitude);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                  points.push([lat, lng]);
+                }
+              }
+            });
+            
+            // Add facility points
+            facilities.forEach(facility => {
+              if (facility.latitude && facility.longitude) {
+                const lat = parseFloat(facility.latitude);
+                const lng = parseFloat(facility.longitude);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                  points.push([lat, lng]);
+                }
+              }
+            });
+            
+            // If we have points, create bounds and fit
+            if (points.length > 0) {
+              const bounds = L.latLngBounds(points);
+              mapRef.current._map.fitBounds(bounds, { 
+                padding: [50, 50],
+                maxZoom: 12
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error fitting map to data bounds:', error);
+        }
+      }, 100);
+    }
+  }, [filteredDisasters, facilities]);
   
   // Handle file uploads
   const handleFileUpload = (file) => {

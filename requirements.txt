@@ -1,5 +1,5 @@
 requests==2.31.0
-pandas==2.1.0
+pandas==1.5.3
 openai==0.28.0
 geopy==2.4.0
 python-dotenv==1.0.0
