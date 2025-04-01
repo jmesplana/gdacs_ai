@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+// GDACS Facilities Impact Assessment Tool
+// Developed by John Mark Esplana (https://github.com/jmesplana)
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap, ZIndex } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -56,7 +58,7 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
           // Create a marker instead of circle
           const marker = L.marker([lat, lng], {
             icon: customIcon,
-            zIndexOffset: 1000
+            zIndexOffset: -1000 // Keep disasters below facilities
           }).addTo(map);
           
           // Add popup
@@ -122,7 +124,10 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
             fillColor: alertColor,
             fillOpacity: 0.1,
             weight: 1,
-            opacity: 0.5
+            opacity: 0.5,
+            interactive: false, // Don't interact with the circle
+            zIndexOffset: -2000, // Keep impact radius below everything
+            pane: 'shadowPane' // Use the shadow pane which is below markers
           }).addTo(map);
           
           // Store the circle to remove on cleanup
@@ -159,6 +164,13 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
   const [facilityDrawerOpen, setFacilityDrawerOpen] = useState(false);
   const [sitrepDrawerOpen, setSitrepDrawerOpen] = useState(false);
   const [showLegend, setShowLegend] = useState(false); // Default to hidden
+  
+  // For AI analysis
+  const [selectedFacility, setSelectedFacility] = useState(null);
+  const [analysisData, setAnalysisData] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [showAnalysisDrawer, setShowAnalysisDrawer] = useState(false);
+  const [isAIGenerated, setIsAIGenerated] = useState(false);
   
   // States for column selection modal
   const [showColumnModal, setShowColumnModal] = useState(false);
@@ -378,6 +390,50 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
     if (!sitrepDrawerOpen) {
       setFilterDrawerOpen(false);
       setFacilityDrawerOpen(false);
+      setShowAnalysisDrawer(false);
+    }
+  };
+  
+  const toggleAnalysisDrawer = () => {
+    setShowAnalysisDrawer(!showAnalysisDrawer);
+    if (!showAnalysisDrawer) {
+      setFilterDrawerOpen(false);
+      setFacilityDrawerOpen(false);
+      setSitrepDrawerOpen(false);
+    }
+  };
+  
+  // Function to handle AI analysis of a facility
+  const handleAnalyzeFacility = async (facility, impacts) => {
+    // Call the parent component's onFacilitySelect to ensure consistency
+    onFacilitySelect(facility);
+    
+    // Set our local state for analysis
+    setSelectedFacility(facility);
+    setAnalysisLoading(true);
+    setAnalysisData(null);
+    setShowAnalysisDrawer(true);
+    
+    try {
+      const response = await fetch('/api/analysis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ facility, impacts }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAnalysisData(data.analysis);
+        setIsAIGenerated(data.isAIGenerated);
+      } else {
+        console.error('Failed to fetch AI analysis');
+      }
+    } catch (error) {
+      console.error('Error fetching AI analysis:', error);
+    } finally {
+      setAnalysisLoading(false);
     }
   };
   
@@ -1138,6 +1194,138 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
       
       {/* Situation Report Drawer */}
       <div className={`drawer-backdrop ${sitrepDrawerOpen ? 'open' : ''}`} onClick={toggleSitrepDrawer}></div>
+      
+      {/* AI Analysis Drawer */}
+      <div className={`drawer-backdrop ${showAnalysisDrawer ? 'open' : ''}`} onClick={toggleAnalysisDrawer}></div>
+      <div className={`drawer drawer-right ${showAnalysisDrawer ? 'open' : ''}`}>
+        <div className="drawer-header">
+          <h3 className="drawer-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+              <line x1="6" y1="6" x2="6" y2="6"></line>
+              <line x1="6" y1="18" x2="6" y2="18"></line>
+            </svg>
+            AI Facility Analysis
+          </h3>
+          <button className="drawer-close" onClick={toggleAnalysisDrawer}>×</button>
+        </div>
+        <div className="drawer-content">
+          {analysisLoading ? (
+            <div style={{textAlign: 'center', padding: '40px 0'}}>
+              <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '15px', animation: 'spin 1s linear infinite' }}>
+                  <line x1="12" y1="2" x2="12" y2="6"></line>
+                  <line x1="12" y1="18" x2="12" y2="22"></line>
+                  <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                  <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                  <line x1="2" y1="12" x2="6" y2="12"></line>
+                  <line x1="18" y1="12" x2="22" y2="12"></line>
+                  <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                  <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                </svg>
+                <span>Generating AI analysis...</span>
+              </div>
+            </div>
+          ) : selectedFacility && analysisData ? (
+            <div>
+              <div style={{marginBottom: '15px'}}>
+                <h2 style={{margin: '0 0 10px 0', fontSize: '18px'}}>{selectedFacility.name}</h2>
+                <div style={{
+                  backgroundColor: isAIGenerated ? '#e3f2fd' : '#f5f5f5', 
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginBottom: '15px'
+                }}>
+                  {isAIGenerated ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                      </svg>
+                      <span style={{color: '#0d47a1', fontWeight: 'bold'}}>AI-Generated Analysis</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#757575" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                      </svg>
+                      <span style={{color: '#757575'}}>Standard Analysis</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              {Object.entries(analysisData).map(([section, content]) => (
+                <div key={section} style={{marginBottom: '20px'}}>
+                  <h3 style={{
+                    fontSize: '16px', 
+                    marginBottom: '10px',
+                    paddingBottom: '5px',
+                    borderBottom: '1px solid #e0e0e0'
+                  }}>{section}</h3>
+                  
+                  {Array.isArray(content) ? (
+                    <ul style={{paddingLeft: '20px', margin: '10px 0'}}>
+                      {content.map((item, idx) => (
+                        <li key={idx} style={{marginBottom: '8px'}}>
+                          {typeof item === 'object' ? JSON.stringify(item) : item}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p style={{lineHeight: '1.5'}}>
+                      {typeof content === 'object' ? JSON.stringify(content) : content}
+                    </p>
+                  )}
+                </div>
+              ))}
+              
+              <div style={{marginTop: '30px', borderTop: '1px solid #f0f0f0', paddingTop: '15px'}}>
+                <button 
+                  className="button"
+                  onClick={() => {
+                    // Trigger AI recommendations based on this analysis
+                    const impacts = impactedFacilities.find(
+                      impacted => impacted.facility.name === selectedFacility.name
+                    )?.impacts || [];
+                    
+                    if (impacts.length > 0) {
+                      onFacilitySelect(selectedFacility);
+                    }
+                  }}
+                  style={{
+                    backgroundColor: '#4CAF50',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '10px 15px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto'
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                  </svg>
+                  View Recommendations
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{textAlign: 'center', padding: '40px 0', color: '#666'}}>
+              Select a facility to analyze its disaster risk profile
+            </div>
+          )}
+        </div>
+      </div>
       <div className={`drawer drawer-right ${sitrepDrawerOpen ? 'open' : ''}`}>
         <div className="drawer-header">
           <h3 className="drawer-title">
@@ -1283,13 +1471,75 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
                   }}>
                     <button
                       onClick={() => {
-                        const blob = new Blob([sitrep], { type: 'text/markdown' });
+                        // Create Word document format using basic HTML with MS Word-specific XML
+                        const htmlContent = `
+                          <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+                                xmlns:w="urn:schemas-microsoft-com:office:word" 
+                                xmlns="http://www.w3.org/TR/REC-html40">
+                            <head>
+                              <meta charset="utf-8">
+                              <meta name="ProgId" content="Word.Document">
+                              <meta name="Generator" content="Microsoft Word 15">
+                              <meta name="Originator" content="Microsoft Word 15">
+                              <title>Situation Report</title>
+                              <!--[if gte mso 9]>
+                              <xml>
+                                <w:WordDocument>
+                                  <w:View>Print</w:View>
+                                  <w:Zoom>90</w:Zoom>
+                                  <w:DoNotOptimizeForBrowser/>
+                                </w:WordDocument>
+                              </xml>
+                              <![endif]-->
+                              <style>
+                                body { font-family: 'Calibri', sans-serif; margin: 1cm; }
+                                h1, h2, h3 { font-family: 'Calibri', sans-serif; }
+                                h1 { font-size: 16pt; color: #2196F3; margin-top: 24pt; margin-bottom: 6pt; }
+                                h2 { font-size: 14pt; color: #0d47a1; margin-top: 18pt; margin-bottom: 6pt; }
+                                h3 { font-size: 12pt; color: #333; margin-top: 12pt; margin-bottom: 3pt; }
+                                p { margin: 6pt 0; }
+                                ul { margin-left: 20pt; }
+                                li { margin-bottom: 3pt; }
+                                .footer { font-style: italic; color: #666; margin-top: 24pt; border-top: 1pt solid #ccc; padding-top: 12pt; text-align: center; }
+                              </style>
+                            </head>
+                            <body>
+                              ${sitrep
+                                .replace(/^# (.*?)$/gm, '<h1>$1</h1>')
+                                .replace(/^## (.*?)$/gm, '<h2>$1</h2>')
+                                .replace(/^### (.*?)$/gm, '<h3>$1</h3>')
+                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                .replace(/\n- (.*?)$/gm, '<ul><li>$1</li></ul>')
+                                .replace(/<\/ul>\s*<ul>/g, '')  // Combine adjacent lists
+                                .replace(/\n\n/g, '<p></p>')
+                                .replace(/\n/g, '<br>')
+                                .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>')}
+                                
+                              <div class="footer">
+                                Generated on ${new Date().toLocaleDateString()} | Developed by <a href="https://github.com/jmesplana">John Mark Esplana</a>
+                              </div>
+                            </body>
+                          </html>
+                        `;
+                        
+                        // Create a blob with correct MIME type
+                        const blob = new Blob([htmlContent], { type: 'application/msword' });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.setAttribute('href', url);
                         const date = new Date().toISOString().split('T')[0];
-                        a.setAttribute('download', `sitrep-${date}.md`);
+                        a.setAttribute('download', `sitrep-${date}.doc`);
+                        
+                        // Trigger download
+                        document.body.appendChild(a);
                         a.click();
+                        
+                        // Clean up
+                        setTimeout(() => {
+                          document.body.removeChild(a);
+                          window.URL.revokeObjectURL(url);
+                        }, 100);
                       }}
                       style={{
                         padding: '8px 12px',
@@ -1308,7 +1558,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
                         <polyline points="7 10 12 15 17 10"></polyline>
                         <line x1="12" y1="15" x2="12" y2="3"></line>
                       </svg>
-                      Download Report
+                      Download Report (.doc)
                     </button>
                     
                     <button
@@ -1447,12 +1697,35 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
                   
                   {/* Display additional fields if available */}
                   {Object.keys(facility).filter(key => 
-                    key !== 'name' && key !== 'latitude' && key !== 'longitude'
-                  ).map((key, idx) => (
-                    <p key={idx} style={{ fontSize: '13px', margin: '5px 0' }}>
-                      <strong>{key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}:</strong> {facility[key]}
-                    </p>
-                  ))}
+                    key !== 'name' && key !== 'latitude' && key !== 'longitude' && facility[key]
+                  ).length > 0 && (
+                    <div style={{ 
+                      margin: '10px 0', 
+                      padding: '8px 10px', 
+                      backgroundColor: '#f5f5f5',
+                      borderRadius: '4px',
+                      border: '1px solid #e0e0e0'
+                    }}>
+                      <div style={{ 
+                        fontWeight: 'bold', 
+                        fontSize: '13px', 
+                        marginBottom: '5px',
+                        borderBottom: '1px solid #e0e0e0',
+                        paddingBottom: '5px',
+                        color: '#555'
+                      }}>
+                        Additional Information
+                      </div>
+                      
+                      {Object.keys(facility).filter(key => 
+                        key !== 'name' && key !== 'latitude' && key !== 'longitude' && facility[key]
+                      ).map((key, idx) => (
+                        <p key={idx} style={{ fontSize: '13px', margin: '5px 0', color: '#333' }}>
+                          <strong style={{ color: '#2196F3' }}>{key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}:</strong> {facility[key]}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                   
                   <div style={{ 
                     display: 'flex', 
@@ -1467,7 +1740,9 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
                           e.preventDefault();
                           
                           // Close popup
-                          mapRef.current._map.closePopup();
+                          if (mapRef.current && mapRef.current._map) {
+                            mapRef.current._map.closePopup();
+                          }
                           
                           // Display recommendations for this facility
                           onFacilitySelect(facility);
@@ -1500,13 +1775,17 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
                         e.preventDefault();
                         
                         // Close popup
-                        mapRef.current._map.closePopup();
+                        if (mapRef.current && mapRef.current._map) {
+                          mapRef.current._map.closePopup();
+                        }
                         
-                        // Show alert
-                        alert('AI Analysis feature will be available in the next update');
+                        // Find impacts for this facility
+                        const facilityImpacts = impactedFacilities.find(
+                          impacted => impacted.facility.name === facility.name
+                        )?.impacts || [];
                         
-                        // Here you would normally invoke the AI analysis function
-                        // onAnalyzeFacility(facility);
+                        // Call AI Analysis API
+                        handleAnalyzeFacility(facility, facilityImpacts);
                       }}
                       style={{
                         flex: '1',

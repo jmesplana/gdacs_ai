@@ -70,13 +70,14 @@ Please provide recommendations in the following categories:
 
 Format your response as a structured JSON with these categories as keys and bullet point arrays as values.
 Keep recommendations concise, practical, and specific to the facility and disaster type(s).
+Do not use curly braces, brackets, or other JSON formatting symbols within the text content itself - provide clean, readable text for each recommendation.
 """
 
         # Call OpenAI API
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a disaster response and humanitarian aid expert providing actionable recommendations."},
+                {"role": "system", "content": "You are a disaster response and humanitarian aid expert providing actionable recommendations. Avoid using JSON symbols like {}, [], or quotes within your text content. Provide clean, readable text for humans."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.5,

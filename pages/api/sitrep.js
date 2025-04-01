@@ -175,92 +175,112 @@ function createSituationOverview(impactedFacilities, disasters) {
   return overview;
 }
 
-function generateMockSitrep(impactedFacilities, disasters, situationOverview, dateFilter = '72h') {
-  const date = new Date().toISOString().split('T')[0];
-  const time = new Date().toTimeString().split(' ')[0];
-  
-  // Count disaster types
-  const disasterTypes = disasters.reduce((acc, disaster) => {
-    const type = disaster.eventType?.toLowerCase() || 'unknown';
-    acc[type] = (acc[type] || 0) + 1;
-    return acc;
-  }, {});
-  
-  // Get human-readable time period
-  const dateFilterText = {
-    '24h': 'last 24 hours',
-    '48h': 'last 48 hours',
-    '72h': 'last 72 hours',
-    '7d': 'last 7 days',
-    '30d': 'last 30 days',
-    'all': 'all time'
-  }[dateFilter] || 'recent time period';
-  
-  // Map disaster type codes to human-readable names
-  const disasterTypeNames = {
-    'eq': 'Earthquake',
-    'tc': 'Tropical Cyclone',
-    'fl': 'Flood',
-    'vo': 'Volcanic Activity',
-    'dr': 'Drought'
-  };
-  
-  // Create a text listing of the disaster types
-  const disasterTypeSummary = Object.entries(disasterTypes)
-    .map(([type, count]) => `${count} ${disasterTypeNames[type] || type}${count > 1 ? 's' : ''}`)
-    .join(', ');
-  
-  // Generate the sitrep
-  return `# Situation Report: Disaster Impact Assessment
+// We'll modify the generateAISitrep function to always use AI
+// and fall back to a direct prompt approach if the main API call fails
+async function generateMockSitrep(impactedFacilities, disasters, situationOverview, dateFilter = '72h') {
+  // Instead of generating a hard-coded mock report,
+  // attempt to use the OpenAI API with a simplified prompt
+  try {
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+    
+    const date = new Date().toISOString().split('T')[0];
+    const time = new Date().toTimeString().split(' ')[0];
+    
+    // Get human-readable time period
+    const dateFilterText = {
+      '24h': 'last 24 hours',
+      '48h': 'last 48 hours',
+      '72h': 'last 72 hours',
+      '7d': 'last 7 days',
+      '30d': 'last 30 days',
+      'all': 'all time'
+    }[dateFilter] || 'recent time period';
+    
+    // Create a simpler prompt for the fallback
+    const simplifiedPrompt = `
+    Generate a concise disaster situation report (SitRep) based on this data:
+    - Time period: ${dateFilterText}
+    - Number of disasters: ${disasters.length}
+    - Number of affected facilities: ${impactedFacilities.length}
+    
+    ${situationOverview}
+    
+    Format as markdown with these sections:
+    1. Executive Summary
+    2. Current Situation
+    3. Impacts on Facilities 
+    4. Recommended Actions
+    5. Resource Requirements
+    6. Next Steps
+    
+    The first line must be:
+    # Situation Report: Disaster Impact Assessment
+    ## Generated: ${date} | ${time} | Filter: ${dateFilterText}
+    
+    Keep it concise and actionable.
+    `;
+    
+    // Call OpenAI with the simplified prompt
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {role: "system", content: "You are a disaster management professional creating a formal Situation Report."},
+        {role: "user", content: simplifiedPrompt}
+      ],
+      temperature: 0.7,
+      max_tokens: 1500
+    });
+    
+    return response.choices[0].message.content.trim();
+  } catch (error) {
+    console.error("Error using OpenAI API for fallback sitrep:", error);
+    
+    // Return minimal fallback if all else fails
+    const date = new Date().toISOString().split('T')[0];
+    const time = new Date().toTimeString().split(' ')[0];
+    
+    // Get human-readable time period
+    const dateFilterText = {
+      '24h': 'last 24 hours',
+      '48h': 'last 48 hours',
+      '72h': 'last 72 hours',
+      '7d': 'last 7 days',
+      '30d': 'last 30 days',
+      'all': 'all time'
+    }[dateFilter] || 'recent time period';
+    
+    return `# Situation Report: Disaster Impact Assessment
 ## Generated: ${date} | ${time} | Filter: ${dateFilterText}
 
 ## Executive Summary
-Currently monitoring ${disasters.length} active disaster events from the ${dateFilterText} (${disasterTypeSummary}) with ${impactedFacilities.length} facilities potentially impacted. Immediate response actions recommended for high-risk facilities based on threat assessment.
+Monitoring ${disasters.length} active disaster events with ${impactedFacilities.length} facilities potentially impacted.
 
 ## Current Situation
-${Object.entries(disasterTypes).map(([type, count]) => {
-  const typeName = disasterTypeNames[type] || type;
-  const relevantDisasters = disasters.filter(d => d.eventType?.toLowerCase() === type);
-  const highestAlert = relevantDisasters.sort((a, b) => {
-    const alertOrder = { 'red': 3, 'orange': 2, 'green': 1 };
-    return (alertOrder[b.alertLevel?.toLowerCase()] || 0) - (alertOrder[a.alertLevel?.toLowerCase()] || 0);
-  })[0];
-  
-  return `### ${typeName} Events (${count})
-${highestAlert ? `Highest alert: ${highestAlert.title} (Alert Level: ${highestAlert.alertLevel})` : ''}
-${relevantDisasters.map(d => `- ${d.title || 'Unnamed event'}`).join('\n')}`;
-}).join('\n\n')}
+Actively tracking multiple disaster events in the system.
 
 ## Impacts on Facilities
-${impactedFacilities.map(impact => {
-  const facility = impact.facility;
-  const facilityImpacts = impact.impacts;
-  
-  return `### ${facility.name}
-Location: ${facility.latitude}, ${facility.longitude}
-Impacted by: ${facilityImpacts.map(i => i.disaster.eventType).join(', ')}
-${facilityImpacts.map(i => `- ${getDisasterTypeName(i.disaster.eventType)}: ${i.disaster.title} (${i.distance} km away)`).join('\n')}`;
-}).join('\n\n')}
+${impactedFacilities.length} facilities are potentially impacted by current disaster events.
 
 ## Recommended Actions
-${generatePrioritizedActions(impactedFacilities)}
+1. Assess all affected facilities
+2. Implement emergency protocols
+3. Monitor situation developments
 
 ## Resource Requirements
-- Emergency response teams for ${impactedFacilities.length} affected facilities
-- Communication equipment for real-time updates
-- Specialized equipment based on disaster types (${Object.keys(disasterTypes).map(t => getDisasterTypeName(t)).join(', ')})
-- Transportation for potential evacuations
-- Emergency supplies including water, food, and medical kits
+- Emergency response teams
+- Communication equipment
+- Emergency supplies
 
 ## Next Steps
 1. Continue monitoring all active disaster events
-2. Implement immediate safety measures at impacted facilities
-3. Establish communication protocols with all facility managers
-4. Prepare for potential evacuations if situation deteriorates
-5. Update situation report in 24 hours or as significant developments occur
+2. Implement immediate safety measures
+3. Update situation report as developments occur
 
 ---
 *Generated by AI Disaster Impact and Response Tool*`;
+  }
 }
 
 // Helper function to get disaster type name
@@ -270,58 +290,10 @@ function getDisasterTypeName(eventType) {
     'tc': 'Tropical Cyclone',
     'fl': 'Flood',
     'vo': 'Volcanic Activity',
-    'dr': 'Drought'
+    'dr': 'Drought',
+    'wf': 'Wildfire',
+    'ts': 'Tsunami'
   };
   
   return types[eventType?.toLowerCase()] || eventType;
-}
-
-// Generate prioritized actions based on impacted facilities
-function generatePrioritizedActions(impactedFacilities) {
-  // Identify most severe disaster types across all facilities
-  const disasterTypeCounts = {};
-  
-  for (const impact of impactedFacilities) {
-    for (const disasterImpact of impact.impacts) {
-      const type = disasterImpact.disaster.eventType?.toLowerCase();
-      disasterTypeCounts[type] = (disasterTypeCounts[type] || 0) + 1;
-    }
-  }
-  
-  // Generate actions based on most common disaster types
-  const actions = [];
-  
-  if (disasterTypeCounts['eq']) {
-    actions.push("1. **Structural Assessment**: Immediately inspect all buildings at affected facilities for structural damage");
-    actions.push("2. **Utility Safety**: Check for gas leaks and electrical hazards at all earthquake-affected sites");
-  }
-  
-  if (disasterTypeCounts['tc']) {
-    actions.push("3. **Secure Facilities**: Reinforce and secure vulnerable structures against high winds and flooding");
-    actions.push("4. **Power Backup**: Ensure backup power systems are operational at cyclone-affected locations");
-  }
-  
-  if (disasterTypeCounts['fl']) {
-    actions.push("5. **Flood Protection**: Deploy flood barriers and move critical equipment to higher elevations");
-    actions.push("6. **Water Testing**: Implement water quality testing protocols for flood-affected facilities");
-  }
-  
-  if (disasterTypeCounts['vo']) {
-    actions.push("7. **Air Quality**: Distribute respiratory protection equipment and monitor air quality");
-    actions.push("8. **Evacuation Readiness**: Prepare evacuation routes and transportation for volcanic-affected areas");
-  }
-  
-  if (disasterTypeCounts['dr']) {
-    actions.push("9. **Water Conservation**: Implement strict water conservation measures at drought-affected facilities");
-    actions.push("10. **Supply Chain**: Assess impact on water-dependent operations and implement contingency plans");
-  }
-  
-  // Add general actions if specific ones are limited
-  if (actions.length < 5) {
-    actions.push("11. **Communication**: Establish emergency communication protocols with all affected facilities");
-    actions.push("12. **Staff Safety**: Account for all personnel and implement safety briefings");
-    actions.push("13. **Resource Allocation**: Prioritize resource distribution based on facility risk levels");
-  }
-  
-  return actions.join("\n");
 }

@@ -20,6 +20,8 @@ const SitrepGenerator = dynamic(() => import('../components/SitrepGenerator'), {
   ssr: false,
 });
 
+// GDACS Facilities Impact Assessment Tool
+// Developed by John Mark Esplana (https://github.com/jmesplana)
 export default function Home() {
   const [disasters, setDisasters] = useState([]);
   const [filteredDisasters, setFilteredDisasters] = useState([]);
@@ -27,6 +29,7 @@ export default function Home() {
   const [impactedFacilities, setImpactedFacilities] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [recommendations, setRecommendations] = useState(null);
+  const [recommendationsAIGenerated, setRecommendationsAIGenerated] = useState(false);
   const [sitrep, setSitrep] = useState('');
   const [loading, setLoading] = useState({
     disasters: true,
@@ -37,9 +40,10 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('map');
   const [dataSource, setDataSource] = useState('');
   const [dateFilter, setDateFilter] = useState('72h'); // default to 72 hours
-  const [showSettings, setShowSettings] = useState(false); // Hide settings by default
   const [fetchError, setFetchError] = useState(null);
   const [useMockData, setUseMockData] = useState(false); // Default to live data
+  const [showHelp, setShowHelp] = useState(false); // Help panel visibility
+  const [completeReport, setCompleteReport] = useState(null); // Store combined AI report
 
   // Fetch disaster data on component mount
   useEffect(() => {
@@ -256,11 +260,23 @@ export default function Home() {
             facility.name && 
             !isNaN(parseFloat(facility.latitude)) && 
             !isNaN(parseFloat(facility.longitude))
-          ).map(facility => ({
-            name: facility.name,
-            latitude: parseFloat(facility.latitude),
-            longitude: parseFloat(facility.longitude)
-          }));
+          ).map(facility => {
+            // Create a base object with required fields
+            const facilityObject = {
+              name: facility.name,
+              latitude: parseFloat(facility.latitude),
+              longitude: parseFloat(facility.longitude)
+            };
+            
+            // Add all other fields from the CSV
+            Object.keys(facility).forEach(key => {
+              if (key !== 'name' && key !== 'latitude' && key !== 'longitude' && facility[key]) {
+                facilityObject[key] = facility[key];
+              }
+            });
+            
+            return facilityObject;
+          });
           
           if (validFacilities.length === 0) {
             alert('No valid facilities found in the CSV. Please check the format.');
@@ -330,7 +346,7 @@ export default function Home() {
   };
 
   // Generate recommendations for a selected facility
-  const generateRecommendations = async (facility, impacts) => {
+  const generateRecommendations = async (facility, impacts, useAI = true) => {
     try {
       setLoading(prev => ({ ...prev, recommendations: true }));
       
@@ -341,12 +357,14 @@ export default function Home() {
         },
         body: JSON.stringify({
           facility: facility,
-          impacts: impacts
+          impacts: impacts,
+          useAI: useAI
         }),
       });
       
       const data = await response.json();
       setRecommendations(data.recommendations || null);
+      setRecommendationsAIGenerated(data.isAIGenerated || false);
     } catch (error) {
       console.error('Error generating recommendations:', error);
       alert('Failed to generate recommendations. Please try again.');
@@ -423,6 +441,193 @@ export default function Home() {
     setSitrep('');
     
     // Map will be automatically refreshed via useEffect dependency on dateFilter
+  };
+  
+  // Generate and download comprehensive AI report
+  const generateCompleteReport = async () => {
+    try {
+      setLoading(prev => ({ ...prev, sitrep: true }));
+      
+      // Collect all available AI data
+      let reportContent = '';
+      const date = new Date().toISOString().split('T')[0];
+      const time = new Date().toTimeString().split(' ')[0];
+      
+      // Start with header
+      reportContent += `# GDACS Comprehensive AI Analysis Report\n`;
+      reportContent += `## Generated: ${date} | ${time} | Filter: ${dateFilter === '24h' ? 'Last 24h' : 
+                                 dateFilter === '48h' ? 'Last 48h' : 
+                                 dateFilter === '72h' ? 'Last 72h' : 
+                                 dateFilter === '7d' ? 'Last 7 days' : 
+                                 dateFilter === '30d' ? 'Last 30 days' : 'All time'}\n\n`;
+      
+      // Add situation report if available
+      if (sitrep) {
+        reportContent += `# Situation Report\n\n${sitrep}\n\n`;
+        reportContent += `---\n\n`;
+      }
+      
+      // Add facility recommendations for all impacted facilities
+      if (impactedFacilities.length > 0) {
+        reportContent += `# Facility Recommendations\n\n`;
+        
+        // Get recommendations for all impacted facilities
+        for (const impact of impactedFacilities) {
+          try {
+            const response = await fetch('/api/recommendations', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                facility: impact.facility,
+                impacts: impact.impacts,
+                useAI: true
+              }),
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              if (data.recommendations) {
+                reportContent += `## ${impact.facility.name}\n\n`;
+                
+                // Format recommendations
+                Object.entries(data.recommendations).forEach(([category, items]) => {
+                  if (category !== 'error' && items) {
+                    reportContent += `### ${category}\n`;
+                    
+                    if (Array.isArray(items)) {
+                      items.forEach(item => {
+                        reportContent += `- ${item}\n`;
+                      });
+                    } else {
+                      reportContent += `- ${items}\n`;
+                    }
+                    
+                    reportContent += '\n';
+                  }
+                });
+                
+                reportContent += `\n`;
+              }
+            }
+          } catch (err) {
+            console.error(`Error getting recommendations for ${impact.facility.name}:`, err);
+          }
+        }
+        
+        reportContent += `---\n\n`;
+      }
+      
+      // Add detailed analysis section
+      reportContent += `# Detailed Disaster Analysis\n\n`;
+      reportContent += `## Overview\n`;
+      reportContent += `- Monitoring ${disasters.length} active disaster events\n`;
+      reportContent += `- ${impactedFacilities.length} facilities potentially impacted\n\n`;
+      
+      // Add attribution (only in the footer)
+      reportContent += `\n\n---\n\n`;
+      reportContent += `*Generated by AI Disaster Impact and Response Tool | Developed by [John Mark Esplana](https://github.com/jmesplana)*`;
+      
+      // Save the complete report
+      setCompleteReport(reportContent);
+      
+      // Convert to Word format and download
+      downloadWordDocument(reportContent, `GDACS-Complete-Report-${date}`);
+      
+    } catch (error) {
+      console.error('Error generating comprehensive report:', error);
+      alert('Failed to generate comprehensive report. Please try again.');
+    } finally {
+      setLoading(prev => ({ ...prev, sitrep: false }));
+    }
+  };
+  
+  // Helper function to download content as Word document
+  const downloadWordDocument = (content, filename) => {
+    try {
+      // Create Word document format using basic HTML with MS Word-specific XML
+      const htmlContent = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+              xmlns:w="urn:schemas-microsoft-com:office:word" 
+              xmlns="http://www.w3.org/TR/REC-html40">
+          <head>
+            <meta charset="utf-8">
+            <meta name="ProgId" content="Word.Document">
+            <meta name="Generator" content="Microsoft Word 15">
+            <meta name="Originator" content="Microsoft Word 15">
+            <title>GDACS AI Analysis Report</title>
+            <!--[if gte mso 9]>
+            <xml>
+              <w:WordDocument>
+                <w:View>Print</w:View>
+                <w:Zoom>90</w:Zoom>
+                <w:DoNotOptimizeForBrowser/>
+              </w:WordDocument>
+            </xml>
+            <![endif]-->
+            <style>
+              body { font-family: 'Calibri', sans-serif; margin: 1cm; }
+              h1, h2, h3 { font-family: 'Calibri', sans-serif; }
+              h1 { font-size: 16pt; color: #2196F3; margin-top: 24pt; margin-bottom: 6pt; }
+              h2 { font-size: 14pt; color: #0d47a1; margin-top: 18pt; margin-bottom: 6pt; }
+              h3 { font-size: 12pt; color: #333; margin-top: 12pt; margin-bottom: 3pt; }
+              p { margin: 6pt 0; }
+              ul { margin-left: 20pt; }
+              li { margin-bottom: 3pt; }
+              .highlight { color: #d32f2f; font-weight: bold; background-color: #ffebee; padding: 2pt; }
+              .footer { font-style: italic; color: #666; margin-top: 24pt; border-top: 1pt solid #ccc; padding-top: 12pt; text-align: center; }
+            </style>
+          </head>
+          <body>
+            ${content
+              .replace(/^# (.*?)$/gm, '<h1>$1</h1>')
+              .replace(/^## (.*?)$/gm, '<h2>$1</h2>')
+              .replace(/^### (.*?)$/gm, '<h3>$1</h3>')
+              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+              .replace(/\*(.*?)\*/g, '<em>$1</em>')
+              .replace(/\n- (.*?)$/gm, '<ul><li>$1</li></ul>')
+              .replace(/<\/ul>\s*<ul>/g, '')  // Combine adjacent lists
+              .replace(/\n\n/g, '<p></p>')
+              .replace(/\n/g, '<br>')
+              .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>')
+              .replace(/---\n\n\*(.*?)\*/, '<hr><div class="footer">$1</div>')} <!-- Format footer -->
+          </body>
+        </html>
+      `;
+      
+      // Correct MIME type for Word documents
+      const blob = new Blob([htmlContent], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${filename}.doc`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e) {
+      console.error('Error downloading Word document:', e);
+      
+      // Try again with a simpler HTML structure
+      try {
+        const simpleHtml = `<html><head><title>GDACS Report</title></head><body>${content.replace(/\n/g, '<br>')}</body></html>`;
+        const simpleBlob = new Blob([simpleHtml], { type: 'application/msword' });
+        
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(simpleBlob);
+        a.download = `${filename}.doc`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(a.href);
+        document.body.removeChild(a);
+      } catch (finalError) {
+        console.error('Final error trying to download Word document:', finalError);
+        alert('Unable to download Word document. Please try again or copy the content manually.');
+      }
+    }
   };
 
   // Generate mock disaster data (moved from API to here for fallback)
@@ -651,77 +856,127 @@ export default function Home() {
               </div>
             </div>
             
-            <button 
-              onClick={handleRefreshData}
-              disabled={loading.disasters}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                backgroundColor: loading.disasters ? '#e0e0e0' : '#2196F3',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '8px 12px',
-                cursor: loading.disasters ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold'
-              }}
-            >
-              {loading.disasters ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', animation: 'spin 1s linear infinite' }}>
-                  <line x1="12" y1="2" x2="12" y2="6"></line>
-                  <line x1="12" y1="18" x2="12" y2="22"></line>
-                  <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
-                  <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
-                  <line x1="2" y1="12" x2="6" y2="12"></line>
-                  <line x1="18" y1="12" x2="22" y2="12"></line>
-                  <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
-                  <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
-                  <polyline points="1 4 1 10 7 10"></polyline>
-                  <polyline points="23 20 23 14 17 14"></polyline>
-                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
-                </svg>
-              )}
-              {loading.disasters ? 'Refreshing...' : 'Refresh Data'}
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                onClick={handleRefreshData}
+                disabled={loading.disasters}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: loading.disasters ? '#e0e0e0' : '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '8px 12px',
+                  cursor: loading.disasters ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                {loading.disasters ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', animation: 'spin 1s linear infinite' }}>
+                    <line x1="12" y1="2" x2="12" y2="6"></line>
+                    <line x1="12" y1="18" x2="12" y2="22"></line>
+                    <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                    <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                    <line x1="2" y1="12" x2="6" y2="12"></line>
+                    <line x1="18" y1="12" x2="22" y2="12"></line>
+                    <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                    <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                    <polyline points="1 4 1 10 7 10"></polyline>
+                    <polyline points="23 20 23 14 17 14"></polyline>
+                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+                  </svg>
+                )}
+                {loading.disasters ? 'Refreshing...' : 'Refresh Data'}
+              </button>
+              
+              {/* Complete AI Report Download Button */}
+              <button 
+                onClick={generateCompleteReport}
+                disabled={loading.sitrep || !impactedFacilities.length}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: loading.sitrep || !impactedFacilities.length ? '#e0e0e0' : '#F44336',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '8px 12px',
+                  cursor: loading.sitrep || !impactedFacilities.length ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                {loading.sitrep ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', animation: 'spin 1s linear infinite' }}>
+                    <line x1="12" y1="2" x2="12" y2="6"></line>
+                    <line x1="12" y1="18" x2="12" y2="22"></line>
+                    <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                    <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                    <line x1="2" y1="12" x2="6" y2="12"></line>
+                    <line x1="18" y1="12" x2="22" y2="12"></line>
+                    <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                    <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                  </svg>
+                )}
+                {loading.sitrep ? 'Generating...' : 'Download Complete AI Report'}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Settings toggle button */}
-        <button 
-          className="drawer-toggle"
-          style={{
-            position: 'absolute',
-            top: '20px',
-            left: '20px',
-            zIndex: 2000, /* Same as map controls, but less than panel */
-            backgroundColor: 'white',
-            borderRadius: '4px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-            padding: '8px 12px',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 'bold',
-            fontSize: '14px'
-          }}
-          onClick={() => setShowSettings(!showSettings)}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-          </svg>
-          Settings
-        </button>
+        {/* Floating control buttons */}
+        <div style={{
+          position: 'absolute',
+          top: '20px',
+          left: '20px',
+          zIndex: 2000,
+          display: 'flex',
+          gap: '10px'
+        }}>
+          
+          {/* Help button */}
+          <button 
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '4px',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+              padding: '8px 12px',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 'bold',
+              fontSize: '14px'
+            }}
+            onClick={() => setShowHelp(!showHelp)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F44336" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            Help Guide
+          </button>
+        </div>
         
         {/* Settings panel */}
+        {/* Help panel */}
         <div 
-          className="floating-panel settings-floating-panel"
+          className="floating-panel help-floating-panel"
           style={{
             position: 'absolute',
             top: '70px',
@@ -730,34 +985,37 @@ export default function Home() {
             borderRadius: '8px',
             boxShadow: '0 2px 10px rgba(0,0,0,0.15)',
             zIndex: 3000, /* Higher than map controls (2000) */
-            padding: '15px',
-            maxWidth: '320px',
-            transform: showSettings ? 'translateY(0)' : 'translateY(-200%)',
-            opacity: showSettings ? 1 : 0,
+            padding: '20px',
+            maxWidth: '450px',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            transform: showHelp ? 'translateY(0)' : 'translateY(-200%)',
+            opacity: showHelp ? 1 : 0,
             transition: 'transform 0.3s ease, opacity 0.3s ease',
-            pointerEvents: showSettings ? 'auto' : 'none'
+            pointerEvents: showHelp ? 'auto' : 'none'
           }}
         >
           <div style={{ 
             fontWeight: 'bold', 
-            marginBottom: '12px', 
-            fontSize: '14px',
+            marginBottom: '15px', 
+            fontSize: '16px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: '1px solid #f0f0f0',
-            paddingBottom: '8px',
-            color: '#2196F3'
+            borderBottom: '2px solid #f0f0f0',
+            paddingBottom: '10px',
+            color: '#F44336'
           }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
               </svg>
-              SETTINGS
+              GDACS FACILITIES IMPACT ASSESSMENT GUIDE
             </div>
             <button
-              onClick={() => setShowSettings(false)}
+              onClick={() => setShowHelp(false)}
               style={{
                 background: 'none',
                 border: 'none',
@@ -777,70 +1035,177 @@ export default function Home() {
             </button>
           </div>
           
-          <div style={{ marginBottom: '15px' }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between',
-              marginBottom: '8px'
-            }}>
-              <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#555' }}>Data source:</span>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                position: 'relative',
-                width: '44px',
-                height: '22px',
-                backgroundColor: useMockData ? '#e0e0e0' : '#2196F3',
-                borderRadius: '24px',
-                cursor: 'pointer',
-                transition: 'background-color 0.3s',
-                padding: '2px'
-              }}
-              onClick={() => setUseMockData(!useMockData)}
-              >
-                <span style={{ 
-                  position: 'absolute',
-                  left: useMockData ? '2px' : '22px',
-                  width: '18px',
-                  height: '18px',
-                  backgroundColor: 'white',
-                  borderRadius: '50%',
-                  transition: 'left 0.3s',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
-                }}></span>
-              </div>
-            </div>
-            <div style={{ 
-              fontSize: '12px', 
-              color: '#666',
-              textAlign: 'right',
-              marginBottom: '12px'
-            }}>
-              {useMockData ? 'Using mock data' : 'Live GDACS data'}
+          {/* What Is This Tool section */}
+          <div style={{ marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>What Is This Tool?</h3>
+            <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '10px' }}>
+              The GDACS Facilities Impact Assessment Tool helps organizations monitor their global facilities and assess potential impacts from current natural disasters. It combines real-time disaster data from the Global Disaster Alert and Coordination System (GDACS) with your facility locations to identify risks and provide AI-powered recommendations.
+            </p>
+          </div>
+          
+          {/* Problems Solved section */}
+          <div style={{ marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>Problems This Tool Solves</h3>
+            <ul style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', paddingLeft: '20px' }}>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Scattered Information:</strong> Consolidates disaster data and facility locations in one visual interface
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Manual Assessment:</strong> Automatically identifies which facilities are at risk from active disasters
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Response Planning:</strong> Generates AI-powered recommendations specific to each facility and disaster type
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Situation Reporting:</strong> Creates comprehensive reports for stakeholders with a single click
+              </li>
+            </ul>
+          </div>
+          
+          {/* Key Features section */}
+          <div style={{ marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>Key Features</h3>
+            <ul style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', paddingLeft: '20px' }}>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Interactive Map:</strong> Visualize disasters and facilities globally
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Facility Upload:</strong> Import your facilities from CSV/Excel files
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Automated Impact Assessment:</strong> Identify which facilities are affected by disasters
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>AI Analysis:</strong> Get personalized risk analysis for any facility
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Smart Recommendations:</strong> Receive specific action items based on disaster type
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Situation Reports:</strong> Generate comprehensive reports for stakeholders
+              </li>
+              <li style={{ marginBottom: '8px', backgroundColor: '#ffebee', padding: '5px 8px', borderRadius: '4px' }}>
+                <strong>Complete AI Report:</strong> Download all AI-generated content in a single Word document
+              </li>
+            </ul>
+          </div>
+          
+          {/* How To Use section */}
+          <div style={{ marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>How To Use This Tool</h3>
+            
+            <div style={{ marginBottom: '12px' }}>
+              <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>1. Upload Your Facilities</h4>
+              <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
+                Click the <strong>Facilities</strong> button on the right side of the map. Upload a CSV or Excel file with your facility locations (must include name, latitude, and longitude columns).
+              </p>
             </div>
             
+            <div style={{ marginBottom: '12px' }}>
+              <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>2. View Disaster Data</h4>
+              <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
+                The map shows active disasters from GDACS. Use the <strong>Filters</strong> button to filter disasters by type and time period.
+              </p>
+            </div>
             
-            <div style={{ 
-              padding: '8px',
-              backgroundColor: 'rgba(33, 150, 243, 0.1)',
-              borderRadius: '4px',
-              color: '#0d47a1',
-              fontSize: '12px',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              {dataSource || 'GDACS Data Source'}
+            <div style={{ marginBottom: '12px' }}>
+              <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>3. Assess Impact</h4>
+              <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
+                Once facilities are uploaded, the system automatically identifies which are in the impact radius of active disasters.
+              </p>
+            </div>
+            
+            <div style={{ marginBottom: '12px' }}>
+              <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>4. Analyze Facilities</h4>
+              <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
+                Click on a facility marker, then select <strong>Analyze with AI</strong> to get a detailed risk assessment.
+              </p>
+            </div>
+            
+            <div style={{ marginBottom: '12px' }}>
+              <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>5. Get Recommendations</h4>
+              <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
+                Click <strong>View Recommendations</strong> to receive specific action items tailored to the facility and disasters affecting it.
+              </p>
+            </div>
+            
+            <div style={{ marginBottom: '12px' }}>
+              <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>6. Generate Report</h4>
+              <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
+                Click the <strong>Sitrep</strong> button to create a comprehensive situation report for all impacted facilities.
+              </p>
+            </div>
+            
+            <div style={{ marginBottom: '12px', backgroundColor: '#ffebee', padding: '10px', borderRadius: '4px' }}>
+              <h4 style={{ fontSize: '14px', color: '#d32f2f', marginBottom: '5px' }}>7. Download Complete AI Report</h4>
+              <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
+                Click the <strong>Download Complete AI Report</strong> button in the dashboard header to generate a comprehensive Word document that includes all AI-generated content: situation report, facility-specific recommendations, and detailed analysis.
+              </p>
             </div>
           </div>
+          
+          {/* Use Cases section */}
+          <div style={{ marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>Use Cases</h3>
+            <ul style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', paddingLeft: '20px' }}>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Emergency Response:</strong> Quickly identify which facilities need immediate assistance during a disaster
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Business Continuity:</strong> Prepare specific action plans for facilities at risk
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Risk Assessment:</strong> Evaluate which facilities might be impacted by developing situations
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Executive Briefing:</strong> Generate professional reports for leadership teams
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Resource Allocation:</strong> Make informed decisions on where to deploy emergency resources
+              </li>
+            </ul>
+          </div>
+          
+          {/* Tips section */}
+          <div style={{ 
+            backgroundColor: 'rgba(244, 67, 54, 0.05)', 
+            padding: '15px', 
+            borderRadius: '6px',
+            marginBottom: '15px'
+          }}>
+            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>Pro Tips</h3>
+            <ul style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', paddingLeft: '20px' }}>
+              <li style={{ marginBottom: '8px' }}>
+                Use the time filter to focus on recent disasters or historical events
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                High-risk recommendations are automatically highlighted in red
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                Download reports in Word format for easy sharing with stakeholders
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                For comprehensive reporting, use the "Download Complete AI Report" button to combine all AI-generated content into one document
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                Click the map legend to filter disasters by type
+              </li>
+            </ul>
+          </div>
+          
+          <div style={{ 
+            fontSize: '13px', 
+            color: '#888', 
+            fontStyle: 'italic',
+            textAlign: 'center',
+            marginTop: '20px',
+            borderTop: '1px solid #eee',
+            paddingTop: '15px'
+          }}>
+            Developed by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#F44336', textDecoration: 'none' }}>John Mark Esplana</a>
+          </div>
         </div>
+        
 
         <MapComponent 
           disasters={filteredDisasters} 
@@ -861,6 +1226,7 @@ export default function Home() {
             facility={selectedFacility}
             recommendations={recommendations}
             loading={loading.recommendations}
+            isAIGenerated={recommendationsAIGenerated}
           />
         )}
 
@@ -871,6 +1237,17 @@ export default function Home() {
           }
         `}</style>
       </main>
+      
+      <footer style={{
+        padding: '15px',
+        textAlign: 'center',
+        borderTop: '1px solid #eaeaea',
+        marginTop: '20px',
+        fontSize: '14px',
+        color: '#666'
+      }}>
+        Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#2196F3', textDecoration: 'none', fontWeight: 'bold' }}>John Mark Esplana</a> | GDACS Facilities Impact Assessment Tool
+      </footer>
     </div>
   )
 }

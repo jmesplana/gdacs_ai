@@ -89,16 +89,58 @@ const SitrepGenerator = ({ sitrep, loading, onGenerate, hasImpactedFacilities, d
                   <button
                     className="button"
                     onClick={() => {
-                      // Generate simple HTML with minimal formatting for Word
-                      const formattedHtml = sitrep
-                        .replace(/^# (.*?)$/gm, '<h1>$1</h1>')
-                        .replace(/^## (.*?)$/gm, '<h2>$1</h2>')
-                        .replace(/^### (.*?)$/gm, '<h3>$1</h3>')
-                        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-                        .replace(/\*(.*?)\*/g, '<i>$1</i>')
-                        .replace(/\n/g, '<br>');
-                      
-                      const htmlContent = `<!DOCTYPE html><html><head><title>Situation Report</title></head><body>${formattedHtml}</body></html>`;
+                      // Create Word document format using basic HTML with MS Word-specific XML
+                      const htmlContent = `
+                        <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+                              xmlns:w="urn:schemas-microsoft-com:office:word" 
+                              xmlns="http://www.w3.org/TR/REC-html40">
+                          <head>
+                            <meta charset="utf-8">
+                            <meta name="ProgId" content="Word.Document">
+                            <meta name="Generator" content="Microsoft Word 15">
+                            <meta name="Originator" content="Microsoft Word 15">
+                            <title>Situation Report</title>
+                            <!--[if gte mso 9]>
+                            <xml>
+                              <w:WordDocument>
+                                <w:View>Print</w:View>
+                                <w:Zoom>90</w:Zoom>
+                                <w:DoNotOptimizeForBrowser/>
+                              </w:WordDocument>
+                            </xml>
+                            <![endif]-->
+                            <style>
+                              body { font-family: 'Calibri', sans-serif; margin: 1cm; }
+                              h1, h2, h3 { font-family: 'Calibri', sans-serif; }
+                              h1 { font-size: 16pt; color: #2196F3; margin-top: 24pt; margin-bottom: 6pt; }
+                              h2 { font-size: 14pt; color: #0d47a1; margin-top: 18pt; margin-bottom: 6pt; }
+                              h3 { font-size: 12pt; color: #333; margin-top: 12pt; margin-bottom: 3pt; }
+                              p { margin: 6pt 0; }
+                              ul { margin-left: 20pt; }
+                              li { margin-bottom: 3pt; }
+                              .highlight { color: #d32f2f; font-weight: bold; background-color: #ffebee; padding: 2pt; }
+                              .footer { font-style: italic; color: #666; margin-top: 24pt; border-top: 1pt solid #ccc; padding-top: 12pt; text-align: center; }
+                            </style>
+                          </head>
+                          <body>
+                            ${sitrep
+                              .replace(/^# (.*?)$/gm, '<h1>$1</h1>')
+                              .replace(/^## (.*?)$/gm, '<h2>$1</h2>')
+                              .replace(/^### (.*?)$/gm, '<h3>$1</h3>')
+                              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                              .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                              .replace(/\n- (.*?)$/gm, '<ul><li>$1</li></ul>')
+                              .replace(/<\/ul>\s*<ul>/g, '')  // Combine adjacent lists
+                              .replace(/\n\n/g, '<p></p>')
+                              .replace(/\n/g, '<br>')
+                              .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>')}
+                              
+                            <div class="footer">
+                              Generated on ${new Date().toLocaleDateString()} | Developed by <a href="https://github.com/jmesplana">John Mark Esplana</a>
+                            </div>
+                          </body>
+                        </html>
+                      `;
                       
                       try {
                         // Create a blob with correct MIME type
@@ -125,15 +167,24 @@ const SitrepGenerator = ({ sitrep, loading, onGenerate, hasImpactedFacilities, d
                         }
                       } catch (e) {
                         console.error('Error downloading Word document:', e);
-                        // Fallback to text download if Word fails
-                        const textBlob = new Blob([sitrep], { type: 'text/plain' });
-                        const textUrl = URL.createObjectURL(textBlob);
-                        const textLink = document.createElement('a');
-                        textLink.href = textUrl;
-                        textLink.download = `sitrep-${date}.txt`;
-                        document.body.appendChild(textLink);
-                        textLink.click();
-                        document.body.removeChild(textLink);
+                        // Try again with a simpler HTML structure
+                        try {
+                          const simpleHtml = `<html><head><title>Situation Report</title></head><body>${sitrep.replace(/\n/g, '<br>')}</body></html>`;
+                          const simpleBlob = new Blob([simpleHtml], { type: 'application/msword' });
+                          const date = new Date().toISOString().split('T')[0];
+                          const filename = `sitrep-${date}.doc`;
+                          
+                          const link = document.createElement('a');
+                          link.href = URL.createObjectURL(simpleBlob);
+                          link.download = filename;
+                          link.style.display = 'none';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        } catch (finalError) {
+                          console.error('Final error trying to download Word document:', finalError);
+                          alert('Unable to download Word document. Please try again or copy the content manually.');
+                        }
                       }
                     }}
                   >
@@ -154,7 +205,7 @@ const SitrepGenerator = ({ sitrep, loading, onGenerate, hasImpactedFacilities, d
                     <circle cx="12" cy="12" r="10"></circle>
                     <polyline points="12 6 12 12 16 14"></polyline>
                   </svg>
-                  Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+                  Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()} | Developed by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{color: '#0d47a1', textDecoration: 'none'}}>John Mark Esplana</a>
                 </div>
               </div>
             </div>
