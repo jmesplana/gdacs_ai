@@ -12,33 +12,49 @@ export default async function handler(req, res) {
     let fetchMethod = '';
     
     try {
-      // Try to fetch using the Vercel rewrite (without baseURL, letting Next.js handle the rewrite)
-      console.log("Attempting to fetch with rewrite...");
-      response = await axios.get('/api/gdacs-feed', {
-        timeout: 5000
+      // Try direct fetch with CORS headers to CAP XML feed
+      console.log("Attempting direct fetch from CAP XML...");
+      response = await axios.get('https://www.gdacs.org/xml/gdacs_cap.xml', {
+        headers: {
+          'Accept': 'application/xml, text/xml, */*',
+          'User-Agent': 'Mozilla/5.0 (compatible; GDACSFacilitiesApp/1.0)',
+        },
+        timeout: 10000 // Extended timeout for larger XML
       });
       xmlData = response.data;
-      fetchMethod = 'rewrite';
+      fetchMethod = 'direct-cap';
     } catch (error) {
-      console.log("Rewrite fetch failed:", error.message);
+      console.log("Direct CAP fetch failed:", error.message);
       
       try {
-        // Try direct fetch with CORS headers
-        console.log("Attempting direct fetch...");
-        response = await axios.get('https://gdacs.org/xml/rss.xml', {
-          headers: {
-            'Accept': 'application/xml, text/xml, */*',
-            'User-Agent': 'Mozilla/5.0 (compatible; GDACSFacilitiesApp/1.0)',
-          },
+        // Try to fetch using the Vercel rewrite (without baseURL, letting Next.js handle the rewrite)
+        console.log("Attempting to fetch with rewrite...");
+        response = await axios.get('/api/gdacs-feed', {
           timeout: 5000
         });
         xmlData = response.data;
-        fetchMethod = 'direct';
+        fetchMethod = 'rewrite';
       } catch (error) {
-        console.log("Direct fetch failed:", error.message);
+        console.log("Rewrite fetch failed:", error.message);
         
-        // All fetch methods failed, fall back to mock data
-        throw new Error("All fetch methods failed");
+        try {
+          // Try direct fetch with RSS as fallback
+          console.log("Attempting direct fetch from RSS...");
+          response = await axios.get('https://gdacs.org/xml/rss.xml', {
+            headers: {
+              'Accept': 'application/xml, text/xml, */*',
+              'User-Agent': 'Mozilla/5.0 (compatible; GDACSFacilitiesApp/1.0)',
+            },
+            timeout: 5000
+          });
+          xmlData = response.data;
+          fetchMethod = 'direct-rss';
+        } catch (error) {
+          console.log("Direct RSS fetch failed:", error.message);
+          
+          // All fetch methods failed
+          throw new Error("All fetch methods failed");
+        }
       }
     }
     
@@ -57,7 +73,7 @@ export default async function handler(req, res) {
     
     // Process disaster data
     const processedDisasters = disasters.map(item => {
-      console.log('Processing GDACS item:', JSON.stringify(item));
+      console.log('Processing GDACS item, title:', item.title);
       
       // Extract geo information if available
       let geoLat = null;
@@ -85,12 +101,79 @@ export default async function handler(req, res) {
         }
       }
       
-      console.log(`Found coordinates: [${geoLat}, ${geoLong}] for ${item.title}`);
-      
       // Extract GDACS-specific information
-      const gdacsEventName = item['gdacs:eventname'] || '';
-      const gdacsEventType = item['gdacs:eventtype'] || '';
-      const gdacsAlertLevel = item['gdacs:alertlevel'] || '';
+      let gdacsEventName = '';
+      let gdacsEventType = '';
+      let gdacsAlertLevel = '';
+      let severity = '';
+      let certainty = '';
+      let urgency = '';
+      let polygon = [];
+      
+      // First try to get from gdacs namespace (RSS format)
+      if (item['gdacs:eventname']) gdacsEventName = item['gdacs:eventname'];
+      if (item['gdacs:eventtype']) gdacsEventType = item['gdacs:eventtype'];
+      if (item['gdacs:alertlevel']) gdacsAlertLevel = item['gdacs:alertlevel'];
+      
+      // Then try to get from CAP format
+      if (item['cap:alert']) {
+        const capAlert = item['cap:alert'];
+        
+        if (capAlert['cap:info']) {
+          const capInfo = Array.isArray(capAlert['cap:info']) 
+            ? capAlert['cap:info'][0] 
+            : capAlert['cap:info'];
+          
+          // Extract event type if not found from gdacs namespace
+          if (!gdacsEventType && capInfo['cap:event']) {
+            const event = capInfo['cap:event'];
+            // Map event name to GDACS event code
+            if (event.includes('Earthquake')) gdacsEventType = 'EQ';
+            else if (event.includes('Tropical Cyclone')) gdacsEventType = 'TC';
+            else if (event.includes('Flood')) gdacsEventType = 'FL';
+            else if (event.includes('Volcano')) gdacsEventType = 'VO';
+            else if (event.includes('Drought')) gdacsEventType = 'DR';
+            else if (event.includes('Wild Fire')) gdacsEventType = 'WF';
+            else if (event.includes('Tsunami')) gdacsEventType = 'TS';
+          }
+          
+          // Extract CAP specific fields
+          if (capInfo['cap:severity']) severity = capInfo['cap:severity'];
+          if (capInfo['cap:certainty']) certainty = capInfo['cap:certainty'];
+          if (capInfo['cap:urgency']) urgency = capInfo['cap:urgency'];
+          
+          // Extract polygon data
+          if (capInfo['cap:area']) {
+            const capArea = Array.isArray(capInfo['cap:area']) 
+              ? capInfo['cap:area'][0] 
+              : capInfo['cap:area'];
+            
+            if (capArea['cap:polygon']) {
+              const polygonText = capArea['cap:polygon'];
+              console.log(`Found polygon data for ${item.title}`);
+              
+              try {
+                // Parse polygon points (format: "lat1,lon1 lat2,lon2 ...")
+                const points = polygonText.split(' ');
+                polygon = points.map(point => {
+                  const [lat, lon] = point.split(',');
+                  return [parseFloat(lat), parseFloat(lon)];
+                }).filter(coord => 
+                  !isNaN(coord[0]) && !isNaN(coord[1]) &&
+                  coord[0] >= -90 && coord[0] <= 90 && 
+                  coord[1] >= -180 && coord[1] <= 180
+                );
+                
+                console.log(`Extracted ${polygon.length} valid polygon points`);
+              } catch (e) {
+                console.error(`Error parsing polygon: ${e.message}`);
+              }
+            }
+          }
+        }
+      }
+      
+      console.log(`Processed disaster: type=${gdacsEventType}, severity=${severity}, polygon points=${polygon.length}`);
       
       return {
         title: item.title || '',
@@ -101,7 +184,11 @@ export default async function handler(req, res) {
         longitude: geoLong ? parseFloat(geoLong) : null,
         alertLevel: gdacsAlertLevel,
         eventType: gdacsEventType,
-        eventName: gdacsEventName
+        eventName: gdacsEventName,
+        severity: severity,
+        certainty: certainty,
+        urgency: urgency,
+        polygon: polygon.length > 2 ? polygon : []
       };
     });
     
@@ -111,9 +198,11 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error("Error fetching GDACS data:", error.message);
     
-    // For development, provide mock data if the real API fails
-    const mockDisasters = generateMockDisasters();
-    res.status(200).json(mockDisasters);
+    // Return error status
+    res.status(500).json({ 
+      error: "Failed to fetch GDACS data",
+      message: error.message
+    });
   }
 }
 

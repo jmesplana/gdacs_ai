@@ -108,6 +108,7 @@ export default function Home() {
       const port = window.location.port || (protocol === 'https:' ? '443' : '80');
       const baseUrl = `${protocol}//${hostname}${port === '80' || port === '443' ? '' : `:${port}`}`;
       
+      // Use the Next.js API endpoint, not the Python one
       console.log(`Attempting to fetch from ${baseUrl}/api/gdacs`);
       const response = await fetch(`${baseUrl}/api/gdacs`);
       
@@ -122,6 +123,14 @@ export default function Home() {
       }
       
       console.log(`Received ${data.length} disaster events from GDACS API`);
+      
+      // Debug: Check if any disasters have polygon data
+      const disastersWithPolygons = data.filter(d => d.polygon && d.polygon.length > 2);
+      console.log(`Found ${disastersWithPolygons.length} disasters with polygon data out of ${data.length} total`);
+      
+      if (disastersWithPolygons.length > 0) {
+        console.log('Example polygon data:', disastersWithPolygons[0].polygon.slice(0, 3), '...');
+      }
       console.log('Raw GDACS data sample:', data.slice(0, 2));
       
       // Filter out items without coordinates

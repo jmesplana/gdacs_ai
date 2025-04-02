@@ -18,6 +18,10 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
     if (disasters && disasters.length > 0) {
       console.log(`Adding ${disasters.length} disaster markers directly to map`);
       
+      // Debug: Check if any disasters have polygon data
+      const disastersWithPolygons = disasters.filter(d => d.polygon && d.polygon.length > 2);
+      console.log(`Found ${disastersWithPolygons.length} disasters with polygon data out of ${disasters.length} total`);
+      
       disasters.forEach((disaster, index) => {
         if (disaster.latitude && disaster.longitude) {
           const lat = parseFloat(disaster.latitude);
@@ -33,7 +37,8 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
           
           // Get disaster type info (for icon)
           const disasterInfo = getDisasterInfo(disaster.eventType);
-          const alertColor = getAlertColor(disaster.alertLevel);
+          // Use severity from CAP data if available, otherwise fall back to alertLevel
+          const alertColor = getAlertColor(disaster.severity || disaster.alertLevel);
           
           // Create a custom GDACS-style icon
           const iconUrl = disasterInfo.icon;
@@ -72,8 +77,16 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
                 <span>${disasterInfo.name}</span>
               </div>
               <div style="display: flex; margin-bottom: 6px;">
-                <strong style="width: 100px;">Alert Level:</strong>
-                <span style="color: ${alertColor}; font-weight: bold;">${disaster.alertLevel}</span>
+                <strong style="width: 100px;">Severity:</strong>
+                <span style="color: ${alertColor}; font-weight: bold;">${disaster.severity || disaster.alertLevel || 'Unknown'}</span>
+              </div>
+              <div style="display: flex; margin-bottom: 6px;">
+                <strong style="width: 100px;">Certainty:</strong>
+                <span>${disaster.certainty || 'Unknown'}</span>
+              </div>
+              <div style="display: flex; margin-bottom: 6px;">
+                <strong style="width: 100px;">Urgency:</strong>
+                <span>${disaster.urgency || 'Unknown'}</span>
               </div>
               <div style="display: flex; margin-bottom: 6px;">
                 <strong style="width: 100px;">Date:</strong>
@@ -114,24 +127,155 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
             }
           }
           
-          // Convert km to meters for the circle
-          const radiusInMeters = impactRadius * 1000;
-          
-          // Create the circle
-          const circle = L.circle([lat, lng], {
-            radius: radiusInMeters,
-            color: alertColor,
-            fillColor: alertColor,
-            fillOpacity: 0.1,
-            weight: 1,
-            opacity: 0.5,
-            interactive: false, // Don't interact with the circle
-            zIndexOffset: -2000, // Keep impact radius below everything
-            pane: 'shadowPane' // Use the shadow pane which is below markers
-          }).addTo(map);
-          
-          // Store the circle to remove on cleanup
-          markers.push(circle);
+          // Check if we have polygon data available
+          if (disaster.polygon && Array.isArray(disaster.polygon) && disaster.polygon.length > 2) {
+            // Rendering polygon using CAP format data
+            
+            // Try to detect if coordinates need swapping (Leaflet uses [lat, lng] format)
+            let needsSwap = false;
+            if (disaster.polygon.length > 0) {
+              const sampleCoord = disaster.polygon[0];
+              // If first coordinate is way outside normal latitude range (-90 to 90), 
+              // it's probably a longitude value that needs to be swapped
+              if (Array.isArray(sampleCoord) && sampleCoord.length === 2) {
+                if (Math.abs(sampleCoord[0]) > 90) {
+                  needsSwap = true;
+                  // Auto-detection of coordinate format
+                }
+              }
+            }
+            
+            // Convert the polygon coordinates array to Leaflet format
+            // Make sure each coord is an array of [lat, lng]
+            const polygonCoords = disaster.polygon.map(coord => {
+              // Handle different possible formats
+              if (Array.isArray(coord) && coord.length === 2) {
+                // Trim excessive precision that might cause rendering issues
+                let lat, lng;
+                if (needsSwap) {
+                  // Swap coordinates if they appear to be in [lng, lat] format
+                  lat = parseFloat(parseFloat(coord[1]).toFixed(6));
+                  lng = parseFloat(parseFloat(coord[0]).toFixed(6));
+                } else {
+                  lat = parseFloat(parseFloat(coord[0]).toFixed(6));
+                  lng = parseFloat(parseFloat(coord[1]).toFixed(6));
+                }
+                return [lat, lng];
+              } else if (typeof coord === 'object' && coord !== null) {
+                if (coord.lat && coord.lng) {
+                  // Object with explicit lat/lng properties
+                  const lat = parseFloat(parseFloat(coord.lat).toFixed(6));
+                  const lng = parseFloat(parseFloat(coord.lng).toFixed(6));
+                  return [lat, lng];
+                } else {
+                  // Treat as array-like
+                  let lat, lng;
+                  if (needsSwap) {
+                    lat = parseFloat(parseFloat(coord[1]).toFixed(6));
+                    lng = parseFloat(parseFloat(coord[0]).toFixed(6));
+                  } else {
+                    lat = parseFloat(parseFloat(coord[0]).toFixed(6));
+                    lng = parseFloat(parseFloat(coord[1]).toFixed(6));
+                  }
+                  return [lat, lng];
+                }
+              } else {
+                console.error(`Invalid polygon coordinate format:`, coord);
+                return null;
+              }
+            }).filter(coord => coord !== null);
+            
+            // Make sure coordinates are valid for Leaflet
+            const validPolygonCoords = polygonCoords.filter(coord => {
+              return !isNaN(coord[0]) && !isNaN(coord[1]) && 
+                     coord[0] >= -90 && coord[0] <= 90 && 
+                     coord[1] >= -180 && coord[1] <= 180;
+            });
+            
+            // Final polygon coordinates are ready for rendering
+            
+            if (validPolygonCoords.length < 3) {
+              console.error(`Not enough valid polygon coordinates: ${validPolygonCoords.length}`);
+              // Fall back to circle
+              const radiusInMeters = impactRadius * 1000;
+              const circle = L.circle([lat, lng], {
+                radius: radiusInMeters,
+                color: alertColor,
+                fillColor: alertColor,
+                fillOpacity: 0.1,
+                weight: 1,
+                opacity: 0.5,
+                interactive: false,
+                zIndexOffset: -2000,
+                pane: 'shadowPane'
+              }).addTo(map);
+              markers.push(circle);
+              return;
+            }
+            
+            let disasterPolygon = null;
+            
+            try {
+              // Test polygon removed since real polygons are working properly now
+              
+              // Create the actual polygon with the CAP data
+              disasterPolygon = L.polygon(validPolygonCoords, {
+                color: alertColor,
+                fillColor: alertColor,
+                fillOpacity: 0.1,
+                weight: 1,
+                opacity: 0.5,
+                interactive: false, // Don't interact with the polygon
+                zIndexOffset: -2000, // Keep impact area below everything
+                pane: 'shadowPane' // Use the shadow pane which is below markers
+              }).addTo(map);
+              // Polygon added successfully
+              
+              // Store the polygon to remove on cleanup
+              markers.push(disasterPolygon);
+            } catch (e) {
+              console.error("Error creating polygon:", e);
+              // Fall back to circle on error
+              const radiusInMeters = impactRadius * 1000;
+              const circle = L.circle([lat, lng], {
+                radius: radiusInMeters,
+                color: alertColor,
+                fillColor: alertColor,
+                fillOpacity: 0.1,
+                weight: 1,
+                opacity: 0.5,
+                interactive: false,
+                zIndexOffset: -2000,
+                pane: 'shadowPane'
+              }).addTo(map);
+              markers.push(circle);
+              return;
+            }
+            
+            // Debug markers were removed since polygons are working properly now
+          } else {
+            // Fallback to circle if no polygon data
+            console.log(`No polygon data, using circle for disaster: ${disaster.title}`);
+            
+            // Convert km to meters for the circle
+            const radiusInMeters = impactRadius * 1000;
+            
+            // Create the circle
+            const circle = L.circle([lat, lng], {
+              radius: radiusInMeters,
+              color: alertColor,
+              fillColor: alertColor,
+              fillOpacity: 0.1,
+              weight: 1,
+              opacity: 0.5,
+              interactive: false, // Don't interact with the circle
+              zIndexOffset: -2000, // Keep impact radius below everything
+              pane: 'shadowPane' // Use the shadow pane which is below markers
+            }).addTo(map);
+            
+            // Store the circle to remove on cleanup
+            markers.push(circle);
+          }
         }
       });
     }
@@ -160,6 +304,28 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
     wf: true,
     ts: true
   });
+  // Add CAP filters
+  const [severityFilters, setSeverityFilters] = useState({
+    'Extreme': true,
+    'Severe': true,
+    'Moderate': true,
+    'Minor': true,
+    'Unknown': true
+  });
+  const [certaintyFilters, setCertaintyFilters] = useState({
+    'Observed': true,
+    'Likely': true,
+    'Possible': true,
+    'Unlikely': true,
+    'Unknown': true
+  });
+  const [urgencyFilters, setUrgencyFilters] = useState({
+    'Immediate': true,
+    'Expected': true,
+    'Future': true,
+    'Past': true,
+    'Unknown': true
+  });
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [facilityDrawerOpen, setFacilityDrawerOpen] = useState(false);
   const [sitrepDrawerOpen, setSitrepDrawerOpen] = useState(false);
@@ -184,10 +350,49 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
     displayFields: []
   });
   
-  // Filter disasters based on selected types
-  const filteredDisasters = disasters.filter(disaster => 
-    visibleDisasterTypes[disaster.eventType?.toLowerCase()]
-  );
+  // Helper function to get severity normalized
+  const getNormalizedSeverity = (disaster) => {
+    const severity = (disaster.severity || disaster.alertLevel || '').toLowerCase();
+    if (!severity) return 'unknown';
+    return severity;
+  };
+  
+  // Helper function to get certainty normalized
+  const getNormalizedCertainty = (disaster) => {
+    const certainty = (disaster.certainty || '').toLowerCase();
+    if (!certainty) return 'unknown';
+    return certainty;
+  };
+  
+  // Helper function to get urgency normalized
+  const getNormalizedUrgency = (disaster) => {
+    const urgency = (disaster.urgency || '').toLowerCase();
+    if (!urgency) return 'unknown';
+    return urgency;
+  };
+  
+  // Filter disasters based on all selected filters
+  const filteredDisasters = disasters.filter(disaster => {
+    // Filter by disaster type
+    if (!visibleDisasterTypes[disaster.eventType?.toLowerCase()]) return false;
+    
+    // Filter by severity
+    const severityKey = Object.keys(severityFilters)
+      .find(k => k.toLowerCase() === getNormalizedSeverity(disaster)) || 'Unknown';
+    if (!severityFilters[severityKey]) return false;
+    
+    // Filter by certainty
+    const certaintyKey = Object.keys(certaintyFilters)
+      .find(k => k.toLowerCase() === getNormalizedCertainty(disaster)) || 'Unknown';
+    if (!certaintyFilters[certaintyKey]) return false;
+    
+    // Filter by urgency
+    const urgencyKey = Object.keys(urgencyFilters)
+      .find(k => k.toLowerCase() === getNormalizedUrgency(disaster)) || 'Unknown';
+    if (!urgencyFilters[urgencyKey]) return false;
+    
+    return true;
+  });
 
   // Effect to refresh map view when data changes
   useEffect(() => {
@@ -484,19 +689,21 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
     return getDisasterInfo(eventType).name;
   };
 
-  // Helper function to determine marker color based on alert level
+  // Helper function to determine marker color based on alert level or severity
   const getAlertColor = (alertLevel) => {
     if (!alertLevel) return '#2196F3'; // Default blue
     
-    switch(alertLevel.toLowerCase()) {
-      case 'red':
-        return '#ff4444';
-      case 'orange':
-        return '#ffa500';
-      case 'green':
-        return '#4CAF50';
-      default:
-        return '#2196F3'; // Default blue
+    // Convert both traditional alert levels and CAP severity levels
+    const level = alertLevel.toLowerCase();
+    
+    if (level === 'red' || level === 'extreme' || level === 'severe') {
+      return '#ff4444';
+    } else if (level === 'orange' || level === 'moderate') {
+      return '#ffa500';
+    } else if (level === 'green' || level === 'minor') {
+      return '#4CAF50';
+    } else {
+      return '#2196F3'; // Default blue
     }
   };
 
@@ -505,6 +712,28 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
     setVisibleDisasterTypes(prev => ({
       ...prev,
       [type]: !prev[type]
+    }));
+  };
+  
+  // Helper functions for CAP filters
+  const toggleSeverityFilter = (severity) => {
+    setSeverityFilters(prev => ({
+      ...prev,
+      [severity]: !prev[severity]
+    }));
+  };
+  
+  const toggleCertaintyFilter = (certainty) => {
+    setCertaintyFilters(prev => ({
+      ...prev,
+      [certainty]: !prev[certainty]
+    }));
+  };
+  
+  const toggleUrgencyFilter = (urgency) => {
+    setUrgencyFilters(prev => ({
+      ...prev,
+      [urgency]: !prev[urgency]
     }));
   };
   
@@ -776,18 +1005,20 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
               flexDirection: 'column', 
               gap: '8px' 
             }}>
-              <button style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 15px',
-                borderRadius: '8px',
-                border: '1px solid #e0e0e0',
-                backgroundColor: '#f9f9f9',
-                cursor: 'pointer',
-                width: '100%',
-                textAlign: 'left'
-              }}>
+              <button 
+                onClick={() => handleDateFilterChange({ target: { value: '24h' }})}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 15px',
+                  borderRadius: '8px',
+                  border: dateFilter === '24h' ? '2px solid #2196F3' : '1px solid #e0e0e0',
+                  backgroundColor: dateFilter === '24h' ? '#e3f2fd' : '#f9f9f9',
+                  cursor: 'pointer',
+                  width: '100%',
+                  textAlign: 'left'
+                }}>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center'
@@ -826,18 +1057,20 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
                 </span>
               </button>
               
-              <button style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 15px',
-                borderRadius: '8px',
-                border: '1px solid #e0e0e0',
-                backgroundColor: '#f9f9f9',
-                cursor: 'pointer',
-                width: '100%',
-                textAlign: 'left'
-              }}>
+              <button 
+                onClick={() => handleDateFilterChange({ target: { value: '72h' }})}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 15px',
+                  borderRadius: '8px',
+                  border: dateFilter === '72h' ? '2px solid #2196F3' : '1px solid #e0e0e0',
+                  backgroundColor: dateFilter === '72h' ? '#e3f2fd' : '#f9f9f9',
+                  cursor: 'pointer',
+                  width: '100%',
+                  textAlign: 'left'
+                }}>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center'
@@ -876,18 +1109,20 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
                 </span>
               </button>
               
-              <button style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 15px',
-                borderRadius: '8px',
-                border: '1px solid #e0e0e0',
-                backgroundColor: '#f9f9f9',
-                cursor: 'pointer',
-                width: '100%',
-                textAlign: 'left'
-              }}>
+              <button 
+                onClick={() => handleDateFilterChange({ target: { value: 'all' }})}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 15px',
+                  borderRadius: '8px',
+                  border: dateFilter === 'all' ? '2px solid #2196F3' : '1px solid #e0e0e0',
+                  backgroundColor: dateFilter === 'all' ? '#e3f2fd' : '#f9f9f9',
+                  cursor: 'pointer',
+                  width: '100%',
+                  textAlign: 'left'
+                }}>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center'
@@ -921,6 +1156,203 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
                   {disasters.length}
                 </span>
               </button>
+            </div>
+          </div>
+          
+          {/* Severity Filter Section */}
+          <div className="drawer-section">
+            <div style={{ 
+              fontWeight: 'bold', 
+              marginBottom: '12px', 
+              fontSize: '15px', 
+              display: 'flex',
+              alignItems: 'center',
+              borderBottom: '2px solid #f5f5f5',
+              paddingBottom: '10px',
+              marginTop: '20px'
+            }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+                <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              SEVERITY FILTER
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {Object.keys(severityFilters).map(severity => (
+                <div key={severity} style={{ display: 'flex', alignItems: 'center', padding: '8px 0' }}>
+                  <div 
+                    onClick={() => toggleSeverityFilter(severity)}
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      border: '2px solid #e0e0e0',
+                      borderRadius: '4px',
+                      marginRight: '10px',
+                      backgroundColor: severityFilters[severity] ? '#2196F3' : 'transparent',
+                      position: 'relative',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {severityFilters[severity] && (
+                      <span style={{ 
+                        position: 'absolute', 
+                        color: 'white', 
+                        fontSize: '16px', 
+                        top: '-2px', 
+                        left: '2px' 
+                      }}>✓</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                    <span>{severity}</span>
+                    <span style={{ 
+                      fontSize: '12px', 
+                      backgroundColor: '#e3f2fd', 
+                      padding: '2px 8px', 
+                      borderRadius: '12px',
+                      color: '#1976D2'
+                    }}>
+                      {disasters.filter(d => {
+                        const normSeverity = getNormalizedSeverity(d);
+                        return severity.toLowerCase() === normSeverity;
+                      }).length}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Certainty Filter Section */}
+          <div className="drawer-section">
+            <div style={{ 
+              fontWeight: 'bold', 
+              marginBottom: '12px', 
+              fontSize: '15px', 
+              display: 'flex',
+              alignItems: 'center',
+              borderBottom: '2px solid #f5f5f5',
+              paddingBottom: '10px',
+              marginTop: '20px'
+            }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+              CERTAINTY FILTER
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {Object.keys(certaintyFilters).map(certainty => (
+                <div key={certainty} style={{ display: 'flex', alignItems: 'center', padding: '8px 0' }}>
+                  <div 
+                    onClick={() => toggleCertaintyFilter(certainty)}
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      border: '2px solid #e0e0e0',
+                      borderRadius: '4px',
+                      marginRight: '10px',
+                      backgroundColor: certaintyFilters[certainty] ? '#2196F3' : 'transparent',
+                      position: 'relative',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {certaintyFilters[certainty] && (
+                      <span style={{ 
+                        position: 'absolute', 
+                        color: 'white', 
+                        fontSize: '16px', 
+                        top: '-2px', 
+                        left: '2px' 
+                      }}>✓</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                    <span>{certainty}</span>
+                    <span style={{ 
+                      fontSize: '12px', 
+                      backgroundColor: '#e3f2fd', 
+                      padding: '2px 8px', 
+                      borderRadius: '12px',
+                      color: '#1976D2'
+                    }}>
+                      {disasters.filter(d => {
+                        const normCertainty = getNormalizedCertainty(d);
+                        return certainty.toLowerCase() === normCertainty;
+                      }).length}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Urgency Filter Section */}
+          <div className="drawer-section">
+            <div style={{ 
+              fontWeight: 'bold', 
+              marginBottom: '12px', 
+              fontSize: '15px', 
+              display: 'flex',
+              alignItems: 'center',
+              borderBottom: '2px solid #f5f5f5',
+              paddingBottom: '10px',
+              marginTop: '20px'
+            }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffa500" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="6" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              URGENCY FILTER
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {Object.keys(urgencyFilters).map(urgency => (
+                <div key={urgency} style={{ display: 'flex', alignItems: 'center', padding: '8px 0' }}>
+                  <div 
+                    onClick={() => toggleUrgencyFilter(urgency)}
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      border: '2px solid #e0e0e0',
+                      borderRadius: '4px',
+                      marginRight: '10px',
+                      backgroundColor: urgencyFilters[urgency] ? '#2196F3' : 'transparent',
+                      position: 'relative',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {urgencyFilters[urgency] && (
+                      <span style={{ 
+                        position: 'absolute', 
+                        color: 'white', 
+                        fontSize: '16px', 
+                        top: '-2px', 
+                        left: '2px' 
+                      }}>✓</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                    <span>{urgency}</span>
+                    <span style={{ 
+                      fontSize: '12px', 
+                      backgroundColor: '#e3f2fd', 
+                      padding: '2px 8px', 
+                      borderRadius: '12px',
+                      color: '#1976D2'
+                    }}>
+                      {disasters.filter(d => {
+                        const normUrgency = getNormalizedUrgency(d);
+                        return urgency.toLowerCase() === normUrgency;
+                      }).length}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
