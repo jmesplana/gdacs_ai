@@ -91,11 +91,20 @@ def fetch_gdacs_cap_data():
                         parameters[name.text] = value.text
                 
                 # Create disaster object
+                # Extract web URL from CAP info if available
+                web_url = cap_info.find('.//cap:web', namespaces)
+                web_link = web_url.text if web_url is not None else link
+                
+                # Find web URL from parameters if not found directly
+                if web_link == link and 'link' in parameters:
+                    web_link = parameters['link']
+                
                 disaster = {
                     'title': title,
                     'description': description,
                     'pubDate': pub_date,
-                    'link': link,
+                    'link': link,  # Original link from RSS
+                    'webUrl': web_link,  # Web URL for viewing in browser
                     'guid': guid,
                     'latitude': float(lat.text) if lat is not None and lat.text else None,
                     'longitude': float(lon.text) if lon is not None and lon.text else None,

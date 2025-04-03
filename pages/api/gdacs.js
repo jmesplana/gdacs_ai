@@ -175,11 +175,52 @@ export default async function handler(req, res) {
       
       console.log(`Processed disaster: type=${gdacsEventType}, severity=${severity}, polygon points=${polygon.length}`);
       
+      // Extract proper web URL from CAP data
+      let webUrl = '';
+      
+      // First check if web URL is in cap:web
+      if (item['cap:alert'] && item['cap:alert']['cap:info']) {
+        const capInfo = Array.isArray(item['cap:alert']['cap:info']) 
+          ? item['cap:alert']['cap:info'][0] 
+          : item['cap:alert']['cap:info'];
+          
+        if (capInfo['cap:web']) {
+          webUrl = capInfo['cap:web'];
+        }
+      }
+      
+      // Then check if it's in parameters with valueName="link"
+      if (!webUrl && item['cap:alert'] && item['cap:alert']['cap:info']) {
+        const capInfo = Array.isArray(item['cap:alert']['cap:info']) 
+          ? item['cap:alert']['cap:info'][0] 
+          : item['cap:alert']['cap:info'];
+          
+        if (capInfo['cap:parameter']) {
+          const parameters = Array.isArray(capInfo['cap:parameter']) 
+            ? capInfo['cap:parameter'] 
+            : [capInfo['cap:parameter']];
+            
+          const linkParam = parameters.find(param => 
+            param['cap:valueName'] === 'link'
+          );
+          
+          if (linkParam && linkParam['cap:value']) {
+            webUrl = linkParam['cap:value'];
+          }
+        }
+      }
+      
+      // If no proper web URL found, use the original link
+      if (!webUrl) {
+        webUrl = item.link || '';
+      }
+      
       return {
         title: item.title || '',
         description: item.description || '',
         pubDate: item.pubDate || '',
         link: item.link || '',
+        webUrl: webUrl,
         latitude: geoLat ? parseFloat(geoLat) : null,
         longitude: geoLong ? parseFloat(geoLong) : null,
         alertLevel: gdacsAlertLevel,

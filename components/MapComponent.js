@@ -7,6 +7,136 @@ import 'leaflet/dist/leaflet.css';
 import * as XLSX from 'xlsx';
 import ReactMarkdown from 'react-markdown';
 
+// Custom Heatmap component
+const HeatmapLayer = ({ disasters }) => {
+  const map = useMap();
+  const heatLayerRef = useRef(null);
+  
+  useEffect(() => {
+    if (!disasters || disasters.length === 0) return;
+    
+    // Create points array for the heatmap
+    const points = disasters
+      .filter(d => d.latitude && d.longitude)
+      .map(disaster => {
+        // Determine intensity based on severity
+        let intensity = 0.5; // Default
+        const severity = (disaster.severity || disaster.alertLevel || '').toLowerCase();
+        
+        if (severity.includes('extreme')) intensity = 1.0;
+        else if (severity.includes('severe')) intensity = 0.8;
+        else if (severity.includes('moderate')) intensity = 0.6;
+        else if (severity.includes('minor')) intensity = 0.4;
+        
+        return [
+          parseFloat(disaster.latitude),
+          parseFloat(disaster.longitude),
+          intensity // Weight value
+        ];
+      });
+    
+    // Create the heatmap layer and update when zoom changes
+    const updateHeatmap = () => {
+      if (heatLayerRef.current) {
+        // Remove old layer
+        map.removeLayer(heatLayerRef.current);
+      }
+      
+      // Get current zoom level to scale the circles appropriately
+      const zoom = map.getZoom();
+      
+      // Base radius gets larger as zoom level decreases (zoomed out)
+      // At zoom level 2 (world view), use large circles
+      // At zoom level 10 (city view), use smaller circles
+      const getBaseRadius = () => {
+        if (zoom <= 2) return 500000;       // Very zoomed out (world view)
+        if (zoom <= 4) return 300000;       // Continental view
+        if (zoom <= 6) return 200000;       // Country view
+        if (zoom <= 8) return 100000;       // Regional view
+        return 50000;                       // City view or closer
+      };
+      
+      // Create a feature group to hold all the heat circles
+      const heatLayer = L.featureGroup();
+      
+      // Add circles for each point
+      points.forEach(point => {
+        const [lat, lng, intensity] = point;
+        
+        // For better visibility at all zoom levels, add multiple circles
+        // with different sizes and opacities
+        
+        // Large, very transparent outer circle
+        const outerCircle = L.circle([lat, lng], {
+          radius: getBaseRadius() * 2.5 * intensity,
+          color: 'rgba(255, 0, 0, 0)',
+          fillColor: '#ff9500',
+          fillOpacity: 0.1 * intensity,
+          stroke: false,
+          interactive: false
+        });
+        
+        // Medium, semi-transparent middle circle
+        const midCircle = L.circle([lat, lng], {
+          radius: getBaseRadius() * 1.5 * intensity,
+          color: 'rgba(255, 0, 0, 0)',
+          fillColor: '#ff7800',
+          fillOpacity: 0.2 * intensity,
+          stroke: false,
+          interactive: false
+        });
+        
+        // Small, more opaque inner circle for the hotspot
+        const innerCircle = L.circle([lat, lng], {
+          radius: getBaseRadius() * intensity,
+          color: 'rgba(255, 0, 0, 0)',
+          fillColor: '#ff5500',
+          fillOpacity: 0.4 * intensity,
+          stroke: false,
+          interactive: false
+        });
+        
+        heatLayer.addLayer(outerCircle);
+        heatLayer.addLayer(midCircle);
+        heatLayer.addLayer(innerCircle);
+      });
+      
+      // Add the heatmap to the map
+      heatLayer.addTo(map);
+      heatLayerRef.current = heatLayer;
+    };
+    
+    // Initial creation
+    updateHeatmap();
+    
+    // Update when zoom changes
+    map.on('zoomend', updateHeatmap);
+    
+    // Cleanup function
+    return () => {
+      map.off('zoomend', updateHeatmap);
+      if (heatLayerRef.current) {
+        map.removeLayer(heatLayerRef.current);
+      }
+    };
+  }, [map, disasters]);
+  
+  return null;
+};
+
+// Custom hook to access the map instance
+const MapAccess = ({ onMapReady }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (map && onMapReady) {
+      onMapReady(map);
+    }
+  }, [map, onMapReady]);
+  
+  return null;
+};
+
 // Component to add disaster markers directly to the map
 const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
   const map = useMap();
@@ -93,7 +223,7 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
                 <span>${disaster.pubDate}</span>
               </div>
               <p style="margin-top: 8px;">${disaster.description}</p>
-              <a href="${disaster.link}" target="_blank" style="display: inline-block; margin-top: 8px; color: #2196F3; text-decoration: none; font-weight: bold;">
+              <a href="${disaster.webUrl || disaster.link}" target="_blank" style="display: inline-block; margin-top: 8px; color: #2196F3; text-decoration: none; font-weight: bold;">
                 View on GDACS →
               </a>
             </div>
@@ -295,6 +425,9 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
 
 const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySelect, loading, dateFilter, handleDateFilterChange, onDrawerState, onGenerateSitrep, sitrepLoading, sitrep }) => {
   const mapRef = useRef(null);
+  const [mapInstance, setMapInstance] = useState(null);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   const [visibleDisasterTypes, setVisibleDisasterTypes] = useState({
     eq: true,
     tc: true,
@@ -304,6 +437,15 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
     wf: true,
     ts: true
   });
+  
+  // Show zoom indicator when date filter changes
+  // This useEffect runs when dateFilter prop changes
+  useEffect(() => {
+    // Don't show on initial render
+    if (dateFilter) {
+      setShowZoomIndicator(true);
+    }
+  }, [dateFilter]);
   // Add CAP filters
   const [severityFilters, setSeverityFilters] = useState({
     'Extreme': true,
@@ -369,6 +511,108 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
     const urgency = (disaster.urgency || '').toLowerCase();
     if (!urgency) return 'unknown';
     return urgency;
+  };
+  
+  // Handler function for when the map instance is ready
+  const handleMapReady = (map) => {
+    console.log("Map instance is ready");
+    setMapInstance(map);
+  };
+  
+  // Function to zoom the map to fit all filtered disasters
+  const zoomToFilteredEvents = (disasters) => {
+    console.log("Zoom to fit called");
+    
+    if (!mapInstance || !disasters || disasters.length === 0) {
+      console.log("No map instance or no disasters to fit");
+      return;
+    }
+    
+    // Create bounds object
+    const bounds = L.latLngBounds();
+    let pointsAdded = 0;
+    
+    console.log(`Processing ${disasters.length} disasters for zoom bounds`);
+    
+    // Add all disaster points to bounds
+    disasters.forEach(disaster => {
+      if (disaster.latitude != null && disaster.longitude != null) {
+        const lat = parseFloat(disaster.latitude);
+        const lng = parseFloat(disaster.longitude);
+        
+        if (!isNaN(lat) && !isNaN(lng)) {
+          bounds.extend([lat, lng]);
+          pointsAdded++;
+        }
+      }
+      
+      // If disaster has polygon, add all polygon points to bounds
+      if (disaster.polygon && Array.isArray(disaster.polygon) && disaster.polygon.length > 0) {
+        disaster.polygon.forEach(point => {
+          if (Array.isArray(point) && point.length === 2) {
+            const lat = parseFloat(point[0]);
+            const lng = parseFloat(point[1]);
+            
+            if (!isNaN(lat) && !isNaN(lng)) {
+              bounds.extend([lat, lng]);
+              pointsAdded++;
+            }
+          }
+        });
+      }
+    });
+    
+    // Also add facility locations to the bounds if any are impacted
+    if (facilities && facilities.length > 0) {
+      console.log(`Adding ${facilities.length} facilities to bounds`);
+      
+      facilities.forEach(facility => {
+        if (facility.latitude != null && facility.longitude != null) {
+          const lat = parseFloat(facility.latitude);
+          const lng = parseFloat(facility.longitude);
+          
+          if (!isNaN(lat) && !isNaN(lng)) {
+            bounds.extend([lat, lng]);
+            pointsAdded++;
+          }
+        }
+      });
+    }
+    
+    console.log(`Added ${pointsAdded} points to bounds`);
+    
+    // Check if bounds are valid
+    if (bounds.isValid()) {
+      console.log("Bounds are valid, fitting map to bounds");
+      
+      try {
+        // Use the direct map instance from our state
+        mapInstance.fitBounds(bounds, {
+          padding: [50, 50],
+          maxZoom: 8,
+          animate: true,
+          duration: 0.5
+        });
+        console.log("Map fitted to bounds");
+      } catch (error) {
+        console.error("Error fitting bounds:", error);
+      }
+    } else {
+      console.log("Bounds are not valid, cannot fit map");
+      
+      // If no valid bounds but we have disasters, at least center on the first one
+      if (disasters.length > 0 && disasters[0].latitude && disasters[0].longitude) {
+        const center = [
+          parseFloat(disasters[0].latitude),
+          parseFloat(disasters[0].longitude)
+        ];
+        
+        if (!isNaN(center[0]) && !isNaN(center[1])) {
+          mapInstance.setView(center, 5);
+          console.log("Centered map on first disaster");
+        }
+      }
+    }
   };
   
   // Filter disasters based on all selected filters
@@ -713,6 +957,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
       ...prev,
       [type]: !prev[type]
     }));
+    setShowZoomIndicator(true); // Show zoom indicator when filter changes
   };
   
   // Helper functions for CAP filters
@@ -721,6 +966,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
       ...prev,
       [severity]: !prev[severity]
     }));
+    setShowZoomIndicator(true); // Show zoom indicator when filter changes
   };
   
   const toggleCertaintyFilter = (certainty) => {
@@ -728,6 +974,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
       ...prev,
       [certainty]: !prev[certainty]
     }));
+    setShowZoomIndicator(true); // Show zoom indicator when filter changes
   };
   
   const toggleUrgencyFilter = (urgency) => {
@@ -735,6 +982,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
       ...prev,
       [urgency]: !prev[urgency]
     }));
+    setShowZoomIndicator(true); // Show zoom indicator when filter changes
   };
   
   // Get available disaster types from current disaster data
@@ -754,8 +1002,23 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
     return <div className="loading">Loading disaster data...</div>;
   }
 
+  // Add CSS animation for the pulsing effect
+  const pulseAnimation = `
+    @keyframes pulse {
+      0% {
+        transform: translateX(-100%);
+      }
+      100% {
+        transform: translateX(100%);
+      }
+    }
+  `;
+  
   return (
     <div className="map-container">
+      {/* Add style for animations */}
+      <style>{pulseAnimation}</style>
+      
       {/* Floating action buttons */}
       <button 
         className="drawer-toggle drawer-toggle-right"
@@ -808,6 +1071,326 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
           <button className="drawer-close" onClick={toggleFilterDrawer}>×</button>
         </div>
         <div className="drawer-content">
+          {/* Visualization Options */}
+          <div className="drawer-section">
+            <div style={{ 
+              fontWeight: 'bold', 
+              marginBottom: '12px', 
+              fontSize: '15px', 
+              display: 'flex',
+              alignItems: 'center',
+              borderBottom: '2px solid #f5f5f5',
+              paddingBottom: '10px'
+            }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF9800" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+                <path d="M21 2H3v16h5v4l4-4h5l4-4V2zM11 11V7M16 11V7"></path>
+              </svg>
+              VISUALIZATION OPTIONS
+            </div>
+            
+            <div style={{ 
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: '#f9f9f9',
+              borderRadius: '8px',
+              marginBottom: '15px',
+              overflow: 'hidden'
+            }}>
+              {/* Heatmap Toggle Row */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderBottom: showHeatmap ? '1px dashed #e0e0e0' : 'none'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF9800" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <circle cx="15.5" cy="8.5" r="1.5"></circle>
+                    <circle cx="15.5" cy="15.5" r="1.5"></circle>
+                    <circle cx="8.5" cy="15.5" r="1.5"></circle>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>Heatmap View</span>
+                </div>
+                <div 
+                  onClick={() => setShowHeatmap(!showHeatmap)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showHeatmap ? '#FF9800' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div 
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      backgroundColor: 'white',
+                      borderRadius: '50%',
+                      position: 'absolute',
+                      top: '2px',
+                      left: showHeatmap ? '22px' : '2px',
+                      transition: 'left 0.3s'
+                    }}
+                  ></div>
+                </div>
+              </div>
+              
+              {/* Heatmap explanation - shown only when heatmap is active */}
+              {showHeatmap && (
+                <div style={{ 
+                  padding: '12px',
+                  backgroundColor: '#fff8e1',
+                  fontSize: '12px',
+                  lineHeight: '1.4',
+                  color: '#795548'
+                }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>About Heatmap Visualization:</div>
+                  <ul style={{ margin: '0', paddingLeft: '20px' }}>
+                    <li>Shows disaster concentration areas</li>
+                    <li>Larger, brighter spots indicate more severe events</li>
+                    <li>Circles automatically resize based on zoom level</li>
+                    <li>Intensity varies by event severity:<br />
+                      <span style={{ color: '#d32f2f' }}>■</span> Extreme 
+                      <span style={{ color: '#f57c00', marginLeft: '5px' }}>■</span> Severe 
+                      <span style={{ color: '#ffa000', marginLeft: '5px' }}>■</span> Moderate 
+                      <span style={{ color: '#ffc107', marginLeft: '5px' }}>■</span> Minor
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </div>
+            
+            {/* Map Legend Control */}
+            <div style={{ 
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: '#e3f2fd',
+              borderRadius: '8px',
+              marginBottom: '15px',
+              overflow: 'hidden'
+            }}>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderBottom: showLegend ? '1px dashed #e0e0e0' : 'none'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="9" y1="3" x2="9" y2="21"></line>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>Map Legend</span>
+                </div>
+                <div 
+                  onClick={() => setShowLegend(!showLegend)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showLegend ? '#2196F3' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div 
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      backgroundColor: 'white',
+                      borderRadius: '50%',
+                      position: 'absolute',
+                      top: '2px',
+                      left: showLegend ? '22px' : '2px',
+                      transition: 'left 0.3s'
+                    }}
+                  ></div>
+                </div>
+              </div>
+              
+              {/* Legend explanation - shown only when legend is active */}
+              {showLegend && (
+                <div style={{ 
+                  padding: '12px',
+                  backgroundColor: '#fff',
+                  fontSize: '12px',
+                  lineHeight: '1.4',
+                  color: '#555'
+                }}>
+                  <div style={{ marginBottom: '10px' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#333' }}>Disaster Representation:</div>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ 
+                        width: '20px', 
+                        height: '20px', 
+                        borderRadius: '50%', 
+                        border: '3px solid #ff5722',
+                        marginRight: '8px',
+                        position: 'relative'
+                      }}>
+                        <div style={{ position: 'absolute', top: '2px', left: '2px', width: '12px', height: '12px', backgroundColor: 'white', borderRadius: '50%' }}></div>
+                      </div>
+                      <span>Disaster point location</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ 
+                        width: '24px', 
+                        height: '18px', 
+                        backgroundColor: 'rgba(255, 87, 34, 0.2)',
+                        border: '1px solid rgba(255, 87, 34, 0.5)',
+                        marginRight: '8px',
+                        borderRadius: '3px'
+                      }}></div>
+                      <span>Impact polygon (from official data)</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <div style={{ 
+                        width: '20px', 
+                        height: '20px', 
+                        border: '1px dashed rgba(255, 87, 34, 0.7)',
+                        borderRadius: '50%',
+                        marginRight: '8px'
+                      }}></div>
+                      <span>Estimated impact radius (when polygon unavailable)</span>
+                    </div>
+                  </div>
+                  
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#333' }}>Facility Status:</div>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
+                      <div style={{ 
+                        width: '12px', 
+                        height: '12px', 
+                        backgroundColor: '#4CAF50',
+                        borderRadius: '50%',
+                        marginRight: '8px'
+                      }}></div>
+                      <span>Safe facility</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <div style={{ 
+                        width: '12px', 
+                        height: '12px', 
+                        backgroundColor: '#ff4444',
+                        borderRadius: '50%',
+                        marginRight: '8px'
+                      }}></div>
+                      <span>Impacted facility</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#333' }}>Alert Levels:</div>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
+                      <div style={{ 
+                        width: '12px', 
+                        height: '12px', 
+                        backgroundColor: '#ff4444',
+                        marginRight: '8px'
+                      }}></div>
+                      <span>Red alert (severe impact)</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
+                      <div style={{ 
+                        width: '12px', 
+                        height: '12px', 
+                        backgroundColor: '#ffa500',
+                        marginRight: '8px'
+                      }}></div>
+                      <span>Orange alert (moderate impact)</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <div style={{ 
+                        width: '12px', 
+                        height: '12px', 
+                        backgroundColor: '#4CAF50',
+                        marginRight: '8px'
+                      }}></div>
+                      <span>Green alert (minor impact)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Zoom to Fit Control */}
+            <div style={{ 
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px',
+              backgroundColor: '#f1f8e9',
+              borderRadius: '8px',
+              marginBottom: '15px',
+              border: '1px solid #dcedc8'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  <line x1="8" y1="11" x2="14" y2="11"></line>
+                  <line x1="11" y1="8" x2="11" y2="14"></line>
+                </svg>
+                <span style={{ fontWeight: 'bold' }}>Zoom to Filtered Events</span>
+              </div>
+              <button 
+                onClick={() => {
+                  zoomToFilteredEvents(filteredDisasters);
+                  setShowZoomIndicator(false); // Hide indicator after zooming
+                }}
+                style={{
+                  backgroundColor: showZoomIndicator ? '#FF9800' : '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'background-color 0.3s'
+                }}
+              >
+                {showZoomIndicator && (
+                  <span style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'linear-gradient(90deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0.1) 100%)',
+                    animation: 'pulse 1.5s infinite',
+                    zIndex: 0
+                  }}></span>
+                )}
+                <span style={{ 
+                  display: 'flex', 
+                  alignItems: 'center',
+                  position: 'relative',
+                  zIndex: 1
+                }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
+                    <path d="M15 3h6v6"></path>
+                    <path d="M10 14L21 3"></path>
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  </svg>
+                  {showZoomIndicator ? 'Update View' : 'Fit View'}
+                </span>
+              </button>
+            </div>
+          </div>
+          
+          {/* Disaster Type Filters */}
           <div className="drawer-section">
             <div style={{ 
               fontWeight: 'bold', 
@@ -2043,18 +2626,27 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
         style={{ height: '100%', width: '100%' }}
         ref={mapRef}
       >
+        {/* Get access to map instance */}
+        <MapAccess onMapReady={handleMapReady} />
+        
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
+        {/* Heatmap layer for disaster concentration */}
+        {showHeatmap && filteredDisasters.length > 0 && (
+          <HeatmapLayer disasters={filteredDisasters} />
+        )}
         
         {/* Add disaster markers directly to the map */}
-        <DisasterMarkers 
-          disasters={filteredDisasters}
-          getDisasterInfo={getDisasterInfo}
-          getAlertColor={getAlertColor}
-        />
+        {!showHeatmap && (
+          <DisasterMarkers 
+            disasters={filteredDisasters}
+            getDisasterInfo={getDisasterInfo}
+            getAlertColor={getAlertColor}
+          />
+        )}
         
         {/* No need to render duplicate disaster markers - the DisasterMarkers component handles this */}
         
