@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap, ZIndex } from 'react-leaflet';
@@ -423,11 +423,524 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
   return null;
 };
 
-const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySelect, loading, dateFilter, handleDateFilterChange, onDrawerState, onGenerateSitrep, sitrepLoading, sitrep }) => {
+// Statistics panel component 
+const StatisticsPanel = ({ statistics }) => {
+  if (!statistics) return null;
+  
+  // Function to stop event propagation for all mouse/touch events
+  const stopPropagation = (e) => {
+    e.stopPropagation();
+    e.nativeEvent?.stopImmediatePropagation?.();
+  };
+  
+  return (
+    <div 
+      onClick={stopPropagation}
+      onMouseDown={stopPropagation}
+      onMouseMove={stopPropagation}
+      onTouchStart={stopPropagation}
+      onTouchMove={stopPropagation}
+      onWheel={stopPropagation}
+      style={{
+        backgroundColor: 'white',
+        padding: '15px 20px',
+        borderRadius: '8px',
+        boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
+        width: '100%',
+        maxHeight: '80vh',
+        overflowY: 'auto',
+        marginBottom: '10px',
+        border: '1px solid rgba(244, 67, 54, 0.3)',
+        pointerEvents: 'auto'
+      }}
+    >
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '15px',
+        borderBottom: '2px solid #f5f5f5',
+        paddingBottom: '10px'
+      }}>
+        <div style={{
+          fontWeight: 'bold',
+          fontSize: '14px',
+          display: 'flex',
+          alignItems: 'center'
+        }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F44336" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+            <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+          </svg>
+          IMPACT ANALYSIS
+        </div>
+      </div>
+      
+      {/* Summary statistics */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          marginBottom: '10px',
+          backgroundColor: '#f9f9f9',
+          padding: '10px',
+          borderRadius: '6px'
+        }}>
+          <div style={{ 
+            textAlign: 'center', 
+            flex: 1,
+            borderRight: '1px solid #eee',
+            padding: '0 10px'
+          }}>
+            <div style={{ fontSize: '12px', color: '#666' }}>DISASTERS</div>
+            <div style={{ 
+              fontSize: '20px', 
+              fontWeight: 'bold',
+              color: '#2196F3'
+            }}>{statistics.totalDisasters}</div>
+          </div>
+          <div style={{ 
+            textAlign: 'center', 
+            flex: 1,
+            borderRight: '1px solid #eee',
+            padding: '0 10px'
+          }}>
+            <div style={{ fontSize: '12px', color: '#666' }}>FACILITIES</div>
+            <div style={{ 
+              fontSize: '20px', 
+              fontWeight: 'bold',
+              color: '#4CAF50'
+            }}>{statistics.totalFacilities}</div>
+          </div>
+          <div style={{ 
+            textAlign: 'center', 
+            flex: 1,
+            padding: '0 10px'
+          }}>
+            <div style={{ fontSize: '12px', color: '#666' }}>IMPACTED</div>
+            <div style={{ 
+              fontSize: '20px', 
+              fontWeight: 'bold',
+              color: '#F44336'
+            }}>{statistics.impactedFacilityCount} ({statistics.percentageImpacted}%)</div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Disaster Statistics */}
+      {statistics.disasterStats && statistics.disasterStats.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ 
+            fontSize: '13px', 
+            fontWeight: 'bold', 
+            marginBottom: '10px',
+            display: 'flex',
+            alignItems: 'center'
+          }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F44336" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}>
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12" y2="16"></line>
+            </svg>
+            DISASTER IMPACT DETAILS
+          </div>
+          <div 
+            onClick={stopPropagation}
+            onMouseDown={stopPropagation}
+            onMouseMove={stopPropagation}
+            onTouchStart={stopPropagation}
+            onTouchMove={stopPropagation}
+            onWheel={stopPropagation}
+            style={{ 
+              maxHeight: '200px',
+              overflowY: 'auto',
+              border: '1px solid #eee',
+              borderRadius: '4px'
+            }}
+          >
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse',
+              fontSize: '12px'
+            }}>
+              <thead style={{ 
+                position: 'sticky',
+                top: 0,
+                backgroundColor: '#f5f5f5'
+              }}>
+                <tr>
+                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Disaster</th>
+                  <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Type</th>
+                  <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Severity</th>
+                  <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Impact Area</th>
+                  <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Facilities</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statistics.disasterStats.map((disaster, index) => (
+                  <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#f9f9f9' }}>
+                    <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{disaster.name}</td>
+                    <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #eee' }}>{disaster.type}</td>
+                    <td style={{ 
+                      padding: '8px', 
+                      textAlign: 'center', 
+                      borderBottom: '1px solid #eee',
+                      color: disaster.alertLevel?.toLowerCase() === 'red' ? '#d32f2f' : 
+                            disaster.alertLevel?.toLowerCase() === 'orange' ? '#ff9800' : 
+                            disaster.alertLevel?.toLowerCase() === 'green' ? '#4caf50' : '#757575'
+                    }}>{disaster.severity}</td>
+                    <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #eee' }}>
+                      {disaster.impactArea} km²
+                      {disaster.polygon && <span style={{ 
+                        fontSize: '10px', 
+                        color: '#2196F3',
+                        backgroundColor: '#e3f2fd',
+                        padding: '1px 4px',
+                        borderRadius: '3px',
+                        marginLeft: '4px'
+                      }}>POLYGON</span>}
+                    </td>
+                    <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #eee', fontWeight: 'bold', color: '#F44336' }}>
+                      {disaster.affectedFacilities}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      
+      {/* Overlapping Disasters */}
+      {statistics.overlappingImpacts && statistics.overlappingImpacts.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ 
+            fontSize: '13px', 
+            fontWeight: 'bold', 
+            marginBottom: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            color: '#d32f2f'
+          }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}>
+              <circle cx="18" cy="18" r="3"></circle>
+              <circle cx="6" cy="6" r="3"></circle>
+              <path d="M13 6h3a2 2 0 0 1 2 2v7"></path>
+              <line x1="6" y1="9" x2="6" y2="21"></line>
+            </svg>
+            OVERLAPPING DISASTER IMPACTS ({statistics.overlappingImpacts.length})
+          </div>
+          <div 
+            onClick={stopPropagation}
+            onMouseDown={stopPropagation}
+            onMouseMove={stopPropagation}
+            onTouchStart={stopPropagation}
+            onTouchMove={stopPropagation}
+            onWheel={stopPropagation}
+            style={{ 
+              maxHeight: '200px',
+              overflowY: 'auto',
+              border: '1px solid #ffcdd2',
+              borderRadius: '4px',
+              backgroundColor: '#ffebee'
+            }}
+          >
+            {statistics.overlappingImpacts.map((overlap, index) => (
+              <div key={index} style={{ 
+                padding: '10px', 
+                borderBottom: index < statistics.overlappingImpacts.length - 1 ? '1px solid #ffcdd2' : 'none',
+                fontSize: '12px'
+              }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                  {overlap.disasters[0]} + {overlap.disasters[1]}
+                </div>
+                <div style={{ color: '#555' }}>
+                  Impacting {overlap.facilities.length} {overlap.facilities.length === 1 ? 'facility' : 'facilities'}:
+                </div>
+                <div style={{ 
+                  display: 'flex', 
+                  flexWrap: 'wrap', 
+                  gap: '5px',
+                  marginTop: '5px'
+                }}>
+                  {overlap.facilities.map((facility, fidx) => (
+                    <span key={fidx} style={{
+                      backgroundColor: '#fff',
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      fontSize: '11px',
+                      border: '1px solid #ffcdd2'
+                    }}>{facility}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Timeline component for disaster progression
+const TimelineVisualization = ({ disasters, onTimeChange }) => {
+  const [timelinePosition, setTimelinePosition] = useState(100); // Default to 100% (present)
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const playRef = useRef(null);
+  
+  // Extract dates and sort them
+  const timelineDates = useMemo(() => {
+    if (!disasters || disasters.length === 0) return [];
+    
+    return disasters
+      .filter(d => d.pubDate)
+      .map(d => new Date(d.pubDate))
+      .sort((a, b) => a - b);
+  }, [disasters]);
+  
+  // Get earliest and latest dates
+  const earliestDate = useMemo(() => 
+    timelineDates.length > 0 ? timelineDates[0] : new Date(), 
+  [timelineDates]);
+  
+  const latestDate = useMemo(() => 
+    timelineDates.length > 0 ? timelineDates[timelineDates.length - 1] : new Date(), 
+  [timelineDates]);
+  
+  // Calculate current date based on timeline position
+  const currentDate = useMemo(() => {
+    if (timelineDates.length === 0) return new Date();
+    
+    // Calculate date based on position percentage
+    const timeSpan = latestDate - earliestDate;
+    const timeOffset = timeSpan * (timelinePosition / 100);
+    return new Date(earliestDate.getTime() + timeOffset);
+  }, [earliestDate, latestDate, timelinePosition, timelineDates]);
+  
+  // Handle slider change
+  const handleTimelineChange = (e) => {
+    // Stop event propagation to prevent map dragging
+    e.stopPropagation();
+    
+    const newPosition = parseFloat(e.target.value);
+    setTimelinePosition(newPosition);
+    
+    // Filter disasters up to current date
+    if (onTimeChange) {
+      onTimeChange(currentDate);
+    }
+  };
+  
+  // Handle play/pause
+  const togglePlay = (e) => {
+    // Stop map interaction
+    if (e) e.stopPropagation();
+    setPlaying(!playing);
+  };
+  
+  // Play timeline animation effect
+  useEffect(() => {
+    if (playing) {
+      playRef.current = setInterval(() => {
+        setTimelinePosition(prev => {
+          const next = prev + (0.2 * speed);
+          if (next >= 100) {
+            setPlaying(false);
+            return 100;
+          }
+          return next;
+        });
+      }, 50);
+    } else if (playRef.current) {
+      clearInterval(playRef.current);
+    }
+    
+    return () => {
+      if (playRef.current) {
+        clearInterval(playRef.current);
+      }
+    };
+  }, [playing, speed]);
+  
+  // Update filtered disasters when timeline changes
+  useEffect(() => {
+    if (onTimeChange) {
+      onTimeChange(currentDate);
+    }
+  }, [currentDate, onTimeChange]);
+  
+  // Format date for display
+  const formatDate = (date) => {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  
+  return (
+    <div 
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseMove={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      style={{
+        backgroundColor: 'white',
+        padding: '15px 20px',
+        borderRadius: '8px',
+        boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
+        width: '100%',
+        marginBottom: '10px',
+        border: '1px solid rgba(33, 150, 243, 0.3)',
+        pointerEvents: 'auto'
+      }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '8px'
+      }}>
+        <div style={{
+          fontWeight: 'bold',
+          fontSize: '14px',
+          display: 'flex',
+          alignItems: 'center'
+        }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F44336" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          DISASTER TIMELINE
+        </div>
+        <div style={{
+          display: 'flex',
+          gap: '8px',
+          alignItems: 'center'
+        }}>
+          <button 
+            onClick={(e) => togglePlay(e)}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: playing ? '#f44336' : '#4CAF50',
+              border: 'none',
+              borderRadius: '4px',
+              color: 'white',
+              padding: '4px 8px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+          >
+            {playing ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}>
+                  <rect x="6" y="4" width="4" height="16"></rect>
+                  <rect x="14" y="4" width="4" height="16"></rect>
+                </svg>
+                PAUSE
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}>
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                PLAY
+              </>
+            )}
+          </button>
+          <select
+            value={speed}
+            onChange={(e) => {
+              e.stopPropagation();
+              setSpeed(Number(e.target.value));
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              padding: '4px',
+              fontSize: '12px'
+            }}
+          >
+            <option value={0.5}>0.5x</option>
+            <option value={1}>1x</option>
+            <option value={2}>2x</option>
+            <option value={5}>5x</option>
+          </select>
+        </div>
+      </div>
+      
+      <div style={{
+        position: 'relative',
+        marginBottom: '8px'
+      }}>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={timelinePosition}
+          onChange={handleTimelineChange}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseMove={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          style={{
+            width: '100%',
+            height: '16px', /* Increased height for better touch target */
+            background: 'linear-gradient(to right, #2196F3, #f44336)',
+            appearance: 'none',
+            outline: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer'
+          }}
+        />
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: '12px',
+          color: '#666'
+        }}>
+          <span>{formatDate(earliestDate)}</span>
+          <span style={{
+            fontWeight: 'bold', 
+            color: '#F44336',
+            position: 'absolute',
+            left: `${timelinePosition}%`,
+            transform: 'translateX(-50%)',
+            backgroundColor: 'white',
+            padding: '1px 4px',
+            borderRadius: '3px',
+            border: '1px solid #f44336',
+            fontSize: '11px',
+            top: '-20px'
+          }}>
+            {formatDate(currentDate)}
+          </span>
+          <span>{formatDate(latestDate)}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatistics, onFacilitySelect, loading, dateFilter, handleDateFilterChange, onDrawerState, onGenerateSitrep, sitrepLoading, sitrep }) => {
   const mapRef = useRef(null);
   const [mapInstance, setMapInstance] = useState(null);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [showStatistics, setShowStatistics] = useState(false);
+  const [timelineFilteredDisasters, setTimelineFilteredDisasters] = useState([]);
   const [visibleDisasterTypes, setVisibleDisasterTypes] = useState({
     eq: true,
     tc: true,
@@ -446,6 +959,28 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
       setShowZoomIndicator(true);
     }
   }, [dateFilter]);
+  
+  // Initialize timeline with all disasters
+  useEffect(() => {
+    if (disasters && disasters.length > 0) {
+      setTimelineFilteredDisasters(disasters);
+    }
+  }, [disasters]);
+  
+  // Handler for timeline date change
+  const handleTimelineChange = (date) => {
+    if (!disasters || disasters.length === 0) return;
+    
+    // Filter disasters that occurred before or on the selected date
+    const filtered = disasters.filter(disaster => {
+      if (!disaster.pubDate) return false;
+      
+      const disasterDate = new Date(disaster.pubDate);
+      return disasterDate <= date;
+    });
+    
+    setTimelineFilteredDisasters(filtered);
+  };
   // Add CAP filters
   const [severityFilters, setSeverityFilters] = useState({
     'Extreme': true,
@@ -616,7 +1151,10 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
   };
   
   // Filter disasters based on all selected filters
-  const filteredDisasters = disasters.filter(disaster => {
+  // Use timeline-filtered disasters if timeline is active, otherwise use regular disasters
+  const disastersToFilter = showTimeline ? timelineFilteredDisasters : disasters;
+  
+  const filteredDisasters = disastersToFilter.filter(disaster => {
     // Filter by disaster type
     if (!visibleDisasterTypes[disaster.eventType?.toLowerCase()]) return false;
     
@@ -2839,6 +3377,48 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
           );
         })}
 
+        {/* Timeline component - shown at top of map */}
+        {showTimeline && (
+          <div 
+            style={{
+              position: 'absolute',
+              top: '70px',
+              left: '10px',
+              right: '10px',
+              zIndex: 1000
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            <TimelineVisualization 
+              disasters={disasters} 
+              onTimeChange={handleTimelineChange} 
+            />
+          </div>
+        )}
+        
+        {/* Statistics panel - shown at top of map */}
+        {showStatistics && impactStatistics && (
+          <div 
+            style={{
+              position: 'absolute',
+              top: showTimeline ? '180px' : '70px',
+              left: '10px',
+              right: '10px',
+              zIndex: 1500 /* Increased z-index to be above buttons (1000) */
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseMove={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+          >
+            <StatisticsPanel statistics={impactStatistics} />
+          </div>
+        )}
+        
         {/* Legend controls */}
         <div style={{
           position: 'absolute',
@@ -2872,6 +3452,56 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, onFacilitySel
             </svg>
             {showLegend ? 'Hide Legend' : 'Show Legend'}
           </button>
+          
+          {/* Timeline toggle button */}
+          <button 
+            onClick={() => setShowTimeline(!showTimeline)}
+            style={{
+              backgroundColor: showTimeline ? '#e3f2fd' : 'white',
+              borderRadius: '4px',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+              border: showTimeline ? '1px solid #2196F3' : 'none',
+              padding: '8px 12px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              color: '#F44336'
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            {showTimeline ? 'Hide Timeline' : 'Show Timeline'}
+          </button>
+          
+          {/* Statistics toggle button - only show if we have impactStatistics */}
+          {impactStatistics && (
+            <button 
+              onClick={() => setShowStatistics(!showStatistics)}
+              style={{
+                backgroundColor: showStatistics ? '#fff8e1' : 'white',
+                borderRadius: '4px',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+                border: showStatistics ? '1px solid #FFC107' : 'none',
+                padding: '8px 12px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                color: '#795548'
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+              </svg>
+              {showStatistics ? 'Hide Statistics' : 'Show Statistics'}
+            </button>
+          )}
           
           {/* Collapsible legend panel */}
           {showLegend && (

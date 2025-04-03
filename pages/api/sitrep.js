@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { impactedFacilities, disasters, dateFilter } = req.body;
+    const { impactedFacilities, disasters, dateFilter, statistics } = req.body;
     
     if (!impactedFacilities || !disasters) {
       return res.status(400).json({ error: 'Missing impacted facilities or disasters data' });
@@ -30,12 +30,12 @@ export default async function handler(req, res) {
     if (process.env.OPENAI_API_KEY) {
       try {
         // Generate situation overview
-        const situationOverview = createSituationOverview(impactedFacilities, disasters);
+        const situationOverview = createSituationOverview(impactedFacilities, disasters, statistics);
         
         console.log('Generating AI situation report using OpenAI...');
         
         // Generate AI sitrep
-        const aiSitrep = await generateAISitrep(impactedFacilities, disasters, situationOverview, dateFilterText);
+        const aiSitrep = await generateAISitrep(impactedFacilities, disasters, situationOverview, dateFilterText, statistics);
         
         console.log('Successfully generated AI sitrep');
         res.status(200).json({ sitrep: aiSitrep });
@@ -49,10 +49,10 @@ export default async function handler(req, res) {
     }
     
     // Generate situation overview
-    const situationOverview = createSituationOverview(impactedFacilities, disasters);
+    const situationOverview = createSituationOverview(impactedFacilities, disasters, statistics);
     
     // For demo purposes, generate a mock sitrep
-    const sitrep = generateMockSitrep(impactedFacilities, disasters, situationOverview, dateFilter);
+    const sitrep = generateMockSitrep(impactedFacilities, disasters, situationOverview, dateFilter, statistics);
     
     res.status(200).json({ sitrep });
   } catch (error) {
@@ -62,7 +62,7 @@ export default async function handler(req, res) {
 }
 
 // Generate situation report using OpenAI
-async function generateAISitrep(impactedFacilities, disasters, situationOverview, dateFilterText) {
+async function generateAISitrep(impactedFacilities, disasters, situationOverview, dateFilterText, statistics) {
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -84,13 +84,19 @@ ${situationOverview}
 IMPORTANT: This report must ONLY include disasters and impacted facilities from the current filtered selection 
 (${dateFilterText}). Do not reference any facilities or disasters not included in the data above.
 
+NEW FEATURES TO HIGHLIGHT:
+1. Enhanced polygon-based impact assessment (more accurate than simple radius checks)
+2. Statistical analysis of affected areas (in square kilometers)
+3. Identification of facilities impacted by multiple overlapping disasters
+
 Your SitRep should include:
 1. Executive Summary (2-3 sentences overview specifically about the data provided)
 2. Current Situation (Brief description of active disasters from the filtered time period)
-3. Impacts on Facilities (Summary of affected facilities based on current selection)
-4. Recommended Actions (Prioritized by urgency, specific to these facilities and disasters)
-5. Resource Requirements (If applicable)
-6. Next Steps
+3. Statistical Analysis (Highlight the polygon-based calculations and overlapping impacts)
+4. Impacts on Facilities (Summary of affected facilities based on current selection)
+5. Recommended Actions (Prioritized by urgency, specific to these facilities and disasters)
+6. Resource Requirements (If applicable)
+7. Next Steps
 
 Format your response in markdown for readability. The first line of your report MUST be:
 # Situation Report: Disaster Impact Assessment
@@ -116,7 +122,7 @@ Keep the entire SitRep concise and actionable.
   }
 }
 
-function createSituationOverview(impactedFacilities, disasters) {
+function createSituationOverview(impactedFacilities, disasters, statistics) {
   let overview = `ACTIVE DISASTERS (${disasters.length}):\n`;
   
   // Group disasters by type
@@ -130,7 +136,9 @@ function createSituationOverview(impactedFacilities, disasters) {
       'tc': 'Tropical Cyclone',
       'fl': 'Flood',
       'vo': 'Volcanic Activity',
-      'dr': 'Drought'
+      'dr': 'Drought',
+      'wf': 'Wildfire',
+      'ts': 'Tsunami'
     };
     
     const disasterTypeName = disasterTypeNames[disasterType] || disasterType;
@@ -149,7 +157,34 @@ function createSituationOverview(impactedFacilities, disasters) {
     for (const disaster of typeDisasters) {
       const title = disaster.title || 'Unnamed disaster';
       const alertLevel = disaster.alertLevel || 'unknown';
-      overview += `- ${title} (Alert Level: ${alertLevel})\n`;
+      const hasPolygon = disaster.polygon && Array.isArray(disaster.polygon) && disaster.polygon.length > 2;
+      overview += `- ${title} (Alert Level: ${alertLevel})${hasPolygon ? ' [Has polygon data]' : ''}\n`;
+    }
+  }
+  
+  // Add statistics if available
+  if (statistics) {
+    overview += `\nIMPACT STATISTICS:\n`;
+    
+    // Add basic statistics
+    overview += `- Total Disasters: ${statistics.totalDisasters}\n`;
+    overview += `- Total Facilities: ${statistics.totalFacilities}\n`;
+    overview += `- Impacted Facilities: ${statistics.impactedFacilityCount} (${statistics.percentageImpacted}%)\n`;
+    
+    // Add disaster statistics
+    if (statistics.disasterStats && statistics.disasterStats.length > 0) {
+      overview += `\nDISASTER IMPACT DETAILS:\n`;
+      for (const disasterStat of statistics.disasterStats) {
+        overview += `- ${disasterStat.name} (${disasterStat.type}): ${disasterStat.affectedFacilities} facilities impacted, ${disasterStat.impactArea} km² area, ${disasterStat.polygon ? 'using polygon data' : 'using radius'}\n`;
+      }
+    }
+    
+    // Add overlapping impacts if available
+    if (statistics.overlappingImpacts && statistics.overlappingImpacts.length > 0) {
+      overview += `\nOVERLAPPING DISASTER IMPACTS (${statistics.overlappingImpacts.length}):\n`;
+      for (const overlap of statistics.overlappingImpacts) {
+        overview += `- ${overlap.disasters[0]} + ${overlap.disasters[1]}: Impacts ${overlap.facilities.length} facilities\n`;
+      }
     }
   }
   
@@ -166,9 +201,10 @@ function createSituationOverview(impactedFacilities, disasters) {
     for (const disasterImpact of facilityImpacts) {
       const disaster = disasterImpact.disaster || {};
       const distance = disasterImpact.distance || 'unknown';
+      const impactMethod = disasterImpact.impactMethod || 'radius';
       
       const disasterTitle = disaster.title || 'Unnamed disaster';
-      overview += `- Impacted by ${disasterTitle} (${distance} km away)\n`;
+      overview += `- Impacted by ${disasterTitle} (${distance} km away)${impactMethod === 'polygon' ? ' [Within impact polygon]' : ''}\n`;
     }
   }
   
@@ -177,7 +213,7 @@ function createSituationOverview(impactedFacilities, disasters) {
 
 // We'll modify the generateAISitrep function to always use AI
 // and fall back to a direct prompt approach if the main API call fails
-async function generateMockSitrep(impactedFacilities, disasters, situationOverview, dateFilter = '72h') {
+async function generateMockSitrep(impactedFacilities, disasters, situationOverview, dateFilter = '72h', statistics) {
   // Instead of generating a hard-coded mock report,
   // attempt to use the OpenAI API with a simplified prompt
   try {
@@ -207,13 +243,19 @@ async function generateMockSitrep(impactedFacilities, disasters, situationOvervi
     
     ${situationOverview}
     
+    NEW FEATURES TO HIGHLIGHT:
+    1. Enhanced polygon-based impact assessment (more accurate than simple radius checks)
+    2. Statistical analysis of affected areas (in square kilometers)
+    3. Identification of facilities impacted by multiple overlapping disasters
+    
     Format as markdown with these sections:
     1. Executive Summary
     2. Current Situation
-    3. Impacts on Facilities 
-    4. Recommended Actions
-    5. Resource Requirements
-    6. Next Steps
+    3. Statistical Analysis (Highlight polygon impact areas and overlapping impacts)
+    4. Impacts on Facilities 
+    5. Recommended Actions
+    6. Resource Requirements
+    7. Next Steps
     
     The first line must be:
     # Situation Report: Disaster Impact Assessment

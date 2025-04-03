@@ -27,6 +27,7 @@ export default function Home() {
   const [filteredDisasters, setFilteredDisasters] = useState([]);
   const [facilities, setFacilities] = useState([]);
   const [impactedFacilities, setImpactedFacilities] = useState([]);
+  const [impactStatistics, setImpactStatistics] = useState(null);
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [recommendations, setRecommendations] = useState(null);
   const [recommendationsAIGenerated, setRecommendationsAIGenerated] = useState(false);
@@ -340,6 +341,12 @@ export default function Home() {
       // Store the impacted facilities with the filtered disasters only
       setImpactedFacilities(data.impactedFacilities || []);
       
+      // Store the statistical analysis
+      if (data.statistics) {
+        console.log('Impact assessment statistics:', data.statistics);
+        setImpactStatistics(data.statistics);
+      }
+      
       // Log information about the filtering application
       console.log(`Applied impact assessment with ${dateFilter} date filter (${disastersToAssess.length} disasters)`);
       
@@ -395,7 +402,8 @@ export default function Home() {
         body: JSON.stringify({
           impactedFacilities: impactedFacilities,
           disasters: filteredDisasters.length > 0 ? filteredDisasters : disasters,
-          dateFilter: dateFilter
+          dateFilter: dateFilter,
+          statistics: impactStatistics
         }),
       });
       
@@ -1220,6 +1228,7 @@ export default function Home() {
           disasters={filteredDisasters} 
           facilities={facilities}
           impactedFacilities={impactedFacilities}
+          impactStatistics={impactStatistics}
           onFacilitySelect={handleFacilitySelect}
           loading={loading.disasters}
           onDrawerState={handleFacilityUpload}

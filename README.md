@@ -1,13 +1,18 @@
 # AI Disaster Impact and Response Tool
 
-This application helps humanitarian and disaster response professionals rapidly identify and respond to imminent risks using live GDACS RSS disaster data.
+This application helps humanitarian and disaster response professionals rapidly identify and respond to imminent risks using live GDACS disaster data.
 
 ## Features
 
-- **Real-Time Disaster Monitoring**: Automatically fetches and visualizes current global disaster events from GDACS RSS feeds.
+- **Real-Time Disaster Monitoring**: Automatically fetches and visualizes current global disaster events from GDACS data sources.
 - **Facility Impact Assessment**: Upload your organization's facilities via a simple CSV file for automated impact assessment.
 - **AI-Powered Response Guidance**: Get actionable recommendations for impacted facilities using OpenAI's GPT model.
 - **Automated Situation Reports**: Generate concise, structured situational reports for easy sharing with stakeholders.
+- **CAP XML Support**: Enhanced disaster visualization with Common Alerting Protocol (CAP) XML data, enabling accurate polygon-based impact areas.
+- **Heatmap Visualization**: Dynamic heatmap shows disaster intensity and distribution with severity-based coloring.
+- **Zoom-to-Fit Functionality**: Automatically frames the map to show all relevant disasters and facilities.
+- **Interactive Map Legend**: Comprehensive legend showing disaster types, severity levels, and polygon indicators.
+- **Advanced Filtering**: Enhanced filtering options including time-based (24h, 48h, 72h, 7d, 30d) and severity filters.
 
 ## Setup
 
@@ -83,14 +88,16 @@ Choose the 'Generate SitRep' option to create and export structured situational 
 ## Data Sources
 
 - [GDACS RSS Feed](https://www.gdacs.org/xml/rss.xml): Global Disaster Alert and Coordination System provides disaster data.
+- [GDACS CAP XML](https://www.gdacs.org/xml/cap/): Common Alerting Protocol feed provides detailed impact polygons.
 
 ## Technology Stack
 
 - Next.js (React framework)
 - Vercel Python API routes
 - Leaflet (Interactive maps)
+- Leaflet-Heat (Heatmap visualization)
 - OpenAI API (AI recommendations)
-- GDACS RSS feed (Disaster data)
+- GDACS RSS and CAP XML feeds (Disaster data)
 
 ## License
 
