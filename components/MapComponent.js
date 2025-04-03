@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap, ZIndex } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Marker as ReactLeafletMarker, Popup, useMap, ZIndex } from 'react-leaflet';
+import MarkerClusterGroup from '@changey/react-leaflet-markercluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import * as XLSX from 'xlsx';
 import ReactMarkdown from 'react-markdown';
 
@@ -140,6 +143,7 @@ const MapAccess = ({ onMapReady }) => {
 // Component to add disaster markers directly to the map
 const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
   const map = useMap();
+  const clusterGroupRef = useRef(null);
   
   useEffect(() => {
     // Create markers for each disaster directly with Leaflet
@@ -151,6 +155,49 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
       // Debug: Check if any disasters have polygon data
       const disastersWithPolygons = disasters.filter(d => d.polygon && d.polygon.length > 2);
       console.log(`Found ${disastersWithPolygons.length} disasters with polygon data out of ${disasters.length} total`);
+      
+      // Create cluster group if it doesn't exist
+      if (!clusterGroupRef.current) {
+        clusterGroupRef.current = L.markerClusterGroup({
+          chunkedLoading: true,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: true,
+          zoomToBoundsOnClick: true,
+          maxClusterRadius: 50,
+          iconCreateFunction: (cluster) => {
+            // Custom icon for disaster clusters
+            const childCount = cluster.getChildCount();
+            
+            // Count disasters by alert level within the cluster
+            let redCount = 0;
+            let orangeCount = 0;
+            let greenCount = 0;
+            
+            cluster.getAllChildMarkers().forEach(marker => {
+              const alertLevel = marker.options.alertLevel.toLowerCase();
+              if (alertLevel === 'red') redCount++;
+              else if (alertLevel === 'orange') orangeCount++;
+              else if (alertLevel === 'green') greenCount++;
+            });
+            
+            // Determine cluster color based on highest alert level present
+            let color = '#4CAF50'; // Green default
+            if (redCount > 0) color = '#ff4444'; // Red
+            else if (orangeCount > 0) color = '#ffa500'; // Orange
+            
+            // Create the cluster icon with the count
+            return L.divIcon({
+              html: `<div style="background-color: ${color}; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: bold; color: white;">${childCount}</div>`,
+              className: 'disaster-cluster-icon',
+              iconSize: L.point(34, 34)
+            });
+          }
+        });
+        map.addLayer(clusterGroupRef.current);
+      } else {
+        // Clear previous markers from the cluster group
+        clusterGroupRef.current.clearLayers();
+      }
       
       disasters.forEach((disaster, index) => {
         if (disaster.latitude && disaster.longitude) {
@@ -193,8 +240,12 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
           // Create a marker instead of circle
           const marker = L.marker([lat, lng], {
             icon: customIcon,
-            zIndexOffset: -1000 // Keep disasters below facilities
-          }).addTo(map);
+            zIndexOffset: -1000, // Keep disasters below facilities
+            alertLevel: disaster.alertLevel || 'green' // Store alert level for cluster coloring
+          });
+          
+          // Add to cluster group instead of directly to map
+          clusterGroupRef.current.addLayer(marker);
           
           // Add popup
           const popupContent = `
@@ -412,11 +463,18 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
     
     // Cleanup function to remove markers when component unmounts
     return () => {
+      // Clean up individual markers
       markers.forEach(marker => {
         if (map.hasLayer(marker)) {
           map.removeLayer(marker);
         }
       });
+      
+      // Clean up cluster group if it exists
+      if (clusterGroupRef.current && map.hasLayer(clusterGroupRef.current)) {
+        map.removeLayer(clusterGroupRef.current);
+        clusterGroupRef.current = null;
+      }
     };
   }, [map, disasters]);
   
@@ -3188,28 +3246,66 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
         
         {/* No need to render duplicate disaster markers - the DisasterMarkers component handles this */}
         
-        {/* Render facility markers */}
-        {facilities.map((facility, index) => {
-          if (!facility.latitude || !facility.longitude) return null;
-          
-          const isImpacted = impactedFacilities.some(
-            impacted => impacted.facility.name === facility.name
-          );
-          
-          return (
-            <CircleMarker
-              key={`facility-${index}`}
-              center={[parseFloat(facility.latitude), parseFloat(facility.longitude)]}
-              radius={7}
-              pathOptions={{ 
-                color: 'black',
-                weight: 1.5,
-                fillColor: isImpacted ? '#ff4444' : '#4CAF50',
-                fillOpacity: 0.7,
-                dashArray: '3,3'
-              }}
-              zIndexOffset={1000} // Ensure facilities are on top of other markers
-              eventHandlers={{
+        {/* Render facility markers with clustering */}
+        <MarkerClusterGroup
+          chunkedLoading={true}
+          spiderfyOnMaxZoom={true}
+          showCoverageOnHover={true}
+          zoomToBoundsOnClick={true}
+          maxClusterRadius={40}
+          iconCreateFunction={(cluster) => {
+            // Count impacted vs safe facilities in this cluster
+            let impactedCount = 0;
+            let safeCount = 0;
+            
+            cluster.getAllChildMarkers().forEach(marker => {
+              if (marker.options.isImpacted) {
+                impactedCount++;
+              } else {
+                safeCount++;
+              }
+            });
+            
+            const totalCount = cluster.getChildCount();
+            let clusterColor = '#4CAF50'; // Default green for all safe
+            
+            // If any are impacted, use red color
+            if (impactedCount > 0) {
+              clusterColor = '#ff4444';
+            }
+            
+            // Create a custom divIcon with impacted status
+            return L.divIcon({
+              html: `<div style="background-color: ${clusterColor}; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: bold; color: white;">${totalCount}</div>`,
+              className: 'facility-cluster-icon',
+              iconSize: L.point(36, 36)
+            });
+          }}
+        >
+          {facilities.map((facility, index) => {
+            if (!facility.latitude || !facility.longitude) return null;
+            
+            const isImpacted = impactedFacilities.some(
+              impacted => impacted.facility.name === facility.name
+            );
+            
+            // Create a custom divIcon for each facility
+            const facilityIcon = L.divIcon({
+              html: `<div style="width: 14px; height: 14px; border-radius: 50%; background-color: ${isImpacted ? '#ff4444' : '#4CAF50'}; border: 1.5px solid black; display: flex; align-items: center; justify-content: center;"></div>`,
+              className: 'facility-icon',
+              iconSize: [14, 14],
+              iconAnchor: [7, 7]
+            });
+            
+            // Use Marker instead of CircleMarker for better clustering
+            return (
+              <ReactLeafletMarker
+                key={`facility-${index}`}
+                position={[parseFloat(facility.latitude), parseFloat(facility.longitude)]}
+                icon={facilityIcon}
+                isImpacted={isImpacted} // Custom property for cluster coloring
+                zIndexOffset={1000} // Ensure facilities are on top of other markers
+                eventHandlers={{
                 click: () => onFacilitySelect(facility)
               }}
             >
@@ -3373,9 +3469,10 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
                   </div>
                 </div>
               </Popup>
-            </CircleMarker>
+            </ReactLeafletMarker>
           );
         })}
+        </MarkerClusterGroup>
 
         {/* Timeline component - shown at top of map */}
         {showTimeline && (

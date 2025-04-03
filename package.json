@@ -8,9 +8,11 @@
     "start": "next start"
   },
   "dependencies": {
+    "@changey/react-leaflet-markercluster": "^4.0.0-rc1",
     "axios": "^1.5.0",
     "geolib": "^3.3.4",
     "leaflet": "^1.9.4",
+    "leaflet.markercluster": "^1.5.3",
     "next": "^13.4.19",
     "openai": "^4.90.0",
     "papaparse": "^5.4.1",
