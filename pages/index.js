@@ -572,7 +572,21 @@ export default function Home() {
       reportContent += `- **Total Facilities Monitored:** ${facilities.length}\n`;
       reportContent += `- **Facilities Potentially Impacted:** ${impactedFacilities.length} (${Math.round((impactedFacilities.length/facilities.length)*100)}% of total)\n`;
       reportContent += `- **Total Active Disasters:** ${disasters.length}\n`;
-      reportContent += `- **Active Disaster Alert Levels:** ${filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'red').length} Red, ${filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'orange').length} Orange, ${filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'green').length} Green\n\n`;
+      reportContent += `- **Active Disaster Alert Levels:** ${
+        filteredDisasters.filter(d => 
+          (d.alertLevel?.toLowerCase() === 'red') || 
+          (d.severity?.toLowerCase()?.includes('extreme')) || 
+          (d.severity?.toLowerCase()?.includes('severe'))).length
+      } Red, ${
+        filteredDisasters.filter(d => 
+          (d.alertLevel?.toLowerCase() === 'orange') || 
+          (d.severity?.toLowerCase()?.includes('moderate'))).length
+      } Orange, ${
+        filteredDisasters.filter(d => 
+          (d.alertLevel?.toLowerCase() === 'green') || 
+          (d.severity?.toLowerCase()?.includes('minor')) ||
+          (!d.alertLevel && !d.severity)).length
+      } Green\n\n`;
       
       // Add current disaster breakdown by type
       const disasterTypes = {};
@@ -1173,7 +1187,10 @@ export default function Home() {
                     fontSize: '12px',
                     padding: '2px 6px',
                     borderRadius: '4px'
-                  }}>{filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'red').length}</span>
+                  }}>{filteredDisasters.filter(d => 
+                    (d.alertLevel?.toLowerCase() === 'red') || 
+                    (d.severity?.toLowerCase()?.includes('extreme')) || 
+                    (d.severity?.toLowerCase()?.includes('severe'))).length}</span>
                   
                   <span style={{
                     backgroundColor: '#ffa500',
@@ -1182,7 +1199,9 @@ export default function Home() {
                     fontSize: '12px',
                     padding: '2px 6px',
                     borderRadius: '4px'
-                  }}>{filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'orange').length}</span>
+                  }}>{filteredDisasters.filter(d => 
+                    (d.alertLevel?.toLowerCase() === 'orange') || 
+                    (d.severity?.toLowerCase()?.includes('moderate'))).length}</span>
                   
                   <span style={{
                     backgroundColor: '#4CAF50',
@@ -1191,7 +1210,10 @@ export default function Home() {
                     fontSize: '12px',
                     padding: '2px 6px',
                     borderRadius: '4px'
-                  }}>{filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'green').length}</span>
+                  }}>{filteredDisasters.filter(d => 
+                    (d.alertLevel?.toLowerCase() === 'green') || 
+                    (d.severity?.toLowerCase()?.includes('minor')) ||
+                    (!d.alertLevel && !d.severity)).length}</span>
                 </div>
               </div>
               

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
-import { MapContainer, TileLayer, CircleMarker, Marker as ReactLeafletMarker, Popup, useMap, ZIndex } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Marker as ReactLeafletMarker, Popup, useMap, ZIndex, Tooltip } from 'react-leaflet';
 import MarkerClusterGroup from '@changey/react-leaflet-markercluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -993,11 +993,13 @@ const TimelineVisualization = ({ disasters, onTimeChange }) => {
 
 const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatistics, onFacilitySelect, loading, dateFilter, handleDateFilterChange, onDrawerState, onGenerateSitrep, sitrepLoading, sitrep }) => {
   const mapRef = useRef(null);
+  const mapContainerRef = useRef(null);
   const [mapInstance, setMapInstance] = useState(null);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [timelineFilteredDisasters, setTimelineFilteredDisasters] = useState([]);
   const [visibleDisasterTypes, setVisibleDisasterTypes] = useState({
     eq: true,
@@ -1017,6 +1019,42 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
       setShowZoomIndicator(true);
     }
   }, [dateFilter]);
+  
+  // Effect to clean up map resources when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clean up map resources
+      if (mapInstance) {
+        mapInstance.off('click', handleMapClick);
+      }
+    };
+  }, [mapInstance]);
+  
+  // Handle fullscreen change events from the browser
+  useEffect(() => {
+    const fullscreenChangeHandler = () => {
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        document.mozFullScreenElement ||
+        document.webkitFullscreenElement ||
+        document.msFullscreenElement
+      );
+      
+      setIsFullscreen(isCurrentlyFullscreen);
+    };
+    
+    document.addEventListener('fullscreenchange', fullscreenChangeHandler);
+    document.addEventListener('mozfullscreenchange', fullscreenChangeHandler);
+    document.addEventListener('webkitfullscreenchange', fullscreenChangeHandler);
+    document.addEventListener('MSFullscreenChange', fullscreenChangeHandler);
+    
+    return () => {
+      document.removeEventListener('fullscreenchange', fullscreenChangeHandler);
+      document.removeEventListener('mozfullscreenchange', fullscreenChangeHandler);
+      document.removeEventListener('webkitfullscreenchange', fullscreenChangeHandler);
+      document.removeEventListener('MSFullscreenChange', fullscreenChangeHandler);
+    };
+  }, []);
   
   // Initialize timeline with all disasters
   useEffect(() => {
@@ -1065,6 +1103,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
   const [facilityDrawerOpen, setFacilityDrawerOpen] = useState(false);
   const [sitrepDrawerOpen, setSitrepDrawerOpen] = useState(false);
   const [showLegend, setShowLegend] = useState(false); // Default to hidden
+  const [showLabels, setShowLabels] = useState(false); // Toggle for facility labels
   
   // For AI analysis
   const [selectedFacility, setSelectedFacility] = useState(null);
@@ -1072,6 +1111,21 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [showAnalysisDrawer, setShowAnalysisDrawer] = useState(false);
   const [isAIGenerated, setIsAIGenerated] = useState(false);
+  
+  // Function to handle click outside of overlays to close them
+  const handleMapClick = (e) => {
+    // We don't need to check the target - if the map is clicked, close the overlays
+    // Leaflet event handling will ensure this only triggers for map clicks
+    if (showLegend) setShowLegend(false);
+    if (showTimeline) setShowTimeline(false);
+    if (showStatistics) setShowStatistics(false);
+    
+    // Also close any open drawers
+    if (filterDrawerOpen) setFilterDrawerOpen(false);
+    if (facilityDrawerOpen) setFacilityDrawerOpen(false);
+    if (sitrepDrawerOpen) setSitrepDrawerOpen(false);
+    if (showAnalysisDrawer) setShowAnalysisDrawer(false);
+  };
   
   // States for column selection modal
   const [showColumnModal, setShowColumnModal] = useState(false);
@@ -1110,6 +1164,38 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
   const handleMapReady = (map) => {
     console.log("Map instance is ready");
     setMapInstance(map);
+    
+    // Add click handler to close overlays when clicking outside
+    map.on('click', handleMapClick);
+  };
+  
+  // Toggle full-screen mode
+  const toggleFullscreen = () => {
+    const element = mapContainerRef.current;
+    
+    if (!isFullscreen) {
+      if (element.requestFullscreen) {
+        element.requestFullscreen();
+      } else if (element.mozRequestFullScreen) { /* Firefox */
+        element.mozRequestFullScreen();
+      } else if (element.webkitRequestFullscreen) { /* Chrome, Safari and Opera */
+        element.webkitRequestFullscreen();
+      } else if (element.msRequestFullscreen) { /* IE/Edge */
+        element.msRequestFullscreen();
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.mozCancelFullScreen) { /* Firefox */
+        document.mozCancelFullScreen();
+      } else if (document.webkitExitFullscreen) { /* Chrome, Safari and Opera */
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) { /* IE/Edge */
+        document.msExitFullscreen();
+      }
+      setIsFullscreen(false);
+    }
   };
   
   // Function to zoom the map to fit all filtered disasters
@@ -1232,6 +1318,24 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
     if (!urgencyFilters[urgencyKey]) return false;
     
     return true;
+  });
+  
+  // Count disasters by alert level (for the summary card)
+  const alertLevelCounts = {
+    red: 0,
+    orange: 0,
+    green: 0
+  };
+  
+  filteredDisasters.forEach(disaster => {
+    const severity = (disaster.severity || disaster.alertLevel || '').toLowerCase();
+    if (severity.includes('red') || severity.includes('extreme') || severity.includes('severe')) {
+      alertLevelCounts.red++;
+    } else if (severity.includes('orange') || severity.includes('moderate')) {
+      alertLevelCounts.orange++;
+    } else {
+      alertLevelCounts.green++;
+    }
   });
 
   // Effect to refresh map view when data changes
@@ -1598,8 +1702,8 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
     return <div className="loading">Loading disaster data...</div>;
   }
 
-  // Add CSS animation for the pulsing effect
-  const pulseAnimation = `
+  // Add CSS animation for the pulsing effect and facility label styles
+  const customStyles = `
     @keyframes pulse {
       0% {
         transform: translateX(-100%);
@@ -1608,12 +1712,76 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
         transform: translateX(100%);
       }
     }
+    
+    /* Style for facility labels */
+    .facility-label .leaflet-tooltip-content {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 150px;
+    }
+    
+    .facility-label {
+      background-color: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+    }
+    
+    /* Fullscreen mode adjustments */
+    .map-container:fullscreen,
+    .map-container:-webkit-full-screen,
+    .map-container:-moz-full-screen,
+    .map-container:-ms-fullscreen {
+      height: 100vh !important;
+      width: 100vw !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+    }
+    
+    .map-container:fullscreen .leaflet-container,
+    .map-container:-webkit-full-screen .leaflet-container,
+    .map-container:-moz-full-screen .leaflet-container,
+    .map-container:-ms-fullscreen .leaflet-container {
+      height: 100vh !important;
+      width: 100vw !important;
+    }
+    
+    /* Fix Leaflet control positions in fullscreen */
+    .map-container:fullscreen .leaflet-control-container .leaflet-top,
+    .map-container:-webkit-full-screen .leaflet-control-container .leaflet-top,
+    .map-container:-moz-full-screen .leaflet-control-container .leaflet-top,
+    .map-container:-ms-fullscreen .leaflet-control-container .leaflet-top {
+      top: 10px;
+    }
+    
+    .map-container:fullscreen .leaflet-control-container .leaflet-bottom,
+    .map-container:-webkit-full-screen .leaflet-control-container .leaflet-bottom,
+    .map-container:-moz-full-screen .leaflet-control-container .leaflet-bottom,
+    .map-container:-ms-fullscreen .leaflet-control-container .leaflet-bottom {
+      bottom: 10px;
+    }
   `;
   
   return (
-    <div className="map-container">
-      {/* Add style for animations */}
-      <style>{pulseAnimation}</style>
+    <div 
+      className="map-container" 
+      ref={mapContainerRef}
+      style={{
+        position: 'relative',
+        ...(isFullscreen && {
+          height: '100vh',
+          width: '100vw',
+          margin: 0,
+          padding: 0,
+          borderRadius: 0,
+          overflow: 'hidden'
+        })
+      }}
+    >
+      {/* Add style for animations and facility labels */}
+      <style>{customStyles}</style>
       
       {/* Floating action buttons */}
       <button 
@@ -3219,11 +3387,51 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
       <MapContainer 
         center={[0, 0]} 
         zoom={2} 
-        style={{ height: '100%', width: '100%' }}
+        style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0 }}
         ref={mapRef}
       >
         {/* Get access to map instance */}
         <MapAccess onMapReady={handleMapReady} />
+        
+        {/* Fullscreen button */}
+        <div 
+          onClick={toggleFullscreen}
+          style={{
+            position: 'absolute',
+            bottom: '25px',
+            right: '10px',
+            zIndex: 1000,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            width: '44px',
+            height: '44px',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+            transition: 'all 0.2s ease-in-out'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+          }}
+          title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
+        >
+          {isFullscreen ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+            </svg>
+          )}
+        </div>
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -3309,6 +3517,21 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
                 click: () => onFacilitySelect(facility)
               }}
             >
+              {showLabels && (
+                <Tooltip permanent direction="top" offset={[0, -15]} className="facility-label">
+                  <div style={{ 
+                    fontWeight: 'bold', 
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    backgroundColor: isImpacted ? 'rgba(255, 68, 68, 0.9)' : 'rgba(76, 175, 80, 0.9)',
+                    borderRadius: '3px',
+                    color: 'white',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                  }}>
+                    {facility.name}
+                  </div>
+                </Tooltip>
+              )}
               <Popup>
                 <div className="popup-content" style={{ maxWidth: '300px', padding: '5px' }}>
                   <h3 style={{ 
@@ -3473,13 +3696,13 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
           );
         })}
         </MarkerClusterGroup>
-
+        
         {/* Timeline component - shown at top of map */}
         {showTimeline && (
           <div 
             style={{
               position: 'absolute',
-              top: '70px',
+              top: '10px', /* Moved to top since disaster count card is removed */
               left: '10px',
               right: '10px',
               zIndex: 1000
@@ -3500,7 +3723,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
           <div 
             style={{
               position: 'absolute',
-              top: showTimeline ? '180px' : '70px',
+              top: showTimeline ? '240px' : '130px', /* Adjusted to be below disaster count card and timeline */
               left: '10px',
               right: '10px',
               zIndex: 1500 /* Increased z-index to be above buttons (1000) */
@@ -3573,6 +3796,32 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
             </svg>
             {showTimeline ? 'Hide Timeline' : 'Show Timeline'}
           </button>
+          
+          {/* Facility labels toggle button */}
+          {facilities.length > 0 && (
+            <button 
+              onClick={() => setShowLabels(!showLabels)}
+              style={{
+                backgroundColor: showLabels ? '#e8f5e9' : 'white',
+                borderRadius: '4px',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+                border: showLabels ? '1px solid #4CAF50' : 'none',
+                padding: '8px 12px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                color: '#4CAF50'
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <path d="M9 3v18"></path>
+              </svg>
+              {showLabels ? 'Hide Labels' : 'Show Labels'}
+            </button>
+          )}
           
           {/* Statistics toggle button - only show if we have impactStatistics */}
           {impactStatistics && (
