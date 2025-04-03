@@ -559,92 +559,354 @@ export default function Home() {
       const time = new Date().toTimeString().split(' ')[0];
       
       // Start with header
-      reportContent += `# GDACS Comprehensive AI Analysis Report\n`;
+      reportContent += `# GDACS Emergency Response Overview Report\n`;
       reportContent += `## Generated: ${date} | ${time} | Filter: ${dateFilter === '24h' ? 'Last 24h' : 
                                  dateFilter === '48h' ? 'Last 48h' : 
                                  dateFilter === '72h' ? 'Last 72h' : 
                                  dateFilter === '7d' ? 'Last 7 days' : 
                                  dateFilter === '30d' ? 'Last 30 days' : 'All time'}\n\n`;
       
+      // Executive Summary Section
+      reportContent += `# EXECUTIVE SUMMARY\n\n`;
+      reportContent += `## Key Statistics\n`;
+      reportContent += `- **Total Facilities Monitored:** ${facilities.length}\n`;
+      reportContent += `- **Facilities Potentially Impacted:** ${impactedFacilities.length} (${Math.round((impactedFacilities.length/facilities.length)*100)}% of total)\n`;
+      reportContent += `- **Total Active Disasters:** ${disasters.length}\n`;
+      reportContent += `- **Active Disaster Alert Levels:** ${filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'red').length} Red, ${filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'orange').length} Orange, ${filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'green').length} Green\n\n`;
+      
+      // Add current disaster breakdown by type
+      const disasterTypes = {};
+      filteredDisasters.forEach(disaster => {
+        const type = disaster.eventType?.toUpperCase() || 'Unknown';
+        disasterTypes[type] = (disasterTypes[type] || 0) + 1;
+      });
+      
+      reportContent += `## Active Disasters by Type\n`;
+      Object.entries(disasterTypes).forEach(([type, count]) => {
+        const fullName = getDisasterFullName(type);
+        reportContent += `- **${fullName}:** ${count}\n`;
+      });
+      reportContent += `\n`;
+      
       // Add situation report if available
       if (sitrep) {
-        reportContent += `# Situation Report\n\n${sitrep}\n\n`;
+        reportContent += `# Situation Overview\n\n${sitrep}\n\n`;
         reportContent += `---\n\n`;
       }
       
-      // Add facility recommendations for all impacted facilities
-      if (impactedFacilities.length > 0) {
-        reportContent += `# Facility Recommendations\n\n`;
+      // Group impacted facilities by disaster type, then by country and facility type
+      const facilitiesByDisasterType = {};
+      impactedFacilities.forEach(impact => {
+        impact.impacts.forEach(disasterImpact => {
+          const disasterType = disasterImpact.disaster?.eventType?.toUpperCase() || 'Unknown';
+          if (!facilitiesByDisasterType[disasterType]) {
+            facilitiesByDisasterType[disasterType] = {};
+          }
+          
+          // Get country from facility data if available, otherwise "Unknown"
+          const country = impact.facility.country || 
+                         (impact.facility.address && impact.facility.address.includes(',') ? 
+                          impact.facility.address.split(',').pop().trim() : "Unknown Location");
+          
+          if (!facilitiesByDisasterType[disasterType][country]) {
+            facilitiesByDisasterType[disasterType][country] = {};
+          }
+          
+          // Get facility type if available, otherwise "General"
+          const facilityType = impact.facility.type || 
+                              impact.facility.facilityType || 
+                              impact.facility.category || 
+                              "General";
+                              
+          if (!facilitiesByDisasterType[disasterType][country][facilityType]) {
+            facilitiesByDisasterType[disasterType][country][facilityType] = [];
+          }
+          
+          if (!facilitiesByDisasterType[disasterType][country][facilityType].includes(impact.facility)) {
+            facilitiesByDisasterType[disasterType][country][facilityType].push(impact.facility);
+          }
+        });
+      });
+      
+      // Add facilities impacted by disaster type section
+      reportContent += `# IMPACT BREAKDOWN BY DISASTER TYPE\n\n`;
+      Object.entries(facilitiesByDisasterType).forEach(([disasterType, countriesMap]) => {
+        const fullName = getDisasterFullName(disasterType);
         
-        // Get recommendations for all impacted facilities
-        for (const impact of impactedFacilities) {
-          try {
-            const response = await fetch('/api/recommendations', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                facility: impact.facility,
-                impacts: impact.impacts,
-                useAI: true
-              }),
+        // Count total facilities for this disaster type
+        let totalFacilitiesForDisaster = 0;
+        Object.values(countriesMap).forEach(facilityTypeMap => {
+          Object.values(facilityTypeMap).forEach(facilities => {
+            totalFacilitiesForDisaster += facilities.length;
+          });
+        });
+        
+        reportContent += `## ${fullName} (${totalFacilitiesForDisaster} facilities)\n`;
+        
+        // List facilities by country, then by facility type
+        Object.entries(countriesMap).forEach(([country, facilityTypesMap]) => {
+          // Count facilities for this country
+          let totalFacilitiesForCountry = 0;
+          Object.values(facilityTypesMap).forEach(facilities => {
+            totalFacilitiesForCountry += facilities.length;
+          });
+          
+          reportContent += `### ${country} (${totalFacilitiesForCountry} facilities)\n`;
+          
+          Object.entries(facilityTypesMap).forEach(([facilityType, facilities]) => {
+            reportContent += `#### ${facilityType} Facilities (${facilities.length})\n`;
+            
+            facilities.forEach(facility => {
+              // Include all available facility metadata
+              const additionalInfo = Object.entries(facility)
+                .filter(([key, _]) => !['name', 'latitude', 'longitude', 'type', 'facilityType', 'category', 'country'].includes(key))
+                .map(([key, value]) => `${key}: ${value}`)
+                .join(', ');
+              
+              const locationInfo = `${facility.latitude}, ${facility.longitude}`;
+              
+              if (additionalInfo) {
+                reportContent += `- **${facility.name}** - Location: ${locationInfo} - ${additionalInfo}\n`;
+              } else {
+                reportContent += `- **${facility.name}** - Location: ${locationInfo}\n`;
+              }
             });
             
-            if (response.ok) {
-              const data = await response.json();
-              if (data.recommendations) {
-                reportContent += `## ${impact.facility.name}\n\n`;
-                
-                // Format recommendations
-                Object.entries(data.recommendations).forEach(([category, items]) => {
-                  if (category !== 'error' && items) {
-                    reportContent += `### ${category}\n`;
-                    
-                    if (Array.isArray(items)) {
-                      items.forEach(item => {
-                        reportContent += `- ${item}\n`;
-                      });
-                    } else {
-                      reportContent += `- ${items}\n`;
-                    }
-                    
-                    reportContent += '\n';
-                  }
-                });
-                
-                reportContent += `\n`;
-              }
-            }
-          } catch (err) {
-            console.error(`Error getting recommendations for ${impact.facility.name}:`, err);
-          }
-        }
+            reportContent += `\n`;
+          });
+        });
         
-        reportContent += `---\n\n`;
+        reportContent += `\n`;
+      });
+      
+      // For large numbers of facilities, provide high-level recommendations by disaster type
+      reportContent += `# PRIORITY RECOMMENDATIONS BY DISASTER TYPE\n\n`;
+      
+      const highPriorityRecommendations = {
+        "EQ": [
+          "Immediately check structural integrity of all buildings in earthquake-affected regions",
+          "Initiate communication with all facilities in affected areas; prioritize those without response",
+          "Deploy assessment teams to facilities reporting damage or with no communication",
+          "Prepare temporary housing and supplies for displaced personnel"
+        ],
+        "TC": [
+          "Evacuate personnel from facilities in the direct path of tropical cyclones",
+          "Secure all equipment and materials that could become projectiles in high winds",
+          "Pre-position emergency supplies before landfall at safe locations",
+          "Maintain hourly communication with facilities during storm passage when safe"
+        ],
+        "FL": [
+          "Move essential equipment and supplies to higher floors in flood-prone facilities",
+          "Establish evacuation routes that avoid flood-prone roads and bridges",
+          "Deploy water pumping equipment to critical facilities",
+          "Establish decontamination protocols for facilities after floodwaters recede"
+        ],
+        "VO": [
+          "Monitor air quality at all facilities within volcanic ash fallout zones",
+          "Distribute respiratory protection equipment to affected facilities",
+          "Clear ash from rooftops to prevent structural collapse",
+          "Establish protocols for safe ash removal and disposal"
+        ],
+        "DR": [
+          "Implement water conservation measures at all facilities in drought-affected regions",
+          "Secure additional water supplies for critical operations",
+          "Prioritize facilities with highest water dependency for assistance",
+          "Deploy water quality testing kits to monitor deteriorating water sources"
+        ],
+        "WF": [
+          "Establish defensible space around facilities in wildfire-prone areas",
+          "Prepare evacuation plans with multiple exit routes",
+          "Monitor air quality and provide filtration systems for affected facilities",
+          "Pre-position firefighting equipment at high-risk facilities"
+        ],
+        "TS": [
+          "Evacuate all coastal facilities in tsunami warning zones immediately",
+          "Position emergency response teams at safe elevations near tsunami-prone areas",
+          "Establish clear tsunami evacuation routes with marked safe zones",
+          "Prepare for potential contamination from seawater inundation of facilities"
+        ]
+      };
+      
+      Object.entries(facilitiesByDisasterType).forEach(([disasterType, facilitiesList]) => {
+        const fullName = getDisasterFullName(disasterType);
+        reportContent += `## ${fullName} Priority Response Actions\n`;
+        
+        // Add high-priority recommendations for this disaster type
+        const recommendations = highPriorityRecommendations[disasterType] || 
+          ["Conduct rapid assessment of all affected facilities", 
+           "Establish communication protocols with affected facilities", 
+           "Prepare emergency resources for deployment"];
+        
+        recommendations.forEach(rec => {
+          reportContent += `- ${rec}\n`;
+        });
+        
+        reportContent += `\n`;
+      });
+      
+      // Provide a summary of the most critical facilities
+      if (impactedFacilities.length > 0) {
+        // Sort facilities by number of disasters affecting them
+        const criticalFacilities = [...impactedFacilities]
+          .sort((a, b) => b.impacts.length - a.impacts.length)
+          .slice(0, Math.min(5, impactedFacilities.length));
+        
+        reportContent += `# HIGHEST PRIORITY FACILITIES\n\n`;
+        reportContent += `The following facilities are affected by multiple disasters or high-severity events and require immediate attention:\n\n`;
+        
+        criticalFacilities.forEach((impact, index) => {
+          const facility = impact.facility;
+          const disasterCount = impact.impacts.length;
+          const disasterTypes = impact.impacts.map(i => getDisasterFullName(i.disaster?.eventType?.toUpperCase() || 'Unknown'));
+          const uniqueDisasterTypes = [...new Set(disasterTypes)];
+          
+          reportContent += `## ${index + 1}. ${facility.name}\n`;
+          reportContent += `- **Location:** ${facility.latitude}, ${facility.longitude}\n`;
+          reportContent += `- **Impacted by:** ${disasterCount} disaster event(s)\n`;
+          reportContent += `- **Disaster Types:** ${uniqueDisasterTypes.join(', ')}\n`;
+          
+          // If available, add a brief recommendation for this specific facility
+          reportContent += `- **Immediate Action:** ${getImmediateAction(uniqueDisasterTypes)}\n\n`;
+        });
       }
       
-      // Add detailed analysis section
-      reportContent += `# Detailed Disaster Analysis\n\n`;
-      reportContent += `## Overview\n`;
-      reportContent += `- Monitoring ${disasters.length} active disaster events\n`;
-      reportContent += `- ${impactedFacilities.length} facilities potentially impacted\n\n`;
+      // Add resource allocation guidance
+      reportContent += `# RESOURCE ALLOCATION GUIDANCE\n\n`;
+      reportContent += `## Personnel Deployment Priorities\n`;
+      reportContent += `- Deploy assessment teams to ${Math.min(10, impactedFacilities.length)} highest priority facilities first\n`;
+      reportContent += `- Establish forward command posts in areas with clusters of affected facilities\n`;
+      reportContent += `- Rotate personnel working in extreme conditions every 12 hours\n\n`;
+      
+      reportContent += `## Equipment & Supply Distribution\n`;
+      reportContent += `- Pre-position emergency supplies at strategic locations to serve multiple affected facilities\n`;
+      reportContent += `- Prioritize communication equipment for facilities in areas with infrastructure damage\n`;
+      reportContent += `- Allocate temporary power generation to facilities with critical operations\n\n`;
+      
+      reportContent += `## Communication Protocol\n`;
+      reportContent += `- Establish hourly check-ins with facilities in red alert zones\n`;
+      reportContent += `- Implement twice-daily situation reports from all affected facilities\n`;
+      reportContent += `- Maintain dedicated communication channels for highest priority facilities\n\n`;
+      
+      // Add contact information section
+      reportContent += `# EMERGENCY CONTACT INFORMATION\n\n`;
+      reportContent += `## Emergency Operations Center\n`;
+      reportContent += `- **Main Dispatch:** [Add primary EOC contact number]\n`;
+      reportContent += `- **Email:** [Add EOC email]\n`;
+      reportContent += `- **Radio Frequency:** [Add emergency frequency if applicable]\n\n`;
+      
+      reportContent += `## Key Personnel\n`;
+      reportContent += `- **Emergency Coordinator:** [Add name and contact details]\n`;
+      reportContent += `- **Logistics Coordinator:** [Add name and contact details]\n`;
+      reportContent += `- **Medical Coordinator:** [Add name and contact details]\n\n`;
+      
+      // Add detailed facility-specific recommendations only for the top 5 most critical facilities
+      if (impactedFacilities.length > 0) {
+        const criticalFacilities = [...impactedFacilities]
+          .sort((a, b) => b.impacts.length - a.impacts.length)
+          .slice(0, Math.min(5, impactedFacilities.length));
+        
+        if (criticalFacilities.length > 0) {
+          reportContent += `# DETAILED RECOMMENDATIONS FOR CRITICAL FACILITIES\n\n`;
+          
+          // Get detailed recommendations for these critical facilities only
+          for (const impact of criticalFacilities) {
+            try {
+              const response = await fetch('/api/recommendations', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  facility: impact.facility,
+                  impacts: impact.impacts,
+                  useAI: true
+                }),
+              });
+              
+              if (response.ok) {
+                const data = await response.json();
+                if (data.recommendations) {
+                  reportContent += `## ${impact.facility.name}\n\n`;
+                  
+                  // Format recommendations
+                  Object.entries(data.recommendations).forEach(([category, items]) => {
+                    if (category !== 'error' && category !== 'Credits' && category !== 'About' && items) {
+                      reportContent += `### ${category}\n`;
+                      
+                      if (Array.isArray(items)) {
+                        items.forEach(item => {
+                          reportContent += `- ${item}\n`;
+                        });
+                      } else {
+                        reportContent += `- ${items}\n`;
+                      }
+                      
+                      reportContent += '\n';
+                    }
+                  });
+                  
+                  reportContent += `\n`;
+                }
+              }
+            } catch (err) {
+              console.error(`Error getting recommendations for ${impact.facility.name}:`, err);
+            }
+          }
+        }
+      }
       
       // Add attribution (only in the footer)
       reportContent += `\n\n---\n\n`;
-      reportContent += `*Generated by AI Disaster Impact and Response Tool | Developed by [John Mark Esplana](https://github.com/jmesplana)*`;
+      reportContent += `*Generated by AI Disaster Impact and Response Tool | Developed by John Mark Esplana*`;
       
       // Save the complete report
       setCompleteReport(reportContent);
       
       // Convert to Word format and download
-      downloadWordDocument(reportContent, `GDACS-Complete-Report-${date}`);
+      downloadWordDocument(reportContent, `GDACS-Emergency-Response-Overview-${date}`);
       
     } catch (error) {
       console.error('Error generating comprehensive report:', error);
       alert('Failed to generate comprehensive report. Please try again.');
     } finally {
       setLoading(prev => ({ ...prev, sitrep: false }));
+    }
+  };
+  
+  // Helper function to get full disaster name from code
+  const getDisasterFullName = (code) => {
+    const disasterCodes = {
+      'EQ': 'Earthquake',
+      'TC': 'Tropical Cyclone',
+      'FL': 'Flood',
+      'VO': 'Volcanic Activity',
+      'DR': 'Drought',
+      'WF': 'Wildfire',
+      'TS': 'Tsunami',
+      'UNKNOWN': 'Unspecified Disaster'
+    };
+    
+    return disasterCodes[code] || code;
+  };
+  
+  // Helper function to get immediate action based on disaster types
+  const getImmediateAction = (disasterTypes) => {
+    if (disasterTypes.includes('Earthquake')) {
+      return 'Conduct structural assessment and establish emergency shelter';
+    } else if (disasterTypes.includes('Tropical Cyclone')) {
+      return 'Secure facility and prepare for evacuation if in direct path';
+    } else if (disasterTypes.includes('Flood')) {
+      return 'Move critical equipment to higher ground and monitor water levels';
+    } else if (disasterTypes.includes('Tsunami')) {
+      return 'Evacuate immediately to designated high ground';
+    } else if (disasterTypes.includes('Volcanic Activity')) {
+      return 'Monitor air quality and prepare for evacuation if eruption intensifies';
+    } else if (disasterTypes.includes('Wildfire')) {
+      return 'Clear defensible space and prepare for evacuation';
+    } else if (disasterTypes.includes('Drought')) {
+      return 'Implement water conservation measures and secure alternative supplies';
+    } else {
+      return 'Conduct rapid assessment and establish communication';
     }
   };
   
