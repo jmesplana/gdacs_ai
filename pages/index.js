@@ -45,11 +45,50 @@ export default function Home() {
   const [useMockData, setUseMockData] = useState(false); // Default to live data
   const [showHelp, setShowHelp] = useState(false); // Help panel visibility
   const [completeReport, setCompleteReport] = useState(null); // Store combined AI report
+  const [lastUpdated, setLastUpdated] = useState(null); // Track when data was last updated
+  const [timeSinceUpdate, setTimeSinceUpdate] = useState(''); // Human-readable time since last update
 
   // Fetch disaster data on component mount
   useEffect(() => {
     fetchDisasterData();
   }, []);
+  
+  // Update the "time since" last data refresh
+  useEffect(() => {
+    if (!lastUpdated) return;
+    
+    const updateTimeSince = () => {
+      const now = new Date();
+      const diffMs = now - lastUpdated;
+      const diffMinutes = Math.floor(diffMs / 60000);
+      
+      if (diffMinutes < 1) {
+        setTimeSinceUpdate('just now');
+      } else if (diffMinutes === 1) {
+        setTimeSinceUpdate('1 minute ago');
+      } else if (diffMinutes < 60) {
+        setTimeSinceUpdate(`${diffMinutes} minutes ago`);
+      } else {
+        const diffHours = Math.floor(diffMinutes / 60);
+        if (diffHours === 1) {
+          setTimeSinceUpdate('1 hour ago');
+        } else if (diffHours < 24) {
+          setTimeSinceUpdate(`${diffHours} hours ago`);
+        } else {
+          const diffDays = Math.floor(diffHours / 24);
+          setTimeSinceUpdate(`${diffDays} day${diffDays > 1 ? 's' : ''} ago`);
+        }
+      }
+    };
+    
+    // Update immediately
+    updateTimeSince();
+    
+    // Then update every minute
+    const interval = setInterval(updateTimeSince, 60000);
+    
+    return () => clearInterval(interval);
+  }, [lastUpdated]);
 
   // Filter disasters when disaster data or date filter changes
   useEffect(() => {
@@ -169,6 +208,38 @@ export default function Home() {
       setDisasters(processedData);
       setFilteredDisasters(processedData);
       
+      // Find the latest publication date from GDACS data
+      if (processedData && processedData.length > 0) {
+        try {
+          // Sort the disasters by publication date (newest first)
+          const sortedByDate = [...processedData].sort((a, b) => {
+            // Handle potential missing dates by using a fallback
+            const dateA = a.pubDate ? new Date(a.pubDate) : new Date(0);
+            const dateB = b.pubDate ? new Date(b.pubDate) : new Date(0);
+            return dateB - dateA;
+          });
+          
+          // Get the most recent publication date
+          const mostRecentDisaster = sortedByDate[0];
+          if (mostRecentDisaster && mostRecentDisaster.pubDate) {
+            const gdacsUpdateTime = new Date(mostRecentDisaster.pubDate);
+            console.log('Most recent GDACS update:', gdacsUpdateTime);
+            setLastUpdated(gdacsUpdateTime);
+          } else {
+            // Fallback if no valid dates found
+            console.log('No valid publication dates found in GDACS data, using current time');
+            setLastUpdated(new Date());
+          }
+        } catch (err) {
+          console.error('Error processing GDACS update dates:', err);
+          // Fallback to current time
+          setLastUpdated(new Date());
+        }
+      } else {
+        // No data, use current time
+        setLastUpdated(new Date());
+      }
+      
       // Check if we got real data or API returned mock data
       if (processedData && processedData.length > 0) {
         // Check if the data is likely from our mock function (uses specific IDs)
@@ -186,6 +257,20 @@ export default function Home() {
         setDisasters(mockData);
         setFilteredDisasters(mockData);
         setDataSource('Mock data (no valid GDACS data)');
+        
+        // For mock data, use the most recent mock date
+        try {
+          const sortedMockData = [...mockData].sort((a, b) => {
+            const dateA = a.pubDate ? new Date(a.pubDate) : new Date(0);
+            const dateB = b.pubDate ? new Date(b.pubDate) : new Date(0);
+            return dateB - dateA;
+          });
+          const mockUpdateTime = new Date(sortedMockData[0].pubDate);
+          setLastUpdated(mockUpdateTime);
+        } catch (err) {
+          console.log('Error processing mock data dates:', err);
+          setLastUpdated(new Date());
+        }
       }
     } catch (error) {
       console.error('Error fetching disaster data:', error);
@@ -447,6 +532,9 @@ export default function Home() {
         assessImpact(facilities);
       }, 1000);
     }
+    
+    // Last updated will be set by fetchDisasterData, but we could also set it here
+    // if there are cases where we update data without calling fetchDisasterData
   };
 
   // Handle date filter change
@@ -785,91 +873,99 @@ export default function Home() {
           <div className="data-summary" style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '20px'
+            gap: '20px',
+            justifyContent: 'space-between',
+            width: '100%'
           }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              backgroundColor: '#e3f2fd',
-              padding: '8px 12px',
-              borderRadius: '4px'
+              gap: '20px'
             }}>
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                marginRight: '5px'
+                backgroundColor: '#e3f2fd',
+                padding: '8px 12px',
+                borderRadius: '4px'
               }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
-                  <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
-                  <line x1="8" y1="2" x2="8" y2="18"></line>
-                  <line x1="16" y1="6" x2="16" y2="22"></line>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginRight: '5px'
+                }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
+                    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+                    <line x1="8" y1="2" x2="8" y2="18"></line>
+                    <line x1="16" y1="6" x2="16" y2="22"></line>
+                  </svg>
+                  <span style={{fontWeight: 'bold', fontSize: '14px', color: '#0d47a1'}}>
+                    {filteredDisasters.length} Disasters
+                  </span>
+                </div>
+                <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                  <span style={{
+                    backgroundColor: '#ff4444',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    padding: '2px 6px',
+                    borderRadius: '4px'
+                  }}>{filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'red').length}</span>
+                  
+                  <span style={{
+                    backgroundColor: '#ffa500',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    padding: '2px 6px',
+                    borderRadius: '4px'
+                  }}>{filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'orange').length}</span>
+                  
+                  <span style={{
+                    backgroundColor: '#4CAF50',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    padding: '2px 6px',
+                    borderRadius: '4px'
+                  }}>{filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'green').length}</span>
+                </div>
+              </div>
+              
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                padding: '8px 12px',
+                borderRadius: '4px'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
-                <span style={{fontWeight: 'bold', fontSize: '14px', color: '#0d47a1'}}>
-                  {filteredDisasters.length} Disasters
+                <span style={{fontWeight: 'bold', fontSize: '14px', color: '#2e7d32', marginRight: '5px'}}>
+                  {facilities.length} Facilities:
                 </span>
-              </div>
-              <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
-                <span style={{
-                  backgroundColor: '#ff4444',
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '12px',
-                  padding: '2px 6px',
-                  borderRadius: '4px'
-                }}>{filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'red').length}</span>
-                
-                <span style={{
-                  backgroundColor: '#ffa500',
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '12px',
-                  padding: '2px 6px',
-                  borderRadius: '4px'
-                }}>{filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'orange').length}</span>
-                
-                <span style={{
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '12px',
-                  padding: '2px 6px',
-                  borderRadius: '4px'
-                }}>{filteredDisasters.filter(d => d.alertLevel?.toLowerCase() === 'green').length}</span>
-              </div>
-            </div>
-            
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              backgroundColor: 'rgba(76, 175, 80, 0.1)',
-              padding: '8px 12px',
-              borderRadius: '4px'
-            }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                <polyline points="9 22 9 12 15 12 15 22"></polyline>
-              </svg>
-              <span style={{fontWeight: 'bold', fontSize: '14px', color: '#2e7d32', marginRight: '5px'}}>
-                {facilities.length} Facilities:
-              </span>
-              <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
-                <span style={{
-                  backgroundColor: '#ff4444',
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '12px',
-                  padding: '2px 6px',
-                  borderRadius: '4px'
-                }}>{impactedFacilities.length} Impacted</span>
-                
-                <span style={{
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '12px',
-                  padding: '2px 6px',
-                  borderRadius: '4px'
-                }}>{facilities.length - impactedFacilities.length} Safe</span>
+                <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                  <span style={{
+                    backgroundColor: '#ff4444',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    padding: '2px 6px',
+                    borderRadius: '4px'
+                  }}>{impactedFacilities.length} Impacted</span>
+                  
+                  <span style={{
+                    backgroundColor: '#4CAF50',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    padding: '2px 6px',
+                    borderRadius: '4px'
+                  }}>{facilities.length - impactedFacilities.length} Safe</span>
+                </div>
               </div>
             </div>
             
@@ -951,6 +1047,48 @@ export default function Home() {
                 {loading.sitrep ? 'Generating...' : 'Download Complete AI Report'}
               </button>
             </div>
+            
+            {/* Last Updated indicator */}
+            {lastUpdated && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                fontSize: '10px',
+                color: '#666',
+                backgroundColor: '#f5f5f5',
+                padding: '3px 8px',
+                borderRadius: '4px'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}>
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <div>
+                  <span style={{ fontWeight: 'medium' }}>
+                    Updated: {new Intl.DateTimeFormat('en-US', {
+                      month: 'short',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true
+                    }).format(lastUpdated)}
+                  </span>
+                  {timeSinceUpdate && (
+                    <span style={{ 
+                      marginLeft: '4px', 
+                      backgroundColor: timeSinceUpdate.includes('hour') || timeSinceUpdate.includes('day') ? '#ffebee' : '#e8f5e9',
+                      padding: '1px 4px',
+                      borderRadius: '8px',
+                      fontSize: '9px',
+                      color: timeSinceUpdate.includes('hour') || timeSinceUpdate.includes('day') ? '#d32f2f' : '#2e7d32',
+                      fontWeight: 'bold'
+                    }}>
+                      {timeSinceUpdate}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
