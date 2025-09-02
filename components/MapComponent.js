@@ -1102,6 +1102,9 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [facilityDrawerOpen, setFacilityDrawerOpen] = useState(false);
   const [sitrepDrawerOpen, setSitrepDrawerOpen] = useState(false);
+  const [mapLayersDrawerOpen, setMapLayersDrawerOpen] = useState(false);
+  const [currentMapLayer, setCurrentMapLayer] = useState('street'); // 'street', 'satellite', 'terrain'
+  const [showRoads, setShowRoads] = useState(false); // Toggle for road overlay
   const [showLegend, setShowLegend] = useState(false); // Default to hidden
   const [showLabels, setShowLabels] = useState(false); // Toggle for facility labels
   
@@ -1124,6 +1127,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
     if (filterDrawerOpen) setFilterDrawerOpen(false);
     if (facilityDrawerOpen) setFacilityDrawerOpen(false);
     if (sitrepDrawerOpen) setSitrepDrawerOpen(false);
+    if (mapLayersDrawerOpen) setMapLayersDrawerOpen(false);
     if (showAnalysisDrawer) setShowAnalysisDrawer(false);
   };
   
@@ -1523,6 +1527,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
     if (!filterDrawerOpen) {
       setFacilityDrawerOpen(false);
       setSitrepDrawerOpen(false);
+      setMapLayersDrawerOpen(false);
     }
   };
   
@@ -1531,6 +1536,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
     if (!facilityDrawerOpen) {
       setFilterDrawerOpen(false);
       setSitrepDrawerOpen(false);
+      setMapLayersDrawerOpen(false);
     }
   };
   
@@ -1539,6 +1545,17 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
     if (!sitrepDrawerOpen) {
       setFilterDrawerOpen(false);
       setFacilityDrawerOpen(false);
+      setMapLayersDrawerOpen(false);
+      setShowAnalysisDrawer(false);
+    }
+  };
+  
+  const toggleMapLayersDrawer = () => {
+    setMapLayersDrawerOpen(!mapLayersDrawerOpen);
+    if (!mapLayersDrawerOpen) {
+      setFilterDrawerOpen(false);
+      setFacilityDrawerOpen(false);
+      setSitrepDrawerOpen(false);
       setShowAnalysisDrawer(false);
     }
   };
@@ -1549,6 +1566,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
       setFilterDrawerOpen(false);
       setFacilityDrawerOpen(false);
       setSitrepDrawerOpen(false);
+      setMapLayersDrawerOpen(false);
     }
   };
   
@@ -1762,6 +1780,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
     .map-container:-ms-fullscreen .leaflet-control-container .leaflet-bottom {
       bottom: 10px;
     }
+    
   `;
   
   return (
@@ -1820,6 +1839,19 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
           <polyline points="10 9 9 9 8 9"></polyline>
         </svg>
         Sitrep
+      </button>
+      
+      <button 
+        className="drawer-toggle drawer-toggle-layers"
+        onClick={toggleMapLayersDrawer}
+        title="Map Layers"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+        Layers
       </button>
       
       {/* Filter drawer */}
@@ -2974,6 +3006,78 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
       {/* Situation Report Drawer */}
       <div className={`drawer-backdrop ${sitrepDrawerOpen ? 'open' : ''}`} onClick={toggleSitrepDrawer}></div>
       
+      {/* Map Layers Drawer */}
+      <div className={`drawer-backdrop ${mapLayersDrawerOpen ? 'open' : ''}`} onClick={toggleMapLayersDrawer}></div>
+      <div className={`drawer drawer-right ${mapLayersDrawerOpen ? 'open' : ''}`}>
+        <div className="drawer-header">
+          <h3 className="drawer-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+              <polyline points="2 17 12 22 22 17"></polyline>
+              <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+            Map Layers
+          </h3>
+          <button className="drawer-close" onClick={toggleMapLayersDrawer}>×</button>
+        </div>
+        <div className="drawer-content">
+          <div style={{padding: '20px 0'}}>
+            <h4 style={{marginBottom: '15px', color: '#333', fontSize: '16px'}}>Select Base Layer</h4>
+            
+            <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+              <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: currentMapLayer === 'street' ? '#e3f2fd' : 'transparent'}}>
+                <input 
+                  type="radio" 
+                  name="mapLayer" 
+                  value="street"
+                  checked={currentMapLayer === 'street'}
+                  onChange={() => setCurrentMapLayer('street')}
+                  style={{marginRight: '10px'}}
+                />
+                <span>Street Map</span>
+              </label>
+              
+              <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: currentMapLayer === 'satellite' ? '#e3f2fd' : 'transparent'}}>
+                <input 
+                  type="radio" 
+                  name="mapLayer" 
+                  value="satellite"
+                  checked={currentMapLayer === 'satellite'}
+                  onChange={() => setCurrentMapLayer('satellite')}
+                  style={{marginRight: '10px'}}
+                />
+                <span>Satellite Imagery</span>
+              </label>
+              
+              <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: currentMapLayer === 'terrain' ? '#e3f2fd' : 'transparent'}}>
+                <input 
+                  type="radio" 
+                  name="mapLayer" 
+                  value="terrain"
+                  checked={currentMapLayer === 'terrain'}
+                  onChange={() => setCurrentMapLayer('terrain')}
+                  style={{marginRight: '10px'}}
+                />
+                <span>Terrain Map</span>
+              </label>
+              
+              <div style={{borderTop: '1px solid #eee', margin: '15px 0', paddingTop: '15px'}}>
+                <h4 style={{marginBottom: '10px', color: '#333', fontSize: '14px'}}>Overlay Options</h4>
+                <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: showRoads ? '#e3f2fd' : 'transparent'}}>
+                  <input 
+                    type="checkbox" 
+                    checked={showRoads}
+                    onChange={() => setShowRoads(!showRoads)}
+                    style={{marginRight: '10px'}}
+                  />
+                  <span>Show Road Network</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       {/* AI Analysis Drawer */}
       <div className={`drawer-backdrop ${showAnalysisDrawer ? 'open' : ''}`} onClick={toggleAnalysisDrawer}></div>
       <div className={`drawer drawer-right ${showAnalysisDrawer ? 'open' : ''}`}>
@@ -3433,10 +3537,36 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
           )}
         </div>
         
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        {/* Dynamic TileLayer based on currentMapLayer */}
+        {currentMapLayer === 'street' && (
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+        )}
+        
+        {currentMapLayer === 'satellite' && (
+          <TileLayer
+            attribution='&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          />
+        )}
+        
+        {currentMapLayer === 'terrain' && (
+          <TileLayer
+            attribution='&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community'
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
+          />
+        )}
+        
+        {/* Road Network Overlay */}
+        {showRoads && (
+          <TileLayer
+            attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png"
+            opacity={0.8}
+          />
+        )}
         
         {/* Heatmap layer for disaster concentration */}
         {showHeatmap && filteredDisasters.length > 0 && (

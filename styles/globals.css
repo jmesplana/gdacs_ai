@@ -379,6 +379,11 @@ a {
   right: 20px;
 }
 
+.drawer-toggle-layers {
+  top: 170px;
+  right: 20px;
+}
+
 .drawer-content {
   padding: 10px 0;
 }
@@ -479,6 +484,11 @@ a {
   
   .drawer-toggle-sitrep {
     top: 110px;
+    right: 10px;
+  }
+  
+  .drawer-toggle-layers {
+    top: 160px;
     right: 10px;
   }
 }
