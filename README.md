@@ -10,9 +10,12 @@ This application helps humanitarian and disaster response professionals rapidly 
 - **Automated Situation Reports**: Generate concise, structured situational reports for easy sharing with stakeholders.
 - **CAP XML Support**: Enhanced disaster visualization with Common Alerting Protocol (CAP) XML data, enabling accurate polygon-based impact areas.
 - **Heatmap Visualization**: Dynamic heatmap shows disaster intensity and distribution with severity-based coloring.
+- **Multi-Layer Map Support**: Switch between street, satellite, and terrain map views with seamless transitions.
+- **Road Network Overlay**: Toggle road network visualization over any base layer for enhanced navigation context.
 - **Zoom-to-Fit Functionality**: Automatically frames the map to show all relevant disasters and facilities.
 - **Interactive Map Legend**: Comprehensive legend showing disaster types, severity levels, and polygon indicators.
 - **Advanced Filtering**: Enhanced filtering options including time-based (24h, 48h, 72h, 7d, 30d) and severity filters.
+- **Fullscreen Map Mode**: Immersive fullscreen viewing experience for detailed analysis.
 
 ## Setup
 
