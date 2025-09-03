@@ -1,4 +1,4 @@
-# AI Disaster Impact and Response Tool
+# Disaster Impact and Response Tool
 
 This application helps humanitarian and disaster response professionals rapidly identify and respond to imminent risks using live GDACS disaster data.
 
@@ -16,6 +16,9 @@ This application helps humanitarian and disaster response professionals rapidly 
 - **Interactive Map Legend**: Comprehensive legend showing disaster types, severity levels, and polygon indicators.
 - **Advanced Filtering**: Enhanced filtering options including time-based (24h, 48h, 72h, 7d, 30d) and severity filters.
 - **Fullscreen Map Mode**: Immersive fullscreen viewing experience for detailed analysis.
+- **Interactive Drawing Tools**: Built-in drawing capabilities allowing users to annotate maps with polygons, lines, circles, and markers in customizable colors.
+- **Facility Labels**: Toggle facility name labels on/off for better map readability and identification.
+- **Impact Zone Visualization**: Optional display of disaster impact zones and areas, with toggleable polygon overlays showing affected regions.
 
 ## Setup
 

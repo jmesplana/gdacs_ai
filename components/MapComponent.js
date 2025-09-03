@@ -7,6 +7,16 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import 'leaflet-draw/dist/leaflet.draw.css';
+import 'leaflet-draw';
+
+// Fix for default markers in Next.js
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
 import * as XLSX from 'xlsx';
 import ReactMarkdown from 'react-markdown';
 
@@ -140,8 +150,199 @@ const MapAccess = ({ onMapReady }) => {
   return null;
 };
 
+// Leaflet.draw component for drawing functionality
+const DrawingLayer = ({ enabled, color, drawControlRef, drawnItemsRef, drawings, setDrawings }) => {
+  const map = useMap();
+  const controlAddedRef = useRef(false);
+  
+  // Initialize drawnItems if not provided
+  if (!drawnItemsRef.current) {
+    drawnItemsRef.current = new L.FeatureGroup();
+  }
+  
+  useEffect(() => {
+    if (!map) return;
+    
+    // Add the drawn items layer to the map
+    map.addLayer(drawnItemsRef.current);
+    
+    // Initialize drawing controls if not exists
+    if (!drawControlRef.current) {
+      console.log('Initializing Leaflet.draw with color:', color);
+      
+      drawControlRef.current = new L.Control.Draw({
+        draw: {
+          polygon: {
+            shapeOptions: {
+              color: color,
+              weight: 3,
+              opacity: 0.8,
+              fillColor: color,
+              fillOpacity: 0.2
+            }
+          },
+          polyline: {
+            shapeOptions: {
+              color: color,
+              weight: 3,
+              opacity: 0.8
+            }
+          },
+          rectangle: {
+            shapeOptions: {
+              color: color,
+              weight: 3,
+              opacity: 0.8,
+              fillColor: color,
+              fillOpacity: 0.2
+            }
+          },
+          circle: {
+            shapeOptions: {
+              color: color,
+              weight: 3,
+              opacity: 0.8,
+              fillColor: color,
+              fillOpacity: 0.2
+            }
+          },
+          marker: true,
+          circlemarker: false
+        },
+        edit: {
+          featureGroup: drawnItemsRef.current,
+          remove: true
+        }
+      });
+      
+      // Event handlers for drawing
+      map.on(L.Draw.Event.CREATED, (e) => {
+        console.log('Drawing created:', e);
+        const layer = e.layer;
+        drawnItemsRef.current.addLayer(layer);
+        
+        // Update drawings state
+        const newDrawing = {
+          id: Date.now(),
+          layer: layer,
+          color: color,
+          type: e.layerType
+        };
+        
+        setDrawings(prev => [...prev, newDrawing]);
+      });
+      
+      map.on(L.Draw.Event.EDITED, (e) => {
+        console.log('Drawing edited:', e);
+        // Could update the drawings state here if needed
+      });
+      
+      map.on(L.Draw.Event.DELETED, (e) => {
+        console.log('Drawing deleted:', e);
+        const deletedLayers = e.layers;
+        
+        setDrawings(prev => 
+          prev.filter(drawing => !deletedLayers.getLayers().includes(drawing.layer))
+        );
+      });
+    }
+    
+    // Add or remove controls based on enabled state
+    if (enabled && !controlAddedRef.current && drawControlRef.current) {
+      map.addControl(drawControlRef.current);
+      controlAddedRef.current = true;
+    } else if (!enabled && controlAddedRef.current && drawControlRef.current) {
+      map.removeControl(drawControlRef.current);
+      controlAddedRef.current = false;
+    }
+    
+  }, [map, enabled, color, setDrawings]);
+  
+  // Update drawing colors when color changes
+  useEffect(() => {
+    if (drawControlRef.current && map) {
+      console.log('Updating drawing color to:', color);
+      
+      // Remove and re-add control with new color
+      if (controlAddedRef.current && drawControlRef.current) {
+        map.removeControl(drawControlRef.current);
+        controlAddedRef.current = false;
+      }
+      
+      // Create new control with updated color
+      drawControlRef.current = new L.Control.Draw({
+        draw: {
+          polygon: {
+            shapeOptions: {
+              color: color,
+              weight: 3,
+              opacity: 0.8,
+              fillColor: color,
+              fillOpacity: 0.2
+            }
+          },
+          polyline: {
+            shapeOptions: {
+              color: color,
+              weight: 3,
+              opacity: 0.8
+            }
+          },
+          rectangle: {
+            shapeOptions: {
+              color: color,
+              weight: 3,
+              opacity: 0.8,
+              fillColor: color,
+              fillOpacity: 0.2
+            }
+          },
+          circle: {
+            shapeOptions: {
+              color: color,
+              weight: 3,
+              opacity: 0.8,
+              fillColor: color,
+              fillOpacity: 0.2
+            }
+          },
+          marker: true,
+          circlemarker: false
+        },
+        edit: {
+          featureGroup: drawnItemsRef.current,
+          remove: true
+        }
+      });
+      
+      if (enabled) {
+        map.addControl(drawControlRef.current);
+        controlAddedRef.current = true;
+      }
+    }
+  }, [color, map, enabled]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (drawControlRef.current && map) {
+        if (controlAddedRef.current) {
+          map.removeControl(drawControlRef.current);
+          controlAddedRef.current = false;
+        }
+        if (map.hasLayer(drawnItemsRef.current)) {
+          map.removeLayer(drawnItemsRef.current);
+        }
+        drawControlRef.current = null;
+      }
+    };
+  }, [map]);
+  
+  return null;
+};
+
 // Component to add disaster markers directly to the map
-const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
+const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor, showImpactZones }) => {
   const map = useMap();
   const clusterGroupRef = useRef(null);
   
@@ -400,24 +601,52 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
               // Test polygon removed since real polygons are working properly now
               
               // Create the actual polygon with the CAP data
-              disasterPolygon = L.polygon(validPolygonCoords, {
-                color: alertColor,
-                fillColor: alertColor,
-                fillOpacity: 0.1,
-                weight: 1,
-                opacity: 0.5,
-                interactive: false, // Don't interact with the polygon
-                zIndexOffset: -2000, // Keep impact area below everything
-                pane: 'shadowPane' // Use the shadow pane which is below markers
-              }).addTo(map);
-              // Polygon added successfully
-              
-              // Store the polygon to remove on cleanup
-              markers.push(disasterPolygon);
+              // Only create polygon if impact zones are enabled
+              if (showImpactZones) {
+                disasterPolygon = L.polygon(validPolygonCoords, {
+                  color: alertColor,
+                  fillColor: alertColor,
+                  fillOpacity: 0.1,
+                  weight: 1,
+                  opacity: 0.5,
+                  interactive: false, // Don't interact with the polygon
+                  zIndexOffset: -2000, // Keep impact area below everything
+                  pane: 'shadowPane' // Use the shadow pane which is below markers
+                }).addTo(map);
+                // Store the polygon to remove on cleanup
+                markers.push(disasterPolygon);
+              }
             } catch (e) {
               console.error("Error creating polygon:", e);
-              // Fall back to circle on error
+              // Fall back to circle on error (only if impact zones enabled)
+              if (showImpactZones) {
+                const radiusInMeters = impactRadius * 1000;
+                const circle = L.circle([lat, lng], {
+                  radius: radiusInMeters,
+                  color: alertColor,
+                  fillColor: alertColor,
+                  fillOpacity: 0.1,
+                  weight: 1,
+                  opacity: 0.5,
+                  interactive: false,
+                  zIndexOffset: -2000,
+                  pane: 'shadowPane'
+                }).addTo(map);
+                markers.push(circle);
+              }
+              return;
+            }
+            
+            // Debug markers were removed since polygons are working properly now
+          } else {
+            // Fallback to circle if no polygon data (only if impact zones enabled)
+            if (showImpactZones) {
+              console.log(`No polygon data, using circle for disaster: ${disaster.title}`);
+              
+              // Convert km to meters for the circle
               const radiusInMeters = impactRadius * 1000;
+              
+              // Create the circle
               const circle = L.circle([lat, lng], {
                 radius: radiusInMeters,
                 color: alertColor,
@@ -425,37 +654,14 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
                 fillOpacity: 0.1,
                 weight: 1,
                 opacity: 0.5,
-                interactive: false,
-                zIndexOffset: -2000,
-                pane: 'shadowPane'
-              }).addTo(map);
-              markers.push(circle);
-              return;
-            }
-            
-            // Debug markers were removed since polygons are working properly now
-          } else {
-            // Fallback to circle if no polygon data
-            console.log(`No polygon data, using circle for disaster: ${disaster.title}`);
-            
-            // Convert km to meters for the circle
-            const radiusInMeters = impactRadius * 1000;
-            
-            // Create the circle
-            const circle = L.circle([lat, lng], {
-              radius: radiusInMeters,
-              color: alertColor,
-              fillColor: alertColor,
-              fillOpacity: 0.1,
-              weight: 1,
-              opacity: 0.5,
-              interactive: false, // Don't interact with the circle
+                interactive: false, // Don't interact with the circle
               zIndexOffset: -2000, // Keep impact radius below everything
               pane: 'shadowPane' // Use the shadow pane which is below markers
-            }).addTo(map);
-            
-            // Store the circle to remove on cleanup
-            markers.push(circle);
+              }).addTo(map);
+              
+              // Store the circle to remove on cleanup
+              markers.push(circle);
+            }
           }
         }
       });
@@ -476,7 +682,7 @@ const DisasterMarkers = ({ disasters, getDisasterInfo, getAlertColor }) => {
         clusterGroupRef.current = null;
       }
     };
-  }, [map, disasters]);
+  }, [map, disasters, showImpactZones]);
   
   return null;
 };
@@ -996,6 +1202,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
   const mapContainerRef = useRef(null);
   const [mapInstance, setMapInstance] = useState(null);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showImpactZones, setShowImpactZones] = useState(true);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);
@@ -1107,6 +1314,36 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
   const [showRoads, setShowRoads] = useState(false); // Toggle for road overlay
   const [showLegend, setShowLegend] = useState(false); // Default to hidden
   const [showLabels, setShowLabels] = useState(false); // Toggle for facility labels
+  
+  // Drawing states
+  const [drawingEnabled, setDrawingEnabled] = useState(false);
+  const [drawingColor, setDrawingColor] = useState('#FF0000'); // Default red
+  const [drawings, setDrawings] = useState([]); // Store all drawings for undo
+  const drawControlRef = useRef(null);
+  const drawnItemsRef = useRef(null);
+  
+  // Drawing helper functions
+  const clearAllDrawings = () => {
+    if (drawnItemsRef.current) {
+      drawnItemsRef.current.clearLayers();
+      setDrawings([]);
+    }
+  };
+  
+  const undoLastDrawing = () => {
+    if (drawings.length > 0) {
+      const lastDrawing = drawings[drawings.length - 1];
+      if (lastDrawing.layer && drawnItemsRef.current) {
+        drawnItemsRef.current.removeLayer(lastDrawing.layer);
+      }
+      // Update state
+      setDrawings(prev => prev.slice(0, -1));
+    }
+  };
+  
+  const toggleDrawing = () => {
+    setDrawingEnabled(!drawingEnabled);
+  };
   
   // For AI analysis
   const [selectedFacility, setSelectedFacility] = useState(null);
@@ -1854,6 +2091,115 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
         Layers
       </button>
       
+      <button 
+        type="button"
+        className="drawer-toggle drawer-toggle-draw"
+        onClick={toggleDrawing}
+        title={drawingEnabled ? "Hide Drawing Tools" : "Show Drawing Tools"}
+        style={{
+          backgroundColor: drawingEnabled ? '#4CAF50' : 'white',
+          color: drawingEnabled ? 'white' : '#333'
+        }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
+          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+        </svg>
+        Draw
+      </button>
+      
+      {/* Color Picker - appears below buttons when drawing enabled */}
+      {drawingEnabled && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          right: '0',
+          marginTop: '10px',
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          padding: '12px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          border: '1px solid #e0e0e0',
+          zIndex: 1000,
+          minWidth: '200px'
+        }}>
+          <div style={{
+            marginBottom: '8px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            color: '#666',
+            textTransform: 'uppercase'
+          }}>
+            Drawing Color
+          </div>
+          <div style={{
+            display: 'flex',
+            gap: '6px',
+            flexWrap: 'wrap',
+            marginBottom: '12px'
+          }}>
+            {['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#000000'].map(color => (
+              <button
+                type="button"
+                key={color}
+                onClick={() => setDrawingColor(color)}
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  backgroundColor: color,
+                  border: drawingColor === color ? '3px solid #333' : '1px solid #ccc',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                title={`Select ${color}`}
+              />
+            ))}
+          </div>
+          <div style={{
+            display: 'flex',
+            gap: '6px'
+          }}>
+            <button 
+              type="button"
+              onClick={undoLastDrawing}
+              disabled={drawings.length === 0}
+              title="Undo Last Drawing"
+              style={{
+                flex: 1,
+                padding: '6px 8px',
+                backgroundColor: drawings.length > 0 ? '#f0f0f0' : '#f8f8f8',
+                color: drawings.length > 0 ? '#333' : '#999',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: drawings.length > 0 ? 'pointer' : 'not-allowed'
+              }}
+            >
+              Undo
+            </button>
+            <button 
+              type="button"
+              onClick={clearAllDrawings}
+              disabled={drawings.length === 0}
+              title="Clear All Drawings"
+              style={{
+                flex: 1,
+                padding: '6px 8px',
+                backgroundColor: drawings.length > 0 ? '#ff4444' : '#f8f8f8',
+                color: drawings.length > 0 ? 'white' : '#999',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: drawings.length > 0 ? 'pointer' : 'not-allowed'
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+      
+      
       {/* Filter drawer */}
       <div className={`drawer-backdrop ${filterDrawerOpen ? 'open' : ''}`} onClick={toggleFilterDrawer}></div>
       <div className={`drawer drawer-right ${filterDrawerOpen ? 'open' : ''}`}>
@@ -1960,6 +2306,48 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
                   </ul>
                 </div>
               )}
+
+              {/* Impact Zones Toggle */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <circle cx="12" cy="12" r="6"></circle>
+                    <circle cx="12" cy="12" r="2"></circle>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>Impact Zones</span>
+                </div>
+                <div 
+                  onClick={() => setShowImpactZones(!showImpactZones)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showImpactZones ? '#2196F3' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: showImpactZones ? '22px' : '2px',
+                    transition: 'left 0.3s'
+                  }}
+                  ></div>
+                </div>
+              </div>
             </div>
             
             {/* Map Legend Control */}
@@ -3568,6 +3956,16 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
           />
         )}
         
+        {/* Drawing Layer */}
+        <DrawingLayer 
+          enabled={drawingEnabled}
+          color={drawingColor}
+          drawControlRef={drawControlRef}
+          drawnItemsRef={drawnItemsRef}
+          drawings={drawings}
+          setDrawings={setDrawings}
+        />
+        
         {/* Heatmap layer for disaster concentration */}
         {showHeatmap && filteredDisasters.length > 0 && (
           <HeatmapLayer disasters={filteredDisasters} />
@@ -3579,6 +3977,7 @@ const MapComponent = ({ disasters, facilities, impactedFacilities, impactStatist
             disasters={filteredDisasters}
             getDisasterInfo={getDisasterInfo}
             getAlertColor={getAlertColor}
+            showImpactZones={showImpactZones}
           />
         )}
         

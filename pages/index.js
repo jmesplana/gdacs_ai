@@ -559,7 +559,7 @@ export default function Home() {
       const time = new Date().toTimeString().split(' ')[0];
       
       // Start with header
-      reportContent += `# GDACS Emergency Response Overview Report\n`;
+      reportContent += `# Emergency Response Overview Report\n`;
       reportContent += `## Generated: ${date} | ${time} | Filter: ${dateFilter === '24h' ? 'Last 24h' : 
                                  dateFilter === '48h' ? 'Last 48h' : 
                                  dateFilter === '72h' ? 'Last 72h' : 
@@ -877,7 +877,7 @@ export default function Home() {
       setCompleteReport(reportContent);
       
       // Convert to Word format and download
-      downloadWordDocument(reportContent, `GDACS-Emergency-Response-Overview-${date}`);
+      downloadWordDocument(reportContent, `Emergency-Response-Overview-${date}`);
       
     } catch (error) {
       console.error('Error generating comprehensive report:', error);
@@ -937,7 +937,7 @@ export default function Home() {
             <meta name="ProgId" content="Word.Document">
             <meta name="Generator" content="Microsoft Word 15">
             <meta name="Originator" content="Microsoft Word 15">
-            <title>GDACS AI Analysis Report</title>
+            <title>AI Analysis Report</title>
             <!--[if gte mso 9]>
             <xml>
               <w:WordDocument>
@@ -1132,7 +1132,7 @@ export default function Home() {
   return (
     <div className="container">
       <Head>
-        <title>GDACS Facility Impact Assessment Tool</title>
+        <title>Disaster Impact Assessment Tool</title>
         <meta name="description" content="AI-powered disaster impact and response tool" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
@@ -1143,7 +1143,7 @@ export default function Home() {
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
               <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
             </svg>
-            GDACS Disaster Response Dashboard
+            Disaster Response Dashboard
           </h1>
           
           <div className="data-summary" style={{
@@ -1451,7 +1451,7 @@ export default function Home() {
                 <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
                 <line x1="12" y1="17" x2="12.01" y2="17"></line>
               </svg>
-              GDACS FACILITIES IMPACT ASSESSMENT GUIDE
+              DISASTER IMPACT ASSESSMENT GUIDE
             </div>
             <button
               onClick={() => setShowHelp(false)}
@@ -1478,7 +1478,7 @@ export default function Home() {
           <div style={{ marginBottom: '20px' }}>
             <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>What Is This Tool?</h3>
             <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '10px' }}>
-              The GDACS Facilities Impact Assessment Tool helps organizations monitor their global facilities and assess potential impacts from current natural disasters. It combines real-time disaster data from the Global Disaster Alert and Coordination System (GDACS) with your facility locations to identify risks and provide AI-powered recommendations.
+              The Disaster Impact Assessment Tool helps organizations monitor their global facilities and assess potential impacts from current natural disasters. It combines real-time disaster data with your facility locations to identify risks and provide AI-powered recommendations.
             </p>
           </div>
           
@@ -1543,7 +1543,7 @@ export default function Home() {
             <div style={{ marginBottom: '12px' }}>
               <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>2. View Disaster Data</h4>
               <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
-                The map shows active disasters from GDACS. Use the <strong>Filters</strong> button to filter disasters by type and time period.
+                The map shows active disasters from global sources. Use the <strong>Filters</strong> button to filter disasters by type and time period.
               </p>
             </div>
             
@@ -1686,7 +1686,7 @@ export default function Home() {
         fontSize: '14px',
         color: '#666'
       }}>
-        Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#2196F3', textDecoration: 'none', fontWeight: 'bold' }}>John Mark Esplana</a> | GDACS Facilities Impact Assessment Tool
+        Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#2196F3', textDecoration: 'none', fontWeight: 'bold' }}>John Mark Esplana</a> | Disaster Impact Assessment Tool
       </footer>
     </div>
   )

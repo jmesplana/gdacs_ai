@@ -384,6 +384,11 @@ a {
   right: 20px;
 }
 
+.drawer-toggle-draw {
+  top: 220px;
+  right: 20px;
+}
+
 .drawer-content {
   padding: 10px 0;
 }
@@ -489,6 +494,11 @@ a {
   
   .drawer-toggle-layers {
     top: 160px;
+    right: 10px;
+  }
+  
+  .drawer-toggle-draw {
+    top: 210px;
     right: 10px;
   }
 }

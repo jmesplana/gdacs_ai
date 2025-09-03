@@ -1,5 +1,5 @@
 {
-  "name": "gdacs-facilities-ai",
+  "name": "disaster-facilities-ai",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,6 +13,8 @@
     "axios": "^1.5.0",
     "geolib": "^3.3.4",
     "leaflet": "^1.9.4",
+    "leaflet-draw": "^1.0.4",
+    "leaflet-freedraw": "^2.15.0",
     "leaflet.markercluster": "^1.5.3",
     "next": "^13.4.19",
     "openai": "^4.90.0",
