@@ -32,6 +32,7 @@ export default function Home() {
   const [recommendations, setRecommendations] = useState(null);
   const [recommendationsAIGenerated, setRecommendationsAIGenerated] = useState(false);
   const [sitrep, setSitrep] = useState('');
+  const [sitrepTimestamp, setSitrepTimestamp] = useState(null);
   const [loading, setLoading] = useState({
     disasters: true,
     impact: false,
@@ -44,9 +45,11 @@ export default function Home() {
   const [fetchError, setFetchError] = useState(null);
   const [useMockData, setUseMockData] = useState(false); // Default to live data
   const [showHelp, setShowHelp] = useState(false); // Help panel visibility
+  const [showChatDrawer, setShowChatDrawer] = useState(false); // Chat drawer visibility
   const [completeReport, setCompleteReport] = useState(null); // Store combined AI report
   const [lastUpdated, setLastUpdated] = useState(null); // Track when data was last updated
   const [timeSinceUpdate, setTimeSinceUpdate] = useState(''); // Human-readable time since last update
+  const [aiAnalysisFields, setAiAnalysisFields] = useState([]); // Track which fields are selected for AI analysis
 
   // Fetch disaster data on component mount
   useEffect(() => {
@@ -344,16 +347,22 @@ export default function Home() {
   };
 
   // Handle facility CSV upload
-  const handleFacilityUpload = (csvData) => {
+  const handleFacilityUpload = (csvData, columnSelections) => {
     try {
+      // Store AI analysis fields for use in chat context
+      if (columnSelections && columnSelections.aiAnalysisFields) {
+        console.log('Storing AI analysis fields:', columnSelections.aiAnalysisFields);
+        setAiAnalysisFields(columnSelections.aiAnalysisFields);
+      }
+
       // Parse CSV
       Papa.parse(csvData, {
         header: true,
         complete: (results) => {
           // Validate and process facility data
-          const validFacilities = results.data.filter(facility => 
-            facility.name && 
-            !isNaN(parseFloat(facility.latitude)) && 
+          const validFacilities = results.data.filter(facility =>
+            facility.name &&
+            !isNaN(parseFloat(facility.latitude)) &&
             !isNaN(parseFloat(facility.longitude))
           ).map(facility => {
             // Create a base object with required fields
@@ -362,27 +371,27 @@ export default function Home() {
               latitude: parseFloat(facility.latitude),
               longitude: parseFloat(facility.longitude)
             };
-            
+
             // Add all other fields from the CSV
             Object.keys(facility).forEach(key => {
               if (key !== 'name' && key !== 'latitude' && key !== 'longitude' && facility[key]) {
                 facilityObject[key] = facility[key];
               }
             });
-            
+
             return facilityObject;
           });
-          
+
           if (validFacilities.length === 0) {
             alert('No valid facilities found in the CSV. Please check the format.');
             return;
           }
-          
+
           console.log(`Loaded ${validFacilities.length} facilities`);
-          
+
           // Clear any existing sitrep when facilities change
           setSitrep('');
-          
+
           // Update facilities and immediately assess impact
           setFacilities(validFacilities);
           assessImpact(validFacilities);
@@ -475,10 +484,17 @@ export default function Home() {
   };
 
   // Generate situation report
-  const generateSitrep = async () => {
+  const generateSitrep = async (forceRefresh = false) => {
     try {
+      // Check cache if not forcing refresh
+      if (!forceRefresh && sitrep && sitrepTimestamp) {
+        console.log('Using cached sitrep');
+        setActiveTab('sitrep');
+        return;
+      }
+
       setLoading(prev => ({ ...prev, sitrep: true }));
-      
+
       const response = await fetch('/api/sitrep', {
         method: 'POST',
         headers: {
@@ -491,10 +507,11 @@ export default function Home() {
           statistics: impactStatistics
         }),
       });
-      
+
       const data = await response.json();
       setSitrep(data.sitrep || '');
-      
+      setSitrepTimestamp(Date.now());
+
       // Switch to sitrep tab
       setActiveTab('sitrep');
     } catch (error) {
@@ -1132,18 +1149,34 @@ export default function Home() {
   return (
     <div className="container">
       <Head>
-        <title>Disaster Impact Assessment Tool</title>
-        <meta name="description" content="AI-powered disaster impact and response tool" />
+        <title>Aidstack Disasters - Real-time Disaster Intelligence</title>
+        <meta name="description" content="Intelligence for impact workers: Monitor global disasters and assess facility impacts in real-time" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
       <main>
         <div className="header">
-          <h1>
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+          <h1 style={{
+            color: 'var(--aidstack-navy)',
+            display: 'flex',
+            alignItems: 'center',
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontWeight: 700,
+            fontSize: '28px'
+          }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '12px'}}>
               <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
             </svg>
-            Disaster Response Dashboard
+            <div style={{display: 'flex', flexDirection: 'column', gap: '2px'}}>
+              <span>aidstack<span style={{color: 'var(--aidstack-slate-medium)', fontWeight: 500}}>.disasters</span></span>
+              <span style={{
+                fontSize: '12px',
+                fontWeight: 500,
+                color: 'var(--aidstack-slate-medium)',
+                letterSpacing: '0.5px',
+                fontFamily: "'Inter', sans-serif"
+              }}>Intelligence for impact workers</span>
+            </div>
           </h1>
           
           <div className="data-summary" style={{
@@ -1161,57 +1194,61 @@ export default function Home() {
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                backgroundColor: '#e3f2fd',
-                padding: '8px 12px',
-                borderRadius: '4px'
+                backgroundColor: 'var(--aidstack-light-gray)',
+                padding: '8px 14px',
+                borderRadius: '6px',
+                border: '1px solid var(--aidstack-slate-light)'
               }}>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  marginRight: '5px'
+                  marginRight: '8px'
                 }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}>
                     <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
                     <line x1="8" y1="2" x2="8" y2="18"></line>
                     <line x1="16" y1="6" x2="16" y2="22"></line>
                   </svg>
-                  <span style={{fontWeight: 'bold', fontSize: '14px', color: '#0d47a1'}}>
+                  <span style={{fontWeight: 600, fontSize: '14px', color: 'var(--aidstack-navy)', fontFamily: "'Inter', sans-serif"}}>
                     {filteredDisasters.length} Disasters
                   </span>
                 </div>
-                <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
                   <span style={{
-                    backgroundColor: '#ff4444',
+                    backgroundColor: 'var(--color-error)',
                     color: 'white',
-                    fontWeight: 'bold',
-                    fontSize: '12px',
-                    padding: '2px 6px',
-                    borderRadius: '4px'
-                  }}>{filteredDisasters.filter(d => 
-                    (d.alertLevel?.toLowerCase() === 'red') || 
-                    (d.severity?.toLowerCase()?.includes('extreme')) || 
+                    fontWeight: 600,
+                    fontSize: '11px',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    fontFamily: "'Inter', sans-serif"
+                  }}>{filteredDisasters.filter(d =>
+                    (d.alertLevel?.toLowerCase() === 'red') ||
+                    (d.severity?.toLowerCase()?.includes('extreme')) ||
                     (d.severity?.toLowerCase()?.includes('severe'))).length}</span>
-                  
+
                   <span style={{
-                    backgroundColor: '#ffa500',
+                    backgroundColor: 'var(--aidstack-orange)',
                     color: 'white',
-                    fontWeight: 'bold',
-                    fontSize: '12px',
-                    padding: '2px 6px',
-                    borderRadius: '4px'
-                  }}>{filteredDisasters.filter(d => 
-                    (d.alertLevel?.toLowerCase() === 'orange') || 
+                    fontWeight: 600,
+                    fontSize: '11px',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    fontFamily: "'Inter', sans-serif"
+                  }}>{filteredDisasters.filter(d =>
+                    (d.alertLevel?.toLowerCase() === 'orange') ||
                     (d.severity?.toLowerCase()?.includes('moderate'))).length}</span>
-                  
+
                   <span style={{
-                    backgroundColor: '#4CAF50',
+                    backgroundColor: 'var(--color-success)',
                     color: 'white',
-                    fontWeight: 'bold',
-                    fontSize: '12px',
-                    padding: '2px 6px',
-                    borderRadius: '4px'
-                  }}>{filteredDisasters.filter(d => 
-                    (d.alertLevel?.toLowerCase() === 'green') || 
+                    fontWeight: 600,
+                    fontSize: '11px',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    fontFamily: "'Inter', sans-serif"
+                  }}>{filteredDisasters.filter(d =>
+                    (d.alertLevel?.toLowerCase() === 'green') ||
                     (d.severity?.toLowerCase()?.includes('minor')) ||
                     (!d.alertLevel && !d.severity)).length}</span>
                 </div>
@@ -1220,54 +1257,58 @@ export default function Home() {
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                backgroundColor: 'var(--aidstack-light-gray)',
                 padding: '8px 12px',
-                borderRadius: '4px'
+                borderRadius: '4px',
+                border: '1px solid var(--aidstack-slate-light)'
               }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                   <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
-                <span style={{fontWeight: 'bold', fontSize: '14px', color: '#2e7d32', marginRight: '5px'}}>
+                <span style={{fontWeight: 600, fontSize: '14px', color: 'var(--aidstack-navy)', marginRight: '5px', fontFamily: "'Inter', sans-serif"}}>
                   {facilities.length} Facilities:
                 </span>
                 <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
                   <span style={{
-                    backgroundColor: '#ff4444',
+                    backgroundColor: 'var(--color-error)',
                     color: 'white',
-                    fontWeight: 'bold',
+                    fontWeight: 600,
                     fontSize: '12px',
                     padding: '2px 6px',
-                    borderRadius: '4px'
+                    borderRadius: '4px',
+                    fontFamily: "'Inter', sans-serif"
                   }}>{impactedFacilities.length} Impacted</span>
-                  
+
                   <span style={{
-                    backgroundColor: '#4CAF50',
+                    backgroundColor: 'var(--color-success)',
                     color: 'white',
-                    fontWeight: 'bold',
+                    fontWeight: 600,
                     fontSize: '12px',
                     padding: '2px 6px',
-                    borderRadius: '4px'
+                    borderRadius: '4px',
+                    fontFamily: "'Inter', sans-serif"
                   }}>{facilities.length - impactedFacilities.length} Safe</span>
                 </div>
               </div>
             </div>
             
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
+              <button
                 onClick={handleRefreshData}
                 disabled={loading.disasters}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  backgroundColor: loading.disasters ? '#e0e0e0' : '#2196F3',
+                  backgroundColor: loading.disasters ? 'var(--aidstack-slate-light)' : 'var(--aidstack-navy)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
                   padding: '8px 12px',
                   cursor: loading.disasters ? 'not-allowed' : 'pointer',
                   fontSize: '14px',
-                  fontWeight: 'bold'
+                  fontWeight: 600,
+                  fontFamily: "'Inter', sans-serif"
                 }}
               >
                 {loading.disasters ? (
@@ -1292,20 +1333,21 @@ export default function Home() {
               </button>
               
               {/* Complete AI Report Download Button */}
-              <button 
+              <button
                 onClick={generateCompleteReport}
                 disabled={loading.sitrep || !impactedFacilities.length}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  backgroundColor: loading.sitrep || !impactedFacilities.length ? '#e0e0e0' : '#F44336',
+                  backgroundColor: loading.sitrep || !impactedFacilities.length ? 'var(--aidstack-slate-light)' : 'var(--aidstack-orange)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
                   padding: '8px 12px',
                   cursor: loading.sitrep || !impactedFacilities.length ? 'not-allowed' : 'pointer',
                   fontSize: '14px',
-                  fontWeight: 'bold'
+                  fontWeight: 600,
+                  fontFamily: "'Inter', sans-serif"
                 }}
               >
                 {loading.sitrep ? (
@@ -1376,107 +1418,37 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Floating control buttons */}
-        <div style={{
-          position: 'absolute',
-          top: '20px',
-          left: '20px',
-          zIndex: 2000,
-          display: 'flex',
-          gap: '10px'
-        }}>
-          
-          {/* Help button */}
-          <button 
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '4px',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-              padding: '8px 12px',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 'bold',
-              fontSize: '14px'
-            }}
-            onClick={() => setShowHelp(!showHelp)}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F44336" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-            Help Guide
-          </button>
-        </div>
         
-        {/* Settings panel */}
-        {/* Help panel */}
-        <div 
-          className="floating-panel help-floating-panel"
+        {/* Help panel as drawer */}
+        <div className={`drawer-backdrop ${showHelp ? 'open' : ''}`} onClick={() => setShowHelp(false)}></div>
+        <div
+          className={`drawer drawer-right ${showHelp ? 'open' : ''}`}
+          onClick={(e) => e.stopPropagation()}
           style={{
-            position: 'absolute',
-            top: '70px',
-            left: '20px',
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.15)',
-            zIndex: 3000, /* Higher than map controls (2000) */
-            padding: '20px',
-            maxWidth: '450px',
-            maxHeight: '80vh',
-            overflowY: 'auto',
-            transform: showHelp ? 'translateY(0)' : 'translateY(-200%)',
-            opacity: showHelp ? 1 : 0,
-            transition: 'transform 0.3s ease, opacity 0.3s ease',
-            pointerEvents: showHelp ? 'auto' : 'none'
+            zIndex: 3000
           }}
         >
-          <div style={{ 
-            fontWeight: 'bold', 
-            marginBottom: '15px', 
-            fontSize: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            borderBottom: '2px solid #f0f0f0',
-            paddingBottom: '10px',
-            color: '#F44336'
+          <div className="drawer-header" style={{
+            background: 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)',
+            color: 'white',
+            margin: '-20px -20px 20px -20px',
+            padding: '20px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+            <h3 className="drawer-title" style={{color: 'white', fontFamily: "'Space Grotesk', sans-serif"}}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
                 <circle cx="12" cy="12" r="10"></circle>
                 <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
                 <line x1="12" y1="17" x2="12.01" y2="17"></line>
               </svg>
-              DISASTER IMPACT ASSESSMENT GUIDE
-            </div>
-            <button
-              onClick={() => setShowHelp(false)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '18px',
-                color: '#666',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '24px',
-                height: '24px',
-                borderRadius: '50%',
-                padding: 0
-              }}
-            >
-              ×
-            </button>
+              Help Guide
+            </h3>
+            <button className="drawer-close" onClick={() => setShowHelp(false)} style={{color: 'white'}}>×</button>
           </div>
+          <div className="drawer-content">
           
           {/* What Is This Tool section */}
           <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>What Is This Tool?</h3>
+            <h3 style={{ fontSize: '16px', color: 'var(--aidstack-orange)', marginBottom: '10px', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}>What Is This Tool?</h3>
             <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '10px' }}>
               The Disaster Impact Assessment Tool helps organizations monitor their global facilities and assess potential impacts from current natural disasters. It combines real-time disaster data with your facility locations to identify risks and provide AI-powered recommendations.
             </p>
@@ -1484,7 +1456,7 @@ export default function Home() {
           
           {/* Problems Solved section */}
           <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>Problems This Tool Solves</h3>
+            <h3 style={{ fontSize: '16px', color: 'var(--aidstack-orange)', marginBottom: '10px', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}>Problems This Tool Solves</h3>
             <ul style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', paddingLeft: '20px' }}>
               <li style={{ marginBottom: '8px' }}>
                 <strong>Scattered Information:</strong> Consolidates disaster data and facility locations in one visual interface
@@ -1503,7 +1475,7 @@ export default function Home() {
           
           {/* Key Features section */}
           <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>Key Features</h3>
+            <h3 style={{ fontSize: '16px', color: 'var(--aidstack-orange)', marginBottom: '10px', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}>Key Features</h3>
             <ul style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', paddingLeft: '20px' }}>
               <li style={{ marginBottom: '8px' }}>
                 <strong>Interactive Map:</strong> Visualize disasters and facilities globally
@@ -1531,7 +1503,7 @@ export default function Home() {
           
           {/* How To Use section */}
           <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>How To Use This Tool</h3>
+            <h3 style={{ fontSize: '16px', color: 'var(--aidstack-orange)', marginBottom: '10px', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}>How To Use This Tool</h3>
             
             <div style={{ marginBottom: '12px' }}>
               <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>1. Upload Your Facilities</h4>
@@ -1576,7 +1548,7 @@ export default function Home() {
             </div>
             
             <div style={{ marginBottom: '12px', backgroundColor: '#ffebee', padding: '10px', borderRadius: '4px' }}>
-              <h4 style={{ fontSize: '14px', color: '#d32f2f', marginBottom: '5px' }}>7. Download Complete AI Report</h4>
+              <h4 style={{ fontSize: '14px', color: 'var(--aidstack-orange)', marginBottom: '5px', fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>7. Download Complete AI Report</h4>
               <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
                 Click the <strong>Download Complete AI Report</strong> button in the dashboard header to generate a comprehensive Word document that includes all AI-generated content: situation report, facility-specific recommendations, and detailed analysis.
               </p>
@@ -1585,7 +1557,7 @@ export default function Home() {
           
           {/* Use Cases section */}
           <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>Use Cases</h3>
+            <h3 style={{ fontSize: '16px', color: 'var(--aidstack-orange)', marginBottom: '10px', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}>Use Cases</h3>
             <ul style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', paddingLeft: '20px' }}>
               <li style={{ marginBottom: '8px' }}>
                 <strong>Emergency Response:</strong> Quickly identify which facilities need immediate assistance during a disaster
@@ -1612,7 +1584,7 @@ export default function Home() {
             borderRadius: '6px',
             marginBottom: '15px'
           }}>
-            <h3 style={{ fontSize: '16px', color: '#F44336', marginBottom: '10px' }}>Pro Tips</h3>
+            <h3 style={{ fontSize: '16px', color: 'var(--aidstack-orange)', marginBottom: '10px', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}>Pro Tips</h3>
             <ul style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', paddingLeft: '20px' }}>
               <li style={{ marginBottom: '8px' }}>
                 Use the time filter to focus on recent disasters or historical events
@@ -1632,22 +1604,23 @@ export default function Home() {
             </ul>
           </div>
           
-          <div style={{ 
-            fontSize: '13px', 
-            color: '#888', 
+          <div style={{
+            fontSize: '13px',
+            color: '#888',
             fontStyle: 'italic',
             textAlign: 'center',
             marginTop: '20px',
             borderTop: '1px solid #eee',
             paddingTop: '15px'
           }}>
-            Developed by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#F44336', textDecoration: 'none' }}>John Mark Esplana</a>
+            Developed by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--aidstack-orange)', textDecoration: 'none' }}>John Mark Esplana</a>
+          </div>
           </div>
         </div>
         
 
-        <MapComponent 
-          disasters={filteredDisasters} 
+        <MapComponent
+          disasters={filteredDisasters}
           facilities={facilities}
           impactedFacilities={impactedFacilities}
           impactStatistics={impactStatistics}
@@ -1657,8 +1630,13 @@ export default function Home() {
           onGenerateSitrep={generateSitrep}
           sitrepLoading={loading.sitrep}
           sitrep={sitrep}
+          showHelp={showHelp}
+          setShowHelp={setShowHelp}
+          showChatDrawer={showChatDrawer}
+          setShowChatDrawer={setShowChatDrawer}
           dateFilter={dateFilter}
           handleDateFilterChange={handleDateFilterChange}
+          aiAnalysisFields={aiAnalysisFields}
         />
 
         {selectedFacility && (
@@ -1679,14 +1657,57 @@ export default function Home() {
       </main>
       
       <footer style={{
-        padding: '15px',
-        textAlign: 'center',
+        padding: '15px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         borderTop: '1px solid #eaeaea',
-        marginTop: '20px',
-        fontSize: '14px',
-        color: '#666'
+        marginTop: '0',
+        fontSize: '13px',
+        color: '#666',
+        backgroundColor: '#fafafa',
+        position: 'relative',
+        minHeight: '60px'
       }}>
-        Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#2196F3', textDecoration: 'none', fontWeight: 'bold' }}>John Mark Esplana</a> | Disaster Impact Assessment Tool
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#2196F3', textDecoration: 'none', fontWeight: 'bold' }}>John Mark Esplana</a> | Disaster Impact Assessment Tool
+        </div>
+        <button
+          onClick={() => setShowChatDrawer(true)}
+          title="Ask AI Assistant"
+          style={{
+            backgroundColor: 'var(--aidstack-orange)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '50%',
+            width: '50px',
+            height: '50px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            transition: 'all 0.3s ease',
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 600,
+            position: 'absolute',
+            right: '20px'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.25)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+          }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span style={{fontSize: '9px', marginTop: '1px'}}>Ask AI</span>
+        </button>
       </footer>
     </div>
   )

@@ -7,7 +7,9 @@ export default async function handler(req, res) {
 
   try {
     const { facility, impacts } = req.body;
-    
+    console.log('API received facility:', facility?.name);
+    console.log('API received impacts count:', impacts?.length || 0);
+
     if (!facility) {
       return res.status(400).json({ error: 'Missing facility data' });
     }

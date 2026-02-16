@@ -7,19 +7,24 @@ export default async function handler(req, res) {
 
   try {
     const { facility, impacts, useAI } = req.body;
-    
-    if (!facility || !impacts || impacts.length === 0) {
-      return res.status(400).json({ error: 'Missing facility or impacts data' });
+
+    if (!facility) {
+      return res.status(400).json({ error: 'Missing facility data' });
     }
-    
+
+    // Handle case where there are no impacts (preparedness mode)
+    const hasImpacts = impacts && impacts.length > 0;
+
     // Generate situation summary
-    const situationSummary = createSituationSummary(facility, impacts);
+    const situationSummary = hasImpacts
+      ? createSituationSummary(facility, impacts)
+      : `Facility '${facility.name || 'Unnamed facility'}' at coordinates ${facility.latitude}, ${facility.longitude} is currently not impacted by any active disasters. Provide preparedness and risk mitigation recommendations.`;
     
     // If OpenAI API key exists and AI is requested, use AI-powered recommendations
     if (process.env.OPENAI_API_KEY && useAI) {
       try {
-        console.log('Generating AI recommendations...');
-        const recommendations = await generateAIRecommendations(facility, impacts, situationSummary);
+        console.log(`Generating ${hasImpacts ? 'response' : 'preparedness'} recommendations...`);
+        const recommendations = await generateAIRecommendations(facility, impacts || [], situationSummary, hasImpacts);
         res.status(200).json({ recommendations, isAIGenerated: true });
         return;
       } catch (aiError) {
@@ -27,9 +32,9 @@ export default async function handler(req, res) {
         // Fall back to mock recommendations if AI fails
       }
     }
-    
+
     // For demo purposes, generate mock recommendations based on disaster types
-    const recommendations = generateMockRecommendations(facility, impacts);
+    const recommendations = generateMockRecommendations(facility, impacts || [], hasImpacts);
     
     res.status(200).json({ recommendations, isAIGenerated: false });
   } catch (error) {
@@ -39,14 +44,14 @@ export default async function handler(req, res) {
 }
 
 // Generate AI-powered recommendations
-async function generateAIRecommendations(facility, impacts, situationSummary) {
+async function generateAIRecommendations(facility, impacts, situationSummary, hasImpacts) {
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
-    
-    // Create prompt for GPT
-    const prompt = `
+
+    // Different prompts for response vs preparedness
+    const prompt = hasImpacts ? `
 You are a disaster management and emergency response expert. Based on the following information about
 a facility and the disasters currently impacting it, provide detailed, actionable recommendations.
 
@@ -63,11 +68,29 @@ Provide recommendations organized in these categories:
 4. Communication Protocols
 5. Medium-term Mitigation Strategies
 
+Your response should be a JSON object with these categories as keys and arrays of specific recommendations as values.` : `
+You are a disaster preparedness and risk management expert. Based on the following information about
+a facility, provide detailed preparedness and risk mitigation recommendations.
+
+FACILITY DATA:
+${JSON.stringify(facility, null, 2)}
+
+SITUATION:
+${situationSummary}
+
+Provide preparedness recommendations organized in these categories:
+1. Risk Assessment and Planning
+2. Infrastructure Hardening
+3. Emergency Supplies and Resources
+4. Staff Training and Drills
+5. Communication Systems
+6. Early Warning Systems
+
 Your response should be a JSON object with these categories as keys and arrays of specific recommendations as values.
+
 Example format:
 {
-  "Immediate Safety Measures": ["Recommendation 1", "Recommendation 2"],
-  "Resource Mobilization": ["Recommendation 1", "Recommendation 2"],
+  "Risk Assessment and Planning": ["Recommendation 1", "Recommendation 2"],
   ...
 }
 
@@ -143,29 +166,46 @@ function createSituationSummary(facility, impacts) {
 }
 
 // Generate recommendations using a simplified AI call
-async function generateMockRecommendations(facility, impacts) {
+async function generateMockRecommendations(facility, impacts, hasImpacts) {
   try {
     // Try to use OpenAI with a simplified prompt for fallback
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
-    
+
     // Generate situation summary
-    const situationSummary = createSituationSummary(facility, impacts);
+    const situationSummary = hasImpacts
+      ? createSituationSummary(facility, impacts)
+      : `Facility '${facility.name || 'Unnamed facility'}' at coordinates ${facility.latitude}, ${facility.longitude} is currently not impacted by any active disasters.`;
     
     // Create a simplified prompt
-    const prompt = `
+    const prompt = hasImpacts ? `
     As a disaster management expert, provide recommendations for this facility impacted by disasters:
-    
+
     ${situationSummary}
-    
+
     Provide recommendations in these categories:
     1. Immediate Safety Measures
     2. Resource Mobilization
     3. Evacuation Considerations
     4. Communication Protocols
     5. Medium-term Mitigation Strategies
-    
+
+    Format your response as a JSON object with these categories as keys and arrays of specific recommendations as values.
+    Do not use JSON symbols like {}, [], or quotes within your text content.
+    ` : `
+    As a disaster preparedness expert, provide preparedness recommendations for this facility:
+
+    ${situationSummary}
+
+    Provide recommendations in these categories:
+    1. Risk Assessment and Planning
+    2. Infrastructure Hardening
+    3. Emergency Supplies and Resources
+    4. Staff Training and Drills
+    5. Communication Systems
+    6. Early Warning Systems
+
     Format your response as a JSON object with these categories as keys and arrays of specific recommendations as values.
     Do not use JSON symbols like {}, [], or quotes within your text content.
     `;
@@ -194,29 +234,64 @@ async function generateMockRecommendations(facility, impacts) {
     
   } catch (error) {
     console.error("Error using OpenAI API for mock recommendations:", error);
-    
+
     // Create minimal fallback recommendations if API call fails
-    return {
-      "Immediate Safety Measures": [
-        "Conduct a comprehensive facility safety assessment",
-        "Implement appropriate safety protocols based on disaster types"
-      ],
-      "Resource Mobilization": [
-        "Prepare emergency supplies kit with food, water, and medical supplies",
-        "Ensure communication equipment is charged and operational"
-      ],
-      "Evacuation Considerations": [
-        "Identify safe evacuation routes",
-        "Designate assembly points away from hazard zones"
-      ],
-      "Communication Protocols": [
-        "Establish emergency communication channels for all staff",
-        "Maintain regular contact with emergency services"
-      ],
-      "Medium-term Mitigation Strategies": [
-        "Develop comprehensive disaster response plan",
-        "Conduct regular drills and staff training"
-      ]
-    };
+    if (hasImpacts) {
+      return {
+        "Immediate Safety Measures": [
+          "Conduct a comprehensive facility safety assessment",
+          "Implement appropriate safety protocols based on disaster types"
+        ],
+        "Resource Mobilization": [
+          "Prepare emergency supplies kit with food, water, and medical supplies",
+          "Ensure communication equipment is charged and operational"
+        ],
+        "Evacuation Considerations": [
+          "Identify safe evacuation routes",
+          "Designate assembly points away from hazard zones"
+        ],
+        "Communication Protocols": [
+          "Establish emergency communication channels for all staff",
+          "Maintain regular contact with emergency services"
+        ],
+        "Medium-term Mitigation Strategies": [
+          "Develop comprehensive disaster response plan",
+          "Conduct regular drills and staff training"
+        ]
+      };
+    } else {
+      return {
+        "Risk Assessment and Planning": [
+          "Conduct comprehensive hazard and vulnerability assessment",
+          "Develop facility-specific disaster preparedness plan",
+          "Identify potential risks based on geographic location and facility type"
+        ],
+        "Infrastructure Hardening": [
+          "Assess structural integrity and seismic resistance",
+          "Install backup power systems and water storage",
+          "Strengthen critical infrastructure elements"
+        ],
+        "Emergency Supplies and Resources": [
+          "Stock emergency supplies (food, water, medical kits) for at least 72 hours",
+          "Maintain inventory of emergency equipment and tools",
+          "Establish supply chain backup for critical resources"
+        ],
+        "Staff Training and Drills": [
+          "Conduct regular disaster preparedness drills",
+          "Train staff on emergency protocols and first aid",
+          "Designate and train emergency response team members"
+        ],
+        "Communication Systems": [
+          "Install redundant communication systems (satellite, radio, cellular)",
+          "Create emergency contact lists and update regularly",
+          "Establish communication protocols with local authorities"
+        ],
+        "Early Warning Systems": [
+          "Subscribe to local disaster alert systems",
+          "Install environmental monitoring equipment as appropriate",
+          "Develop standard operating procedures for alert response"
+        ]
+      };
+    }
   }
 }

@@ -21,12 +21,24 @@ export default async function handler(req, res) {
         header: true,
         skipEmptyLines: true
       });
-      
-      facilityData = parsedCsv.data.map(row => ({
-        name: row.name,
-        latitude: parseFloat(row.latitude),
-        longitude: parseFloat(row.longitude)
-      }));
+
+      // Preserve ALL fields from the CSV, not just name/lat/lng
+      facilityData = parsedCsv.data.map(row => {
+        const facility = {
+          name: row.name,
+          latitude: parseFloat(row.latitude),
+          longitude: parseFloat(row.longitude)
+        };
+
+        // Add all other fields from the CSV
+        Object.keys(row).forEach(key => {
+          if (key !== 'name' && key !== 'latitude' && key !== 'longitude' && row[key]) {
+            facility[key] = row[key];
+          }
+        });
+
+        return facility;
+      });
     } else if (Array.isArray(facilities)) {
       // Already parsed data
       facilityData = facilities;

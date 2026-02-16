@@ -1,9 +1,38 @@
+/* Import Aidstack Brand Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  /* Aidstack Brand Colors */
+  --aidstack-navy: #1A365D;
+  --aidstack-orange: #FF6B35;
+  --aidstack-slate-dark: #0F172A;
+  --aidstack-slate-medium: #475569;
+  --aidstack-slate-light: #94A3B8;
+  --aidstack-white: #FFFFFF;
+  --aidstack-off-white: #F8FAFC;
+  --aidstack-light-gray: #F1F5F9;
+
+  /* Semantic Colors */
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #3B82F6;
+}
+
 html,
 body {
   padding: 0;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
     Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
+  color: var(--aidstack-slate-dark);
+  background-color: var(--aidstack-off-white);
+}
+
+h1, h2, h3, h4, h5, h6,
+.heading {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
 }
 
 /* Marker Clustering Styles */
@@ -37,10 +66,10 @@ a {
 }
 
 .map-container {
-  height: calc(100vh - 200px);
+  height: calc(100vh - 180px);
   width: 100%;
   position: relative;
-  margin-bottom: 20px;
+  margin-bottom: 5px;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0,0,0,0.1);
@@ -214,21 +243,25 @@ a {
 }
 
 .container {
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   padding: 20px;
+  max-width: 100vw;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 20px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  gap: 20px;
 }
 
 .header h1 {
   margin: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .data-controls {
@@ -265,6 +298,15 @@ a {
   font-size: 0.9rem;
 }
 
+.data-summary {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
 .refresh-button {
   background-color: #2196F3;
 }
@@ -284,7 +326,9 @@ a {
 .drawer {
   position: fixed;
   top: 0;
-  width: 600px;
+  width: 45vw;
+  max-width: 800px;
+  min-width: 600px;
   height: 100vh;
   background-color: white;
   box-shadow: 0 0 15px rgba(0,0,0,0.2);
@@ -389,6 +433,11 @@ a {
   right: 20px;
 }
 
+.drawer-toggle-help {
+  top: 270px;
+  right: 20px;
+}
+
 .drawer-content {
   padding: 10px 0;
 }
@@ -469,6 +518,7 @@ a {
   
   .drawer {
     width: 95%;
+    min-width: unset;
   }
   
   .floating-panel {
@@ -499,6 +549,11 @@ a {
   
   .drawer-toggle-draw {
     top: 210px;
+    right: 10px;
+  }
+
+  .drawer-toggle-help {
+    top: 260px;
     right: 10px;
   }
 }
