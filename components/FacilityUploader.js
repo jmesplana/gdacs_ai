@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading }) => {
+const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, onClearCache }) => {
   const [dragActive, setDragActive] = useState(false);
 
   // Handle file selection
@@ -91,6 +91,39 @@ const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading })
         <h3>Facility Statistics</h3>
         <p>Total Facilities: {facilities.length}</p>
         <p>Potentially Impacted: {impactedFacilities.length}</p>
+
+        {facilities.length > 0 && onClearCache && (
+          <div style={{ marginTop: '15px' }}>
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to clear all cached facility data? This will remove all uploaded facilities and you will need to re-upload them.')) {
+                  onClearCache();
+                }
+              }}
+              style={{
+                backgroundColor: '#f44336',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Clear Cached Data
+            </button>
+            <p style={{ fontSize: '11px', color: '#666', marginTop: '6px', fontStyle: 'italic' }}>
+              💾 Facilities are automatically saved to browser cache
+            </p>
+          </div>
+        )}
       </div>
       
       {facilities.length > 0 && (

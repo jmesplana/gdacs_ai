@@ -26,7 +26,8 @@ import {
   DrawingLayer,
   DisasterMarkers,
   StatisticsPanel,
-  TimelineVisualization
+  TimelineVisualization,
+  AcledMarkers
 } from './MapComponent/components';
 
 import {
@@ -42,7 +43,8 @@ import {
 
 import {
   FloatingActionButtons,
-  MapLegend
+  MapLegend,
+  CampaignDashboard
 } from './MapComponent/components/overlays';
 
 // Import hooks
@@ -213,7 +215,15 @@ const MapComponent = ({
   setShowHelp,
   showChatDrawer,
   setShowChatDrawer,
-  aiAnalysisFields = []
+  aiAnalysisFields = [],
+  onClearCache,
+  acledData = [],
+  acledEnabled = true,
+  acledConfig = {},
+  onAcledUpload,
+  onClearAcledCache,
+  onToggleAcled,
+  onAcledConfigChange
 }) => {
   // Map refs - keep these in main component
   const mapRef = useRef(null);
@@ -318,6 +328,9 @@ const MapComponent = ({
   // Sitrep timestamp
   const [sitrepTimestamp, setSitrepTimestamp] = useState(null);
 
+  // Campaign Dashboard state
+  const [showCampaignDashboard, setShowCampaignDashboard] = useState(false);
+
   // Generate recommendations for a facility
   const handleGenerateRecommendations = async (facility, forceRefresh = false) => {
     const facilityImpacts = impactedFacilities.find(
@@ -381,6 +394,59 @@ const MapComponent = ({
     } finally {
       setRecommendationsLoading(false);
     }
+  };
+
+  // Filter ACLED data based on config (same logic as AcledMarkers.js)
+  const getFilteredAcledData = () => {
+    if (!acledData || acledData.length === 0 || !acledEnabled) {
+      return [];
+    }
+
+    // Find the most recent date in the dataset
+    const allDates = acledData
+      .map(e => new Date(e.event_date))
+      .filter(d => !isNaN(d.getTime()));
+
+    const mostRecentDate = allDates.length > 0
+      ? new Date(Math.max(...allDates))
+      : new Date();
+
+    // Calculate cutoff date from the most recent event
+    const dateRange = acledConfig.dateRange || 60;
+    const cutoffDate = new Date(mostRecentDate);
+    cutoffDate.setDate(cutoffDate.getDate() - dateRange);
+
+    // Get filters from config
+    const eventTypeFilter = acledConfig.eventTypes || [];
+    const selectedCountries = acledConfig.selectedCountries || [];
+    const selectedRegions = acledConfig.selectedRegions || [];
+
+    // Filter ACLED data
+    return acledData.filter(event => {
+      // Date filter
+      const eventDate = new Date(event.event_date);
+      if (eventDate < cutoffDate) return false;
+
+      // Event type filter (if specified)
+      if (eventTypeFilter.length > 0 && !eventTypeFilter.includes(event.event_type)) {
+        return false;
+      }
+
+      // Country filter (if countries are selected)
+      if (selectedCountries.length > 0 && !selectedCountries.includes(event.country)) {
+        return false;
+      }
+
+      // Region filter (if regions are selected)
+      if (selectedRegions.length > 0 && !selectedRegions.includes(event.admin1)) {
+        return false;
+      }
+
+      // Ensure valid coordinates
+      if (!event.latitude || !event.longitude) return false;
+
+      return true;
+    });
   };
 
   // Show zoom indicator when date filter changes
@@ -556,6 +622,16 @@ const MapComponent = ({
           handleAnalyzeFacility(facility, facilityImpacts);
           toggleAnalysisDrawer();
         }}
+        onGenerateSitrep={onGenerateSitrep}
+        sitrepLoading={sitrepLoading}
+        onClearCache={onClearCache}
+        acledData={acledData}
+        acledEnabled={acledEnabled}
+        acledConfig={acledConfig}
+        onAcledUpload={onAcledUpload}
+        onClearAcledCache={onClearAcledCache}
+        onToggleAcled={onToggleAcled}
+        onAcledConfigChange={onAcledConfigChange}
       />
 
       {/* Map Layers Drawer */}
@@ -586,6 +662,8 @@ const MapComponent = ({
           }
         }}
         impactedFacilities={impactedFacilities}
+        acledData={acledData}
+        acledEnabled={acledEnabled}
         onViewRecommendations={(facility) => {
           toggleAnalysisDrawer(); // Close the analysis drawer
           handleGenerateRecommendations(facility); // Open recommendations drawer
@@ -609,6 +687,9 @@ const MapComponent = ({
         onGenerateSitrep={onGenerateSitrep}
         sitrepLoading={sitrepLoading}
         sitrep={sitrep}
+        disasters={disasters}
+        facilities={facilities}
+        impactedFacilities={impactedFacilities}
       />
 
       {/* Column Selection Modal */}
@@ -645,6 +726,7 @@ const MapComponent = ({
           setShowLabels={setShowLabels}
           hasFacilities={facilities && facilities.length > 0}
           hasStatistics={!!impactStatistics}
+          hasAcledData={acledEnabled && acledData && acledData.length > 0}
         />
       )}
 
@@ -756,6 +838,13 @@ const MapComponent = ({
         <DisasterMarkers
           disasters={filteredDisasters}
           showImpactZones={showImpactZones}
+        />
+
+        {/* ACLED conflict event markers */}
+        <AcledMarkers
+          acledData={acledData}
+          acledEnabled={acledEnabled}
+          acledConfig={acledConfig}
         />
 
         {/* Drawing layer */}
@@ -882,14 +971,81 @@ const MapComponent = ({
         context={{
           selectedFacility: selectedFacility,
           totalFacilities: facilities?.length || 0,
-          facilities: facilities, // Include full facilities list for AI context
+          totalAcledEvents: acledData?.length || 0, // Total ACLED events available
+          facilities: facilities?.slice(0, 50), // Limit to first 50 facilities to avoid payload size issues
           aiAnalysisFields: aiAnalysisFields, // Fields selected for AI analysis
-          disasters: disasters,
-          impactedFacilities: impactedFacilities,
+          disasters: disasters?.slice(0, 30), // Limit to 30 most recent disasters
+          impactedFacilities: impactedFacilities?.slice(0, 20), // Limit to 20 impacted facilities
           impactStatistics: impactStatistics,
-          recentAnalysis: analysisData ? JSON.stringify(analysisData).substring(0, 200) : null
+          recentAnalysis: analysisData ? JSON.stringify(analysisData).substring(0, 200) : null,
+          acledData: getFilteredAcledData().slice(0, 200), // Use filtered data (respects date, event type, country, region filters)
+          acledEnabled: acledEnabled, // ACLED toggle status
+          acledConfig: acledConfig // Include config to show active filters
         }}
       />
+
+      {/* Campaign Dashboard */}
+      <CampaignDashboard
+        facilities={facilities}
+        disasters={disasters}
+        impactedFacilities={impactedFacilities}
+        acledData={getFilteredAcledData()} // Use filtered ACLED data
+        acledEnabled={acledEnabled}
+        isOpen={showCampaignDashboard}
+        onClose={() => setShowCampaignDashboard(false)}
+      />
+
+      {/* Dashboard Toggle Button - Shows when facilities are uploaded */}
+      {facilities.length > 0 && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100px',
+          right: '20px',
+          zIndex: 2500,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          alignItems: 'flex-end'
+        }}>
+          <button
+            onClick={() => setShowCampaignDashboard(true)}
+            style={{
+              backgroundColor: 'var(--aidstack-orange)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '12px 20px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              fontWeight: 'bold',
+              fontSize: '14px',
+              fontFamily: "'Inter', sans-serif",
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+            }}
+            title="View Campaign Readiness Dashboard"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span>Campaign Dashboard</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

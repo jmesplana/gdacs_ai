@@ -51,10 +51,76 @@ export default function Home() {
   const [timeSinceUpdate, setTimeSinceUpdate] = useState(''); // Human-readable time since last update
   const [aiAnalysisFields, setAiAnalysisFields] = useState([]); // Track which fields are selected for AI analysis
 
+  // ACLED security data state
+  const [acledData, setAcledData] = useState([]); // ACLED conflict/security events
+  const [acledEnabled, setAcledEnabled] = useState(true); // Toggle ACLED in analysis
+  const [acledConfig, setAcledConfig] = useState({
+    dateRange: 60, // days to consider
+    eventTypes: ['Battles', 'Explosions/Remote violence', 'Violence against civilians', 'Riots'],
+    showOnMap: true,
+    selectedCountries: [], // Filter by countries
+    selectedRegions: [] // Filter by regions (admin1)
+  });
+
   // Fetch disaster data on component mount
   useEffect(() => {
     fetchDisasterData();
   }, []);
+
+  // Load cached facilities and ACLED data from localStorage on mount
+  useEffect(() => {
+    try {
+      // Load facilities
+      const cachedFacilities = localStorage.getItem('gdacs_facilities');
+      const cachedAiFields = localStorage.getItem('gdacs_ai_analysis_fields');
+
+      if (cachedFacilities) {
+        const parsedFacilities = JSON.parse(cachedFacilities);
+        if (parsedFacilities && parsedFacilities.length > 0) {
+          console.log(`Loaded ${parsedFacilities.length} facilities from cache`);
+          setFacilities(parsedFacilities);
+
+          // Restore AI analysis fields if available
+          if (cachedAiFields) {
+            const parsedAiFields = JSON.parse(cachedAiFields);
+            setAiAnalysisFields(parsedAiFields);
+          }
+
+          // Assess impact with cached facilities once disasters are loaded
+          if (disasters.length > 0) {
+            assessImpact(parsedFacilities);
+          }
+        }
+      }
+
+      // Load ACLED config only (data not cached due to size)
+      const cachedAcledConfig = localStorage.getItem('gdacs_acled_config');
+      if (cachedAcledConfig) {
+        try {
+          const parsedConfig = JSON.parse(cachedAcledConfig);
+          setAcledConfig(parsedConfig);
+          setAcledEnabled(parsedConfig.enabled !== undefined ? parsedConfig.enabled : true);
+          console.log('Loaded ACLED config from cache');
+        } catch (error) {
+          console.error('Error loading ACLED config:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading cached data:', error);
+      // Clear corrupted cache
+      localStorage.removeItem('gdacs_facilities');
+      localStorage.removeItem('gdacs_ai_analysis_fields');
+      localStorage.removeItem('gdacs_acled_data');
+      localStorage.removeItem('gdacs_acled_config');
+    }
+  }, []);
+
+  // Reassess impact when disasters are loaded and we have cached facilities
+  useEffect(() => {
+    if (disasters.length > 0 && facilities.length > 0 && impactedFacilities.length === 0) {
+      assessImpact(facilities);
+    }
+  }, [disasters]);
   
   // Update the "time since" last data refresh
   useEffect(() => {
@@ -346,6 +412,137 @@ export default function Home() {
     setFilteredDisasters(filtered);
   };
 
+  // Handle clearing cached facility data
+  const handleClearCache = () => {
+    try {
+      // Clear localStorage
+      localStorage.removeItem('gdacs_facilities');
+      localStorage.removeItem('gdacs_ai_analysis_fields');
+
+      // Clear state
+      setFacilities([]);
+      setImpactedFacilities([]);
+      setImpactStatistics(null);
+      setAiAnalysisFields([]);
+      setSitrep('');
+      setSelectedFacility(null);
+      setRecommendations(null);
+
+      console.log('Facility cache cleared');
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+      alert('Failed to clear cache. Please try again.');
+    }
+  };
+
+  // Handle ACLED data upload
+  const handleAcledUpload = (csvData) => {
+    try {
+      // Parse CSV
+      Papa.parse(csvData, {
+        header: true,
+        complete: (results) => {
+          // Validate and process ACLED data
+          const validEvents = results.data.filter(event =>
+            event.event_date &&
+            !isNaN(parseFloat(event.latitude)) &&
+            !isNaN(parseFloat(event.longitude)) &&
+            event.event_type
+          ).map(event => ({
+            event_id: event.event_id_cnty || event.event_id,
+            event_date: event.event_date,
+            event_type: event.event_type,
+            sub_event_type: event.sub_event_type,
+            actor1: event.actor1,
+            actor2: event.actor2,
+            latitude: parseFloat(event.latitude),
+            longitude: parseFloat(event.longitude),
+            location: event.location,
+            admin1: event.admin1,
+            admin2: event.admin2,
+            admin3: event.admin3,
+            country: event.country,
+            fatalities: parseInt(event.fatalities) || 0,
+            notes: event.notes,
+            source: event.source
+          }));
+
+          if (validEvents.length === 0) {
+            alert('No valid ACLED events found in the CSV. Please check the format.');
+            return;
+          }
+
+          console.log(`Loaded ${validEvents.length} ACLED events`);
+
+          // Don't cache ACLED data to localStorage (too large - exceeds quota)
+          // Only cache the config
+          try {
+            const configToSave = { ...acledConfig, enabled: true };
+            localStorage.setItem('gdacs_acled_config', JSON.stringify(configToSave));
+            console.log('ACLED config saved. Note: Data is not cached (too large for localStorage)');
+          } catch (error) {
+            console.error('Error saving ACLED config:', error);
+          }
+
+          // Update state
+          setAcledData(validEvents);
+          setAcledEnabled(true);
+
+          // Show success message
+          alert(`Successfully loaded ${validEvents.length.toLocaleString()} ACLED events.\n\nNote: Data will need to be re-uploaded after page refresh (file is too large for browser cache).`);
+        },
+        error: (error) => {
+          console.error('Error parsing ACLED CSV:', error);
+          alert('Failed to parse ACLED CSV file. Please check the format.');
+        }
+      });
+    } catch (error) {
+      console.error('Error processing ACLED upload:', error);
+      alert('Failed to process ACLED data. Please try again.');
+    }
+  };
+
+  // Handle clearing ACLED cache
+  const handleClearAcledCache = () => {
+    try {
+      localStorage.removeItem('gdacs_acled_data');
+      localStorage.removeItem('gdacs_acled_config');
+      setAcledData([]);
+      setAcledEnabled(true);
+      setAcledConfig({
+        dateRange: 60,
+        eventTypes: ['Battles', 'Explosions/Remote violence', 'Violence against civilians', 'Riots'],
+        showOnMap: true
+      });
+      console.log('ACLED cache cleared');
+    } catch (error) {
+      console.error('Error clearing ACLED cache:', error);
+      alert('Failed to clear ACLED cache. Please try again.');
+    }
+  };
+
+  // Toggle ACLED enabled/disabled
+  const handleToggleAcled = (enabled) => {
+    setAcledEnabled(enabled);
+    try {
+      const configToSave = { ...acledConfig, enabled };
+      localStorage.setItem('gdacs_acled_config', JSON.stringify(configToSave));
+    } catch (error) {
+      console.error('Error saving ACLED config:', error);
+    }
+  };
+
+  // Handle ACLED config changes (date range, etc.)
+  const handleAcledConfigChange = (newConfig) => {
+    setAcledConfig(newConfig);
+    try {
+      localStorage.setItem('gdacs_acled_config', JSON.stringify(newConfig));
+      console.log('ACLED config updated:', newConfig);
+    } catch (error) {
+      console.error('Error saving ACLED config:', error);
+    }
+  };
+
   // Handle facility CSV upload
   const handleFacilityUpload = (csvData, columnSelections) => {
     try {
@@ -391,6 +588,21 @@ export default function Home() {
 
           // Clear any existing sitrep when facilities change
           setSitrep('');
+
+          // Save facilities to localStorage (this will override any previous cache)
+          try {
+            localStorage.setItem('gdacs_facilities', JSON.stringify(validFacilities));
+
+            // Save AI analysis fields to localStorage
+            if (columnSelections && columnSelections.aiAnalysisFields) {
+              localStorage.setItem('gdacs_ai_analysis_fields', JSON.stringify(columnSelections.aiAnalysisFields));
+            }
+
+            console.log('Facilities cached to localStorage');
+          } catch (error) {
+            console.error('Error caching facilities to localStorage:', error);
+            // Continue even if caching fails
+          }
 
           // Update facilities and immediately assess impact
           setFacilities(validFacilities);
@@ -1637,6 +1849,14 @@ export default function Home() {
           dateFilter={dateFilter}
           handleDateFilterChange={handleDateFilterChange}
           aiAnalysisFields={aiAnalysisFields}
+          onClearCache={handleClearCache}
+          acledData={acledData}
+          acledEnabled={acledEnabled}
+          acledConfig={acledConfig}
+          onAcledUpload={handleAcledUpload}
+          onClearAcledCache={handleClearAcledCache}
+          onToggleAcled={handleToggleAcled}
+          onAcledConfigChange={handleAcledConfigChange}
         />
 
         {selectedFacility && (

@@ -52,6 +52,14 @@ const ChatDrawer = ({
     setStreamingMessage('');
 
     try {
+      // Debug: Log context to see what's being sent
+      console.log('Chat context being sent:', {
+        facilities: context.facilities?.length,
+        disasters: context.disasters?.length,
+        acledData: context.acledData?.length,
+        acledEnabled: context.acledEnabled
+      });
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -255,9 +263,9 @@ const ChatDrawer = ({
                       p: ({node, ...props}) => <p style={{margin: '0.5em 0'}} {...props} />,
                       strong: ({node, ...props}) => <strong style={{fontWeight: 600}} {...props} />,
                       em: ({node, ...props}) => <em {...props} />,
-                      ul: ({node, ...props}) => <ul style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
-                      ol: ({node, ...props}) => <ol style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
-                      li: ({node, ...props}) => <li style={{marginBottom: '0.3em'}} {...props} />,
+                      ul: ({node, ordered, ...props}) => <ul style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
+                      ol: ({node, ordered, ...props}) => <ol style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
+                      li: ({node, ordered, ...props}) => <li style={{marginBottom: '0.3em'}} {...props} />,
                       code: ({node, inline, ...props}) => (
                         inline ?
                           <code style={{backgroundColor: 'rgba(0,0,0,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em'}} {...props} /> :
@@ -302,9 +310,9 @@ const ChatDrawer = ({
                     p: ({node, ...props}) => <p style={{margin: '0.5em 0'}} {...props} />,
                     strong: ({node, ...props}) => <strong style={{fontWeight: 600}} {...props} />,
                     em: ({node, ...props}) => <em {...props} />,
-                    ul: ({node, ...props}) => <ul style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
-                    ol: ({node, ...props}) => <ol style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
-                    li: ({node, ...props}) => <li style={{marginBottom: '0.3em'}} {...props} />,
+                    ul: ({node, ordered, ...props}) => <ul style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
+                    ol: ({node, ordered, ...props}) => <ol style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
+                    li: ({node, ordered, ...props}) => <li style={{marginBottom: '0.3em'}} {...props} />,
                     code: ({node, inline, ...props}) => (
                       inline ?
                         <code style={{backgroundColor: 'rgba(0,0,0,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em'}} {...props} /> :

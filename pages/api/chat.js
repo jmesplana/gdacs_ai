@@ -3,6 +3,9 @@ import OpenAI from 'openai';
 export const config = {
   api: {
     responseLimit: false,
+    bodyParser: {
+      sizeLimit: '4mb', // Increased from default 1mb to handle large contexts
+    },
   },
 };
 
@@ -30,8 +33,23 @@ export default async function handler(req, res) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
+    // Debug: Log what context we received
+    console.log('Chat API received context:', {
+      facilities: context?.facilities?.length,
+      disasters: context?.disasters?.length,
+      acledData: context?.acledData?.length,
+      acledEnabled: context?.acledEnabled
+    });
+
     // Build context summary for the AI
     const contextSummary = buildContextSummary(context);
+
+    // Debug: Log if ACLED section is in the summary
+    if (contextSummary.includes('ACLED')) {
+      console.log('✅ ACLED data IS in context summary');
+    } else {
+      console.log('❌ ACLED data NOT in context summary');
+    }
 
     // Build conversation messages
     const messages = [
@@ -44,6 +62,13 @@ export default async function handler(req, res) {
 - WHO guidelines and CERF requirements
 - Supply chain management in crisis contexts
 - Field operations and logistics
+- Campaign viability assessment and planning
+- Alliance for Malaria Prevention (AMP) best practices and operational guidance
+- ITN/LLIN distribution strategies (mass campaigns, routine channels, school-based)
+- cLQAS (clustered Lot Quality Assurance Sampling) assessment procedures
+- Digital tools for campaign monitoring (mobile data collection, geospatial planning, barcode scanning)
+- Vector control in emergency settings
+- Malaria response in humanitarian crises, armed conflict, and IDP settings
 
 The user is viewing a disaster impact assessment tool. You have access to the current context of their situation including facility data, active disasters, and impact assessments.
 
@@ -57,10 +82,36 @@ Your role is to:
 4. Explain technical humanitarian concepts in plain language
 5. Reference specific facilities, disasters, and data from the context when relevant
 6. When asked about facilities, you MUST reference the facilities list provided in the context above
+7. **Campaign Planning Support**: When asked about campaign viability, feasibility, or "can I run a campaign at [facility]", provide guidance on:
+   - Whether it's safe to proceed with health campaigns (malaria, immunization, etc.)
+   - Specific risks for campaign teams and target populations
+   - Cold chain considerations for vaccine programs
+   - Population displacement and coverage implications
+   - Timeline recommendations (go immediately, wait X days/weeks, postpone)
+   - Mitigation strategies for identified risks
+   - Resource adjustments needed (extra supplies, mobile teams, etc.)
+8. **Malaria Program Expertise** (following AMP guidance):
+   - ITN/LLIN distribution channel selection (mass campaign vs routine vs school-based based on context)
+   - Post-disaster vector control intensification (floods create breeding sites, coordinate with WASH)
+   - Expected malaria case surge: 40-60% increase after floods, 50% increase in ACT/RDT stock needed
+   - Supply chain: Pre-positioning nets, barcode tracking, digitalization
+   - At-risk populations: IDPs, conflict-affected areas, displaced communities
+   - Assessment planning: Recommend cLQAS methodology (10-step process) for campaign quality assurance
+   - Digital tools: Mobile data collection (BYOD), geospatial microplanning, real-time dashboards
+9. **Assessment Procedures** (cLQAS methodology):
+   - In-process evaluations: During household registration and distribution
+   - End-process evaluations: Post-campaign coverage assessment
+   - Rapid assessments: For emergency/disaster contexts
+   - Recommend specific assessment timing based on campaign status and disaster situation
 
-IMPORTANT: The user has uploaded facility data that is visible in the "FACILITIES LIST" section above. When asked questions like "which facilities have I added" or "what facilities do I have", you should list out the facilities from the FACILITIES LIST in the context, including their names, locations, types, and any other relevant details.
+IMPORTANT:
+- The user has uploaded facility data that is visible in the "FACILITIES LIST" section above. When asked questions like "which facilities have I added" or "what facilities do I have", you should list out the facilities from the FACILITIES LIST in the context, including their names, locations, types, and any other relevant details.
+- For campaign planning questions, consider: disaster proximity, cold chain risks, access constraints, population displacement, staff safety, and program-specific needs (ACTs for malaria, vaccines for immunization)
+- For malaria programs after floods: ALWAYS recommend 50% increase in ACT/RDT stock, coordinate with WASH for vector control, monitor for 40-60% case surge
+- Provide GO/NO-GO/DELAY/CAUTION recommendations with clear rationale based on AMP and WHO best practices
+- Suggest appropriate digital tools and assessment procedures when relevant
 
-Be direct, practical, and specific. Use the context data to give personalized answers.`
+Be direct, practical, and specific. Use the context data to give personalized answers following AMP operational guidance.`
       }
     ];
 
@@ -160,7 +211,9 @@ function buildContextSummary(context) {
 
     // Include list of all facilities for better context
     if (context.facilities && context.facilities.length > 0) {
-      summary.push('\nFACILITIES LIST:');
+      const facilityCount = context.facilities.length;
+      const totalCount = context.totalFacilities;
+      summary.push(`\nFACILITIES LIST (showing ${facilityCount} of ${totalCount}):`);
       const aiAnalysisFields = context.aiAnalysisFields || [];
 
       context.facilities.forEach((facility, index) => {
@@ -205,14 +258,14 @@ function buildContextSummary(context) {
 
   // Disaster information
   if (context.disasters && context.disasters.length > 0) {
-    summary.push(`\nACTIVE DISASTERS (${context.disasters.length} total):`);
+    summary.push(`\nACTIVE DISASTERS (showing ${Math.min(context.disasters.length, 10)} most relevant):`);
     context.disasters.slice(0, 10).forEach(disaster => {
       summary.push(`- ${disaster.eventType}: ${disaster.eventName || disaster.title}`);
       summary.push(`  Alert Level: ${disaster.alertLevel || 'Unknown'}`);
       if (disaster.severity) summary.push(`  Severity: ${disaster.severity}`);
     });
     if (context.disasters.length > 10) {
-      summary.push(`... and ${context.disasters.length - 10} more disasters`);
+      summary.push(`... context limited to most relevant disasters for performance`);
     }
   }
 
@@ -238,6 +291,73 @@ function buildContextSummary(context) {
     if (context.impactedFacilities.length > 5) {
       summary.push(`... and ${context.impactedFacilities.length - 5} more facilities`);
     }
+  }
+
+  // ACLED security data
+  if (context.acledData && context.acledEnabled && context.acledData.length > 0) {
+    const totalEvents = context.totalAcledEvents || context.acledData.length;
+    summary.push(`\nACLED SECURITY DATA LOADED: ${totalEvents.toLocaleString()} total conflict events in system`);
+    summary.push(`Context Sample: Showing ${context.acledData.length} filtered events for your analysis`);
+    summary.push('Status: ACTIVE - Full ACLED dataset is being used in all security assessments');
+
+    // Show active filters if any
+    if (context.acledConfig) {
+      const filters = [];
+      if (context.acledConfig.dateRange) {
+        filters.push(`Date Range: Last ${context.acledConfig.dateRange} days`);
+      }
+      if (context.acledConfig.selectedCountries && context.acledConfig.selectedCountries.length > 0) {
+        filters.push(`Countries: ${context.acledConfig.selectedCountries.join(', ')}`);
+      }
+      if (context.acledConfig.selectedRegions && context.acledConfig.selectedRegions.length > 0) {
+        filters.push(`Regions: ${context.acledConfig.selectedRegions.join(', ')}`);
+      }
+      if (context.acledConfig.eventTypes && context.acledConfig.eventTypes.length > 0) {
+        filters.push(`Event Types: ${context.acledConfig.eventTypes.join(', ')}`);
+      }
+
+      if (filters.length > 0) {
+        summary.push('\nACTIVE ACLED FILTERS:');
+        filters.forEach(filter => summary.push(`  - ${filter}`));
+      }
+    }
+
+    // Count recent incidents (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentIncidents = context.acledData.filter(event => {
+      const eventDate = new Date(event.event_date);
+      return eventDate >= thirtyDaysAgo;
+    });
+
+    if (recentIncidents.length > 0) {
+      summary.push(`Recent Incidents (Last 30 days): ${recentIncidents.length}`);
+
+      // Count by event type
+      const incidentsByType = {};
+      recentIncidents.forEach(incident => {
+        const type = incident.event_type;
+        incidentsByType[type] = (incidentsByType[type] || 0) + 1;
+      });
+
+      summary.push('Event Types:');
+      Object.entries(incidentsByType)
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([type, count]) => {
+          summary.push(`  - ${type}: ${count}`);
+        });
+
+      // Countries covered
+      const countries = [...new Set(context.acledData.map(e => e.country).filter(Boolean))];
+      if (countries.length > 0) {
+        summary.push(`Countries covered: ${countries.slice(0, 10).join(', ')}${countries.length > 10 ? ` and ${countries.length - 10} more` : ''}`);
+      }
+
+      summary.push('\nNOTE: Security assessments are enhanced with this real ACLED conflict data for proximity analysis and risk scoring.');
+    }
+  } else if (context.acledData && !context.acledEnabled) {
+    summary.push('\nACLED DATA: Uploaded but DISABLED - Not being used in analysis');
   }
 
   // Recent analysis or recommendations

@@ -10,7 +10,8 @@ const MapLegend = ({
   showLabels,
   setShowLabels,
   hasFacilities,
-  hasStatistics
+  hasStatistics,
+  hasAcledData = false
 }) => {
   return (
     <div style={{
@@ -419,6 +420,132 @@ const MapLegend = ({
             </div>
             <span style={{ fontSize: '12px', color: '#666' }}>Response needed</span>
           </div>
+
+          {hasAcledData && (
+            <>
+              <div style={{
+                marginTop: '15px',
+                marginBottom: '10px',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                color: '#424242',
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: '#f5f5f5',
+                padding: '6px 10px',
+                borderRadius: '4px'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                  <line x1="12" y1="9" x2="12" y2="13"></line>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                ACLED CONFLICT DATA
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(211, 47, 47, 0.1)',
+                  padding: '6px 10px',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(211, 47, 47, 0.2)'
+                }}>
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#d32f2f',
+                    border: '2px solid white',
+                    marginRight: '8px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                  }}></div>
+                  <span style={{ fontSize: '12px', color: '#666' }}>Battles</span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(255, 111, 0, 0.1)',
+                  padding: '6px 10px',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(255, 111, 0, 0.2)'
+                }}>
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#ff6f00',
+                    border: '2px solid white',
+                    marginRight: '8px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                  }}></div>
+                  <span style={{ fontSize: '12px', color: '#666' }}>Explosions/Remote violence</span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(198, 40, 40, 0.1)',
+                  padding: '6px 10px',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(198, 40, 40, 0.2)'
+                }}>
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#c62828',
+                    border: '2px solid white',
+                    marginRight: '8px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                  }}></div>
+                  <span style={{ fontSize: '12px', color: '#666' }}>Violence against civilians</span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(251, 192, 45, 0.1)',
+                  padding: '6px 10px',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(251, 192, 45, 0.2)'
+                }}>
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#fbc02d',
+                    border: '2px solid white',
+                    marginRight: '8px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                  }}></div>
+                  <span style={{ fontSize: '12px', color: '#666' }}>Protests</span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(245, 124, 0, 0.1)',
+                  padding: '6px 10px',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(245, 124, 0, 0.2)'
+                }}>
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#f57c00',
+                    border: '2px solid white',
+                    marginRight: '8px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                  }}></div>
+                  <span style={{ fontSize: '12px', color: '#666' }}>Riots</span>
+                </div>
+              </div>
+            </>
+          )}
 
           <div style={{
             marginTop: '15px',
