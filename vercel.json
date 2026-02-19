@@ -1,6 +1,6 @@
 {
   "functions": {
-    "pages/api/process-shapefile.js": {
+    "api/process-shapefile.js": {
       "maxDuration": 60,
       "memory": 3008
     }
