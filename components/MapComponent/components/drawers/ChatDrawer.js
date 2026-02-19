@@ -4,12 +4,15 @@ import ReactMarkdown from 'react-markdown';
 const ChatDrawer = ({
   isOpen,
   onClose,
-  context
+  context,
+  onHighlightDistricts
 }) => {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Hello! I\'m your humanitarian aid advisor. I can help you understand how disasters might impact your programs and operations. Ask me anything about the current situation, health campaigns, or disaster response planning.',
+      content: context?.hasDistricts
+        ? 'Hello! I\'m your humanitarian aid advisor. I can help you analyze district-level risks, understand how disasters impact your programs, and provide campaign planning guidance. Ask me about the risk levels in your uploaded administrative boundaries, or request to highlight specific districts on the map.'
+        : 'Hello! I\'m your humanitarian aid advisor. I can help you understand how disasters might impact your programs and operations. Ask me anything about the current situation, health campaigns, or disaster response planning.',
       timestamp: Date.now()
     }
   ]);
@@ -60,26 +63,38 @@ const ChatDrawer = ({
         acledEnabled: context.acledEnabled
       });
 
+      console.time('Serializing request body');
+      const requestBody = JSON.stringify({
+        message: userMessage.content,
+        context: context,
+        conversationHistory: messages.map(m => ({
+          role: m.role,
+          content: m.content
+        })),
+        stream: true
+      });
+      console.timeEnd('Serializing request body');
+      console.log(`Request body size: ${(requestBody.length / 1024).toFixed(2)} KB`);
+
+      const fetchStart = Date.now();
+      console.log('🚀 Starting fetch request...');
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          message: userMessage.content,
-          context: context,
-          conversationHistory: messages.map(m => ({
-            role: m.role,
-            content: m.content
-          })),
-          stream: true
-        })
+        body: requestBody
       });
+
+      console.log(`📥 Response headers received in ${Date.now() - fetchStart}ms, status: ${response.status}`);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
       let buffer = '';
+      let chunkCount = 0;
+      const startTime = Date.now();
 
       while (true) {
         const { done, value } = await reader.read();
@@ -99,7 +114,26 @@ const ChatDrawer = ({
 
             try {
               const parsed = JSON.parse(data);
+
+              // Check for map commands
+              if (parsed.mapCommand) {
+                console.log('📍 Received map command:', parsed.mapCommand);
+                if (onHighlightDistricts) {
+                  console.log('✅ onHighlightDistricts function is available');
+                  if (parsed.mapCommand.action === 'highlight_districts') {
+                    console.log('🗺️ Calling onHighlightDistricts with criteria:', parsed.mapCommand.criteria);
+                    onHighlightDistricts(parsed.mapCommand.criteria);
+                  }
+                } else {
+                  console.warn('⚠️ onHighlightDistricts function is NOT available - districts may not be loaded');
+                }
+              }
+
               if (parsed.content) {
+                chunkCount++;
+                if (chunkCount === 1) {
+                  console.log(`🎉 First chunk received at ${Date.now() - startTime}ms`);
+                }
                 accumulatedContent += parsed.content;
                 setStreamingMessage(accumulatedContent);
               }
@@ -109,6 +143,8 @@ const ChatDrawer = ({
           }
         }
       }
+
+      console.log(`✅ Client received ${chunkCount} chunks in ${Date.now() - startTime}ms`);
 
       const assistantMessage = {
         role: 'assistant',
@@ -140,12 +176,30 @@ const ChatDrawer = ({
     }
   };
 
-  const suggestedQuestions = [
-    "How will the current disasters affect ongoing health campaigns?",
-    "Which facilities should we prioritize for immunization programs?",
-    "What are the supply chain risks for malaria prevention?",
-    "How should we adjust our program timeline?"
-  ];
+  // Conditional suggested questions based on available data
+  const getSuggestedQuestions = () => {
+    const baseQuestions = [
+      "How will the current disasters affect ongoing health campaigns?",
+      "Which facilities should we prioritize for immunization programs?"
+    ];
+
+    if (context?.hasDistricts) {
+      return [
+        "Show me all districts in the area",
+        "Highlight high risk districts",
+        "Show safe districts for operations",
+        "Which districts should I avoid?"
+      ];
+    }
+
+    return [
+      ...baseQuestions,
+      "What are the supply chain risks for malaria prevention?",
+      "How should we adjust our program timeline?"
+    ];
+  };
+
+  const suggestedQuestions = getSuggestedQuestions();
 
   return (
     <>
@@ -169,12 +223,30 @@ const ChatDrawer = ({
           padding: '20px',
           flexShrink: 0
         }}>
-          <h3 className="drawer-title" style={{color: 'white', fontFamily: "'Space Grotesk', sans-serif"}}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-            AI Assistant
-          </h3>
+          <div style={{ flex: 1 }}>
+            <h3 className="drawer-title" style={{color: 'white', fontFamily: "'Space Grotesk', sans-serif", marginBottom: context?.hasDistricts ? '8px' : '0'}}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              AI Assistant
+            </h3>
+            {context?.hasDistricts && context?.districts && (
+              <div style={{
+                fontSize: '11px',
+                color: 'rgba(255, 255, 255, 0.8)',
+                marginLeft: '30px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span>District Analysis: {context.districts.country} ({context.districts.totalCount} districts)</span>
+              </div>
+            )}
+          </div>
           <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
         </div>
 

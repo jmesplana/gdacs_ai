@@ -4,7 +4,7 @@ export const config = {
   api: {
     responseLimit: false,
     bodyParser: {
-      sizeLimit: '4mb', // Increased from default 1mb to handle large contexts
+      sizeLimit: '10mb', // Increased from default 1mb to handle large contexts
     },
   },
 };
@@ -20,6 +20,10 @@ export default async function handler(req, res) {
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
     }
+
+    // Detect map interaction intents (highlight, show, filter districts)
+    const mapIntent = detectMapIntent(message, context);
+    console.log('Detected map intent:', mapIntent);
 
     // Check if OpenAI API key is available
     if (!process.env.OPENAI_API_KEY) {
@@ -43,6 +47,11 @@ export default async function handler(req, res) {
 
     // Build context summary for the AI
     const contextSummary = buildContextSummary(context);
+
+    // Log context size for debugging
+    const contextSize = contextSummary.length;
+    const estimatedTokens = Math.ceil(contextSize / 4); // Rough estimate: 1 token ≈ 4 chars
+    console.log(`Context summary: ${contextSize} characters, ~${estimatedTokens} tokens`);
 
     // Debug: Log if ACLED section is in the summary
     if (contextSummary.includes('ACLED')) {
@@ -111,7 +120,20 @@ IMPORTANT:
 - Provide GO/NO-GO/DELAY/CAUTION recommendations with clear rationale based on AMP and WHO best practices
 - Suggest appropriate digital tools and assessment procedures when relevant
 
-Be direct, practical, and specific. Use the context data to give personalized answers following AMP operational guidance.`
+**DISTRICT-LEVEL ANALYSIS (When Administrative Boundaries Shapefile is Uploaded):**
+- When a shapefile is uploaded, you have access to detailed district-level risk assessment data in the "ADMINISTRATIVE BOUNDARIES SHAPEFILE" section
+- Focus your analysis on the specific geographic area covered by the shapefile (check the Country, Region, and Coverage Area)
+- Reference specific districts by name when discussing risks, especially the examples provided in each risk category
+- When the user asks you to "highlight" or "show" districts on the map (e.g., "highlight high risk districts", "show me no-go areas"):
+  1. Explain which districts match their criteria based on the risk breakdown
+  2. List specific district names if available
+  3. Provide context about why these districts are at that risk level
+  4. The system will AUTOMATICALLY highlight these districts on the map with orange pulsing borders
+- Always frame your district analysis in the context of the uploaded shapefile area (e.g., "In [Country/Region], based on the uploaded administrative boundaries...")
+- Use the risk breakdown percentages to give an overall security picture of the area
+- When discussing campaign planning, reference which districts are safe vs. risky for operations
+
+Be direct, practical, and specific. Use the context data to give personalized answers following AMP operational guidance. When districts are loaded, prioritize district-level analysis for geographic risk assessment.`
       }
     ];
 
@@ -131,36 +153,59 @@ Be direct, practical, and specific. Use the context data to give personalized an
 
     // Call OpenAI API with streaming if requested
     if (stream) {
+      // Set headers for SSE streaming
       res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+      res.setHeader('Content-Encoding', 'none'); // Disable compression
+
+      // Send headers immediately to establish connection
+      res.flushHeaders();
+
+      // If there's a map intent, send it first as a special command
+      if (mapIntent) {
+        res.write(`data: ${JSON.stringify({ mapCommand: mapIntent })}\n\n`);
+        if (res.flush) res.flush();
+      }
+
+      console.log('📤 Calling OpenAI API with streaming...');
+      console.time('OpenAI stream start');
 
       const streamResponse = await openai.chat.completions.create({
-        model: "gpt-4-turbo-preview",
+        model: "gpt-4o",
         messages: messages,
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 1500,
         stream: true
       });
 
+      console.timeEnd('OpenAI stream start');
+      console.log('✅ OpenAI stream started, processing chunks...');
+
+      let chunkCount = 0;
       for await (const chunk of streamResponse) {
         const content = chunk.choices[0]?.delta?.content;
         if (content) {
+          chunkCount++;
+          if (chunkCount === 1) {
+            console.log('🎉 First chunk received!');
+          }
           res.write(`data: ${JSON.stringify({ content })}\n\n`);
           // Flush the response to ensure it's sent immediately
           if (res.flush) res.flush();
         }
       }
 
+      console.log(`✅ Stream complete. Total chunks: ${chunkCount}`);
       res.write('data: [DONE]\n\n');
       res.end();
     } else {
       const response = await openai.chat.completions.create({
-        model: "gpt-4-turbo-preview",
+        model: "gpt-4o",
         messages: messages,
         temperature: 0.7,
-        max_tokens: 1000
+        max_tokens: 1500
       });
 
       const aiResponse = response.choices[0].message.content;
@@ -181,6 +226,82 @@ Be direct, practical, and specific. Use the context data to give personalized an
       error: error.message
     });
   }
+}
+
+function detectMapIntent(message, context) {
+  if (!context || !context.hasDistricts) {
+    return null; // No districts loaded, can't perform map actions
+  }
+
+  const lowerMessage = message.toLowerCase();
+
+  // Keywords for highlighting/showing districts
+  const highlightKeywords = ['highlight', 'show me', 'which districts', 'what districts', 'display', 'point out', 'identify', 'show', 'map', 'visualize'];
+  const riskKeywords = ['high risk', 'very high risk', 'dangerous', 'unsafe', 'no go', 'no-go', 'risky', 'risk', 'threat'];
+  const safeKeywords = ['safe', 'low risk', 'no risk', 'secure', 'clear', 'safe for operations'];
+
+  // Check if the message is asking about districts or areas
+  const hasDistrictMention = lowerMessage.includes('district') || lowerMessage.includes('area') || lowerMessage.includes('region') || lowerMessage.includes('location');
+
+  // Check for highlight intent
+  const hasHighlightIntent = highlightKeywords.some(keyword => lowerMessage.includes(keyword));
+
+  // Check if this is a geographic or risk-related query about the districts
+  const isGeographicQuery = hasDistrictMention || hasHighlightIntent;
+
+  if (isGeographicQuery) {
+    // Determine what to highlight
+    const criteria = {};
+
+    // Check for risk level mentions
+    if (riskKeywords.some(keyword => lowerMessage.includes(keyword))) {
+      // User wants to see high risk areas
+      if (lowerMessage.includes('very high')) {
+        criteria.riskLevels = ['very-high'];
+      } else if (lowerMessage.includes('high')) {
+        criteria.riskLevels = ['high', 'very-high'];
+      } else if (lowerMessage.includes('no go') || lowerMessage.includes('no-go')) {
+        criteria.riskLevels = ['very-high', 'high'];
+      } else {
+        // Generic "risk" or "risky" - show all at-risk districts
+        criteria.riskLevels = ['high', 'very-high', 'medium'];
+      }
+    }
+
+    if (safeKeywords.some(keyword => lowerMessage.includes(keyword))) {
+      // User wants to see safe areas
+      criteria.riskLevels = ['none', 'low'];
+    }
+
+    // Check for medium risk
+    if (lowerMessage.includes('medium risk') || lowerMessage.includes('moderate')) {
+      criteria.riskLevels = ['medium'];
+    }
+
+    // Check for "all districts" or general area questions
+    if ((lowerMessage.includes('all') || lowerMessage.includes('entire') || lowerMessage.includes('whole')) &&
+        (lowerMessage.includes('district') || lowerMessage.includes('area') || lowerMessage.includes('region'))) {
+      // Show all districts regardless of risk
+      criteria.riskLevels = ['very-high', 'high', 'medium', 'low', 'none'];
+    }
+
+    // Check for event count thresholds
+    const eventMatch = lowerMessage.match(/(\d+)\s*(or more|events|incidents)/);
+    if (eventMatch) {
+      criteria.minEventCount = parseInt(eventMatch[1]);
+    }
+
+    // If we detected some criteria, return the intent
+    if (Object.keys(criteria).length > 0) {
+      console.log('✅ Map intent detected with criteria:', criteria);
+      return {
+        action: 'highlight_districts',
+        criteria: criteria
+      };
+    }
+  }
+
+  return null;
 }
 
 function buildContextSummary(context) {
@@ -209,49 +330,53 @@ function buildContextSummary(context) {
   if (context.totalFacilities) {
     summary.push(`\nTOTAL FACILITIES: ${context.totalFacilities}`);
 
-    // Include list of all facilities for better context
+    // Include facilities list (compact format for 200 facilities)
     if (context.facilities && context.facilities.length > 0) {
-      const facilityCount = context.facilities.length;
       const totalCount = context.totalFacilities;
-      summary.push(`\nFACILITIES LIST (showing ${facilityCount} of ${totalCount}):`);
+      const shownCount = context.facilities.length;
+
+      summary.push(`\nFACILITIES DATABASE (showing ${shownCount} of ${totalCount}):`);
+
       const aiAnalysisFields = context.aiAnalysisFields || [];
 
-      context.facilities.forEach((facility, index) => {
-        const facilityInfo = [`${index + 1}. ${facility.name}`];
+      // Compact one-line format for each facility
+      context.facilities.forEach((facility, idx) => {
+        const parts = [`${idx + 1}. ${facility.name}`];
 
-        // Include location
+        // Add location (abbreviated)
         if (facility.latitude && facility.longitude) {
-          facilityInfo.push(`Location: ${facility.latitude}, ${facility.longitude}`);
+          parts.push(`@ ${parseFloat(facility.latitude).toFixed(2)},${parseFloat(facility.longitude).toFixed(2)}`);
         }
 
-        // Include type if available
-        if (facility.type || facility.facilityType || facility.category) {
-          facilityInfo.push(`Type: ${facility.type || facility.facilityType || facility.category}`);
+        // Add type if available
+        if (facility.type) {
+          parts.push(`[${facility.type}]`);
         }
 
-        // Include country if available
+        // Add country
         if (facility.country) {
-          facilityInfo.push(`Country: ${facility.country}`);
+          parts.push(`(${facility.country})`);
         }
 
-        // Include ONLY the fields that were selected for AI analysis
-        if (aiAnalysisFields.length > 0) {
-          aiAnalysisFields.forEach(fieldName => {
-            if (facility[fieldName] !== undefined && facility[fieldName] !== null && facility[fieldName] !== '') {
-              const displayValue = String(facility[fieldName]).length > 100
-                ? String(facility[fieldName]).substring(0, 97) + '...'
-                : facility[fieldName];
-              facilityInfo.push(`${fieldName}: ${displayValue}`);
-            }
-          });
-        }
+        // Add first 2 analysis fields, truncated
+        aiAnalysisFields.slice(0, 2).forEach(field => {
+          if (facility[field]) {
+            const val = String(facility[field]).length > 25
+              ? String(facility[field]).substring(0, 22) + '...'
+              : facility[field];
+            parts.push(`${field}:${val}`);
+          }
+        });
 
-        summary.push(`  ${facilityInfo.join(' | ')}`);
+        summary.push(parts.join(' | '));
       });
 
-      // Add a note about which fields are being analyzed
+      if (totalCount > shownCount) {
+        summary.push(`\n[${totalCount - shownCount} additional facilities not shown]`);
+      }
+
       if (aiAnalysisFields.length > 0) {
-        summary.push(`\nAI ANALYSIS FIELDS: ${aiAnalysisFields.join(', ')}`);
+        summary.push(`\nAvailable fields: ${aiAnalysisFields.join(', ')}`);
       }
     }
   }
@@ -358,6 +483,60 @@ function buildContextSummary(context) {
     }
   } else if (context.acledData && !context.acledEnabled) {
     summary.push('\nACLED DATA: Uploaded but DISABLED - Not being used in analysis');
+  }
+
+  // District boundaries information (detailed)
+  if (context.hasDistricts && context.districts) {
+    const d = context.districts;
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`ADMINISTRATIVE BOUNDARIES SHAPEFILE (User-Uploaded)`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`\n📍 GEOGRAPHIC AREA:`);
+    summary.push(`   Country: ${d.country}`);
+    if (d.region && d.region !== 'Unknown') {
+      summary.push(`   Region: ${d.region}`);
+    }
+    summary.push(`   Total Districts: ${d.totalCount}`);
+    summary.push(`   Coverage Area: ${d.geographicBounds.minLat}°N to ${d.geographicBounds.maxLat}°N, ${d.geographicBounds.minLng}°E to ${d.geographicBounds.maxLng}°E`);
+    summary.push(`   Center Point: ${d.geographicBounds.centerLat}°, ${d.geographicBounds.centerLng}°`);
+
+    summary.push(`\n🎯 DISTRICT RISK ASSESSMENT (Based on Active Disasters & ACLED Security Events):`);
+    const totalWithRisk = d.riskBreakdown['very-high'] + d.riskBreakdown.high + d.riskBreakdown.medium + d.riskBreakdown.low;
+    summary.push(`   ⚠️  Very High Risk: ${d.riskBreakdown['very-high']} districts (NO-GO zones)`);
+    summary.push(`   🔴 High Risk: ${d.riskBreakdown.high} districts (Extreme caution)`);
+    summary.push(`   🟡 Medium Risk: ${d.riskBreakdown.medium} districts (Moderate caution)`);
+    summary.push(`   🟢 Low Risk: ${d.riskBreakdown.low} districts (Minimal concerns)`);
+    summary.push(`   🔵 No Risk: ${d.riskBreakdown.none} districts (Safe for operations)`);
+    summary.push(`   📊 Total at Risk: ${totalWithRisk} of ${d.totalCount} districts (${((totalWithRisk / d.totalCount) * 100).toFixed(1)}%)`);
+
+    // Show example districts for each risk level
+    if (d.sampleDistricts['very-high'].length > 0) {
+      summary.push(`\n   Very High Risk Examples:`);
+      d.sampleDistricts['very-high'].forEach(dist => {
+        summary.push(`      • ${dist.name} (${dist.eventCount} events, score: ${dist.score})`);
+      });
+    }
+
+    if (d.sampleDistricts.high.length > 0) {
+      summary.push(`\n   High Risk Examples:`);
+      d.sampleDistricts.high.forEach(dist => {
+        summary.push(`      • ${dist.name} (${dist.eventCount} events, score: ${dist.score})`);
+      });
+    }
+
+    if (d.sampleDistricts.medium.length > 0) {
+      summary.push(`\n   Medium Risk Examples:`);
+      d.sampleDistricts.medium.forEach(dist => {
+        summary.push(`      • ${dist.name} (${dist.eventCount} events, score: ${dist.score})`);
+      });
+    }
+
+    summary.push(`\n💡 INTERACTIVE MAP FEATURES:`);
+    summary.push(`   • Districts are color-coded by risk: Blue (none) → Green (low) → Yellow (medium) → Orange (high) → Red (very high)`);
+    summary.push(`   • User can ask you to highlight specific districts, and you can trigger map highlighting`);
+    summary.push(`   • Example queries: "highlight high risk districts", "show me no-go areas", "which districts are safe?"`);
+    summary.push(`   • When user asks to highlight/show districts, explain which districts match and the system will automatically highlight them on the map`);
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   }
 
   // Recent analysis or recommendations

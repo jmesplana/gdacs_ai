@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
-import { MapContainer, TileLayer, CircleMarker, Marker as ReactLeafletMarker, Popup, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Marker as ReactLeafletMarker, Popup, Tooltip, GeoJSON } from 'react-leaflet';
 import MarkerClusterGroup from '@changey/react-leaflet-markercluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -10,6 +10,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import 'leaflet-draw';
 import ReactMarkdown from 'react-markdown';
+import ShapefileUploader from './ShapefileUploader';
 
 // Fix for default markers in Next.js
 delete L.Icon.Default.prototype._getIconUrl;
@@ -84,8 +85,23 @@ const customStyles = `
     }
   }
 
+  @keyframes pulse {
+    0%, 100% {
+      stroke-width: 4;
+      stroke-opacity: 1;
+    }
+    50% {
+      stroke-width: 6;
+      stroke-opacity: 0.7;
+    }
+  }
+
   .fade-in {
     animation: fadeIn 0.3s ease-out forwards;
+  }
+
+  .highlighted-district {
+    animation: pulse 2s ease-in-out infinite;
   }
 
   .facility-label {
@@ -330,6 +346,159 @@ const MapComponent = ({
 
   // Campaign Dashboard state
   const [showCampaignDashboard, setShowCampaignDashboard] = useState(false);
+
+  // District boundaries state
+  const [districts, setDistricts] = useState([]);
+  const [showDistricts, setShowDistricts] = useState(true);
+  const [highlightedDistricts, setHighlightedDistricts] = useState([]);
+
+  // Function to highlight districts based on criteria from AI chat
+  const handleHighlightDistricts = (criteria) => {
+    console.log('Highlighting districts with criteria:', criteria);
+
+    if (!districts || districts.length === 0) {
+      console.warn('No districts available to highlight');
+      return;
+    }
+
+    // Calculate risk levels first
+    const districtRisks = calculateDistrictRisks(districts, filteredDisasters, getFilteredAcledData());
+
+    let matchingDistricts = [];
+
+    // Filter based on risk level
+    if (criteria.riskLevels && criteria.riskLevels.length > 0) {
+      matchingDistricts = districts.filter(district => {
+        const risk = districtRisks[district.id];
+        return risk && criteria.riskLevels.includes(risk.level);
+      });
+    }
+
+    // Filter based on district names
+    if (criteria.names && criteria.names.length > 0) {
+      const nameMatches = districts.filter(district => {
+        const districtName = (district.name || '').toLowerCase();
+        return criteria.names.some(name => districtName.includes(name.toLowerCase()));
+      });
+      matchingDistricts = [...matchingDistricts, ...nameMatches];
+    }
+
+    // Filter based on event count threshold
+    if (criteria.minEventCount !== undefined) {
+      const eventCountMatches = districts.filter(district => {
+        const risk = districtRisks[district.id];
+        return risk && risk.eventCount >= criteria.minEventCount;
+      });
+      matchingDistricts = [...matchingDistricts, ...eventCountMatches];
+    }
+
+    // Remove duplicates
+    matchingDistricts = [...new Set(matchingDistricts)];
+
+    console.log(`Found ${matchingDistricts.length} districts matching criteria:`, matchingDistricts.map(d => d.name));
+    setHighlightedDistricts(matchingDistricts.map(d => d.id));
+
+    // Zoom to highlighted districts if any found
+    if (matchingDistricts.length > 0 && mapInstance) {
+      const bounds = L.latLngBounds();
+      matchingDistricts.forEach(district => {
+        if (district.bounds) {
+          bounds.extend([
+            [district.bounds.minLat, district.bounds.minLng],
+            [district.bounds.maxLat, district.bounds.maxLng]
+          ]);
+        }
+      });
+      if (bounds.isValid()) {
+        mapInstance.fitBounds(bounds, { padding: [50, 50] });
+      }
+    }
+  };
+
+  // Calculate district risk levels based on disasters and ACLED events
+  const calculateDistrictRisks = (districts, disasters, acledData) => {
+    if (!districts || districts.length === 0) return {};
+
+    const risks = {};
+
+    districts.forEach(district => {
+      let riskScore = 0;
+      let eventCount = 0;
+
+      // Check for disasters in this district
+      disasters?.forEach(disaster => {
+        if (disaster.latitude && disaster.longitude) {
+          const lat = parseFloat(disaster.latitude);
+          const lng = parseFloat(disaster.longitude);
+
+          // Check if disaster is within district bounds
+          if (district.bounds) {
+            const { minLat, maxLat, minLng, maxLng } = district.bounds;
+            if (lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng) {
+              eventCount++;
+              // Weight by severity
+              if (disaster.severity === 'Extreme' || disaster.alertlevel === 'Red') {
+                riskScore += 10;
+              } else if (disaster.severity === 'Severe' || disaster.alertlevel === 'Orange') {
+                riskScore += 7;
+              } else if (disaster.severity === 'Moderate' || disaster.alertlevel === 'Yellow') {
+                riskScore += 5;
+              } else {
+                riskScore += 3;
+              }
+            }
+          }
+        }
+      });
+
+      // Check for ACLED events in this district
+      acledData?.forEach(event => {
+        if (event.latitude && event.longitude) {
+          const lat = parseFloat(event.latitude);
+          const lng = parseFloat(event.longitude);
+
+          if (district.bounds) {
+            const { minLat, maxLat, minLng, maxLng } = district.bounds;
+            if (lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng) {
+              eventCount++;
+              // Weight by event type
+              if (event.event_type === 'Battles' || event.event_type === 'Explosions/Remote violence') {
+                riskScore += 8;
+              } else if (event.event_type === 'Violence against civilians') {
+                riskScore += 10;
+              } else if (event.event_type === 'Riots' || event.event_type === 'Protests') {
+                riskScore += 4;
+              } else {
+                riskScore += 2;
+              }
+            }
+          }
+        }
+      });
+
+      // Determine risk level
+      let level = 'none';
+      if (riskScore === 0) {
+        level = 'none';
+      } else if (riskScore < 10) {
+        level = 'low';
+      } else if (riskScore < 20) {
+        level = 'medium';
+      } else if (riskScore < 40) {
+        level = 'high';
+      } else {
+        level = 'very-high';
+      }
+
+      risks[district.id] = {
+        level,
+        score: riskScore,
+        eventCount
+      };
+    });
+
+    return risks;
+  };
 
   // Generate recommendations for a facility
   const handleGenerateRecommendations = async (facility, forceRefresh = false) => {
@@ -606,6 +775,8 @@ const MapComponent = ({
         facilities={facilities}
         impactedFacilities={impactedFacilities}
         impactStatistics={impactStatistics}
+        districts={districts}
+        onDistrictsLoaded={setDistricts}
         onFileUpload={(file) => {
           console.log('File selected:', file);
           // Create a synthetic event for the hook
@@ -727,6 +898,9 @@ const MapComponent = ({
           hasFacilities={facilities && facilities.length > 0}
           hasStatistics={!!impactStatistics}
           hasAcledData={acledEnabled && acledData && acledData.length > 0}
+          hasDistricts={districts && districts.length > 0}
+          showDistricts={showDistricts}
+          setShowDistricts={setShowDistricts}
         />
       )}
 
@@ -831,6 +1005,168 @@ const MapComponent = ({
           map.on('click', handleMapClick);
         }} />
 
+        {/* District boundaries layer - use single GeoJSON for better performance */}
+        {showDistricts && districts && districts.length > 0 && (() => {
+          console.log(`Rendering ${districts.length} districts on map`);
+
+          // Calculate risk levels for all districts
+          const districtRisks = calculateDistrictRisks(districts, filteredDisasters, getFilteredAcledData());
+
+          // Risk level colors (nice gradient)
+          const getRiskColor = (level) => {
+            switch (level) {
+              case 'very-high': return '#d32f2f'; // Deep Red
+              case 'high': return '#f57c00'; // Deep Orange
+              case 'medium': return '#fbc02d'; // Yellow/Amber
+              case 'low': return '#7cb342'; // Light Green
+              case 'none':
+              default: return '#89CFF0'; // Light Blue (default)
+            }
+          };
+
+          const getBorderColor = (level) => {
+            switch (level) {
+              case 'very-high': return '#b71c1c';
+              case 'high': return '#e65100';
+              case 'medium': return '#f9a825';
+              case 'low': return '#558b2f';
+              case 'none':
+              default: return '#2D5A7B';
+            }
+          };
+
+          // Create a FeatureCollection from all districts
+          const featureCollection = {
+            type: 'FeatureCollection',
+            features: districts
+              .filter(d => {
+                if (!d.geometry) {
+                  console.warn('District missing geometry:', d.name);
+                  return false;
+                }
+                return true;
+              })
+              .map(district => {
+                const risk = districtRisks[district.id] || { level: 'none', score: 0, eventCount: 0 };
+                return {
+                  type: 'Feature',
+                  properties: {
+                    name: district.name,
+                    country: district.country,
+                    region: district.region,
+                    population: district.population,
+                    riskLevel: risk.level,
+                    riskScore: risk.score,
+                    eventCount: risk.eventCount,
+                    ...district.properties
+                  },
+                  geometry: district.geometry,
+                  id: district.id
+                };
+              })
+          };
+
+          console.log(`Created FeatureCollection with ${featureCollection.features.length} features`);
+          console.log('Sample district with risk:', featureCollection.features[0]?.properties);
+
+          return (
+            <GeoJSON
+              key={`districts-${districts.length}-${filteredDisasters.length}-${getFilteredAcledData().length}-${highlightedDistricts.length}`}
+              data={featureCollection}
+              style={(feature) => {
+                const riskLevel = feature.properties.riskLevel || 'none';
+                const isHighlighted = highlightedDistricts.includes(feature.id);
+
+                return {
+                  color: isHighlighted ? '#FF6B35' : getBorderColor(riskLevel),
+                  weight: isHighlighted ? 4 : 2,
+                  opacity: isHighlighted ? 1 : 0.8,
+                  fillColor: getRiskColor(riskLevel),
+                  fillOpacity: isHighlighted ? 0.7 : (riskLevel === 'none' ? 0.1 : 0.5),
+                  className: isHighlighted ? 'highlighted-district' : ''
+                };
+              }}
+              onEachFeature={(feature, layer) => {
+                const props = feature.properties;
+
+                // Build popup HTML with all available properties
+                const displayName = props.name || props.NAME || props.DISTRICT || props.District || 'Unnamed District';
+
+                // Risk level display
+                const riskLevel = props.riskLevel || 'none';
+                const riskScore = props.riskScore || 0;
+                const eventCount = props.eventCount || 0;
+
+                const getRiskLabel = (level) => {
+                  switch (level) {
+                    case 'very-high': return 'VERY HIGH';
+                    case 'high': return 'HIGH';
+                    case 'medium': return 'MEDIUM';
+                    case 'low': return 'LOW';
+                    case 'none':
+                    default: return 'NO RISK';
+                  }
+                };
+
+                const getRiskBadgeColor = (level) => {
+                  switch (level) {
+                    case 'very-high': return '#d32f2f';
+                    case 'high': return '#f57c00';
+                    case 'medium': return '#fbc02d';
+                    case 'low': return '#7cb342';
+                    case 'none':
+                    default: return '#90a4ae';
+                  }
+                };
+
+                let popupContent = `
+                  <div style="font-family: 'Inter', sans-serif; max-width: 300px;">
+                    <h4 style="margin: 0 0 10px 0; color: var(--aidstack-navy); font-size: 16px; border-bottom: 2px solid #2D5A7B; padding-bottom: 6px;">
+                      ${displayName}
+                    </h4>
+                `;
+
+                // Add risk level badge
+                if (eventCount > 0) {
+                  popupContent += `
+                    <div style="margin: 10px 0; padding: 10px; background: ${getRiskBadgeColor(riskLevel)}; color: white; border-radius: 6px; text-align: center;">
+                      <div style="font-size: 12px; font-weight: 600; margin-bottom: 4px;">RISK LEVEL</div>
+                      <div style="font-size: 18px; font-weight: bold;">${getRiskLabel(riskLevel)}</div>
+                      <div style="font-size: 11px; margin-top: 4px; opacity: 0.9;">${eventCount} event${eventCount > 1 ? 's' : ''} detected (Score: ${riskScore})</div>
+                    </div>
+                  `;
+                }
+
+                // Add all non-null properties (excluding geometry-related and risk-related ones)
+                const excludeKeys = ['name', 'NAME', 'geometry', 'bounds', 'riskLevel', 'riskScore', 'eventCount'];
+                Object.entries(props).forEach(([key, value]) => {
+                  if (value && !excludeKeys.includes(key)) {
+                    // Format the key to be more readable
+                    const formattedKey = key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim();
+                    const capitalizedKey = formattedKey.charAt(0).toUpperCase() + formattedKey.slice(1);
+
+                    // Format the value
+                    let formattedValue = value;
+                    if (typeof value === 'number' && value > 1000) {
+                      formattedValue = value.toLocaleString();
+                    }
+
+                    popupContent += `
+                      <p style="margin: 6px 0; font-size: 13px;">
+                        <strong style="color: #666;">${capitalizedKey}:</strong> ${formattedValue}
+                      </p>
+                    `;
+                  }
+                });
+
+                popupContent += '</div>';
+
+                layer.bindPopup(popupContent);
+              }}
+            />
+          );
+        })()}
+
         {/* Heatmap layer */}
         {showHeatmap && <HeatmapLayer disasters={filteredDisasters} />}
 
@@ -859,7 +1195,52 @@ const MapComponent = ({
 
         {/* Facility markers */}
         {facilities && facilities.length > 0 && (
-          <MarkerClusterGroup>
+          <MarkerClusterGroup
+            showCoverageOnHover={false}
+            maxClusterRadius={50}
+            iconCreateFunction={(cluster) => {
+              const count = cluster.getChildCount();
+              const size = count < 10 ? 'small' : count < 50 ? 'medium' : 'large';
+
+              // Check if any facilities in the cluster are impacted
+              const markers = cluster.getAllChildMarkers();
+              const hasImpacted = markers.some(marker => {
+                const facilityName = marker.options.title; // We'll set this in the marker
+                return impactedFacilities?.some(
+                  impacted => impacted.facility?.name === facilityName
+                );
+              });
+
+              const bgColor = hasImpacted ? 'rgba(255, 68, 68, 0.9)' : 'rgba(76, 175, 80, 0.9)';
+              const dimension = size === 'small' ? '36px' : size === 'medium' ? '46px' : '56px';
+              const fontSize = size === 'small' ? '13px' : size === 'medium' ? '15px' : '18px';
+
+              return L.divIcon({
+                html: `<div style="
+                  background: ${bgColor};
+                  color: white;
+                  border-radius: 50%;
+                  width: ${dimension};
+                  height: ${dimension};
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  font-weight: bold;
+                  border: 3px solid white;
+                  box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+                ">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 2px;">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                  </svg>
+                  <span style="font-size: ${fontSize}; line-height: 1;">${count}</span>
+                </div>`,
+                className: 'facility-cluster',
+                iconSize: [parseInt(dimension), parseInt(dimension)]
+              });
+            }}
+          >
             {facilities.map((facility, idx) => {
               const isImpacted = impactedFacilities?.some(
                 impacted => impacted.name === facility.name
@@ -888,6 +1269,7 @@ const MapComponent = ({
                   key={`facility-${idx}`}
                   position={[parseFloat(facility.latitude), parseFloat(facility.longitude)]}
                   icon={customIcon}
+                  title={facility.name}
                   eventHandlers={{
                     click: () => {
                       setSelectedFacility(facility);
@@ -968,19 +1350,100 @@ const MapComponent = ({
       <ChatDrawer
         isOpen={showChatDrawer}
         onClose={() => setShowChatDrawer(false)}
+        onHighlightDistricts={districts && districts.length > 0 ? handleHighlightDistricts : null}
         context={{
           selectedFacility: selectedFacility,
           totalFacilities: facilities?.length || 0,
-          totalAcledEvents: acledData?.length || 0, // Total ACLED events available
-          facilities: facilities?.slice(0, 50), // Limit to first 50 facilities to avoid payload size issues
-          aiAnalysisFields: aiAnalysisFields, // Fields selected for AI analysis
-          disasters: disasters?.slice(0, 30), // Limit to 30 most recent disasters
-          impactedFacilities: impactedFacilities?.slice(0, 20), // Limit to 20 impacted facilities
+          totalAcledEvents: acledData?.length || 0,
+          totalDistricts: districts?.length || 0,
+          hasDistricts: districts && districts.length > 0,
+          districts: districts && districts.length > 0 ? (() => {
+            // Calculate risk levels for all districts
+            const districtRisks = calculateDistrictRisks(districts, filteredDisasters, getFilteredAcledData());
+
+            // Count districts by risk level
+            const riskCounts = {
+              'very-high': 0,
+              'high': 0,
+              'medium': 0,
+              'low': 0,
+              'none': 0
+            };
+
+            // Get sample district names by risk level (top 3 for each)
+            const samplesByRisk = {
+              'very-high': [],
+              'high': [],
+              'medium': [],
+              'low': [],
+              'none': []
+            };
+
+            districts.forEach(district => {
+              const risk = districtRisks[district.id];
+              if (risk) {
+                riskCounts[risk.level]++;
+                if (samplesByRisk[risk.level].length < 3) {
+                  samplesByRisk[risk.level].push({
+                    name: district.name,
+                    eventCount: risk.eventCount,
+                    score: risk.score
+                  });
+                }
+              }
+            });
+
+            // Get geographic bounds of the shapefile area
+            let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+            districts.forEach(d => {
+              if (d.bounds) {
+                minLat = Math.min(minLat, d.bounds.minLat);
+                maxLat = Math.max(maxLat, d.bounds.maxLat);
+                minLng = Math.min(minLng, d.bounds.minLng);
+                maxLng = Math.max(maxLng, d.bounds.maxLng);
+              }
+            });
+
+            const country = districts[0]?.country || 'Unknown';
+            const region = districts[0]?.region || 'Unknown';
+
+            return {
+              totalCount: districts.length,
+              country: country,
+              region: region,
+              geographicBounds: {
+                minLat: minLat.toFixed(2),
+                maxLat: maxLat.toFixed(2),
+                minLng: minLng.toFixed(2),
+                maxLng: maxLng.toFixed(2),
+                centerLat: ((minLat + maxLat) / 2).toFixed(2),
+                centerLng: ((minLng + maxLng) / 2).toFixed(2)
+              },
+              riskBreakdown: riskCounts,
+              sampleDistricts: samplesByRisk
+            };
+          })() : null,
+          // Send 200 facilities with only essential fields to keep payload reasonable
+          facilities: facilities?.slice(0, 200).map(f => ({
+            name: f.name,
+            latitude: f.latitude,
+            longitude: f.longitude,
+            type: f.type || f.facilityType,
+            country: f.country,
+            // Include AI analysis fields
+            ...(aiAnalysisFields?.reduce((acc, field) => {
+              if (f[field]) acc[field] = f[field];
+              return acc;
+            }, {}))
+          })),
+          aiAnalysisFields: aiAnalysisFields,
+          disasters: disasters?.slice(0, 30),
+          impactedFacilities: impactedFacilities?.slice(0, 20),
           impactStatistics: impactStatistics,
           recentAnalysis: analysisData ? JSON.stringify(analysisData).substring(0, 200) : null,
-          acledData: getFilteredAcledData().slice(0, 200), // Use filtered data (respects date, event type, country, region filters)
-          acledEnabled: acledEnabled, // ACLED toggle status
-          acledConfig: acledConfig // Include config to show active filters
+          acledData: getFilteredAcledData().slice(0, 30), // Reduced ACLED to 30 for performance
+          acledEnabled: acledEnabled,
+          acledConfig: acledConfig
         }}
       />
 
@@ -991,6 +1454,7 @@ const MapComponent = ({
         impactedFacilities={impactedFacilities}
         acledData={getFilteredAcledData()} // Use filtered ACLED data
         acledEnabled={acledEnabled}
+        districts={districts} // Pass districts for district-level campaign planning
         isOpen={showCampaignDashboard}
         onClose={() => setShowCampaignDashboard(false)}
       />
