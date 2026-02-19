@@ -9,6 +9,12 @@
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/$1" }
   ],
+  "functions": {
+    "pages/api/process-shapefile.js": {
+      "maxDuration": 60,
+      "memory": 3008
+    }
+  },
   "env": {
     "OPENAI_API_KEY": ""
   }

@@ -4,9 +4,9 @@ import proj4 from 'proj4';
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '50mb', // Shapefiles can be large
+      sizeLimit: '100mb', // Increase for Vercel Pro - shapefiles can be large
     },
-    responseLimit: '10mb', // Allow larger responses for shapefile data
+    responseLimit: '50mb', // Allow larger responses for shapefile data
   },
 };
 

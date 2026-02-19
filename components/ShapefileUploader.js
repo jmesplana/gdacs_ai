@@ -45,6 +45,16 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
 
       console.log('Sending shapefile to API for processing...');
 
+      // Check file sizes
+      const totalSize = shpFile.byteLength + dbfFile.byteLength + (prjFile?.byteLength || 0);
+      const estimatedBase64Size = Math.ceil(totalSize * 4/3); // Base64 increases size by ~33%
+      console.log(`Total file size: ${(totalSize / 1024 / 1024).toFixed(2)} MB, Estimated upload: ${(estimatedBase64Size / 1024 / 1024).toFixed(2)} MB`);
+
+      // Vercel Pro has a 100MB limit on request bodies
+      if (estimatedBase64Size > 75 * 1024 * 1024) {
+        throw new Error(`Shapefile too large (${(estimatedBase64Size / 1024 / 1024).toFixed(2)}MB). Maximum size is ~75MB. Try simplifying the geometry in QGIS or use a lower resolution version.`);
+      }
+
       // Convert to base64 for API
       const shpBase64 = Buffer.from(shpFile).toString('base64');
       const dbfBase64 = Buffer.from(dbfFile).toString('base64');
