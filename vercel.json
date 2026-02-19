@@ -1,21 +1,8 @@
 {
-  "version": 2,
-  "builds": [
-    { "src": "package.json", "use": "@vercel/next" },
-    { "src": "api/*.py", "use": "@vercel/python" }
-  ],
-  "routes": [
-    { "src": "/api/python/(.*)", "dest": "/api/$1.py" },
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/(.*)", "dest": "/$1" }
-  ],
   "functions": {
     "pages/api/process-shapefile.js": {
       "maxDuration": 60,
       "memory": 3008
     }
-  },
-  "env": {
-    "OPENAI_API_KEY": ""
   }
 }
