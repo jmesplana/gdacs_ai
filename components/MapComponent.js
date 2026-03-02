@@ -352,6 +352,32 @@ const MapComponent = ({
   const [showDistricts, setShowDistricts] = useState(true);
   const [highlightedDistricts, setHighlightedDistricts] = useState([]);
 
+  // Auto-zoom to fit districts when loaded
+  useEffect(() => {
+    if (districts && districts.length > 0 && mapRef.current) {
+      console.log('Auto-zooming to fit', districts.length, 'districts');
+
+      // Calculate bounds from all districts
+      const bounds = L.latLngBounds();
+      let hasValidBounds = false;
+
+      districts.forEach(district => {
+        if (district.bounds) {
+          bounds.extend([
+            [district.bounds.minLat, district.bounds.minLon],
+            [district.bounds.maxLat, district.bounds.maxLon]
+          ]);
+          hasValidBounds = true;
+        }
+      });
+
+      if (hasValidBounds && bounds.isValid()) {
+        console.log('Fitting map to district bounds:', bounds);
+        mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
+      }
+    }
+  }, [districts]);
+
   // Function to highlight districts based on criteria from AI chat
   const handleHighlightDistricts = (criteria) => {
     console.log('Highlighting districts with criteria:', criteria);
