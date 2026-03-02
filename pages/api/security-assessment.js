@@ -6,6 +6,14 @@ import { getDistance } from 'geolib';
  * Analyzes security risks for campaign operations based on facility location
  * Uses ACLED data when available, falls back to AI knowledge
  */
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });

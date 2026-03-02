@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import Papa from 'papaparse';
@@ -620,8 +620,16 @@ export default function Home() {
   };
 
   // Assess the impact of disasters on facilities
+  const assessImpactRef = useRef(false); // Prevent concurrent calls
   const assessImpact = async (facilityData) => {
+    // Prevent multiple simultaneous assessments
+    if (assessImpactRef.current) {
+      console.log('Impact assessment already running, skipping...');
+      return;
+    }
+
     try {
+      assessImpactRef.current = true;
       setLoading(prev => ({ ...prev, impact: true }));
       
       // Convert facilities to CSV string for API
@@ -663,6 +671,7 @@ export default function Home() {
       console.error('Error assessing impact:', error);
       alert('Failed to assess facility impact. Please try again.');
     } finally {
+      assessImpactRef.current = false;
       setLoading(prev => ({ ...prev, impact: false }));
     }
   };
@@ -1877,57 +1886,16 @@ export default function Home() {
       </main>
       
       <footer style={{
-        padding: '15px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        padding: '12px 20px',
+        textAlign: 'center',
         borderTop: '1px solid #eaeaea',
         marginTop: '0',
-        fontSize: '13px',
+        marginBottom: '-20px',
+        fontSize: '12px',
         color: '#666',
-        backgroundColor: '#fafafa',
-        position: 'relative',
-        minHeight: '60px'
+        backgroundColor: '#fafafa'
       }}>
-        <div style={{ flex: 1, textAlign: 'center' }}>
-          Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#2196F3', textDecoration: 'none', fontWeight: 'bold' }}>John Mark Esplana</a> | Disaster Impact Assessment Tool
-        </div>
-        <button
-          onClick={() => setShowChatDrawer(true)}
-          title="Ask AI Assistant"
-          style={{
-            backgroundColor: 'var(--aidstack-orange)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '50%',
-            width: '50px',
-            height: '50px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            transition: 'all 0.3s ease',
-            fontFamily: "'Inter', sans-serif",
-            fontWeight: 600,
-            position: 'absolute',
-            right: '20px'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.05)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.25)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-          }}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
-          <span style={{fontSize: '9px', marginTop: '1px'}}>Ask AI</span>
-        </button>
+        Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#2196F3', textDecoration: 'none', fontWeight: 'bold' }}>John Mark Esplana</a> | Disaster Impact Assessment Tool
       </footer>
     </div>
   )

@@ -1,6 +1,14 @@
 import Papa from 'papaparse';
 import { getDistance, isPointInPolygon, getAreaOfPolygon } from 'geolib';
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb', // Increase from default 1mb to handle large datasets
+    },
+  },
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -58,14 +66,18 @@ export default async function handler(req, res) {
 }
 
 function assessImpact(facilities, disasters) {
+  console.time('Impact assessment total');
   const impacted = [];
   const disasterStats = {};
   const overlappingDisasters = {};
-  
+
+  console.log(`Starting assessment: ${facilities.length} facilities vs ${disasters.length} disasters`);
+
   // Pre-process disasters to collect statistics
+  console.time('Pre-process disasters');
   for (const disaster of disasters) {
     if (!disaster.latitude || !disaster.longitude) continue;
-    
+
     const disasterId = disaster.eventName || disaster.title || `${disaster.eventType}-${disaster.latitude}-${disaster.longitude}`;
     disasterStats[disasterId] = {
       type: disaster.eventType,
@@ -77,28 +89,49 @@ function assessImpact(facilities, disasters) {
       polygon: hasValidPolygon(disaster)
     };
   }
-  
+  console.timeEnd('Pre-process disasters');
+
   // Process each facility
-  for (const facility of facilities) {
-    const facilityPos = {
-      latitude: facility.latitude,
-      longitude: facility.longitude
+  console.time('Process facilities');
+
+  // Pre-calculate impact radii and bounding boxes for disasters (optimization)
+  const disasterData = disasters.map(disaster => {
+    if (!disaster.latitude || !disaster.longitude) return null;
+
+    const impactRadius = getImpactRadius(disaster);
+    return {
+      disaster,
+      lat: parseFloat(disaster.latitude),
+      lng: parseFloat(disaster.longitude),
+      radius: impactRadius,
+      // Bounding box for quick rejection (approximate degrees per km at equator)
+      minLat: parseFloat(disaster.latitude) - (impactRadius / 111),
+      maxLat: parseFloat(disaster.latitude) + (impactRadius / 111),
+      minLng: parseFloat(disaster.longitude) - (impactRadius / (111 * Math.cos(disaster.latitude * Math.PI / 180))),
+      maxLng: parseFloat(disaster.longitude) + (impactRadius / (111 * Math.cos(disaster.latitude * Math.PI / 180))),
+      disasterId: disaster.eventName || disaster.title || `${disaster.eventType}-${disaster.latitude}-${disaster.longitude}`
     };
-    
+  }).filter(d => d !== null);
+
+  for (const facility of facilities) {
+    const facilityLat = parseFloat(facility.latitude);
+    const facilityLng = parseFloat(facility.longitude);
+    const facilityPos = { latitude: facilityLat, longitude: facilityLng };
+
     const facilityImpacts = [];
     const impactingDisasters = [];
-    
-    for (const disaster of disasters) {
-      if (!disaster.latitude || !disaster.longitude) {
+
+    for (const disasterInfo of disasterData) {
+      const { disaster, lat, lng, radius, minLat, maxLat, minLng, maxLng, disasterId } = disasterInfo;
+
+      // Quick bounding box check - skip if facility is clearly outside impact area
+      if (facilityLat < minLat || facilityLat > maxLat ||
+          facilityLng < minLng || facilityLng > maxLng) {
         continue;
       }
-      
-      const disasterId = disaster.eventName || disaster.title || `${disaster.eventType}-${disaster.latitude}-${disaster.longitude}`;
-      const disasterPos = {
-        latitude: disaster.latitude,
-        longitude: disaster.longitude
-      };
-      
+
+      const disasterPos = { latitude: lat, longitude: lng };
+
       // First check if we have a valid polygon for more accurate assessment
       let isImpacted = false;
       let impactMethod = "radius"; // Default method
@@ -117,11 +150,8 @@ function assessImpact(facilities, disasters) {
       
       // If not impacted by polygon, fall back to radius-based assessment
       if (!isImpacted) {
-        // Determine impact radius based on disaster type
-        let impactRadius = getImpactRadius(disaster);
-        
-        // Check if facility is within impact radius
-        if (distance <= impactRadius) {
+        // Use pre-calculated impact radius
+        if (distance <= radius) {
           isImpacted = true;
         }
       }
@@ -171,8 +201,10 @@ function assessImpact(facilities, disasters) {
       });
     }
   }
-  
+  console.timeEnd('Process facilities');
+
   // Compile statistics
+  console.time('Compile statistics');
   const statistics = {
     totalDisasters: disasters.length,
     totalFacilities: facilities.length,
@@ -181,7 +213,11 @@ function assessImpact(facilities, disasters) {
     disasterStats: Object.values(disasterStats).filter(stat => stat.affectedFacilities > 0),
     overlappingImpacts: Object.values(overlappingDisasters)
   };
-  
+  console.timeEnd('Compile statistics');
+  console.timeEnd('Impact assessment total');
+
+  console.log(`Assessment complete: ${impacted.length} impacted facilities found`);
+
   return {
     impactedFacilities: impacted,
     statistics: statistics

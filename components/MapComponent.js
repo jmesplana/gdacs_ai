@@ -33,19 +33,16 @@ import {
 
 import {
   FilterDrawer,
-  FacilityDrawer,
-  MapLayersDrawer,
-  AnalysisDrawer,
-  SitrepDrawer,
+  UnifiedDrawer,
   ColumnSelectionModal,
   RecommendationsDrawer,
   ChatDrawer
 } from './MapComponent/components/drawers';
 
 import {
-  FloatingActionButtons,
   MapLegend,
-  CampaignDashboard
+  CampaignDashboard,
+  HamburgerMenu
 } from './MapComponent/components/overlays';
 
 // Import hooks
@@ -298,10 +295,8 @@ const MapComponent = ({
     showLabels,
     isFullscreen,
     filterDrawerOpen,
-    facilityDrawerOpen,
-    sitrepDrawerOpen,
-    mapLayersDrawerOpen,
-    showAnalysisDrawer,
+    unifiedDrawerOpen,
+    activeDrawerTab,
     currentMapLayer,
     showRoads,
     setShowHeatmap,
@@ -315,6 +310,9 @@ const MapComponent = ({
     setCurrentMapLayer,
     setShowRoads,
     toggleFilterDrawer,
+    openUnifiedDrawer,
+    toggleUnifiedDrawer,
+    setActiveDrawerTab,
     toggleFacilityDrawer,
     toggleSitrepDrawer,
     toggleMapLayersDrawer,
@@ -618,12 +616,12 @@ const MapComponent = ({
     });
   };
 
-  // Show zoom indicator when date filter changes
-  useEffect(() => {
-    if (dateFilter) {
-      setShowZoomIndicator(true);
-    }
-  }, [dateFilter, setShowZoomIndicator]);
+  // Removed: Auto-showing zoom indicator when date filter changes
+  // useEffect(() => {
+  //   if (dateFilter) {
+  //     setShowZoomIndicator(true);
+  //   }
+  // }, [dateFilter, setShowZoomIndicator]);
 
   // Initialize timeline with all disasters
   useEffect(() => {
@@ -680,7 +678,7 @@ const MapComponent = ({
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [filterDrawerOpen, facilityDrawerOpen, sitrepDrawerOpen, mapLayersDrawerOpen, showAnalysisDrawer, mapInstance]);
+  }, [filterDrawerOpen, unifiedDrawerOpen, showChatDrawer, mapInstance]);
 
   // Zoom to fit all filtered events
   const handleZoomToFit = () => {
@@ -700,8 +698,7 @@ const MapComponent = ({
   const currentLayer = MAP_LAYERS[currentMapLayer.toUpperCase()] || MAP_LAYERS.STREET;
 
   // Check if any drawer is open
-  const isAnyDrawerOpen = filterDrawerOpen || facilityDrawerOpen || sitrepDrawerOpen ||
-                          mapLayersDrawerOpen || showAnalysisDrawer;
+  const isAnyDrawerOpen = filterDrawerOpen || unifiedDrawerOpen || showChatDrawer;
 
   // Drawer width (should match the drawer width in CSS)
   const drawerWidth = 400;
@@ -727,12 +724,11 @@ const MapComponent = ({
     >
       <style>{customStyles}</style>
 
-      {/* Floating action buttons */}
-      <FloatingActionButtons
+      {/* Hamburger Menu - Contains all controls: Control Panel, Filter, Campaign Dashboard, Draw, Help */}
+      <HamburgerMenu
+        onControlPanelClick={toggleUnifiedDrawer}
         onFilterClick={toggleFilterDrawer}
-        onFacilitiesClick={toggleFacilityDrawer}
-        onSitrepClick={toggleSitrepDrawer}
-        onLayersClick={toggleMapLayersDrawer}
+        onCampaignDashboardClick={() => setShowCampaignDashboard(true)}
         onHelpClick={() => setShowHelp(!showHelp)}
         drawingEnabled={drawingEnabled}
         onDrawClick={toggleDrawing}
@@ -768,10 +764,14 @@ const MapComponent = ({
         handleDateFilterChange={handleDateFilterChange}
       />
 
-      {/* Facility Drawer */}
-      <FacilityDrawer
-        isOpen={facilityDrawerOpen}
-        onClose={toggleFacilityDrawer}
+      {/* Unified Drawer - Consolidates Facilities, Analysis, Chat, Reports, and Layers */}
+      <UnifiedDrawer
+        isOpen={unifiedDrawerOpen}
+        onClose={toggleUnifiedDrawer}
+        initialTab={activeDrawerTab}
+        onTabChange={setActiveDrawerTab}
+
+        // Facility tab props
         facilities={facilities}
         impactedFacilities={impactedFacilities}
         impactStatistics={impactStatistics}
@@ -779,19 +779,25 @@ const MapComponent = ({
         onDistrictsLoaded={setDistricts}
         onFileUpload={(file) => {
           console.log('File selected:', file);
-          // Create a synthetic event for the hook
           const syntheticEvent = { target: { files: [file] } };
           handleFileUpload(syntheticEvent);
         }}
         onFacilitySelect={(facility) => {
           setSelectedFacility(facility);
-          // Find the impacts for this specific facility
           const facilityImpacts = impactedFacilities.find(
             f => f.facility.name === facility.name
           )?.impacts || [];
           console.log('Facility impacts:', facilityImpacts);
           handleAnalyzeFacility(facility, facilityImpacts);
-          toggleAnalysisDrawer();
+          setActiveDrawerTab('analysis'); // Switch to analysis tab
+        }}
+        onFacilityViewOnMap={(facility) => {
+          if (mapRef.current && facility.latitude && facility.longitude) {
+            mapRef.current.setView([facility.latitude, facility.longitude], 12, {
+              animate: true,
+              duration: 1
+            });
+          }
         }}
         onGenerateSitrep={onGenerateSitrep}
         sitrepLoading={sitrepLoading}
@@ -803,41 +809,28 @@ const MapComponent = ({
         onClearAcledCache={onClearAcledCache}
         onToggleAcled={onToggleAcled}
         onAcledConfigChange={onAcledConfigChange}
-      />
 
-      {/* Map Layers Drawer */}
-      <MapLayersDrawer
-        isOpen={mapLayersDrawerOpen}
-        onClose={toggleMapLayersDrawer}
-        currentMapLayer={currentMapLayer}
-        setCurrentMapLayer={setCurrentMapLayer}
-        showRoads={showRoads}
-        setShowRoads={setShowRoads}
-      />
-
-      {/* Analysis Drawer */}
-      <AnalysisDrawer
-        isOpen={showAnalysisDrawer}
-        onClose={toggleAnalysisDrawer}
+        // Analysis tab props
         selectedFacility={selectedFacility}
-        analysisData={analysisData}
+        analysis={analysisData}
         analysisLoading={analysisLoading}
-        isAIGenerated={isAIGenerated}
-        timestamp={analysisTimestamp}
-        onRefresh={() => {
-          if (selectedFacility) {
-            const facilityImpacts = impactedFacilities.find(
-              f => f.facility.name === selectedFacility.name
-            )?.impacts || [];
-            handleAnalyzeFacility(selectedFacility, facilityImpacts, true); // true = force refresh
-          }
+
+        // Reports tab props
+        sitrep={sitrep}
+        sitrepTimestamp={analysisTimestamp}
+
+        // Layers tab props
+        layerSettings={{
+          currentMapLayer,
+          showRoads
         }}
-        impactedFacilities={impactedFacilities}
-        acledData={acledData}
-        acledEnabled={acledEnabled}
-        onViewRecommendations={(facility) => {
-          toggleAnalysisDrawer(); // Close the analysis drawer
-          handleGenerateRecommendations(facility); // Open recommendations drawer
+        onLayerToggle={(setting, value) => {
+          if (setting === 'currentMapLayer') setCurrentMapLayer(value);
+          if (setting === 'showRoads') setShowRoads(value);
+        }}
+        onLayerConfigChange={(config) => {
+          if (config.currentMapLayer) setCurrentMapLayer(config.currentMapLayer);
+          if (config.showRoads !== undefined) setShowRoads(config.showRoads);
         }}
       />
 
@@ -851,17 +844,6 @@ const MapComponent = ({
         isAIGenerated={recommendationsAIGenerated}
       />
 
-      {/* Sitrep Drawer */}
-      <SitrepDrawer
-        isOpen={sitrepDrawerOpen}
-        onClose={toggleSitrepDrawer}
-        onGenerateSitrep={onGenerateSitrep}
-        sitrepLoading={sitrepLoading}
-        sitrep={sitrep}
-        disasters={disasters}
-        facilities={facilities}
-        impactedFacilities={impactedFacilities}
-      />
 
       {/* Column Selection Modal */}
       <ColumnSelectionModal
@@ -1346,7 +1328,7 @@ const MapComponent = ({
         )}
       </MapContainer>
 
-      {/* Chat Drawer */}
+      {/* Chat Drawer - Kept separate due to complex context management */}
       <ChatDrawer
         isOpen={showChatDrawer}
         onClose={() => setShowChatDrawer(false)}
@@ -1459,57 +1441,47 @@ const MapComponent = ({
         onClose={() => setShowCampaignDashboard(false)}
       />
 
-      {/* Dashboard Toggle Button - Shows when facilities are uploaded */}
-      {facilities.length > 0 && (
-        <div style={{
+      {/* Campaign Dashboard button moved to hamburger menu for cleaner UI */}
+
+      {/* AI Chat Button - Positioned at bottom-right of map */}
+      <button
+        onClick={() => setShowChatDrawer(true)}
+        title="Ask AI Assistant"
+        style={{
           position: 'absolute',
-          bottom: '100px',
+          bottom: '50px',
           right: '20px',
-          zIndex: 2500,
+          zIndex: 1000,
+          backgroundColor: 'var(--aidstack-orange)',
+          color: 'white',
+          border: 'none',
+          borderRadius: '50%',
+          width: '56px',
+          height: '56px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px',
-          alignItems: 'flex-end'
-        }}>
-          <button
-            onClick={() => setShowCampaignDashboard(true)}
-            style={{
-              backgroundColor: 'var(--aidstack-orange)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '12px 20px',
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              fontWeight: 'bold',
-              fontSize: '14px',
-              fontFamily: "'Inter', sans-serif",
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-            }}
-            title="View Campaign Readiness Dashboard"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="14" y="14" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-            </svg>
-            <span>Campaign Dashboard</span>
-          </button>
-        </div>
-      )}
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
+          transition: 'all 0.3s ease',
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 600
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.08)';
+          e.currentTarget.style.boxShadow = '0 5px 16px rgba(0,0,0,0.35)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.boxShadow = '0 3px 10px rgba(0,0,0,0.25)';
+        }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span style={{fontSize: '11px', marginTop: '2px', fontWeight: 700}}>AI</span>
+      </button>
     </div>
   );
 };

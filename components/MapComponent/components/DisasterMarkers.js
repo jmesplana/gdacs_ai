@@ -45,14 +45,46 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
 
             // Determine cluster color based on highest alert level present
             let color = '#4CAF50'; // Green default
-            if (redCount > 0) color = '#ff4444'; // Red
-            else if (orangeCount > 0) color = '#ffa500'; // Orange
+            let bgColor = 'rgba(76, 175, 80, 0.9)'; // Green with transparency
+            if (redCount > 0) {
+              color = '#ff4444'; // Red
+              bgColor = 'rgba(255, 68, 68, 0.9)';
+            } else if (orangeCount > 0) {
+              color = '#ffa500'; // Orange
+              bgColor = 'rgba(255, 165, 0, 0.9)';
+            }
 
-            // Create the cluster icon with the count
+            // Determine size based on cluster count
+            const size = childCount < 10 ? 'small' : childCount < 50 ? 'medium' : 'large';
+            const dimension = size === 'small' ? '36px' : size === 'medium' ? '46px' : '56px';
+            const fontSize = size === 'small' ? '13px' : size === 'medium' ? '15px' : '18px';
+
+            // Create the cluster icon with warning symbol and count
             return L.divIcon({
-              html: `<div style="background-color: ${color}; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: bold; color: white;">${childCount}</div>`,
-              className: 'disaster-cluster-icon',
-              iconSize: L.point(34, 34)
+              html: `<div style="
+                background: ${bgColor};
+                width: ${dimension};
+                height: ${dimension};
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                font-weight: bold;
+                color: white;
+                border: 3px solid white;
+                box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+                position: relative;
+              ">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 2px;">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                  <line x1="12" y1="9" x2="12" y2="13"></line>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                <span style="font-size: ${fontSize}; line-height: 1;">${childCount}</span>
+              </div>`,
+              className: 'disaster-cluster',
+              iconSize: L.point(parseInt(dimension), parseInt(dimension))
             });
           }
         });
@@ -80,24 +112,22 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
           // Use severity from CAP data if available, otherwise fall back to alertLevel
           const alertColor = getAlertColor(disaster.severity || disaster.alertLevel);
 
-          // Create a custom GDACS-style icon
-          const iconUrl = disasterInfo.icon;
-          const iconSize = [36, 36]; // Size of the icon
-
-          // Create a div icon with a colored border based on alert level
+          // Create a div icon with a colored border based on alert level and inline SVG
           const iconHtml = `
-            <div style="position: relative;">
-              <div style="position: absolute; border-radius: 50%; border: 4px solid ${alertColor}; width: 44px; height: 44px; top: -6px; left: -6px; background-color: white;"></div>
-              <img src="${iconUrl}" width="36" height="36" style="position: relative; z-index: 10;">
+            <div style="position: relative; width: 44px; height: 44px;">
+              <div style="position: absolute; border-radius: 50%; border: 4px solid ${alertColor}; width: 44px; height: 44px; top: 0; left: 0; background-color: white;"></div>
+              <div style="position: relative; z-index: 10; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
+                ${disasterInfo.inlineSvg}
+              </div>
             </div>
           `;
 
           const customIcon = L.divIcon({
             html: iconHtml,
             className: 'gdacs-icon',
-            iconSize: [36, 36],
+            iconSize: [44, 44],
             zIndexOffset: -1000, // Keep disasters below facilities
-            iconAnchor: [18, 18]
+            iconAnchor: [22, 22]
           });
 
           // Create a marker instead of circle

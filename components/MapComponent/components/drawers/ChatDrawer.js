@@ -5,7 +5,8 @@ const ChatDrawer = ({
   isOpen,
   onClose,
   context,
-  onHighlightDistricts
+  onHighlightDistricts,
+  embedded = false // New prop for when embedded in UnifiedDrawer
 }) => {
   const [messages, setMessages] = useState([
     {
@@ -201,66 +202,24 @@ const ChatDrawer = ({
 
   const suggestedQuestions = getSuggestedQuestions();
 
-  return (
-    <>
-      <div className={`drawer-backdrop ${isOpen ? 'open' : ''}`} onClick={onClose}></div>
-      <div
-        className={`drawer drawer-right ${isOpen ? 'open' : ''}`}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          zIndex: 3000,
-          width: '420px',
-          display: 'flex',
-          flexDirection: 'column',
-          maxHeight: '90vh'
-        }}
-      >
-        {/* Header */}
-        <div className="drawer-header" style={{
-          background: 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)',
-          color: 'white',
-          margin: '-20px -20px 0 -20px',
-          padding: '20px',
-          flexShrink: 0
-        }}>
-          <div style={{ flex: 1 }}>
-            <h3 className="drawer-title" style={{color: 'white', fontFamily: "'Space Grotesk', sans-serif", marginBottom: context?.hasDistricts ? '8px' : '0'}}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
-              AI Assistant
-            </h3>
-            {context?.hasDistricts && context?.districts && (
-              <div style={{
-                fontSize: '11px',
-                color: 'rgba(255, 255, 255, 0.8)',
-                marginLeft: '30px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                  <circle cx="12" cy="10" r="3"></circle>
-                </svg>
-                <span>District Analysis: {context.districts.country} ({context.districts.totalCount} districts)</span>
-              </div>
-            )}
-          </div>
-          <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
-        </div>
-
-        {/* Messages Area */}
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          padding: '16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-          minHeight: 0
-        }}>
+  // Content that will be shown (either embedded or in full drawer)
+  const content = (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: embedded ? 'calc(100vh - 130px)' : '100%'
+    }}>
+      {/* Messages Area */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        minHeight: 0
+      }}>
           {messages.map((message, index) => (
             <div
               key={index}
@@ -557,44 +516,102 @@ const ChatDrawer = ({
           </div>
         </div>
 
-        <style jsx>{`
-          .typing-indicator span {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: var(--aidstack-slate-medium);
-            animation: typing 1.4s infinite;
+      <style jsx>{`
+        .typing-indicator span {
+          display: inline-block;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background-color: var(--aidstack-slate-medium);
+          animation: typing 1.4s infinite;
+        }
+        .typing-indicator span:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        .typing-indicator span:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+        @keyframes typing {
+          0%, 60%, 100% {
+            transform: translateY(0);
+            opacity: 0.7;
           }
-          .typing-indicator span:nth-child(2) {
-            animation-delay: 0.2s;
+          30% {
+            transform: translateY(-10px);
+            opacity: 1;
           }
-          .typing-indicator span:nth-child(3) {
-            animation-delay: 0.4s;
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes blink {
+          0%, 49% {
+            opacity: 1;
           }
-          @keyframes typing {
-            0%, 60%, 100% {
-              transform: translateY(0);
-              opacity: 0.7;
-            }
-            30% {
-              transform: translateY(-10px);
-              opacity: 1;
-            }
+          50%, 100% {
+            opacity: 0;
           }
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-          @keyframes blink {
-            0%, 49% {
-              opacity: 1;
-            }
-            50%, 100% {
-              opacity: 0;
-            }
-          }
-        `}</style>
+        }
+      `}</style>
+    </div>
+  );
+
+  // Return embedded content or full drawer
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <>
+      <div className={`drawer-backdrop ${isOpen ? 'open' : ''}`} onClick={onClose}></div>
+      <div
+        className={`drawer drawer-right ${isOpen ? 'open' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          zIndex: 3000,
+          width: '420px',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: '90vh'
+        }}
+      >
+        {/* Header */}
+        <div className="drawer-header" style={{
+          background: 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)',
+          color: 'white',
+          margin: '-20px -20px 0 -20px',
+          padding: '20px',
+          flexShrink: 0
+        }}>
+          <div style={{ flex: 1 }}>
+            <h3 className="drawer-title" style={{color: 'white', fontFamily: "'Space Grotesk', sans-serif", marginBottom: context?.hasDistricts ? '8px' : '0'}}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              AI Assistant
+            </h3>
+            {context?.hasDistricts && context?.districts && (
+              <div style={{
+                fontSize: '11px',
+                color: 'rgba(255, 255, 255, 0.8)',
+                marginLeft: '30px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span>District Analysis: {context.districts.country} ({context.districts.totalCount} districts)</span>
+              </div>
+            )}
+          </div>
+          <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
+        </div>
+
+        {content}
       </div>
     </>
   );

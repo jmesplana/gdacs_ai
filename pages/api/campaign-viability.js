@@ -1,6 +1,14 @@
 import OpenAI from 'openai';
 import { getDistance } from 'geolib';
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb', // Increase from default 1mb to handle large ACLED datasets
+    },
+  },
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });

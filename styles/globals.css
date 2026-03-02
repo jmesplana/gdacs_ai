@@ -36,19 +36,22 @@ h1, h2, h3, h4, h5, h6,
 }
 
 /* Marker Clustering Styles */
-.disaster-cluster-icon, .facility-cluster-icon {
-  background-color: rgba(255, 255, 255, 0.8) !important;
-  border-radius: 50% !important;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2) !important;
-  border: 2px solid white !important;
-}
-
 .leaflet-marker-icon {
   transition: all 0.3s ease !important;
 }
 
-/* Override default marker cluster styles */
-.marker-cluster-small, .marker-cluster-medium, .marker-cluster-large {
+/* Custom cluster styles - don't override our custom icons */
+.disaster-cluster,
+.facility-cluster,
+.acled-cluster {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+/* Override default marker cluster styles only for non-custom clusters */
+.marker-cluster-small:not(.disaster-cluster):not(.facility-cluster):not(.acled-cluster),
+.marker-cluster-medium:not(.disaster-cluster):not(.facility-cluster):not(.acled-cluster),
+.marker-cluster-large:not(.disaster-cluster):not(.facility-cluster):not(.acled-cluster) {
   background-color: transparent !important;
 }
 
@@ -413,28 +416,33 @@ a {
   right: 20px;
 }
 
+.drawer-toggle-filters {
+  top: 78px;
+  right: 20px;
+}
+
 .drawer-toggle-facilities {
-  top: 70px;
+  top: 128px;
   right: 20px;
 }
 
 .drawer-toggle-sitrep {
-  top: 120px;
+  top: 178px;
   right: 20px;
 }
 
 .drawer-toggle-layers {
-  top: 170px;
+  top: 228px;
   right: 20px;
 }
 
 .drawer-toggle-draw {
-  top: 220px;
+  top: 278px;
   right: 20px;
 }
 
 .drawer-toggle-help {
-  top: 270px;
+  top: 328px;
   right: 20px;
 }
 

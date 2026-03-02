@@ -6,8 +6,100 @@ const MapLayersDrawer = ({
   currentMapLayer,
   setCurrentMapLayer,
   showRoads,
-  setShowRoads
+  setShowRoads,
+  // Support alternative prop format from UnifiedDrawer
+  settings,
+  onToggle,
+  onConfigChange,
+  embedded = false // New prop for when embedded in UnifiedDrawer
 }) => {
+  // Use either direct props or settings object
+  const activeMapLayer = currentMapLayer || settings?.currentMapLayer || 'street';
+  const activeShowRoads = showRoads !== undefined ? showRoads : (settings?.showRoads || false);
+
+  const handleMapLayerChange = (layer) => {
+    if (setCurrentMapLayer) {
+      setCurrentMapLayer(layer);
+    } else if (onToggle) {
+      onToggle('currentMapLayer', layer);
+    } else if (onConfigChange) {
+      onConfigChange({ currentMapLayer: layer });
+    }
+  };
+
+  const handleShowRoadsChange = (value) => {
+    if (setShowRoads) {
+      setShowRoads(value);
+    } else if (onToggle) {
+      onToggle('showRoads', value);
+    } else if (onConfigChange) {
+      onConfigChange({ showRoads: value });
+    }
+  };
+
+  // Content that will be shown (either embedded or in full drawer)
+  const content = (
+    <div style={{padding: '20px'}}>
+      <h4 style={{marginBottom: '15px', color: '#333', fontSize: '16px'}}>Select Base Layer</h4>
+
+      <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'street' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="street"
+            checked={activeMapLayer === 'street'}
+            onChange={() => handleMapLayerChange('street')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Street Map</span>
+        </label>
+
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'satellite' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="satellite"
+            checked={activeMapLayer === 'satellite'}
+            onChange={() => handleMapLayerChange('satellite')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Satellite Imagery</span>
+        </label>
+
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'terrain' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="terrain"
+            checked={activeMapLayer === 'terrain'}
+            onChange={() => handleMapLayerChange('terrain')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Terrain Map</span>
+        </label>
+
+        <div style={{borderTop: '1px solid #eee', margin: '15px 0', paddingTop: '15px'}}>
+          <h4 style={{marginBottom: '10px', color: '#333', fontSize: '14px'}}>Overlay Options</h4>
+          <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: activeShowRoads ? '#e3f2fd' : 'transparent'}}>
+            <input
+              type="checkbox"
+              checked={activeShowRoads}
+              onChange={() => handleShowRoadsChange(!activeShowRoads)}
+              style={{marginRight: '10px'}}
+            />
+            <span>Show Road Network</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Return embedded content or full drawer
+  if (embedded) {
+    return content;
+  }
+
   return (
     <>
       <div className={`drawer-backdrop ${isOpen ? 'open' : ''}`} onClick={onClose}></div>
@@ -33,60 +125,7 @@ const MapLayersDrawer = ({
           <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
         </div>
         <div className="drawer-content">
-          <div style={{padding: '20px 0'}}>
-            <h4 style={{marginBottom: '15px', color: '#333', fontSize: '16px'}}>Select Base Layer</h4>
-
-            <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
-              <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: currentMapLayer === 'street' ? '#e3f2fd' : 'transparent'}}>
-                <input
-                  type="radio"
-                  name="mapLayer"
-                  value="street"
-                  checked={currentMapLayer === 'street'}
-                  onChange={() => setCurrentMapLayer('street')}
-                  style={{marginRight: '10px'}}
-                />
-                <span>Street Map</span>
-              </label>
-
-              <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: currentMapLayer === 'satellite' ? '#e3f2fd' : 'transparent'}}>
-                <input
-                  type="radio"
-                  name="mapLayer"
-                  value="satellite"
-                  checked={currentMapLayer === 'satellite'}
-                  onChange={() => setCurrentMapLayer('satellite')}
-                  style={{marginRight: '10px'}}
-                />
-                <span>Satellite Imagery</span>
-              </label>
-
-              <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: currentMapLayer === 'terrain' ? '#e3f2fd' : 'transparent'}}>
-                <input
-                  type="radio"
-                  name="mapLayer"
-                  value="terrain"
-                  checked={currentMapLayer === 'terrain'}
-                  onChange={() => setCurrentMapLayer('terrain')}
-                  style={{marginRight: '10px'}}
-                />
-                <span>Terrain Map</span>
-              </label>
-
-              <div style={{borderTop: '1px solid #eee', margin: '15px 0', paddingTop: '15px'}}>
-                <h4 style={{marginBottom: '10px', color: '#333', fontSize: '14px'}}>Overlay Options</h4>
-                <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: showRoads ? '#e3f2fd' : 'transparent'}}>
-                  <input
-                    type="checkbox"
-                    checked={showRoads}
-                    onChange={() => setShowRoads(!showRoads)}
-                    style={{marginRight: '10px'}}
-                  />
-                  <span>Show Road Network</span>
-                </label>
-              </div>
-            </div>
-          </div>
+          {content}
         </div>
       </div>
     </>

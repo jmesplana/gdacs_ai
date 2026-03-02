@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 /**
  * Campaign Readiness Dashboard
- * Shows system-level overview of campaign viability across all facilities
+ * Shows system-level overview of campaign viability
+ * - District-level assessment when districts are loaded (recommended for campaigns)
+ * - Facility-level assessment as fallback
  */
 const CampaignDashboard = ({
   facilities = [],
@@ -10,59 +12,116 @@ const CampaignDashboard = ({
   impactedFacilities = [],
   acledData = [],
   acledEnabled = false,
+  districts = [], // NEW: District boundaries from shapefile
   isOpen,
   onClose
 }) => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [assessmentMode, setAssessmentMode] = useState('district'); // 'district' or 'facility'
 
   // Calculate dashboard statistics
   useEffect(() => {
-    if (isOpen && facilities.length > 0) {
-      calculateDashboard();
+    if (isOpen) {
+      // Determine assessment mode
+      if (districts && districts.length > 0) {
+        setAssessmentMode('district');
+        calculateDistrictDashboard();
+      } else if (facilities.length > 0) {
+        setAssessmentMode('facility');
+        calculateFacilityDashboard();
+      }
     }
-  }, [isOpen, facilities, disasters, impactedFacilities, acledData, acledEnabled]);
+  }, [isOpen, districts, facilities, disasters, impactedFacilities, acledData, acledEnabled]);
 
-  const calculateDashboard = async () => {
+  // District-level campaign assessment (recommended)
+  const calculateDistrictDashboard = async () => {
     setLoading(true);
 
     try {
-      // Assess viability for each facility
-      const assessments = await Promise.all(
-        facilities.map(async (facility) => {
-          const impacts = impactedFacilities.find(
-            f => f.facility.name === facility.name
-          )?.impacts || [];
+      console.log(`Campaign Dashboard: District-level assessment for ${districts.length} districts`);
 
-          const disastersList = impacts.map(impact => impact.disaster);
-
-          try {
-            const response = await fetch('/api/campaign-viability', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                facility,
-                impacts,
-                disasters: disastersList,
-                acledData: acledEnabled ? acledData : null,
-                acledEnabled
-              })
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              return { facility, assessment: data };
-            }
-          } catch (error) {
-            console.error('Error assessing facility:', facility.name, error);
-          }
-
-          return null;
+      const response = await fetch('/api/district-campaign-viability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          districts,
+          facilities,
+          impactedFacilities,
+          disasters
         })
-      );
+      });
 
-      // Filter out failed assessments
-      const validAssessments = assessments.filter(a => a !== null);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('District assessment error:', response.status, errorText);
+        throw new Error(`District assessment failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`✅ District assessment complete: ${data.summary.assessedDistricts} districts in ${(data.summary.processingTime/1000).toFixed(1)}s`);
+
+      // Transform to dashboard format
+      const byDecision = {
+        'GO': data.assessments.filter(a => a.decision === 'GO'),
+        'CAUTION': data.assessments.filter(a => a.decision === 'CAUTION'),
+        'DELAY': data.assessments.filter(a => a.decision === 'DELAY'),
+        'NO-GO': data.assessments.filter(a => a.decision === 'NO-GO')
+      };
+
+      setDashboardData({
+        byDecision,
+        summary: data.summary,
+        mode: 'district'
+      });
+
+    } catch (error) {
+      console.error('Error calculating district dashboard:', error);
+      alert('Failed to calculate district campaign assessment. Check console for details.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Facility-level campaign assessment (fallback)
+  const calculateFacilityDashboard = async () => {
+    setLoading(true);
+
+    try {
+      console.log(`Campaign Dashboard: Facility-level assessment for ${facilities.length} facilities`);
+
+      // Use batch API for efficient processing
+      const response = await fetch('/api/campaign-viability-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          facilities,
+          impactedFacilities,
+          disasters,
+          acledData: acledEnabled ? acledData : null,
+          acledEnabled
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Batch assessment error:', response.status, errorText);
+        throw new Error(`Batch assessment failed: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log(`✅ Batch complete: ${data.summary.total} facilities in ${(data.summary.processingTime/1000).toFixed(1)}s`);
+
+      // Transform batch results to match existing format
+      const validAssessments = data.assessments.map(result => ({
+        facility: facilities.find(f => f.name === result.facility),
+        assessment: {
+          decision: result.decision,
+          viabilityScore: result.viabilityScore,
+          aiRecommendations: result.reason,
+          isAIGenerated: result.isAIGenerated
+        }
+      })).filter(a => a.facility);
 
       // Categorize facilities by decision
       const byDecision = {
@@ -88,22 +147,25 @@ const CampaignDashboard = ({
 
       const allRisks = [];
       validAssessments.forEach(({ assessment }) => {
-        assessment.risks.forEach(risk => {
-          riskCounts[risk.severity] = (riskCounts[risk.severity] || 0) + 1;
+        // Check if risks array exists and is an array
+        if (assessment.risks && Array.isArray(assessment.risks)) {
+          assessment.risks.forEach(risk => {
+            riskCounts[risk.severity] = (riskCounts[risk.severity] || 0) + 1;
 
-          // Track unique risk types
-          const existingRisk = allRisks.find(r => r.factor === risk.factor);
-          if (existingRisk) {
-            existingRisk.count++;
-            existingRisk.facilities.push(assessment.facilityName);
-          } else {
-            allRisks.push({
-              ...risk,
-              count: 1,
-              facilities: [assessment.facilityName]
-            });
-          }
-        });
+            // Track unique risk types
+            const existingRisk = allRisks.find(r => r.factor === risk.factor);
+            if (existingRisk) {
+              existingRisk.count++;
+              existingRisk.facilities.push(assessment.facilityName);
+            } else {
+              allRisks.push({
+                ...risk,
+                count: 1,
+                facilities: [assessment.facilityName]
+              });
+            }
+          });
+        }
       });
 
       // Calculate average viability score
@@ -141,13 +203,16 @@ const CampaignDashboard = ({
     };
 
     assessments.forEach(({ facility, assessment }) => {
+      // Safely check risks array exists
+      const risks = assessment.risks && Array.isArray(assessment.risks) ? assessment.risks : [];
+
       // Check if mobile teams recommended
-      if (assessment.risks.some(r => r.factor.includes('Displacement') || r.factor.includes('Access'))) {
+      if (risks.some(r => r.factor && r.factor.includes('Displacement') || r.factor && r.factor.includes('Access'))) {
         needs.mobileTeams++;
       }
 
       // Check if malaria surge expected
-      if (assessment.risks.some(r => r.factor.includes('Waterborne') || r.factor.includes('Malaria'))) {
+      if (risks.some(r => r.factor && (r.factor.includes('Waterborne') || r.factor.includes('Malaria')))) {
         needs.actIncrease += 50; // 50% increase per affected facility
       }
 
@@ -157,7 +222,7 @@ const CampaignDashboard = ({
       }
 
       // Check security protocols needed
-      if (assessment.risks.some(r => r.factor.includes('Security'))) {
+      if (risks.some(r => r.factor && r.factor.includes('Security'))) {
         needs.securityProtocols++;
       }
     });
@@ -171,17 +236,19 @@ const CampaignDashboard = ({
     try {
       // Format resource needs for export
       const resourceNeeds = [];
-      if (dashboardData.resourceNeeds.mobileTeams > 0) {
-        resourceNeeds.push(`Deploy ${dashboardData.resourceNeeds.mobileTeams} mobile team${dashboardData.resourceNeeds.mobileTeams > 1 ? 's' : ''} for displaced populations`);
-      }
-      if (dashboardData.resourceNeeds.actIncrease > 0) {
-        resourceNeeds.push(`Increase ACT/RDT stock by ${dashboardData.resourceNeeds.actIncrease}% for malaria surge`);
-      }
-      if (dashboardData.resourceNeeds.securityProtocols > 0) {
-        resourceNeeds.push(`${dashboardData.resourceNeeds.securityProtocols} ${dashboardData.resourceNeeds.securityProtocols > 1 ? 'facilities require' : 'facility requires'} enhanced security measures`);
-      }
-      if (dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length > 0) {
-        resourceNeeds.push(`${dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length} ${dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length > 1 ? 'facilities need' : 'facility needs'} alternative approaches`);
+      if (dashboardData.resourceNeeds) {
+        if (dashboardData.resourceNeeds.mobileTeams > 0) {
+          resourceNeeds.push(`Deploy ${dashboardData.resourceNeeds.mobileTeams} mobile team${dashboardData.resourceNeeds.mobileTeams > 1 ? 's' : ''} for displaced populations`);
+        }
+        if (dashboardData.resourceNeeds.actIncrease > 0) {
+          resourceNeeds.push(`Increase ACT/RDT stock by ${dashboardData.resourceNeeds.actIncrease}% for malaria surge`);
+        }
+        if (dashboardData.resourceNeeds.securityProtocols > 0) {
+          resourceNeeds.push(`${dashboardData.resourceNeeds.securityProtocols} ${dashboardData.resourceNeeds.securityProtocols > 1 ? 'facilities require' : 'facility requires'} enhanced security measures`);
+        }
+        if (dashboardData.resourceNeeds.facilitiesNeedingAlternatives?.length > 0) {
+          resourceNeeds.push(`${dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length} ${dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length > 1 ? 'facilities need' : 'facility needs'} alternative approaches`);
+        }
       }
 
       // Format facilities by status for export
@@ -198,12 +265,12 @@ const CampaignDashboard = ({
         body: JSON.stringify({
           briefType: 'system',
           data: {
-            overallScore: dashboardData.averageViability,
+            overallScore: dashboardData.averageViability || 'N/A',
             facilitiesByStatus,
-            topRisks: dashboardData.topRisks,
+            topRisks: dashboardData.topRisks || [],
             resourceNeeds,
             timestamp: new Date().toISOString(),
-            totalFacilities: dashboardData.totalFacilities
+            totalFacilities: dashboardData.totalFacilities || 0
           }
         })
       });
@@ -263,12 +330,22 @@ const CampaignDashboard = ({
               <rect x="3" y="14" width="7" height="7"></rect>
             </svg>
             Campaign Readiness Dashboard
+            {assessmentMode === 'district' && <span style={{fontSize: '14px', opacity: 0.8, marginLeft: '10px'}}>(District-Level)</span>}
           </h3>
           <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
         </div>
 
         <div className="drawer-content" style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 80px)' }}>
-          {loading ? (
+          {!districts || districts.length === 0 ? (
+            <div style={{padding: '20px', textAlign: 'center', backgroundColor: 'var(--aidstack-light-gray)', borderRadius: '8px', margin: '20px'}}>
+              <p style={{marginBottom: '10px', color: 'var(--aidstack-slate-medium)'}}>
+                <strong>Upload district boundaries</strong> for campaign planning (recommended)
+              </p>
+              <p style={{fontSize: '14px', color: 'var(--aidstack-slate-medium)'}}>
+                Campaigns are typically planned at the district level. Upload a shapefile to get started.
+              </p>
+            </div>
+          ) : loading ? (
             <div style={{textAlign: 'center', padding: '40px 0'}}>
               <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite', marginBottom: '15px' }}>
                 <line x1="12" y1="2" x2="12" y2="6"></line>
@@ -280,35 +357,102 @@ const CampaignDashboard = ({
                 <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
                 <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
               </svg>
-              <p>Analyzing campaign readiness across all facilities...</p>
+              <p>Analyzing campaign readiness at {assessmentMode} level...</p>
             </div>
           ) : dashboardData ? (
             <>
-              {/* Overall Readiness Score */}
-              <div style={{
-                backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                background: dashboardData.averageViability >= 70 ? '#4CAF50' :
-                          dashboardData.averageViability >= 40 ? '#FF9800' :
-                          dashboardData.averageViability >= 20 ? '#FFC107' : '#F44336',
-                color: 'white',
-                padding: '25px',
-                borderRadius: '12px',
-                marginBottom: '20px',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '5px' }}>
-                  Overall Campaign Readiness
+              {/* Check if there are no facilities */}
+              {dashboardData.totalFacilities === 0 || (dashboardData.byDecision && Object.values(dashboardData.byDecision).every(arr => arr.length === 0)) ? (
+                <div style={{
+                  padding: '30px',
+                  textAlign: 'center',
+                  backgroundColor: '#eff6ff',
+                  borderRadius: '12px',
+                  border: '2px solid #2196F3'
+                }}>
+                  <div style={{ fontSize: '48px', marginBottom: '15px' }}>📊</div>
+                  <h3 style={{
+                    fontSize: '20px',
+                    marginBottom: '15px',
+                    color: 'var(--aidstack-navy)',
+                    fontFamily: 'Space Grotesk, sans-serif'
+                  }}>
+                    No Facilities Available for Assessment
+                  </h3>
+                  <p style={{
+                    fontSize: '14px',
+                    color: 'var(--aidstack-slate-medium)',
+                    marginBottom: '20px',
+                    lineHeight: '1.6'
+                  }}>
+                    No facilities were found within the uploaded administrative boundaries.
+                    This could happen if:
+                  </p>
+                  <ul style={{
+                    textAlign: 'left',
+                    fontSize: '14px',
+                    color: 'var(--aidstack-slate-medium)',
+                    maxWidth: '500px',
+                    margin: '0 auto 20px auto',
+                    lineHeight: '1.8'
+                  }}>
+                    <li>The facility coordinates don't fall within the administrative boundaries</li>
+                    <li>The coordinate systems don't match (ensure both use WGS84/EPSG:4326)</li>
+                    <li>The administrative boundaries cover a different geographic area than your facilities</li>
+                  </ul>
+                  <div style={{
+                    padding: '15px',
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    border: '1px solid #bbdefb',
+                    marginTop: '20px'
+                  }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '8px', color: 'var(--aidstack-navy)' }}>
+                      💡 Next Steps:
+                    </div>
+                    <ul style={{
+                      textAlign: 'left',
+                      fontSize: '13px',
+                      color: '#666',
+                      margin: '0',
+                      lineHeight: '1.8'
+                    }}>
+                      <li>Verify your facility data is loaded correctly</li>
+                      <li>Check that the shapefile covers the correct geographic area</li>
+                      <li>Ensure coordinate systems match between facilities and boundaries</li>
+                      <li>Try uploading a different shapefile that covers your facility locations</li>
+                    </ul>
+                  </div>
                 </div>
-                <div style={{ fontSize: '48px', fontWeight: 'bold', marginBottom: '5px' }}>
-                  {dashboardData.averageViability}
+              ) : (
+                <>
+              {/* Overall Readiness Score - Only show in facility mode */}
+              {dashboardData.averageViability !== undefined && (
+                <div style={{
+                  backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: dashboardData.averageViability >= 70 ? '#4CAF50' :
+                            dashboardData.averageViability >= 40 ? '#FF9800' :
+                            dashboardData.averageViability >= 20 ? '#FFC107' : '#F44336',
+                  color: 'white',
+                  padding: '25px',
+                  borderRadius: '12px',
+                  marginBottom: '20px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '5px' }}>
+                    Overall Campaign Readiness
+                  </div>
+                  <div style={{ fontSize: '48px', fontWeight: 'bold', marginBottom: '5px' }}>
+                    {dashboardData.averageViability}
+                  </div>
+                  <div style={{ fontSize: '16px', opacity: 0.9 }}>
+                    out of 100
+                  </div>
+                  <div style={{ fontSize: '13px', marginTop: '10px', opacity: 0.8 }}>
+                    {dashboardData.assessed} of {dashboardData.totalFacilities} facilities assessed
+                  </div>
                 </div>
-                <div style={{ fontSize: '16px', opacity: 0.9 }}>
-                  out of 100
-                </div>
-                <div style={{ fontSize: '13px', marginTop: '10px', opacity: 0.8 }}>
-                  {dashboardData.assessed} of {dashboardData.totalFacilities} facilities assessed
-                </div>
-              </div>
+              )}
 
               {/* Facilities by Decision */}
               <div style={{ marginBottom: '25px' }}>
@@ -365,7 +509,7 @@ const CampaignDashboard = ({
               </div>
 
               {/* Top Risks */}
-              {dashboardData.topRisks.length > 0 && (
+              {dashboardData.topRisks && dashboardData.topRisks.length > 0 && (
                 <div style={{ marginBottom: '25px' }}>
                   <h4 style={{ fontSize: '16px', marginBottom: '15px', color: 'var(--aidstack-navy)' }}>
                     Top Risk Factors (System-wide)
@@ -412,20 +556,21 @@ const CampaignDashboard = ({
                 </div>
               )}
 
-              {/* Resource Needs */}
-              <div style={{ marginBottom: '25px' }}>
-                <h4 style={{ fontSize: '16px', marginBottom: '15px', color: 'var(--aidstack-navy)' }}>
-                  System-wide Resource Needs
-                </h4>
+              {/* Resource Needs - Only show in facility mode */}
+              {dashboardData.resourceNeeds && (
+                <div style={{ marginBottom: '25px' }}>
+                  <h4 style={{ fontSize: '16px', marginBottom: '15px', color: 'var(--aidstack-navy)' }}>
+                    System-wide Resource Needs
+                  </h4>
 
-                <div style={{
-                  backgroundColor: '#e3f2fd',
-                  border: '1px solid #2196F3',
-                  borderRadius: '8px',
-                  padding: '15px'
-                }}>
-                  {/* Show all resource needs, with positive message if none needed */}
-                  {dashboardData.resourceNeeds.mobileTeams > 0 ? (
+                  <div style={{
+                    backgroundColor: '#e3f2fd',
+                    border: '1px solid #2196F3',
+                    borderRadius: '8px',
+                    padding: '15px'
+                  }}>
+                    {/* Show all resource needs, with positive message if none needed */}
+                    {dashboardData.resourceNeeds.mobileTeams > 0 ? (
                     <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontSize: '20px' }}>🚐</span>
                       <div style={{ flex: 1 }}>
@@ -461,7 +606,7 @@ const CampaignDashboard = ({
                     </div>
                   ) : null}
 
-                  {dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length > 0 ? (
+                  {dashboardData.resourceNeeds.facilitiesNeedingAlternatives?.length > 0 ? (
                     <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontSize: '20px' }}>🔄</span>
                       <div style={{ flex: 1 }}>
@@ -477,7 +622,7 @@ const CampaignDashboard = ({
                   {dashboardData.resourceNeeds.mobileTeams === 0 &&
                    dashboardData.resourceNeeds.actIncrease === 0 &&
                    dashboardData.resourceNeeds.securityProtocols === 0 &&
-                   dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length === 0 ? (
+                   (dashboardData.resourceNeeds.facilitiesNeedingAlternatives?.length || 0) === 0 ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontSize: '24px' }}>✅</span>
                       <div style={{ flex: 1 }}>
@@ -494,15 +639,15 @@ const CampaignDashboard = ({
                     marginTop: dashboardData.resourceNeeds.mobileTeams > 0 ||
                                dashboardData.resourceNeeds.actIncrease > 0 ||
                                dashboardData.resourceNeeds.securityProtocols > 0 ||
-                               dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length > 0 ? '15px' : '10px',
+                               (dashboardData.resourceNeeds.facilitiesNeedingAlternatives?.length || 0) > 0 ? '15px' : '10px',
                     paddingTop: dashboardData.resourceNeeds.mobileTeams > 0 ||
                                 dashboardData.resourceNeeds.actIncrease > 0 ||
                                 dashboardData.resourceNeeds.securityProtocols > 0 ||
-                                dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length > 0 ? '15px' : '0',
+                                (dashboardData.resourceNeeds.facilitiesNeedingAlternatives?.length || 0) > 0 ? '15px' : '0',
                     borderTop: dashboardData.resourceNeeds.mobileTeams > 0 ||
                                dashboardData.resourceNeeds.actIncrease > 0 ||
                                dashboardData.resourceNeeds.securityProtocols > 0 ||
-                               dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length > 0 ? '1px solid rgba(33, 150, 243, 0.3)' : 'none',
+                               (dashboardData.resourceNeeds.facilitiesNeedingAlternatives?.length || 0) > 0 ? '1px solid rgba(33, 150, 243, 0.3)' : 'none',
                     fontSize: '12px',
                     color: '#666',
                     fontStyle: 'italic'
@@ -510,7 +655,8 @@ const CampaignDashboard = ({
                     💡 Tip: Click individual facilities for detailed viability assessments and AI recommendations
                   </div>
                 </div>
-              </div>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
@@ -542,7 +688,13 @@ const CampaignDashboard = ({
                 </button>
 
                 <button
-                  onClick={calculateDashboard}
+                  onClick={() => {
+                    if (assessmentMode === 'district') {
+                      calculateDistrictDashboard();
+                    } else {
+                      calculateFacilityDashboard();
+                    }
+                  }}
                   style={{
                     flex: 1,
                     padding: '12px',
@@ -566,6 +718,8 @@ const CampaignDashboard = ({
                   Refresh
                 </button>
               </div>
+              </>
+              )}
             </>
           ) : (
             <div style={{textAlign: 'center', padding: '40px 0', color: '#666'}}>

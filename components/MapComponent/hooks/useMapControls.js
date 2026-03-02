@@ -18,10 +18,8 @@ export const useMapControls = () => {
 
   // Drawer states
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-  const [facilityDrawerOpen, setFacilityDrawerOpen] = useState(false);
-  const [sitrepDrawerOpen, setSitrepDrawerOpen] = useState(false);
-  const [mapLayersDrawerOpen, setMapLayersDrawerOpen] = useState(false);
-  const [showAnalysisDrawer, setShowAnalysisDrawer] = useState(false);
+  const [unifiedDrawerOpen, setUnifiedDrawerOpen] = useState(false);
+  const [activeDrawerTab, setActiveDrawerTab] = useState('facilities'); // facilities, analysis, chat, reports, layers
 
   // Map layer states
   const [currentMapLayer, setCurrentMapLayer] = useState('street');
@@ -49,58 +47,32 @@ export const useMapControls = () => {
   // Toggle functions
   const toggleFilterDrawer = useCallback(() => {
     setFilterDrawerOpen(prev => !prev);
-    // Close other drawers
-    setFacilityDrawerOpen(false);
-    setSitrepDrawerOpen(false);
-    setMapLayersDrawerOpen(false);
-    setShowAnalysisDrawer(false);
+    setUnifiedDrawerOpen(false); // Close unified drawer
   }, []);
 
-  const toggleFacilityDrawer = useCallback(() => {
-    setFacilityDrawerOpen(prev => !prev);
-    // Close other drawers
-    setFilterDrawerOpen(false);
-    setSitrepDrawerOpen(false);
-    setMapLayersDrawerOpen(false);
-    setShowAnalysisDrawer(false);
+  const openUnifiedDrawer = useCallback((tab = 'facilities') => {
+    setActiveDrawerTab(tab);
+    setUnifiedDrawerOpen(true);
+    setFilterDrawerOpen(false); // Close filter drawer
   }, []);
 
-  const toggleSitrepDrawer = useCallback(() => {
-    setSitrepDrawerOpen(prev => !prev);
-    // Close other drawers
+  const toggleUnifiedDrawer = useCallback(() => {
+    setUnifiedDrawerOpen(prev => !prev);
     setFilterDrawerOpen(false);
-    setFacilityDrawerOpen(false);
-    setMapLayersDrawerOpen(false);
-    setShowAnalysisDrawer(false);
   }, []);
 
-  const toggleMapLayersDrawer = useCallback(() => {
-    setMapLayersDrawerOpen(prev => !prev);
-    // Close other drawers
-    setFilterDrawerOpen(false);
-    setFacilityDrawerOpen(false);
-    setSitrepDrawerOpen(false);
-    setShowAnalysisDrawer(false);
-  }, []);
-
-  const toggleAnalysisDrawer = useCallback(() => {
-    setShowAnalysisDrawer(prev => !prev);
-    // Close other drawers
-    setFilterDrawerOpen(false);
-    setFacilityDrawerOpen(false);
-    setSitrepDrawerOpen(false);
-    setMapLayersDrawerOpen(false);
-  }, []);
+  // Legacy functions for backward compatibility
+  const toggleFacilityDrawer = useCallback(() => openUnifiedDrawer('facilities'), [openUnifiedDrawer]);
+  const toggleSitrepDrawer = useCallback(() => openUnifiedDrawer('reports'), [openUnifiedDrawer]);
+  const toggleMapLayersDrawer = useCallback(() => openUnifiedDrawer('layers'), [openUnifiedDrawer]);
+  const toggleAnalysisDrawer = useCallback(() => openUnifiedDrawer('analysis'), [openUnifiedDrawer]);
 
   const closeAllOverlays = useCallback(() => {
     setShowLegend(false);
     setShowTimeline(false);
     setShowStatistics(false);
     setFilterDrawerOpen(false);
-    setFacilityDrawerOpen(false);
-    setSitrepDrawerOpen(false);
-    setMapLayersDrawerOpen(false);
-    setShowAnalysisDrawer(false);
+    setUnifiedDrawerOpen(false);
   }, []);
 
   return {
@@ -116,10 +88,8 @@ export const useMapControls = () => {
 
     // Drawer states
     filterDrawerOpen,
-    facilityDrawerOpen,
-    sitrepDrawerOpen,
-    mapLayersDrawerOpen,
-    showAnalysisDrawer,
+    unifiedDrawerOpen,
+    activeDrawerTab,
 
     // Map layer states
     currentMapLayer,
@@ -139,6 +109,10 @@ export const useMapControls = () => {
 
     // Toggle functions
     toggleFilterDrawer,
+    openUnifiedDrawer,
+    toggleUnifiedDrawer,
+    setActiveDrawerTab,
+    // Legacy toggle functions (for backward compatibility)
     toggleFacilityDrawer,
     toggleSitrepDrawer,
     toggleMapLayersDrawer,

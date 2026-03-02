@@ -3,6 +3,14 @@
  * Generates a formatted HTML document suitable for printing or PDF export
  * Includes campaign viability assessment, security analysis, and recommendations
  */
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -536,11 +544,18 @@ function generateSystemBrief(data) {
     <p class="subtitle">System-Wide Assessment • ${totalFacilities} Facilities • ${date}</p>
   </div>
 
+  ${totalFacilities > 0 ? `
   <div class="score-box">
     <div class="score-number">${overallScore}</div>
     <div class="score-label">Overall Readiness Score (out of 100)</div>
   </div>
+  ` : `
+  <div class="score-box" style="background-color: #6b7280;">
+    <div class="score-label" style="font-size: 14pt; margin: 0;">No Facilities Available for Assessment</div>
+  </div>
+  `}
 
+  ${totalFacilities > 0 ? `
   <div class="section">
     <div class="section-title">Facilities by Status</div>
     <div class="status-grid">
@@ -593,8 +608,22 @@ function generateSystemBrief(data) {
       ` : ''}
     </div>
   </div>
+  ` : `
+  <div class="section">
+    <div class="section-title">Campaign Assessment Status</div>
+    <div style="background-color: #eff6ff; border-left: 3px solid #2563eb; padding: 12px; border-radius: 4px;">
+      <p style="margin: 0; font-size: 10pt;"><strong>No facilities are loaded in the system.</strong></p>
+      <p style="margin: 8px 0 0 0; font-size: 9pt;">To generate a campaign readiness assessment, please:</p>
+      <ul style="margin: 6px 0; padding-left: 20px; font-size: 9pt;">
+        <li>Load facility data into the system</li>
+        <li>Ensure facilities fall within the uploaded administrative boundaries</li>
+        <li>Verify that the administrative shapefile uses the correct coordinate system (WGS84/EPSG:4326)</li>
+      </ul>
+    </div>
+  </div>
+  `}
 
-  ${topRisks && topRisks.length > 0 ? `
+  ${totalFacilities > 0 && topRisks && topRisks.length > 0 ? `
   <div class="section">
     <div class="section-title">Top System-Wide Risk Factors</div>
     ${topRisks.map((risk, index) => `
@@ -605,42 +634,55 @@ function generateSystemBrief(data) {
   </div>
   ` : ''}
 
-  ${resourceNeeds && resourceNeeds.length > 0 ? `
-  <div class="section">
-    <div class="section-title">System-Wide Resource Requirements</div>
-    ${resourceNeeds.map(need => `
-      <div class="resource-item">${need}</div>
-    `).join('')}
-  </div>
-  ` : `
-  <div class="section">
-    <div class="section-title">System-Wide Resource Requirements</div>
-    <div class="resource-item">✅ No Additional Resources Needed - All facilities within acceptable operating parameters</div>
-  </div>
-  `}
+  ${totalFacilities > 0 ? `
+    ${resourceNeeds && resourceNeeds.length > 0 ? `
+    <div class="section">
+      <div class="section-title">System-Wide Resource Requirements</div>
+      ${resourceNeeds.map(need => `
+        <div class="resource-item">${need}</div>
+      `).join('')}
+    </div>
+    ` : `
+    <div class="section">
+      <div class="section-title">System-Wide Resource Requirements</div>
+      <div class="resource-item">✅ No Additional Resources Needed - All facilities within acceptable operating parameters</div>
+    </div>
+    `}
 
-  <div class="section">
-    <div class="section-title">Key Recommendations</div>
-    <ul style="margin: 6px 0; padding-left: 20px; font-size: 9pt;">
-      ${overallScore >= 70 ? `
-        <li>System-wide readiness is HIGH. Proceed with campaign planning and execution.</li>
-        <li>Monitor facilities marked "PROCEED WITH CAUTION" for any deteriorating conditions.</li>
-        <li>Ensure resource allocation matches identified needs across all facilities.</li>
-      ` : overallScore >= 40 ? `
-        <li>System-wide readiness is MODERATE. Additional planning and resources required.</li>
-        <li>Prioritize facilities with GO status for immediate campaign deployment.</li>
-        <li>Develop contingency plans for CAUTION and DELAY facilities.</li>
-        <li>Address top risk factors before proceeding with vulnerable facilities.</li>
-      ` : `
-        <li>System-wide readiness is LOW. Delay campaign until conditions improve.</li>
-        <li>Focus on stabilizing facilities marked DELAY and DO NOT PROCEED.</li>
-        <li>Address critical security and access constraints.</li>
-        <li>Consider phased approach starting with GO facilities only.</li>
-      `}
-      <li>Follow AMP best practices for ITN/LLIN distribution and cLQAS assessment.</li>
-      <li>Maintain regular security updates and reassess facility viability weekly.</li>
-    </ul>
-  </div>
+    <div class="section">
+      <div class="section-title">Key Recommendations</div>
+      <ul style="margin: 6px 0; padding-left: 20px; font-size: 9pt;">
+        ${overallScore >= 70 ? `
+          <li>System-wide readiness is HIGH. Proceed with campaign planning and execution.</li>
+          <li>Monitor facilities marked "PROCEED WITH CAUTION" for any deteriorating conditions.</li>
+          <li>Ensure resource allocation matches identified needs across all facilities.</li>
+        ` : overallScore >= 40 ? `
+          <li>System-wide readiness is MODERATE. Additional planning and resources required.</li>
+          <li>Prioritize facilities with GO status for immediate campaign deployment.</li>
+          <li>Develop contingency plans for CAUTION and DELAY facilities.</li>
+          <li>Address top risk factors before proceeding with vulnerable facilities.</li>
+        ` : `
+          <li>System-wide readiness is LOW. Delay campaign until conditions improve.</li>
+          <li>Focus on stabilizing facilities marked DELAY and DO NOT PROCEED.</li>
+          <li>Address critical security and access constraints.</li>
+          <li>Consider phased approach starting with GO facilities only.</li>
+        `}
+        <li>Follow AMP best practices for ITN/LLIN distribution and cLQAS assessment.</li>
+        <li>Maintain regular security updates and reassess facility viability weekly.</li>
+      </ul>
+    </div>
+  ` : `
+    <div class="section">
+      <div class="section-title">Next Steps</div>
+      <ul style="margin: 6px 0; padding-left: 20px; font-size: 9pt;">
+        <li>Load facility data from a CSV or Excel file</li>
+        <li>Upload administrative boundary shapefiles that cover your target areas</li>
+        <li>Ensure facility coordinates fall within the administrative boundaries</li>
+        <li>Verify coordinate system compatibility (both should use WGS84/EPSG:4326)</li>
+        <li>Once facilities are loaded and mapped to districts, run the campaign readiness assessment</li>
+      </ul>
+    </div>
+  `}
 
   <div class="footer">
     <p>Generated by GDACS Facilities AI • Alliance for Malaria Prevention Standards • ${date}</p>

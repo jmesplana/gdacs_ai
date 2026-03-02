@@ -1,4 +1,4 @@
-import { getDisasterInfo } from '../../utils/disasterHelpers';
+import { useState } from 'react';
 
 const MapLegend = ({
   showLegend,
@@ -11,14 +11,18 @@ const MapLegend = ({
   setShowLabels,
   hasFacilities,
   hasStatistics,
-  hasAcledData = false
+  hasAcledData = false,
+  hasDistricts = false,
+  showDistricts,
+  setShowDistricts
 }) => {
+  const [isMinimized, setIsMinimized] = useState(false);
   return (
     <div style={{
       position: 'absolute',
       bottom: '20px',
       left: '10px',
-      zIndex: 1000,
+      zIndex: 1000, // Below hamburger menu (2000) and draw button (1500)
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'flex-start',
@@ -97,6 +101,33 @@ const MapLegend = ({
         </button>
       )}
 
+      {/* District boundaries toggle button */}
+      {hasDistricts && (
+        <button
+          onClick={() => setShowDistricts(!showDistricts)}
+          style={{
+            backgroundColor: showDistricts ? '#e3f2fd' : 'white',
+            borderRadius: '4px',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+            border: showDistricts ? '1px solid #2D5A7B' : 'none',
+            padding: '8px 12px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            color: '#2D5A7B'
+          }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+            <line x1="8" y1="2" x2="8" y2="18"></line>
+            <line x1="16" y1="6" x2="16" y2="22"></line>
+          </svg>
+          {showDistricts ? 'Hide Districts' : 'Show Districts'}
+        </button>
+      )}
+
       {/* Statistics toggle button - only show if we have impactStatistics */}
       {hasStatistics && (
         <button
@@ -127,26 +158,65 @@ const MapLegend = ({
       {showLegend && (
         <div className="map-legend" style={{
           backgroundColor: 'white',
-          padding: '15px',
+          padding: isMinimized ? '10px' : '15px',
           borderRadius: '8px',
           boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
-          maxWidth: '300px',
-          border: '1px solid rgba(0,0,0,0.05)'
+          maxWidth: isMinimized ? '250px' : '300px',
+          border: '1px solid rgba(0,0,0,0.05)',
+          transition: 'all 0.3s ease'
         }}>
           <div style={{
-            marginBottom: '15px',
+            marginBottom: isMinimized ? '0' : '15px',
             fontWeight: 'bold',
             fontSize: '14px',
-            borderBottom: '2px solid #f0f0f0',
-            paddingBottom: '10px',
+            borderBottom: isMinimized ? 'none' : '2px solid #f0f0f0',
+            paddingBottom: isMinimized ? '0' : '10px',
             display: 'flex',
-            alignItems: 'center'
+            alignItems: 'center',
+            justifyContent: 'space-between'
           }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
-              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 13l5.553-2.276A1 1 0 0 0 21 16.382V5.618a1 1 0 0 0-1.447-.894L15 7m0 13V7"></path>
-            </svg>
-            MAP LEGEND
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 13l5.553-2.276A1 1 0 0 0 21 16.382V5.618a1 1 0 0 0-1.447-.894L15 7m0 13V7"></path>
+              </svg>
+              MAP LEGEND
+            </div>
+            <button
+              onClick={() => setIsMinimized(!isMinimized)}
+              title={isMinimized ? 'Expand Legend' : 'Minimize Legend'}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                color: 'var(--aidstack-navy)',
+                transition: 'transform 0.3s ease'
+              }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  transform: isMinimized ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.3s ease'
+                }}
+              >
+                <polyline points="18 15 12 9 6 15"></polyline>
+              </svg>
+            </button>
           </div>
+
+          {!isMinimized && (
+            <>
 
           <div style={{
             marginBottom: '10px',
@@ -564,6 +634,8 @@ const MapLegend = ({
             </svg>
             Click any marker for detailed information
           </div>
+          </>
+          )}
         </div>
       )}
     </div>
