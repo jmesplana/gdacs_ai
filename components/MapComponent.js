@@ -352,9 +352,10 @@ const MapComponent = ({
   const [showDistricts, setShowDistricts] = useState(true);
   const [highlightedDistricts, setHighlightedDistricts] = useState([]);
 
-  // Auto-zoom to fit districts when loaded
+  // Auto-zoom to fit districts when loaded (only once when first loaded)
+  const hasZoomedToDistricts = useRef(false);
   useEffect(() => {
-    if (districts && districts.length > 0 && mapRef.current) {
+    if (districts && districts.length > 0 && mapRef.current && !hasZoomedToDistricts.current) {
       console.log('Auto-zooming to fit', districts.length, 'districts');
 
       // Calculate bounds from all districts
@@ -373,7 +374,13 @@ const MapComponent = ({
 
       if (hasValidBounds && bounds.isValid()) {
         console.log('Fitting map to district bounds:', bounds);
-        mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
+        // Use animate: false to make it instant and less jarring
+        // Don't set maxZoom so it can zoom appropriately based on bounds
+        mapRef.current.fitBounds(bounds, {
+          padding: [50, 50],
+          animate: false
+        });
+        hasZoomedToDistricts.current = true;
       }
     }
   }, [districts]);
