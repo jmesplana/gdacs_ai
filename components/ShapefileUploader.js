@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import JSZip from 'jszip';
+import shapefile from 'shapefile';
+import simplify from '@turf/simplify';
+import { feature } from '@turf/helpers';
 
 export default function ShapefileUploader({ onDistrictsLoaded }) {
   const [loading, setLoading] = useState(false);
@@ -26,7 +29,7 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
     try {
       console.log('Reading shapefile ZIP...');
       const arrayBuffer = await file.arrayBuffer();
-      setUploadProgress({ step: 'Extracting files...', progress: 25 });
+      setUploadProgress({ step: 'Extracting files...', progress: 20 });
       const zip = await JSZip.loadAsync(arrayBuffer);
 
       // Find required files
@@ -49,79 +52,143 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
         throw new Error('Missing required files. Your ZIP must contain:\n• .shp file (geometry)\n• .dbf file (attributes)\n• .prj file (projection - recommended)\n\nTip: Export from QGIS or ArcGIS as a shapefile and ensure all files are zipped together.');
       }
 
-      setUploadProgress({ step: 'Validating files...', progress: 40 });
-      console.log('Sending shapefile to API for processing...');
-
       // Check file sizes
       const totalSize = shpFile.byteLength + dbfFile.byteLength + (prjFile?.byteLength || 0);
       console.log(`Total file size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
 
-      // Vercel Pro has a 100MB limit on request bodies
-      if (totalSize > 100 * 1024 * 1024) {
-        throw new Error(`Shapefile too large (${(totalSize / 1024 / 1024).toFixed(2)}MB).\n\nMaximum size: 100MB\n\nSolutions:\n• Simplify geometry in QGIS (Vector → Geometry Tools → Simplify)\n• Use a lower resolution version\n• Split into smaller geographic areas\n• Reduce coordinate precision`);
-      }
+      // Process shapefile CLIENT-SIDE (no server upload!)
+      setUploadProgress({ step: 'Parsing shapefile...', progress: 40 });
+      console.log('Processing shapefile locally in browser...');
 
-      // Create FormData for multipart upload (more efficient than base64)
-      setUploadProgress({ step: 'Uploading to server...', progress: 50 });
-      const formData = new FormData();
-      formData.append('shpFile', new Blob([shpFile]), 'shapefile.shp');
-      formData.append('dbfFile', new Blob([dbfFile]), 'shapefile.dbf');
-      if (prjFile) {
-        formData.append('prjFile', new Blob([prjFile]), 'shapefile.prj');
-      }
+      // Open shapefile using the shapefile library (works in browser!)
+      const source = await shapefile.open(shpFile, dbfFile);
 
-      let response;
-      try {
-        // Create an abort controller for timeout handling
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+      const features = [];
+      let result = await source.read();
+      let featureCount = 0;
 
-        response = await fetch('/api/process-shapefile', {
-          method: 'POST',
-          body: formData, // Send as multipart/form-data
-          signal: controller.signal,
-        });
+      while (!result.done) {
+        if (result.value) {
+          features.push(result.value);
+          featureCount++;
 
-        clearTimeout(timeoutId);
-      } catch (fetchError) {
-        if (fetchError.name === 'AbortError') {
-          throw new Error(`Request timeout: The shapefile processing took too long.\n\nSolutions:\n• Use a smaller or simplified shapefile\n• Reduce geometry complexity in QGIS\n• Check your network connection\n\nThe server allows up to 2 minutes for processing.`);
+          // Update progress periodically
+          if (featureCount % 100 === 0) {
+            setUploadProgress({
+              step: `Parsing features... (${featureCount})`,
+              progress: 40 + (featureCount / 1000) * 20 // Estimate
+            });
+          }
         }
-        throw new Error(`Network error: Unable to connect to the server.\n\nPossible causes:\n• Development server may not be running (run: npm run dev)\n• Network connection issues\n• Server timeout (try a smaller shapefile)\n\nTechnical details: ${fetchError.message}`);
+        result = await source.read();
       }
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Server processing failed (${response.status}).\n\nDetails: ${errorText}\n\nTip: Try a smaller shapefile or contact support if the issue persists.`);
-      }
+      console.log(`Parsed ${features.length} features from shapefile`);
+      setUploadProgress({ step: 'Simplifying geometries...', progress: 65 });
 
-      setUploadProgress({ step: 'Processing geometries...', progress: 75 });
-      const data = await response.json();
-      console.log(`✅ Loaded ${data.count} administrative boundaries`);
+      // Extract all unique field names from the first feature
+      const availableFields = features.length > 0
+        ? Object.keys(features[0].properties || {})
+        : [];
+      console.log('Available fields:', availableFields);
 
+      // Process districts locally
+      const districts = features.map((feat, idx) => {
+        const props = feat.properties || {};
+        const geometry = feat.geometry;
+
+        // Try to find district name from common field names
+        const districtName = props.NAME || props.DISTRICT || props.District ||
+                            props.name || props.district || props.ADM2_EN ||
+                            props.ADM2_NAME || props.NAME_2 || `District ${idx + 1}`;
+
+        // Get other useful properties
+        const country = props.COUNTRY || props.Country || props.ADM0_NAME || props.NAME_0;
+        const region = props.REGION || props.Region || props.ADM1_NAME || props.NAME_1;
+        const population = props.POPULATION || props.Population || props.POP;
+
+        // Simplify geometry to reduce size (tolerance = 0.001 degrees ~ 100m)
+        let simplifiedGeometry = geometry;
+        if (geometry && (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon')) {
+          try {
+            const turfFeature = feature(geometry);
+            const simplified = simplify(turfFeature, { tolerance: 0.001, highQuality: false });
+            simplifiedGeometry = simplified.geometry;
+          } catch (e) {
+            console.warn(`Could not simplify geometry for ${districtName}:`, e);
+          }
+        }
+
+        // Calculate bounding box for quick spatial queries
+        let bounds = null;
+        if (simplifiedGeometry && simplifiedGeometry.coordinates) {
+          bounds = calculateBounds(simplifiedGeometry);
+        }
+
+        return {
+          id: idx,
+          name: districtName,
+          country,
+          region,
+          population,
+          geometry: simplifiedGeometry,
+          bounds,
+          properties: props
+        };
+      });
+
+      console.log(`✅ Processed ${districts.length} administrative boundaries locally`);
       setUploadProgress({ step: 'Finalizing...', progress: 90 });
 
       // Show field selection if available fields are returned
-      if (data.availableFields && data.availableFields.length > 0) {
-        setAvailableFields(data.availableFields);
-        setPendingData(data);
+      if (availableFields && availableFields.length > 0) {
+        setAvailableFields(availableFields);
+        setPendingData({ districts, count: districts.length, availableFields });
         setUploadProgress({ step: 'Complete!', progress: 100 });
         setLoading(false);
       } else {
         // No fields available, just load the data
         setUploadProgress({ step: 'Complete!', progress: 100 });
-        onDistrictsLoaded(data.districts);
+        onDistrictsLoaded(districts);
         setLoading(false);
         setUploaded(true);
       }
 
     } catch (err) {
-      console.error('Error uploading shapefile:', err);
+      console.error('Error processing shapefile:', err);
       setError(err.message);
       setLoading(false);
       setUploadProgress({ step: '', progress: 0 });
     }
   };
+
+  // Helper function to calculate bounding box
+  function calculateBounds(geometry) {
+    if (!geometry || !geometry.coordinates) return null;
+
+    const coords = [];
+    const extractCoords = (arr) => {
+      if (Array.isArray(arr[0])) {
+        arr.forEach(extractCoords);
+      } else {
+        coords.push(arr);
+      }
+    };
+
+    extractCoords(geometry.coordinates);
+
+    if (coords.length === 0) return null;
+
+    const lons = coords.map(c => c[0]);
+    const lats = coords.map(c => c[1]);
+
+    return {
+      minLon: Math.min(...lons),
+      maxLon: Math.max(...lons),
+      minLat: Math.min(...lats),
+      maxLat: Math.max(...lats)
+    };
+  }
 
   const handleFieldSelection = (fieldName) => {
     setSelectedField(fieldName);

@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@changey/react-leaflet-markercluster": "^4.0.0-rc1",
+    "@turf/helpers": "^7.3.4",
+    "@turf/simplify": "^7.3.4",
     "@vercel/analytics": "^1.5.0",
     "axios": "^1.5.0",
     "formidable": "^3.5.4",
