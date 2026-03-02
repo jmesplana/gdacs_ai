@@ -62,6 +62,29 @@ export default function Home() {
     selectedRegions: [] // Filter by regions (admin1)
   });
 
+  // Operation type state (for multi-use humanitarian operations)
+  const [operationType, setOperationType] = useState('malaria_control'); // Default to malaria control for backward compatibility
+
+  // Persist operation type to localStorage
+  useEffect(() => {
+    if (operationType) {
+      localStorage.setItem('gdacs_operation_type', operationType);
+    }
+  }, [operationType]);
+
+  // Load operation type from localStorage on mount
+  useEffect(() => {
+    try {
+      const cachedOperationType = localStorage.getItem('gdacs_operation_type');
+      if (cachedOperationType) {
+        setOperationType(cachedOperationType);
+        console.log('Loaded operation type from cache:', cachedOperationType);
+      }
+    } catch (error) {
+      console.error('Error loading operation type:', error);
+    }
+  }, []);
+
   // Fetch disaster data on component mount
   useEffect(() => {
     fetchDisasterData();
@@ -1866,6 +1889,8 @@ export default function Home() {
           onClearAcledCache={handleClearAcledCache}
           onToggleAcled={handleToggleAcled}
           onAcledConfigChange={handleAcledConfigChange}
+          operationType={operationType}
+          onOperationTypeChange={setOperationType}
         />
 
         {selectedFacility && (

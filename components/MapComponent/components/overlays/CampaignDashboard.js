@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
+import { getOperationType } from '../../../../config/operationTypes';
 
 /**
- * Campaign Readiness Dashboard
- * Shows system-level overview of campaign viability
- * - District-level assessment when districts are loaded (recommended for campaigns)
+ * Operation Readiness Dashboard
+ * Shows system-level overview of operation viability
+ * - District-level assessment when districts are loaded (recommended for most operations)
  * - Facility-level assessment as fallback
  */
 const CampaignDashboard = ({
@@ -14,8 +15,11 @@ const CampaignDashboard = ({
   acledEnabled = false,
   districts = [], // NEW: District boundaries from shapefile
   isOpen,
-  onClose
+  onClose,
+  operationType = 'malaria_control'
 }) => {
+  // Get operation config for dynamic labels
+  const opConfig = getOperationType(operationType);
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [assessmentMode, setAssessmentMode] = useState('district'); // 'district' or 'facility'
@@ -323,13 +327,8 @@ const CampaignDashboard = ({
           padding: '20px'
         }}>
           <h3 className="drawer-title" style={{color: 'white', fontFamily: "'Space Grotesk', sans-serif"}}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="14" y="14" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-            </svg>
-            Campaign Readiness Dashboard
+            <span style={{fontSize: '24px', marginRight: '10px'}}>{opConfig.icon}</span>
+            {opConfig.name} Readiness Dashboard
             {assessmentMode === 'district' && <span style={{fontSize: '14px', opacity: 0.8, marginLeft: '10px'}}>(District-Level)</span>}
           </h3>
           <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
@@ -339,10 +338,10 @@ const CampaignDashboard = ({
           {!districts || districts.length === 0 ? (
             <div style={{padding: '20px', textAlign: 'center', backgroundColor: 'var(--aidstack-light-gray)', borderRadius: '8px', margin: '20px'}}>
               <p style={{marginBottom: '10px', color: 'var(--aidstack-slate-medium)'}}>
-                <strong>Upload district boundaries</strong> for campaign planning (recommended)
+                <strong>Upload district boundaries</strong> for {opConfig.name.toLowerCase()} planning (recommended)
               </p>
               <p style={{fontSize: '14px', color: 'var(--aidstack-slate-medium)'}}>
-                Campaigns are typically planned at the district level. Upload a shapefile to get started.
+                {opConfig.name} operations are typically planned at the district level. Upload a shapefile to get started.
               </p>
             </div>
           ) : loading ? (
@@ -357,7 +356,7 @@ const CampaignDashboard = ({
                 <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
                 <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
               </svg>
-              <p>Analyzing campaign readiness at {assessmentMode} level...</p>
+              <p>Analyzing {opConfig.name.toLowerCase()} readiness at {assessmentMode} level...</p>
             </div>
           ) : dashboardData ? (
             <>

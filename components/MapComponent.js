@@ -236,7 +236,9 @@ const MapComponent = ({
   onAcledUpload,
   onClearAcledCache,
   onToggleAcled,
-  onAcledConfigChange
+  onAcledConfigChange,
+  operationType = 'malaria_control',
+  onOperationTypeChange
 }) => {
   // Map refs - keep these in main component
   const mapRef = useRef(null);
@@ -737,6 +739,8 @@ const MapComponent = ({
         onUndoDrawing={undoLastDrawing}
         onClearDrawings={clearAllDrawings}
         drawingsCount={drawings.length}
+        operationType={operationType}
+        onOperationTypeChange={onOperationTypeChange}
       />
 
       {/* Filter Drawer */}
@@ -1436,9 +1440,10 @@ const MapComponent = ({
         impactedFacilities={impactedFacilities}
         acledData={getFilteredAcledData()} // Use filtered ACLED data
         acledEnabled={acledEnabled}
-        districts={districts} // Pass districts for district-level campaign planning
+        districts={districts} // Pass districts for district-level operation planning
         isOpen={showCampaignDashboard}
         onClose={() => setShowCampaignDashboard(false)}
+        operationType={operationType}
       />
 
       {/* Campaign Dashboard button moved to hamburger menu for cleaner UI */}

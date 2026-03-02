@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { DRAWING_COLORS } from '../../constants/mapConstants';
+import OperationTypeSelector from '../../../OperationTypeSelector';
+import { getOperationType } from '../../../../config/operationTypes';
 
 const HamburgerMenu = ({
   onControlPanelClick,
@@ -12,10 +14,15 @@ const HamburgerMenu = ({
   setDrawingColor,
   onUndoDrawing,
   onClearDrawings,
-  drawingsCount
+  drawingsCount,
+  operationType,
+  onOperationTypeChange
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showDrawingTools, setShowDrawingTools] = useState(false);
+
+  // Get operation config for dynamic labels
+  const opConfig = getOperationType(operationType);
 
   const handleMenuClick = (callback) => {
     callback();
@@ -105,6 +112,36 @@ const HamburgerMenu = ({
               animation: 'slideDown 0.2s ease-out'
             }}
           >
+            {/* Operation Type Selector */}
+            <div style={{
+              padding: '16px 20px',
+              backgroundColor: '#f8f9fa',
+              borderBottom: '1px solid #f0f0f0'
+            }}>
+              <div style={{
+                marginBottom: '8px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--aidstack-navy)',
+                textTransform: 'uppercase',
+                fontFamily: "'Inter', sans-serif",
+                display: 'flex',
+                alignItems: 'center'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', color: 'var(--aidstack-teal)' }}>
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                  <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+                Operation Type
+              </div>
+              <OperationTypeSelector
+                selectedType={operationType}
+                onTypeChange={onOperationTypeChange}
+                compact={true}
+              />
+            </div>
+
             {/* Control Panel */}
             <button
               onClick={() => handleMenuClick(onControlPanelClick)}
@@ -162,7 +199,7 @@ const HamburgerMenu = ({
               Filters
             </button>
 
-            {/* Campaign Dashboard */}
+            {/* Operation Dashboard */}
             <button
               onClick={() => handleMenuClick(onCampaignDashboardClick)}
               style={{
@@ -183,11 +220,12 @@ const HamburgerMenu = ({
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
             >
+              <span style={{ fontSize: '18px', marginRight: '8px' }}>{opConfig.icon}</span>
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '12px', color: 'var(--aidstack-teal)' }}>
                 <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
                 <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
               </svg>
-              Campaign Dashboard
+              {opConfig.name} Dashboard
             </button>
 
             {/* Draw Tools */}
