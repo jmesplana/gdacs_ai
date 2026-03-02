@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import JSZip from 'jszip';
-import shapefile from 'shapefile';
+import * as shapefile from 'shapefile';
 import simplify from '@turf/simplify';
 import { feature } from '@turf/helpers';
 
