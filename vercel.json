@@ -1,3 +1,9 @@
 {
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "functions": {
+    "pages/api/process-shapefile.js": {
+      "maxDuration": 60,
+      "memory": 3008
+    }
+  }
 }
