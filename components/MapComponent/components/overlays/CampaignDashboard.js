@@ -63,7 +63,19 @@ const CampaignDashboard = ({
       }
 
       const data = await response.json();
-      console.log(`✅ District assessment complete: ${data.summary.assessedDistricts} districts in ${(data.summary.processingTime/1000).toFixed(1)}s`);
+      console.log(`✅ District assessment complete:`, data);
+      console.log(`Assessments:`, data.assessments);
+
+      // Check if we have valid assessments
+      if (!data.assessments || data.assessments.length === 0) {
+        console.warn('No assessments returned from API');
+        setDashboardData(null);
+        return;
+      }
+
+      // Log unique decisions to debug
+      const uniqueDecisions = [...new Set(data.assessments.map(a => a.decision))];
+      console.log('Unique decisions in response:', uniqueDecisions);
 
       // Transform to dashboard format
       const byDecision = {
@@ -72,6 +84,8 @@ const CampaignDashboard = ({
         'DELAY': data.assessments.filter(a => a.decision === 'DELAY'),
         'NO-GO': data.assessments.filter(a => a.decision === 'NO-GO')
       };
+
+      console.log('Transformed byDecision:', byDecision);
 
       setDashboardData({
         byDecision,
@@ -360,8 +374,8 @@ const CampaignDashboard = ({
             </div>
           ) : dashboardData ? (
             <>
-              {/* Check if there are no facilities */}
-              {dashboardData.totalFacilities === 0 || (dashboardData.byDecision && Object.values(dashboardData.byDecision).every(arr => arr.length === 0)) ? (
+              {/* Check if there are no assessments at all (should rarely happen) */}
+              {dashboardData.byDecision && Object.values(dashboardData.byDecision).every(arr => arr.length === 0) ? (
                 <div style={{
                   padding: '30px',
                   textAlign: 'center',
@@ -376,7 +390,7 @@ const CampaignDashboard = ({
                     color: 'var(--aidstack-navy)',
                     fontFamily: 'Space Grotesk, sans-serif'
                   }}>
-                    No Facilities Available for Assessment
+                    No Assessment Data Available
                   </h3>
                   <p style={{
                     fontSize: '14px',
@@ -384,8 +398,7 @@ const CampaignDashboard = ({
                     marginBottom: '20px',
                     lineHeight: '1.6'
                   }}>
-                    No facilities were found within the uploaded administrative boundaries.
-                    This could happen if:
+                    Unable to generate assessment. This could happen if:
                   </p>
                   <ul style={{
                     textAlign: 'left',
@@ -395,9 +408,9 @@ const CampaignDashboard = ({
                     margin: '0 auto 20px auto',
                     lineHeight: '1.8'
                   }}>
-                    <li>The facility coordinates don't fall within the administrative boundaries</li>
-                    <li>The coordinate systems don't match (ensure both use WGS84/EPSG:4326)</li>
-                    <li>The administrative boundaries cover a different geographic area than your facilities</li>
+                    <li>No administrative boundaries have been uploaded</li>
+                    <li>There was an API error during assessment</li>
+                    <li>The assessment returned no results</li>
                   </ul>
                   <div style={{
                     padding: '15px',
@@ -416,10 +429,9 @@ const CampaignDashboard = ({
                       margin: '0',
                       lineHeight: '1.8'
                     }}>
-                      <li>Verify your facility data is loaded correctly</li>
-                      <li>Check that the shapefile covers the correct geographic area</li>
-                      <li>Ensure coordinate systems match between facilities and boundaries</li>
-                      <li>Try uploading a different shapefile that covers your facility locations</li>
+                      <li>Upload admin boundary shapefiles for your operational area</li>
+                      <li>Check the browser console for error messages</li>
+                      <li>Try refreshing the dashboard</li>
                     </ul>
                   </div>
                 </div>
@@ -453,21 +465,25 @@ const CampaignDashboard = ({
                 </div>
               )}
 
-              {/* Facilities by Decision */}
+              {/* Districts/Facilities by Decision */}
               <div style={{ marginBottom: '25px' }}>
                 <h4 style={{ fontSize: '16px', marginBottom: '15px', color: 'var(--aidstack-navy)' }}>
-                  Facility Status Breakdown
+                  {dashboardData.mode === 'district' ? 'District Status Breakdown' : 'Facility Status Breakdown'}
                 </h4>
 
                 {Object.entries(dashboardData.byDecision).map(([decision, items]) => {
                   const color =
                     decision === 'GO' ? '#4CAF50' :
+                    decision === 'CAUTION' ? '#FF9800' :
                     decision === 'PROCEED WITH CAUTION' ? '#FF9800' :
+                    decision === 'DELAY' ? '#FFC107' :
                     decision === 'DELAY RECOMMENDED' ? '#FFC107' : '#F44336';
 
                   const icon =
                     decision === 'GO' ? '✅' :
+                    decision === 'CAUTION' ? '⚠️' :
                     decision === 'PROCEED WITH CAUTION' ? '⚠️' :
+                    decision === 'DELAY' ? '⏸️' :
                     decision === 'DELAY RECOMMENDED' ? '⏸️' : '🛑';
 
                   return (
@@ -497,8 +513,8 @@ const CampaignDashboard = ({
                       {items.length > 0 && (
                         <div style={{ fontSize: '12px', marginTop: '8px', color: '#666' }}>
                           {items.length <= 5
-                            ? items.map(({ facility }) => facility.name).join(', ')
-                            : `${items.slice(0, 5).map(({ facility }) => facility.name).join(', ')} and ${items.length - 5} more...`
+                            ? items.map(item => dashboardData.mode === 'district' ? item.district : item.facility.name).join(', ')
+                            : `${items.slice(0, 5).map(item => dashboardData.mode === 'district' ? item.district : item.facility.name).join(', ')} and ${items.length - 5} more...`
                           }
                         </div>
                       )}

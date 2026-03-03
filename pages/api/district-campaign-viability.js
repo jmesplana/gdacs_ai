@@ -61,21 +61,19 @@ export default async function handler(req, res) {
       };
     });
 
-    // Filter to only districts with facilities
-    const relevantDistricts = districtData.filter(d => d.totalFacilities > 0);
+    // For campaign planning, assess ALL districts (facilities are optional)
+    // Prioritize by: 1) disaster count (highest risk first), 2) facility count (if any)
+    const relevantDistricts = [...districtData];
 
-    if (relevantDistricts.length === 0) {
-      return res.status(200).json({
-        assessments: [],
-        summary: { message: 'No facilities found in any district' }
-      });
-    }
+    console.log(`Assessing ${relevantDistricts.length} districts (${relevantDistricts.filter(d => d.totalFacilities > 0).length} have facilities)`);
 
-    console.log(`${relevantDistricts.length} districts have facilities`);
-
-    // Sort by impact rate and total facilities to prioritize most relevant districts
+    // Sort by disaster count (highest first), then facilities, then impact rate
     relevantDistricts.sort((a, b) => {
-      // First by number of facilities (descending)
+      // First by disaster count (descending) - districts with disasters are highest priority
+      if (b.disasterCount !== a.disasterCount) {
+        return b.disasterCount - a.disasterCount;
+      }
+      // Then by number of facilities (descending)
       if (b.totalFacilities !== a.totalFacilities) {
         return b.totalFacilities - a.totalFacilities;
       }
@@ -94,17 +92,17 @@ export default async function handler(req, res) {
     if (process.env.OPENAI_API_KEY) {
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-      const prompt = `District-level campaign viability assessment for top ${districtsToAssess.length} districts (sorted by facility count).
+      const prompt = `District-level campaign viability assessment for top ${districtsToAssess.length} districts (sorted by disaster count, then facility count).
 
 DISTRICTS:
 ${districtsToAssess.map((d, idx) =>
-  `${idx + 1}|${d.district}|${d.totalFacilities} facilities|${d.impactedFacilities} impacted (${d.impactRate}%)|${d.disasterCount} disasters`
+  `${idx + 1}|${d.district}|${d.disasterCount} disasters|${d.totalFacilities} facilities${d.totalFacilities > 0 ? `|${d.impactedFacilities} impacted (${d.impactRate}%)` : ''}`
 ).join('\n')}
 
 Assess each district for campaign feasibility. Consider:
-- High impact rate (>30%) = higher risk
-- Multiple disasters = coordination challenges
-- District-wide logistics and access
+- Disaster count (higher = more risk to operations)
+- Impact rate on facilities if present (>30% = higher risk)
+- District-wide operational viability for campaigns
 
 Format: ID|GO/CAUTION/DELAY/NOGO|reason (max 30 words)`;
 
@@ -134,15 +132,39 @@ Format: ID|GO/CAUTION/DELAY/NOGO|reason (max 30 words)`;
 
       // Map assessments back to top districts
       const assessedResults = districtsToAssess.map((district, idx) => {
+        // Fallback decision logic if AI doesn't provide assessment
+        let fallbackDecision = 'GO';
+        let fallbackReason = '';
+
+        if (district.disasterCount >= 3) {
+          fallbackDecision = 'DELAY';
+          fallbackReason = `${district.disasterCount} active disasters`;
+        } else if (district.disasterCount >= 1) {
+          fallbackDecision = 'CAUTION';
+          fallbackReason = `${district.disasterCount} disaster${district.disasterCount > 1 ? 's' : ''}`;
+        }
+
+        if (district.totalFacilities > 0) {
+          if (district.impactRate > 50) {
+            fallbackDecision = 'DELAY';
+            fallbackReason += (fallbackReason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
+          } else if (district.impactRate > 20) {
+            if (fallbackDecision === 'GO') fallbackDecision = 'CAUTION';
+            fallbackReason += (fallbackReason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
+          }
+        }
+
+        if (!fallbackReason) fallbackReason = 'No active threats detected';
+
         const assessment = assessments[idx + 1] || {
-          decision: district.impactRate > 50 ? 'DELAY' : district.impactRate > 20 ? 'CAUTION' : 'GO',
-          reason: `${district.impactRate}% facilities impacted, ${district.disasterCount} disasters`
+          decision: fallbackDecision,
+          reason: fallbackReason
         };
 
         // Calculate viability score
         let score = 100;
         score -= district.impactRate;
-        score -= district.disasterCount * 10;
+        score -= district.disasterCount * 15; // Increased weight for disasters
         if (assessment.decision === 'NO-GO') score = 0;
         else if (assessment.decision === 'DELAY') score = Math.min(score, 40);
         else if (assessment.decision === 'CAUTION') score = Math.min(score, 70);
@@ -163,8 +185,31 @@ Format: ID|GO/CAUTION/DELAY/NOGO|reason (max 30 words)`;
 
       // Add remaining districts with basic assessment (no AI)
       const remainingResults = remainingDistricts.map(district => {
-        const decision = district.impactRate > 50 ? 'DELAY' : district.impactRate > 20 ? 'CAUTION' : 'GO';
-        let score = 100 - district.impactRate - (district.disasterCount * 10);
+        let decision = 'GO';
+        let reason = '';
+
+        if (district.disasterCount >= 3) {
+          decision = 'DELAY';
+          reason = `${district.disasterCount} disasters`;
+        } else if (district.disasterCount >= 1) {
+          decision = 'CAUTION';
+          reason = `${district.disasterCount} disaster${district.disasterCount > 1 ? 's' : ''}`;
+        }
+
+        if (district.totalFacilities > 0) {
+          if (district.impactRate > 50) {
+            decision = 'DELAY';
+            reason += (reason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
+          } else if (district.impactRate > 20) {
+            if (decision === 'GO') decision = 'CAUTION';
+            reason += (reason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
+          }
+        }
+
+        if (!reason) reason = 'No active threats';
+        reason += ' (auto-assessed)';
+
+        let score = 100 - district.impactRate - (district.disasterCount * 15);
         if (decision === 'DELAY') score = Math.min(score, 40);
         else if (decision === 'CAUTION') score = Math.min(score, 70);
 
@@ -177,7 +222,7 @@ Format: ID|GO/CAUTION/DELAY/NOGO|reason (max 30 words)`;
           impactRate: district.impactRate,
           decision: decision,
           viabilityScore: Math.max(0, score),
-          reason: `${district.impactRate}% impact, ${district.disasterCount} disasters (auto-assessed)`,
+          reason: reason,
           disasterCount: district.disasterCount
         };
       });
@@ -205,18 +250,43 @@ Format: ID|GO/CAUTION/DELAY/NOGO|reason (max 30 words)`;
 
     } else {
       // Fallback without AI
-      const results = relevantDistricts.map(district => ({
-        district: district.district,
-        country: district.country,
-        region: district.region,
-        totalFacilities: district.totalFacilities,
-        impactedFacilities: district.impactedFacilities,
-        impactRate: district.impactRate,
-        decision: district.impactRate > 50 ? 'DELAY' : district.impactRate > 20 ? 'CAUTION' : 'GO',
-        viabilityScore: Math.max(0, 100 - district.impactRate - (district.disasterCount * 10)),
-        reason: `${district.impactRate}% impact rate, ${district.disasterCount} disasters`,
-        disasterCount: district.disasterCount
-      }));
+      const results = relevantDistricts.map(district => {
+        let decision = 'GO';
+        let reason = '';
+
+        if (district.disasterCount >= 3) {
+          decision = 'DELAY';
+          reason = `${district.disasterCount} disasters`;
+        } else if (district.disasterCount >= 1) {
+          decision = 'CAUTION';
+          reason = `${district.disasterCount} disaster${district.disasterCount > 1 ? 's' : ''}`;
+        }
+
+        if (district.totalFacilities > 0) {
+          if (district.impactRate > 50) {
+            decision = 'DELAY';
+            reason += (reason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
+          } else if (district.impactRate > 20) {
+            if (decision === 'GO') decision = 'CAUTION';
+            reason += (reason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
+          }
+        }
+
+        if (!reason) reason = 'No active threats';
+
+        return {
+          district: district.district,
+          country: district.country,
+          region: district.region,
+          totalFacilities: district.totalFacilities,
+          impactedFacilities: district.impactedFacilities,
+          impactRate: district.impactRate,
+          decision: decision,
+          viabilityScore: Math.max(0, 100 - district.impactRate - (district.disasterCount * 15)),
+          reason: reason,
+          disasterCount: district.disasterCount
+        };
+      });
 
       res.status(200).json({
         assessments: results,

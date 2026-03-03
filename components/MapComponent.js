@@ -365,8 +365,8 @@ const MapComponent = ({
       districts.forEach(district => {
         if (district.bounds) {
           bounds.extend([
-            [district.bounds.minLat, district.bounds.minLon],
-            [district.bounds.maxLat, district.bounds.maxLon]
+            [district.bounds.minLat, district.bounds.minLng],
+            [district.bounds.maxLat, district.bounds.maxLng]
           ]);
           hasValidBounds = true;
         }

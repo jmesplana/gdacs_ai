@@ -278,8 +278,8 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
     const lats = coords.map(c => c[1]);
 
     return {
-      minLon: Math.min(...lons),
-      maxLon: Math.max(...lons),
+      minLng: Math.min(...lons),
+      maxLng: Math.max(...lons),
       minLat: Math.min(...lats),
       maxLat: Math.max(...lats)
     };
