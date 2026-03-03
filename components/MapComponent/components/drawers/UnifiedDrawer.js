@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import FacilityDrawer from './FacilityDrawer';
 import AnalysisDrawer from './AnalysisDrawer';
 import SitrepDrawer from './SitrepDrawer';
@@ -32,6 +32,7 @@ const UnifiedDrawer = ({
   selectedFacility,
   analysis,
   analysisLoading,
+  onViewRecommendations,
 
   // Sitrep drawer props
   sitrep,
@@ -43,9 +44,17 @@ const UnifiedDrawer = ({
   onLayerConfigChange,
 
   // Additional props
-  onTabChange
+  onTabChange,
+  operationType = 'general'
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Sync local activeTab with prop changes
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -141,7 +150,11 @@ const UnifiedDrawer = ({
             </h3>
             <button
               className="drawer-close"
-              onClick={onClose}
+              onClick={(e) => {
+                console.log('Close button clicked');
+                e.stopPropagation();
+                onClose();
+              }}
               style={{
                 color: 'white',
                 background: 'rgba(255,255,255,0.1)',
@@ -154,7 +167,10 @@ const UnifiedDrawer = ({
                 justifyContent: 'center',
                 cursor: 'pointer',
                 fontSize: '24px',
-                transition: 'background 0.2s'
+                transition: 'background 0.2s',
+                position: 'relative',
+                zIndex: 9999,
+                pointerEvents: 'auto'
               }}
               onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
               onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
@@ -272,11 +288,16 @@ const UnifiedDrawer = ({
             <div>
               {selectedFacility ? (
                 <AnalysisDrawer
-                  isOpen={true}
+                  isOpen={false}
                   onClose={() => {}}
-                  facility={selectedFacility}
-                  analysis={analysis}
-                  loading={analysisLoading}
+                  selectedFacility={selectedFacility}
+                  analysisData={analysis}
+                  analysisLoading={analysisLoading}
+                  impactedFacilities={impactedFacilities}
+                  acledData={acledData}
+                  acledEnabled={acledEnabled}
+                  operationType={operationType}
+                  onViewRecommendations={onViewRecommendations}
                 />
               ) : (
                 <div style={{

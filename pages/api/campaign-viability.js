@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { getDistance } from 'geolib';
+import { getOperationType } from '../../config/operationTypes';
 
 export const config = {
   api: {
@@ -15,19 +16,23 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { facility, impacts, disasters, acledData, acledEnabled } = req.body;
+    const { facility, impacts, disasters, acledData, acledEnabled, operationType = 'general' } = req.body;
 
     if (!facility) {
       return res.status(400).json({ error: 'Missing facility data' });
     }
 
-    console.log('Assessing campaign viability for:', facility.name);
+    console.log('Assessing operation viability for:', facility.name);
+    console.log('Operation type:', operationType);
     if (acledData && acledEnabled) {
       console.log(`ACLED data available: ${acledData.length} events, enabled: ${acledEnabled}`);
     }
 
+    // Get operation type configuration
+    const opConfig = getOperationType(operationType);
+
     // Calculate viability score and identify risks
-    const assessment = calculateViability(facility, impacts || [], disasters || []);
+    const assessment = calculateViability(facility, impacts || [], disasters || [], opConfig);
 
     // Add security assessment if location data available
     if (facility.country || facility.region || facility.district) {
@@ -85,31 +90,31 @@ export default async function handler(req, res) {
     // Generate AI recommendations if OpenAI is available
     if (process.env.OPENAI_API_KEY) {
       try {
-        const aiRecommendations = await generateAIRecommendations(facility, assessment, impacts, disasters);
+        const aiRecommendations = await generateAIRecommendations(facility, assessment, impacts, disasters, opConfig);
         assessment.aiRecommendations = aiRecommendations;
         assessment.isAIGenerated = true;
       } catch (aiError) {
         console.error('Error generating AI recommendations:', aiError);
         // Continue with basic assessment without AI
-        assessment.aiRecommendations = generateBasicRecommendations(assessment);
+        assessment.aiRecommendations = generateBasicRecommendations(assessment, opConfig);
         assessment.isAIGenerated = false;
       }
     } else {
-      assessment.aiRecommendations = generateBasicRecommendations(assessment);
+      assessment.aiRecommendations = generateBasicRecommendations(assessment, opConfig);
       assessment.isAIGenerated = false;
     }
 
     res.status(200).json(assessment);
   } catch (error) {
-    console.error('Error in campaign viability assessment:', error);
+    console.error('Error in operation viability assessment:', error);
     res.status(500).json({ error: error.message });
   }
 }
 
 /**
- * Calculate campaign viability score based on multiple factors
+ * Calculate operation viability score based on multiple factors
  */
-function calculateViability(facility, impacts, disasters) {
+function calculateViability(facility, impacts, disasters, opConfig) {
   let viabilityScore = 100;
   const risks = [];
   const mitigationStrategies = [];
@@ -186,7 +191,7 @@ function calculateViability(facility, impacts, disasters) {
       }
 
       // Disaster-specific risks
-      addDisasterSpecificRisks(disasterType, risks, mitigationStrategies, distance);
+      addDisasterSpecificRisks(disasterType, risks, mitigationStrategies, distance, opConfig);
     }
   }
 
@@ -241,115 +246,109 @@ function calculateViability(facility, impacts, disasters) {
 }
 
 /**
- * Add disaster-specific risks for public health campaigns
+ * Add disaster-specific risks tailored to operation type
  */
-function addDisasterSpecificRisks(disasterType, risks, mitigations, distance) {
+function addDisasterSpecificRisks(disasterType, risks, mitigations, distance, opConfig) {
+  // Get disaster impact configuration for this operation type
+  const disasterImpact = opConfig.disasterImpacts[disasterType] || opConfig.disasterImpacts['ALL'];
+
+  if (!disasterImpact) return;
+
+  // Add operation-specific disaster risks
   switch (disasterType) {
     case 'FL': // Flooding
-      risks.push({
-        factor: 'Waterborne Disease Risk',
-        severity: 'HIGH',
-        detail: 'Post-flood conditions create mosquito breeding sites - expect 40-60% increase in malaria cases',
-        icon: '🦟',
-        disasterType: 'FL'
-      });
-      risks.push({
-        factor: 'Water Contamination',
-        severity: 'HIGH',
-        detail: 'Contaminated water sources increase diarrheal disease risk',
-        icon: '💧',
-        disasterType: 'FL'
-      });
-      mitigations.push({
-        risk: 'Waterborne Disease Risk',
-        strategy: 'Increase ACT/RDT stock by 50%. Coordinate with WASH team for vector control. Consider prophylaxis for high-risk populations.'
-      });
+      if (opConfig.id === 'malaria_control') {
+        risks.push({
+          factor: 'Waterborne Disease Risk',
+          severity: 'HIGH',
+          detail: 'Post-flood conditions create mosquito breeding sites - expect 40-60% increase in malaria cases',
+          icon: '🦟',
+          disasterType: 'FL'
+        });
+        mitigations.push({
+          risk: 'Waterborne Disease Risk',
+          strategy: 'Increase ACT/RDT stock by 50%. Coordinate with WASH team for vector control. Consider prophylaxis for high-risk populations.'
+        });
+      } else if (opConfig.id === 'wash') {
+        risks.push({
+          factor: 'Water Contamination',
+          severity: 'CRITICAL',
+          detail: 'Widespread water contamination and destroyed sanitation facilities',
+          icon: '💧',
+          disasterType: 'FL'
+        });
+        mitigations.push({
+          risk: 'Water Contamination',
+          strategy: 'Deploy water purification units. Distribute purification tablets and jerrycans. Establish temporary latrines.'
+        });
+      } else if (opConfig.id === 'immunization') {
+        risks.push({
+          factor: 'Cold Chain Risk',
+          severity: 'HIGH',
+          detail: 'Power outages threaten vaccine cold chain integrity',
+          icon: '❄️',
+          disasterType: 'FL'
+        });
+        mitigations.push({
+          risk: 'Cold Chain Risk',
+          strategy: 'Pre-position vaccines at unaffected sites. Double ice pack supply. Use solar fridges where possible.'
+        });
+      } else {
+        risks.push({
+          factor: disasterImpact.reason,
+          severity: disasterImpact.severity,
+          detail: `Flood impact on ${opConfig.name}: ${disasterImpact.reason}`,
+          icon: '🌊',
+          disasterType: 'FL'
+        });
+      }
       break;
 
     case 'TC': // Tropical Cyclone
-      risks.push({
-        factor: 'Infrastructure Damage',
-        severity: 'CRITICAL',
-        detail: 'Cyclones typically damage health facilities, roads, and communication networks',
-        icon: '🌀',
-        disasterType: 'TC'
-      });
-      mitigations.push({
-        risk: 'Infrastructure Damage',
-        strategy: 'Conduct facility assessment before campaign. Use mobile teams if fixed sites damaged. Bring backup communication equipment.'
-      });
-      break;
-
     case 'EQ': // Earthquake
-      risks.push({
-        factor: 'Structural Safety',
-        severity: 'CRITICAL',
-        detail: 'Buildings may be unsafe. Aftershocks possible.',
-        icon: '🏚️',
-        disasterType: 'EQ'
-      });
-      risks.push({
-        factor: 'Healthcare System Strain',
-        severity: 'HIGH',
-        detail: 'Local health system overwhelmed with trauma cases',
-        icon: '🏥',
-        disasterType: 'EQ'
-      });
-      mitigations.push({
-        risk: 'Structural Safety',
-        strategy: 'Conduct building safety assessment. Use outdoor vaccination posts or temporary structures. Have earthquake evacuation plan.'
-      });
-      break;
-
     case 'DR': // Drought
-      risks.push({
-        factor: 'Malnutrition Risk',
-        severity: 'HIGH',
-        detail: 'Drought conditions lead to malnutrition, reducing vaccine efficacy',
-        icon: '🌾',
-        disasterType: 'DR'
-      });
-      risks.push({
-        factor: 'Population Migration',
-        severity: 'MEDIUM',
-        detail: 'Communities may migrate in search of water/food',
-        icon: '👥',
-        disasterType: 'DR'
-      });
-      mitigations.push({
-        risk: 'Malnutrition Risk',
-        strategy: 'Integrate vitamin A supplementation and nutrition screening. Partner with food security programs.'
-      });
-      break;
-
     case 'VO': // Volcanic Activity
-      risks.push({
-        factor: 'Air Quality Hazard',
-        severity: 'HIGH',
-        detail: 'Volcanic ash causes respiratory issues - complicates vaccination',
-        icon: '🌋',
-        disasterType: 'VO'
-      });
-      mitigations.push({
-        risk: 'Air Quality Hazard',
-        strategy: 'Provide N95 masks for staff and community. Monitor air quality. Consider indoor-only activities.'
-      });
-      break;
-
     case 'WF': // Wildfire
+    case 'TS': // Tsunami
+    default:
+      // Use generic disaster impact from operation config
       risks.push({
-        factor: 'Air Quality & Smoke',
-        severity: 'HIGH',
-        detail: 'Smoke inhalation risk, especially for children and vulnerable populations',
-        icon: '🔥',
-        disasterType: 'WF'
+        factor: `${getDisasterName(disasterType)} Impact`,
+        severity: disasterImpact.severity,
+        detail: disasterImpact.reason,
+        icon: getDisasterIcon(disasterType),
+        disasterType: disasterType
       });
+
+      // Add operation-specific mitigation
+      const supplies = Object.entries(disasterImpact.supplyAdjustment || {})
+        .map(([supply, multiplier]) => `${supply} (${Math.round(multiplier * 100)}% increase)`)
+        .join(', ');
+
       mitigations.push({
-        risk: 'Air Quality & Smoke',
-        strategy: 'Monitor air quality index. Postpone if AQI > 150. Provide masks and indoor venues.'
+        risk: `${getDisasterName(disasterType)} Impact`,
+        strategy: supplies
+          ? `Adjust supply levels: ${supplies}. ${disasterImpact.reason}`
+          : disasterImpact.reason
       });
       break;
   }
+}
+
+/**
+ * Get disaster icon by type
+ */
+function getDisasterIcon(disasterType) {
+  const icons = {
+    'FL': '🌊',
+    'TC': '🌀',
+    'EQ': '🏚️',
+    'DR': '🌾',
+    'VO': '🌋',
+    'WF': '🔥',
+    'TS': '🌊'
+  };
+  return icons[disasterType] || '⚠️';
 }
 
 /**
@@ -540,9 +539,9 @@ function getDisasterName(code) {
 }
 
 /**
- * Generate AI-powered recommendations using OpenAI with AMP best practices
+ * Generate AI-powered recommendations tailored to operation type
  */
-async function generateAIRecommendations(facility, assessment, impacts, disasters) {
+async function generateAIRecommendations(facility, assessment, impacts, disasters, opConfig) {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
@@ -554,7 +553,10 @@ async function generateAIRecommendations(facility, assessment, impacts, disaster
     severity: d.severity
   }));
 
-  const prompt = `You are a public health campaign planning expert specializing in malaria control and immunization programs in disaster-affected areas. You follow Alliance for Malaria Prevention (AMP) best practices and WHO guidelines.
+  // Build operation-specific context
+  const operationContext = buildOperationContext(opConfig);
+
+  const prompt = `You are a humanitarian operations expert specializing in ${opConfig.name} operations in disaster-affected areas. ${operationContext}
 
 FACILITY: ${facility.name}
 VIABILITY SCORE: ${assessment.viabilityScore}/100
@@ -574,41 +576,64 @@ ${assessment.mitigationStrategies.map(m => `- ${m.risk}: ${m.strategy}`).join('\
 
 TIMELINE: ${assessment.timeline.recommendation} (${assessment.timeline.waitTime})
 
-Provide detailed, actionable recommendations for this campaign:
+KEY SUPPLIES FOR THIS OPERATION:
+${opConfig.supplies.map(s => `- ${s}`).join('\n')}
+
+ASSESSMENT METHOD: ${opConfig.assessmentMethod}
+COVERAGE TARGET: ${(opConfig.coverageTarget * 100).toFixed(0)}%
+
+Provide detailed, actionable recommendations for this ${opConfig.name} operation:
 
 1. **Clear Decision**: Confirm or refine the GO/NO-GO/DELAY recommendation with specific justification
-2. **Mitigation Actions**: Specific steps to address each risk (be very specific - mention supplies, staff, protocols)
+2. **Mitigation Actions**: Specific steps to address each risk (be very specific - mention supplies, staff, protocols relevant to ${opConfig.name})
 3. **Timeline Details**: When exactly should they proceed? What conditions to monitor?
-4. **Resource Adjustments**: Extra supplies, staff, transport, or equipment needed
+4. **Resource Adjustments**: Extra supplies, staff, transport, or equipment needed (reference the supply list above)
 5. **Alternative Approaches**: If primary facility unsafe, suggest alternatives (mobile teams, nearby facilities, etc.)
-6. **Program-Specific Considerations**:
-   - For malaria campaigns:
-     * ACT/RDT needs (50% increase after floods)
-     * LLIN/ITN distribution strategy (mass campaign vs routine vs school-based)
-     * Vector control coordination with WASH teams
-     * Expected case surge (40-60% post-flood)
-     * Supply chain considerations (pre-positioning, barcode tracking)
-   - For immunization: Consider cold chain, target populations, vaccine types
-7. **Assessment Planning** (AMP cLQAS methodology):
-   - Recommend in-process or end-process evaluation
-   - Suggest rapid assessment if campaign delayed
-   - Include household registration quality checks
-   - Coverage assessment using clustered LQAS
+6. **Operation-Specific Considerations**:
+   ${opConfig.id === 'malaria_control' ? `
+   - ACT/RDT needs and stock adjustments
+   - LLIN/ITN distribution strategy
+   - Vector control coordination
+   - Expected case surge predictions
+   ` : opConfig.id === 'immunization' ? `
+   - Cold chain integrity maintenance
+   - Vaccine type-specific considerations
+   - Target population coverage
+   - Mobile vs fixed site strategies
+   ` : opConfig.id === 'wash' ? `
+   - Water quality testing protocols
+   - Sanitation facility restoration
+   - Hygiene promotion messaging
+   - Cholera/disease outbreak prevention
+   ` : opConfig.id === 'nutrition' ? `
+   - MUAC screening protocols
+   - RUTF distribution and storage
+   - Integration with health services
+   - Malnutrition case management
+   ` : opConfig.id === 'shelter' ? `
+   - Site selection and safety
+   - NFI distribution priorities
+   - Temporary vs transitional shelter
+   - Weather/seasonal considerations
+   ` : `
+   - Context-specific operational guidance
+   - Multi-sector coordination needs
+   `}
+7. **Assessment Planning** (${opConfig.assessmentMethod}):
+   - Recommend appropriate monitoring and evaluation approach
+   - Coverage/quality assessment methodology
+   - Timing of assessments
 8. **Digital Tools** (if applicable):
-   - Mobile data collection (Android BYOD approach)
-   - Geospatial microplanning for targeting
-   - Barcode scanning for supply chain tracking
-   - Real-time monitoring dashboards
-   - Electronic payment systems for workers
+${opConfig.digitalTools.map(t => `   - ${t}`).join('\n')}
 
-Be concrete and actionable. Use bullet points. Focus on practical field operations following AMP guidance.`;
+Be concrete and actionable. Use bullet points. Focus on practical field operations.`;
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4-turbo-preview',
     messages: [
       {
         role: 'system',
-        content: 'You are an expert in public health campaign planning during disasters. You follow Alliance for Malaria Prevention (AMP) best practices, including cLQAS assessment procedures, digital tools for campaign monitoring, and emergency response protocols for ITN/LLIN distribution. Provide specific, actionable recommendations for field operations.'
+        content: `You are an expert in humanitarian operations planning during disasters, specializing in ${opConfig.name}. You follow ${opConfig.assessmentMethod} methodology and relevant sector-specific best practices (WHO, SPHERE, UNICEF, etc.). Provide specific, actionable recommendations for field operations tailored to ${opConfig.category} interventions.`
       },
       {
         role: 'user',
@@ -623,10 +648,27 @@ Be concrete and actionable. Use bullet points. Focus on practical field operatio
 }
 
 /**
+ * Build operation-specific context for AI prompts
+ */
+function buildOperationContext(opConfig) {
+  const contexts = {
+    'malaria_control': 'You follow Alliance for Malaria Prevention (AMP) best practices, including cLQAS assessment procedures, ITN/LLIN distribution protocols, and vector control strategies.',
+    'immunization': 'You follow WHO immunization guidelines, EPI protocols, cold chain management standards, and LQAS coverage assessment methodologies.',
+    'wash': 'You follow SPHERE Standards for WASH in emergencies, WHO water quality guidelines, and emergency sanitation protocols.',
+    'nutrition': 'You follow SMART Survey methodology, CMAM protocols for SAM/MAM treatment, and nutrition cluster guidelines.',
+    'medical_supply': 'You follow Interagency Emergency Health Kit guidelines, supply chain management best practices, and WHO essential medicines standards.',
+    'shelter': 'You follow SPHERE Shelter Standards, NFI cluster guidelines, and site planning best practices for displaced populations.',
+    'general': 'You follow humanitarian best practices and Multi-Cluster Initial Rapid Assessment (MIRA) methodology.'
+  };
+
+  return contexts[opConfig.id] || contexts['general'];
+}
+
+/**
  * Generate basic recommendations without AI
  */
-function generateBasicRecommendations(assessment) {
-  let recommendations = `## Campaign Viability Assessment\n\n`;
+function generateBasicRecommendations(assessment, opConfig) {
+  let recommendations = `## ${opConfig.name} Viability Assessment\n\n`;
   recommendations += `**Decision**: ${assessment.decision}\n`;
   recommendations += `**Viability Score**: ${assessment.viabilityScore}/100\n\n`;
 
@@ -639,6 +681,11 @@ function generateBasicRecommendations(assessment) {
   assessment.mitigationStrategies.forEach(m => {
     recommendations += `**${m.risk}**\n`;
     recommendations += `- ${m.strategy}\n\n`;
+  });
+
+  recommendations += `### Key Supplies Needed\n`;
+  opConfig.supplies.slice(0, 5).forEach(s => {
+    recommendations += `- ${s}\n`;
   });
 
   return recommendations;

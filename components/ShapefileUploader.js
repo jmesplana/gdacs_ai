@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import * as shapefile from 'shapefile';
 import simplify from '@turf/simplify';
 import { feature } from '@turf/helpers';
+import proj4 from 'proj4';
 
 export default function ShapefileUploader({ onDistrictsLoaded }) {
   const [loading, setLoading] = useState(false);
@@ -63,7 +64,7 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
       // Open shapefile using the shapefile library (works in browser!)
       const source = await shapefile.open(shpFile, dbfFile);
 
-      const features = [];
+      let features = []; // Changed from const to let so we can reassign after reprojection
       let result = await source.read();
       let featureCount = 0;
 
@@ -84,7 +85,59 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
       }
 
       console.log(`Parsed ${features.length} features from shapefile`);
-      setUploadProgress({ step: 'Simplifying geometries...', progress: 65 });
+      setUploadProgress({ step: 'Reprojecting coordinates...', progress: 60 });
+
+      // Read projection from .prj file if available
+      let sourceProjection = null;
+      if (prjFile) {
+        const prjText = new TextDecoder().decode(prjFile);
+        console.log('Projection file content:', prjText.substring(0, 200));
+
+        // Try to use the projection from the .prj file
+        try {
+          sourceProjection = prjText;
+          // Test if proj4 can parse it
+          proj4(sourceProjection, 'WGS84', [0, 0]);
+          console.log('✅ Successfully loaded projection from .prj file');
+        } catch (e) {
+          console.warn('Could not parse .prj file, will attempt auto-detection:', e.message);
+          sourceProjection = null;
+        }
+      }
+
+      // If no projection or can't parse, try to detect based on coordinate ranges
+      if (!sourceProjection && features.length > 0) {
+        const firstCoord = getFirstCoordinate(features[0].geometry);
+        if (firstCoord) {
+          const [x, y] = firstCoord;
+          // Check if coordinates look like UTM (large numbers)
+          if (Math.abs(x) > 180 || Math.abs(y) > 90) {
+            // Assume UTM Zone 36N for Uganda (EPSG:32636)
+            sourceProjection = '+proj=utm +zone=36 +datum=WGS84 +units=m +no_defs';
+            console.log('🔍 Auto-detected UTM Zone 36N projection for Uganda');
+          }
+        }
+      }
+
+      // Reproject features if needed
+      if (sourceProjection) {
+        console.log('🔄 Reprojecting coordinates to WGS84...');
+        features = features.map(feat => {
+          try {
+            const reprojectedGeometry = reprojectGeometry(feat.geometry, sourceProjection);
+            return {
+              ...feat,
+              geometry: reprojectedGeometry
+            };
+          } catch (e) {
+            console.error('Error reprojecting feature:', e);
+            return feat; // Return original if reprojection fails
+          }
+        });
+        console.log('✅ Reprojection complete');
+      }
+
+      setUploadProgress({ step: 'Simplifying geometries...', progress: 70 });
 
       // Extract all unique field names from the first feature
       const availableFields = features.length > 0
@@ -161,6 +214,48 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
       setUploadProgress({ step: '', progress: 0 });
     }
   };
+
+  // Helper function to get the first coordinate from a geometry
+  function getFirstCoordinate(geometry) {
+    if (!geometry || !geometry.coordinates) return null;
+
+    const coords = geometry.coordinates;
+    if (geometry.type === 'Point') {
+      return coords;
+    } else if (geometry.type === 'LineString' || geometry.type === 'MultiPoint') {
+      return coords[0];
+    } else if (geometry.type === 'Polygon' || geometry.type === 'MultiLineString') {
+      return coords[0][0];
+    } else if (geometry.type === 'MultiPolygon') {
+      return coords[0][0][0];
+    }
+    return null;
+  }
+
+  // Helper function to reproject geometry coordinates
+  function reprojectGeometry(geometry, sourceProjection) {
+    if (!geometry || !geometry.coordinates) return geometry;
+
+    const reprojectCoords = (coords) => {
+      if (typeof coords[0] === 'number') {
+        // This is a coordinate pair [x, y]
+        try {
+          return proj4(sourceProjection, 'WGS84', coords);
+        } catch (e) {
+          console.error('Error reprojecting coordinate:', coords, e);
+          return coords;
+        }
+      } else {
+        // Array of coordinates, recurse
+        return coords.map(c => reprojectCoords(c));
+      }
+    };
+
+    return {
+      ...geometry,
+      coordinates: reprojectCoords(geometry.coordinates)
+    };
+  }
 
   // Helper function to calculate bounding box
   function calculateBounds(geometry) {

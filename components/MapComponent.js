@@ -851,6 +851,8 @@ const MapComponent = ({
         selectedFacility={selectedFacility}
         analysis={analysisData}
         analysisLoading={analysisLoading}
+        operationType={operationType}
+        onViewRecommendations={handleGenerateRecommendations}
 
         // Reports tab props
         sitrep={sitrep}
@@ -1088,20 +1090,31 @@ const MapComponent = ({
           console.log(`Created FeatureCollection with ${featureCollection.features.length} features`);
           console.log('Sample district with risk:', featureCollection.features[0]?.properties);
 
+          // Debug: Check coordinate ranges
+          if (featureCollection.features.length > 0) {
+            const firstFeature = featureCollection.features[0];
+            const coords = firstFeature.geometry?.coordinates;
+            console.log('First feature geometry type:', firstFeature.geometry?.type);
+            console.log('First few coordinates:', JSON.stringify(coords).substring(0, 200));
+            console.log('District bounds:', districts[0]?.bounds);
+          }
+
           return (
             <GeoJSON
               key={`districts-${districts.length}-${filteredDisasters.length}-${getFilteredAcledData().length}-${highlightedDistricts.length}`}
               data={featureCollection}
+              pane="overlayPane"
+              interactive={true}
               style={(feature) => {
                 const riskLevel = feature.properties.riskLevel || 'none';
                 const isHighlighted = highlightedDistricts.includes(feature.id);
 
                 return {
                   color: isHighlighted ? '#FF6B35' : getBorderColor(riskLevel),
-                  weight: isHighlighted ? 4 : 2,
-                  opacity: isHighlighted ? 1 : 0.8,
+                  weight: isHighlighted ? 4 : 3, // Increased from 2 to 3
+                  opacity: isHighlighted ? 1 : 1, // Changed from 0.8 to 1 for fully visible borders
                   fillColor: getRiskColor(riskLevel),
-                  fillOpacity: isHighlighted ? 0.7 : (riskLevel === 'none' ? 0.1 : 0.5),
+                  fillOpacity: isHighlighted ? 0.7 : (riskLevel === 'none' ? 0 : 0.5), // Changed from 0.1 to 0 - no fill for no-risk districts, only borders
                   className: isHighlighted ? 'highlighted-district' : ''
                 };
               }}
@@ -1339,7 +1352,11 @@ const MapComponent = ({
                             f => f.facility.name === facility.name
                           )?.impacts || [];
                           handleAnalyzeFacility(facility, facilityImpacts);
-                          toggleAnalysisDrawer();
+                          // Open unified drawer and switch to analysis tab
+                          setActiveDrawerTab('analysis');
+                          if (!unifiedDrawerOpen) {
+                            toggleUnifiedDrawer();
+                          }
                         }}
                         style={{
                           marginTop: '10px',
