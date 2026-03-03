@@ -10,6 +10,32 @@ const LandingPage = () => {
 
   return (
     <div style={{ fontFamily: 'Inter, sans-serif' }}>
+      <style jsx>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        @keyframes pulse0 {
+          0%, 100% { transform: translate(-50%, -50%) scale(1); }
+          50% { transform: translate(-50%, -50%) scale(1.1); }
+        }
+        @keyframes pulse1 {
+          0%, 100% { transform: translate(-50%, -50%) scale(1); }
+          50% { transform: translate(-50%, -50%) scale(1.15); }
+        }
+        @keyframes pulse2 {
+          0%, 100% { transform: translate(-50%, -50%) scale(1); }
+          50% { transform: translate(-50%, -50%) scale(1.05); }
+        }
+        @keyframes pulse3 {
+          0%, 100% { transform: translate(-50%, -50%) scale(1); }
+          50% { transform: translate(-50%, -50%) scale(1.12); }
+        }
+        @keyframes pulse4 {
+          0%, 100% { transform: translate(-50%, -50%) scale(1); }
+          50% { transform: translate(-50%, -50%) scale(1.08); }
+        }
+      `}</style>
       {/* Navigation Header */}
       <header style={{
         background: 'white',
@@ -94,153 +120,190 @@ const LandingPage = () => {
 
       {/* Hero Section */}
       <section style={{
-        background: 'linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%)',
-        padding: '120px 20px 80px',
-        textAlign: 'center',
+        background: 'linear-gradient(135deg, #1A365D 0%, #2D5A7B 100%)',
+        padding: '60px 20px 80px',
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {/* Background decorative elements */}
+        {/* Background pattern */}
         <div style={{
           position: 'absolute',
-          top: '10%',
-          right: '5%',
-          width: '300px',
-          height: '300px',
-          background: 'radial-gradient(circle, rgba(255, 107, 53, 0.08) 0%, transparent 70%)',
-          borderRadius: '50%',
-          pointerEvents: 'none'
+          inset: 0,
+          opacity: 0.05,
+          backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+          backgroundSize: '40px 40px'
         }}></div>
+
         <div style={{
-          position: 'absolute',
-          bottom: '10%',
-          left: '5%',
-          width: '400px',
-          height: '400px',
-          background: 'radial-gradient(circle, rgba(26, 54, 93, 0.05) 0%, transparent 70%)',
-          borderRadius: '50%',
-          pointerEvents: 'none'
-        }}></div>
-
-        <div style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          {/* Badge */}
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'linear-gradient(135deg, rgba(26, 54, 93, 0.08) 0%, rgba(255, 107, 53, 0.08) 100%)',
-            border: '1px solid rgba(26, 54, 93, 0.15)',
-            borderRadius: '50px',
-            padding: '8px 20px',
-            marginBottom: '32px'
-          }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-            </svg>
-            <span style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: '14px',
-              fontWeight: 500,
-              color: '#1A365D'
+          maxWidth: '1200px',
+          margin: '0 auto',
+          position: 'relative',
+          zIndex: 1,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))',
+          gap: '60px',
+          alignItems: 'center'
+        }}>
+          <div style={{ textAlign: 'left' }}>
+            {/* Trust Badge */}
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(255, 107, 53, 0.15)',
+              border: '1px solid rgba(255, 107, 53, 0.3)',
+              borderRadius: '20px',
+              padding: '6px 14px',
+              marginBottom: '24px'
             }}>
-              Real-time GDACS & ACLED Data Integration
-            </span>
+              <span style={{
+                width: '8px',
+                height: '8px',
+                background: '#10B981',
+                borderRadius: '50%',
+                display: 'inline-block',
+                animation: 'pulse 2s ease-in-out infinite'
+              }}></span>
+              <span style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: '13px',
+                fontWeight: 600,
+                color: 'white'
+              }}>
+                Live GDACS & ACLED Integration
+              </span>
+            </div>
+
+            <h1 style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontWeight: 700,
+              fontSize: '56px',
+              lineHeight: '1.1',
+              color: 'white',
+              marginBottom: '24px',
+              letterSpacing: '-0.02em'
+            }}>
+              Operational Intelligence
+              <br />
+              <span style={{
+                background: 'linear-gradient(90deg, #FF6B35 0%, #FFA366 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>
+                for Humanitarian Teams
+              </span>
+            </h1>
+            <p style={{
+              fontSize: '20px',
+              lineHeight: '1.7',
+              color: 'rgba(255, 255, 255, 0.85)',
+              marginBottom: '32px',
+              maxWidth: '540px'
+            }}>
+              Make critical go/no-go decisions in minutes. Monitor disasters, assess risks, and plan operations across multiple countries—all in one platform.
+            </p>
+            <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '40px' }}>
+              <Link href="/app">
+                <button style={{
+                  background: '#FF6B35',
+                  color: 'white',
+                  border: 'none',
+                  padding: '16px 36px',
+                  borderRadius: '10px',
+                  fontSize: '17px',
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 4px 16px rgba(255, 107, 53, 0.4)'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 6px 20px rgba(255, 107, 53, 0.5)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 4px 16px rgba(255, 107, 53, 0.4)';
+                }}
+                >
+                  Start Free →
+                </button>
+              </Link>
+              <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer">
+                <button style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: 'white',
+                  border: '2px solid rgba(255, 255, 255, 0.3)',
+                  padding: '16px 36px',
+                  borderRadius: '10px',
+                  fontSize: '17px',
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  backdropFilter: 'blur(10px)'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = 'rgba(255, 255, 255, 0.2)';
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                }}
+                >
+                  View on GitHub
+                </button>
+              </a>
+            </div>
+
+            {/* Quick stats/use cases */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '16px',
+              maxWidth: '500px'
+            }}>
+              {[
+                { icon: '🎯', text: 'Campaign Planning' },
+                { icon: '🚨', text: 'Emergency Response' },
+                { icon: '🛡️', text: 'Safety & Security' },
+                { icon: '📦', text: 'Logistics & Routes' }
+              ].map((item, idx) => (
+                <div key={idx} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px 16px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  backdropFilter: 'blur(10px)'
+                }}>
+                  <span style={{ fontSize: '20px' }}>{item.icon}</span>
+                  <span style={{
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: 'rgba(255, 255, 255, 0.95)',
+                    fontFamily: "'Inter', sans-serif"
+                  }}>
+                    {item.text}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <h1 style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontWeight: 700,
-            fontSize: '64px',
-            lineHeight: '1.1',
-            color: '#0F172A',
-            marginBottom: '24px',
-            letterSpacing: '-0.02em'
-          }}>
-            Rapid Disaster Intelligence for{' '}
-            <span style={{
-              color: '#1A365D',
-              position: 'relative',
-              display: 'inline-block'
-            }}>
-              Impact Workers
-              <div style={{
-                position: 'absolute',
-                bottom: '-4px',
-                left: 0,
-                right: 0,
-                height: '4px',
-                background: 'linear-gradient(90deg, #FF6B35 0%, transparent 100%)',
-                borderRadius: '2px'
-              }}></div>
-            </span>
-          </h1>
-          <p style={{
-            fontSize: '20px',
-            lineHeight: '1.6',
-            color: '#475569',
-            maxWidth: '800px',
-            margin: '0 auto 40px'
-          }}>
-            Monitor global disasters, assess facility risks, and deploy humanitarian operations faster with AI-powered insights
-          </p>
-          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/app">
-              <button style={{
-                background: '#FF6B35',
-                color: 'white',
-                border: 'none',
-                padding: '16px 40px',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                boxShadow: '0 4px 12px rgba(255, 107, 53, 0.3)'
-              }}
-              onMouseEnter={(e) => e.target.style.opacity = '0.9'}
-              onMouseLeave={(e) => e.target.style.opacity = '1'}
-              >
-                Get Started →
-              </button>
-            </Link>
-            <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer">
-              <button style={{
-                background: 'transparent',
-                color: '#1A365D',
-                border: '2px solid #1A365D',
-                padding: '16px 40px',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.3s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = '#1A365D';
-                e.target.style.color = 'white';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = 'transparent';
-                e.target.style.color = '#1A365D';
-              }}
-              >
-                View on GitHub
-              </button>
-            </a>
-          </div>
-
-          {/* App Mockup/Preview */}
+          {/* App Preview - Right Side */}
           <div style={{
-            marginTop: '60px',
-            maxWidth: '1100px',
-            margin: '60px auto 0',
-            background: 'white',
-            borderRadius: '16px',
-            padding: '8px',
-            boxShadow: '0 20px 60px rgba(26, 54, 93, 0.2)',
-            border: '1px solid #E5E7EB'
+            background: 'rgba(255, 255, 255, 0.95)',
+            borderRadius: '20px',
+            padding: '20px',
+            boxShadow: '0 25px 70px rgba(0, 0, 0, 0.3)',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            transform: 'perspective(1000px) rotateY(-5deg)',
+            transition: 'transform 0.3s ease'
           }}>
             {/* Browser Chrome */}
             <div style={{
@@ -516,29 +579,6 @@ const LandingPage = () => {
               </div>
             </div>
           </div>
-
-          <style jsx>{`
-            @keyframes pulse0 {
-              0%, 100% { transform: translate(-50%, -50%) scale(1); }
-              50% { transform: translate(-50%, -50%) scale(1.1); }
-            }
-            @keyframes pulse1 {
-              0%, 100% { transform: translate(-50%, -50%) scale(1); }
-              50% { transform: translate(-50%, -50%) scale(1.15); }
-            }
-            @keyframes pulse2 {
-              0%, 100% { transform: translate(-50%, -50%) scale(1); }
-              50% { transform: translate(-50%, -50%) scale(1.05); }
-            }
-            @keyframes pulse3 {
-              0%, 100% { transform: translate(-50%, -50%) scale(1); }
-              50% { transform: translate(-50%, -50%) scale(1.12); }
-            }
-            @keyframes pulse4 {
-              0%, 100% { transform: translate(-50%, -50%) scale(1); }
-              50% { transform: translate(-50%, -50%) scale(1.08); }
-            }
-          `}</style>
         </div>
       </section>
 
@@ -801,151 +841,147 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Features Showcase Section */}
+      {/* Operational Use Cases Section */}
       <section style={{
-        padding: '80px 20px',
-        background: 'white'
+        padding: '100px 20px',
+        background: 'linear-gradient(180deg, #F8FAFC 0%, white 100%)'
       }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <h2 style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontWeight: 700,
-            fontSize: '42px',
-            textAlign: 'center',
-            color: '#1A365D',
-            marginBottom: '16px'
-          }}>
-            Built for Field Realities, Powered by Modern AI
-          </h2>
-          <p style={{
-            textAlign: 'center',
-            fontSize: '18px',
-            color: '#475569',
-            marginBottom: '60px',
-            maxWidth: '700px',
-            margin: '0 auto 60px'
-          }}>
-            Comprehensive tools designed for humanitarian professionals working in complex environments
-          </p>
+          <div style={{ textAlign: 'center', marginBottom: '60px' }}>
+            <div style={{
+              display: 'inline-block',
+              background: '#FF6B35',
+              color: 'white',
+              padding: '6px 16px',
+              borderRadius: '20px',
+              fontSize: '13px',
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              marginBottom: '20px',
+              fontFamily: "'Inter', sans-serif"
+            }}>
+              ONE PLATFORM, MULTIPLE OPERATIONS
+            </div>
+            <h2 style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontWeight: 700,
+              fontSize: '48px',
+              color: '#0F172A',
+              marginBottom: '20px',
+              letterSpacing: '-0.01em'
+            }}>
+              Purpose-Built for <span style={{ color: '#FF6B35' }}>Operational Excellence</span>
+            </h2>
+            <p style={{
+              fontSize: '20px',
+              color: '#475569',
+              maxWidth: '700px',
+              margin: '0 auto',
+              lineHeight: '1.7'
+            }}>
+              From emergency response to strategic planning, get real-time intelligence for every critical decision
+            </p>
+          </div>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: '32px'
+            gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+            gap: '28px'
           }}>
             {[
               {
-                title: 'Interactive Disaster Map',
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
-                    <line x1="8" y1="2" x2="8" y2="18"></line>
-                    <line x1="16" y1="6" x2="16" y2="22"></line>
-                  </svg>
-                ),
-                features: ['Real-time GDACS feed', 'Multiple base layers', 'Heatmap visualization', 'Impact zone polygons']
+                title: 'Campaign Planning',
+                emoji: '🎯',
+                description: 'Plan immunization, WASH, nutrition, or shelter campaigns with district-level risk assessment',
+                features: ['Operation viability scoring', 'District risk visualization', 'Go/No-Go recommendations', 'Multi-hazard assessment']
               },
               {
-                title: 'Smart Facility Management',
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                  </svg>
-                ),
-                features: ['CSV/Excel upload', 'Custom field mapping', 'Shapefile boundary visualization', 'Automated impact detection']
+                title: 'Emergency Response',
+                emoji: '🚨',
+                description: 'Rapid deployment decisions when disasters strike—minutes matter',
+                features: ['Real-time disaster alerts', 'Facility impact detection', 'AI-powered SitReps', 'Population affected estimates']
               },
               {
-                title: 'AI Chatbot Assistant',
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                    <line x1="9" y1="10" x2="9.01" y2="10"></line>
-                    <line x1="15" y1="10" x2="15.01" y2="10"></line>
-                    <path d="M9.5 14.5c.5.6 1.5 1 2.5 1s2-.4 2.5-1"></path>
-                  </svg>
-                ),
-                features: ['Natural language queries', 'Context-aware responses', 'Custom facility field analysis', 'Interactive Q&A sessions']
+                title: 'Safety & Security',
+                emoji: '🛡️',
+                description: 'Monitor conflict zones and protect field teams with ACLED integration',
+                features: ['Conflict event tracking', 'Security incident mapping', 'Event type filtering', 'Trend analysis']
               },
               {
-                title: 'Comprehensive Reporting',
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                  </svg>
-                ),
-                features: ['One-click SitRep generation', 'Facility recommendations', 'Export to Word format', 'Shareable briefings']
+                title: 'Logistics & Routes',
+                emoji: '📦',
+                description: 'Plan safe supply routes and avoid disaster/conflict zones',
+                features: ['Route safety assessment', 'Multi-country operations', 'Shapefile boundary import', 'Coordinate system support']
               },
               {
-                title: 'Multi-Operation Support',
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="9" cy="7" r="4"></circle>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                  </svg>
-                ),
-                features: ['Malaria control campaigns', 'Immunization drives', 'Food distribution', 'Mobile health clinics']
-              },
-              {
-                title: 'Security Intelligence',
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                  </svg>
-                ),
-                features: ['ACLED conflict data integration', 'Event type filtering', 'Country/region filters', 'Date range controls']
+                title: 'Strategic Planning',
+                emoji: '📊',
+                description: 'District-level operational viability for long-term program planning',
+                features: ['District dashboard', 'Historical pattern analysis', 'AI chatbot queries', 'Exportable reports']
               }
-            ].map((feature, idx) => (
+            ].map((useCase, idx) => (
               <div key={idx} style={{
                 background: 'white',
-                border: '1px solid #94A3B8',
-                borderRadius: '12px',
-                padding: '32px',
-                transition: 'all 0.3s ease'
+                border: '2px solid #E5E7EB',
+                borderRadius: '16px',
+                padding: '36px',
+                transition: 'all 0.3s ease',
+                position: 'relative',
+                overflow: 'hidden'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = '0 8px 24px rgba(26, 54, 93, 0.1)';
-                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 12px 40px rgba(255, 107, 53, 0.15)';
+                e.currentTarget.style.transform = 'translateY(-6px)';
+                e.currentTarget.style.borderColor = '#FF6B35';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.boxShadow = 'none';
                 e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.borderColor = '#E5E7EB';
               }}
               >
                 <div style={{
-                  width: '48px',
-                  height: '48px',
-                  background: '#1A365D',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '20px'
+                  fontSize: '48px',
+                  marginBottom: '20px',
+                  lineHeight: 1
                 }}>
-                  {feature.icon}
+                  {useCase.emoji}
                 </div>
                 <h3 style={{
                   fontFamily: "'Space Grotesk', sans-serif",
                   fontWeight: 700,
-                  fontSize: '20px',
-                  color: '#0F172A',
-                  marginBottom: '16px'
+                  fontSize: '24px',
+                  color: '#1A365D',
+                  marginBottom: '12px'
                 }}>
-                  {feature.title}
+                  {useCase.title}
                 </h3>
+                <p style={{
+                  color: '#64748B',
+                  fontSize: '15px',
+                  lineHeight: '1.7',
+                  marginBottom: '20px'
+                }}>
+                  {useCase.description}
+                </p>
                 <ul style={{
                   color: '#475569',
-                  fontSize: '15px',
-                  lineHeight: '1.8',
-                  paddingLeft: '20px',
-                  margin: 0
+                  fontSize: '14px',
+                  lineHeight: '2',
+                  paddingLeft: 0,
+                  margin: 0,
+                  listStyle: 'none'
                 }}>
-                  {feature.features.map((item, i) => (
-                    <li key={i}>{item}</li>
+                  {useCase.features.map((item, i) => (
+                    <li key={i} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      {item}
+                    </li>
                   ))}
                 </ul>
               </div>
