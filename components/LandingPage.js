@@ -183,7 +183,7 @@ const LandingPage = () => {
               marginBottom: '24px',
               letterSpacing: '-0.02em'
             }}>
-              Operational Intelligence
+              Forward-Looking Intelligence
               <br />
               <span style={{
                 background: 'linear-gradient(90deg, #FF6B35 0%, #FFA366 100%)',
@@ -191,7 +191,7 @@ const LandingPage = () => {
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text'
               }}>
-                for Humanitarian Teams
+                for Humanitarian Operations
               </span>
             </h1>
             <p style={{
@@ -201,7 +201,7 @@ const LandingPage = () => {
               marginBottom: '32px',
               maxWidth: '540px'
             }}>
-              Make critical go/no-go decisions in minutes. Monitor disasters, assess risks, and plan operations across multiple countries—all in one platform.
+              Plan ahead with AI-powered scenario analysis and predictive forecasts. Monitor disasters, assess risks, and anticipate what's coming next—all in one platform.
             </p>
             <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '40px' }}>
               <Link href="/app">
@@ -394,7 +394,7 @@ const LandingPage = () => {
                     fontSize: '12px',
                     fontWeight: 600
                   }}>
-                    Download Report
+                    Operational Outlook
                   </div>
                 </div>
               </div>
@@ -511,14 +511,14 @@ const LandingPage = () => {
                       fontSize: '16px',
                       marginBottom: '8px'
                     }}>
-                      AI Analysis
+                      Operational Outlook
                     </div>
                     <div style={{
                       fontSize: '12px',
                       opacity: 0.9,
                       fontFamily: "'Inter', sans-serif"
                     }}>
-                      Analyzing 4 impacted facilities...
+                      Generating scenario analysis...
                     </div>
                   </div>
 
@@ -533,7 +533,7 @@ const LandingPage = () => {
                       color: '#475569',
                       fontFamily: "'Inter', sans-serif"
                     }}>
-                      Which facilities are at highest risk?
+                      What scenarios should we plan for?
                     </div>
                     <div style={{
                       background: '#FF6B35',
@@ -543,7 +543,7 @@ const LandingPage = () => {
                       fontSize: '12px',
                       fontFamily: "'Inter', sans-serif"
                     }}>
-                      2 facilities are in red alert zones near the 6.2M earthquake...
+                      Most likely: Moderate flooding in 3 districts. Escalation: 8+ districts affected...
                     </div>
                   </div>
                 </div>
@@ -718,7 +718,7 @@ const LandingPage = () => {
                 color: '#0F172A',
                 marginBottom: '12px'
               }}>
-                AI-Powered Response
+                AI-Powered Foresight
               </h3>
               <ul style={{
                 color: '#475569',
@@ -726,10 +726,10 @@ const LandingPage = () => {
                 lineHeight: '1.8',
                 paddingLeft: '20px'
               }}>
-                <li>Interactive AI chatbot for analysis</li>
-                <li>Facility-specific recommendations</li>
-                <li>Campaign viability scoring</li>
-                <li>Comprehensive SitRep generation</li>
+                <li>Operational Outlook with 3 scenarios</li>
+                <li>Disaster & outbreak forecasts</li>
+                <li>Real-time web search for current events</li>
+                <li>Early warning indicators to monitor</li>
               </ul>
             </div>
           </div>
@@ -891,14 +891,14 @@ const LandingPage = () => {
               {
                 title: 'Campaign Planning',
                 emoji: '🎯',
-                description: 'Plan immunization, WASH, nutrition, or shelter campaigns with district-level risk assessment',
-                features: ['Operation viability scoring', 'District risk visualization', 'Go/No-Go recommendations', 'Multi-hazard assessment']
+                description: 'Plan immunization, WASH, nutrition, or shelter campaigns with forward-looking scenario analysis',
+                features: ['Operational Outlook scenarios', 'District risk visualization', 'Go/No-Go recommendations', 'Predictive disaster forecasts']
               },
               {
                 title: 'Emergency Response',
                 emoji: '🚨',
-                description: 'Rapid deployment decisions when disasters strike—minutes matter',
-                features: ['Real-time disaster alerts', 'Facility impact detection', 'AI-powered SitReps', 'Population affected estimates']
+                description: 'Rapid deployment decisions with AI-powered scenario planning—anticipate what comes next',
+                features: ['Real-time disaster alerts', 'Escalation scenario planning', 'Early warning indicators', 'Web-sourced current events']
               },
               {
                 title: 'Safety & Security',
@@ -915,8 +915,8 @@ const LandingPage = () => {
               {
                 title: 'Strategic Planning',
                 emoji: '📊',
-                description: 'District-level operational viability for long-term program planning',
-                features: ['District dashboard', 'Historical pattern analysis', 'AI chatbot queries', 'Exportable reports']
+                description: 'Forward-looking operational viability with scenario-based planning',
+                features: ['District dashboard', 'Scenario-based planning', 'Outbreak predictions', 'Supply chain forecasts']
               }
             ].map((useCase, idx) => (
               <div key={idx} style={{
@@ -1080,7 +1080,7 @@ const LandingPage = () => {
             color: '#1A365D',
             marginBottom: '60px'
           }}>
-            Five Steps to Disaster-Ready Operations
+            Five Steps to Forward-Looking Operations
           </h2>
           <div style={{ position: 'relative' }}>
             {/* Vertical line */}
@@ -1107,12 +1107,12 @@ const LandingPage = () => {
                 description: 'System calculates which facilities fall within disaster impact radii and highlights affected districts'
               },
               {
-                title: 'Chat with AI Assistant',
-                description: 'Ask natural language questions about your facilities, get instant insights, and explore risk scenarios'
+                title: 'Get Operational Outlook',
+                description: 'AI generates 3 scenarios (most likely, escalation, stabilization) with early warning indicators to monitor'
               },
               {
-                title: 'Generate Reports',
-                description: 'Download comprehensive Word reports with AI recommendations for stakeholders'
+                title: 'View Predictive Forecasts',
+                description: 'Access disaster forecasts, outbreak predictions, and supply chain disruption assessments'
               }
             ].map((step, idx) => (
               <div key={idx} style={{
@@ -1292,24 +1292,24 @@ const LandingPage = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {[
               {
-                question: 'What disaster types are covered?',
-                answer: 'Earthquakes, tropical cyclones, floods, volcanic activity, droughts, wildfires, and tsunamis from GDACS.'
+                question: 'What is the Operational Outlook feature?',
+                answer: 'The Operational Outlook uses AI to generate forward-looking humanitarian analysis with 3 scenarios (most likely, escalation, stabilization), early warning indicators, and operational implications. It helps you anticipate what\'s coming next, not just what happened.'
               },
               {
-                question: 'How often is data updated?',
-                answer: 'GDACS data is refreshed with each page reload. ACLED data is uploaded manually as needed.'
+                question: 'What predictive forecasts are available?',
+                answer: 'The platform provides weather-based disaster forecasts (cyclones, floods), disease outbreak predictions, and supply chain disruption assessments. All forecasts integrate with the Operational Outlook for comprehensive scenario planning.'
+              },
+              {
+                question: 'How does the AI use real-time web search?',
+                answer: 'The AI assistant can search the web for current humanitarian events, recent outbreak data, and breaking news to supplement its analysis. This ensures recommendations are based on the most up-to-date information available.'
               },
               {
                 question: 'Can I use my own facility data?',
-                answer: 'Yes, upload any CSV or Excel file with name, latitude, and longitude columns.'
+                answer: 'Yes, upload any CSV or Excel file with name, latitude, and longitude columns. You can also upload shapefiles for district boundaries to get district-level risk assessments.'
               },
               {
-                question: 'Is my data stored?',
-                answer: 'Facility data is cached locally in your browser only. No server-side storage.'
-              },
-              {
-                question: 'Does it work offline?',
-                answer: 'No, requires internet connection for disaster data and AI analysis.'
+                question: 'Is my data stored on servers?',
+                answer: 'Facility data is cached locally in your browser only. No server-side storage. However, when using AI features, data is temporarily sent to OpenAI for analysis.'
               }
             ].map((faq, idx) => (
               <div key={idx} style={{
