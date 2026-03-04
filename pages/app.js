@@ -20,6 +20,14 @@ const SitrepGenerator = dynamic(() => import('../components/SitrepGenerator'), {
   ssr: false,
 });
 
+const PredictionDashboard = dynamic(() => import('../components/PredictionDashboard'), {
+  ssr: false,
+});
+
+const OperationalOutlook = dynamic(() => import('../components/OperationalOutlook'), {
+  ssr: false,
+});
+
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
 export default function Home() {
@@ -46,6 +54,8 @@ export default function Home() {
   const [useMockData, setUseMockData] = useState(false); // Default to live data
   const [showHelp, setShowHelp] = useState(false); // Help panel visibility
   const [showChatDrawer, setShowChatDrawer] = useState(false); // Chat drawer visibility
+  const [showPredictions, setShowPredictions] = useState(false); // Prediction dashboard visibility
+  const [showOperationalOutlook, setShowOperationalOutlook] = useState(false); // Operational outlook dashboard visibility
   const [completeReport, setCompleteReport] = useState(null); // Store combined AI report
   const [lastUpdated, setLastUpdated] = useState(null); // Track when data was last updated
   const [timeSinceUpdate, setTimeSinceUpdate] = useState(''); // Human-readable time since last update
@@ -61,6 +71,10 @@ export default function Home() {
     selectedCountries: [], // Filter by countries
     selectedRegions: [] // Filter by regions (admin1)
   });
+
+  // District boundaries from shapefile upload
+  const [districts, setDistricts] = useState([]);
+  const [selectedDistrictForForecast, setSelectedDistrictForForecast] = useState(null); // For district-specific forecast
 
   // Operation type state (for multi-use humanitarian operations)
   const [operationType, setOperationType] = useState('malaria_control'); // Default to malaria control for backward compatibility
@@ -1576,45 +1590,58 @@ export default function Home() {
                 {loading.disasters ? 'Refreshing...' : 'Refresh Data'}
               </button>
               
-              {/* Complete AI Report Download Button */}
+              {/* Operational Outlook Button */}
               <button
-                onClick={generateCompleteReport}
-                disabled={loading.sitrep || !impactedFacilities.length}
+                onClick={() => setShowOperationalOutlook(true)}
+                disabled={!filteredDisasters.length && !impactedFacilities.length}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  backgroundColor: loading.sitrep || !impactedFacilities.length ? 'var(--aidstack-slate-light)' : 'var(--aidstack-orange)',
+                  backgroundColor: (!filteredDisasters.length && !impactedFacilities.length) ? 'var(--aidstack-slate-light)' : 'var(--aidstack-orange)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
                   padding: '8px 12px',
-                  cursor: loading.sitrep || !impactedFacilities.length ? 'not-allowed' : 'pointer',
+                  cursor: (!filteredDisasters.length && !impactedFacilities.length) ? 'not-allowed' : 'pointer',
                   fontSize: '14px',
                   fontWeight: 600,
                   fontFamily: "'Inter', sans-serif"
                 }}
               >
-                {loading.sitrep ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', animation: 'spin 1s linear infinite' }}>
-                    <line x1="12" y1="2" x2="12" y2="6"></line>
-                    <line x1="12" y1="18" x2="12" y2="22"></line>
-                    <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
-                    <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
-                    <line x1="2" y1="12" x2="6" y2="12"></line>
-                    <line x1="18" y1="12" x2="22" y2="12"></line>
-                    <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
-                    <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                    <polyline points="10 9 9 9 8 9"></polyline>
-                  </svg>
-                )}
-                {loading.sitrep ? 'Generating...' : 'Download Complete AI Report'}
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                Operational Outlook
+              </button>
+
+              {/* Prediction Dashboard Button */}
+              <button
+                onClick={() => setShowPredictions(true)}
+                disabled={!filteredDisasters.length}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: !filteredDisasters.length ? 'var(--aidstack-slate-light)' : 'var(--aidstack-navy)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '8px 12px',
+                  cursor: !filteredDisasters.length ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  fontFamily: "'Inter', sans-serif"
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                  <polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
+                  <polyline points="7.5 19.79 7.5 14.6 3 12"></polyline>
+                  <polyline points="21 12 16.5 14.6 16.5 19.79"></polyline>
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                  <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+                View Forecast
               </button>
             </div>
             
@@ -1792,9 +1819,9 @@ export default function Home() {
             </div>
             
             <div style={{ marginBottom: '12px', backgroundColor: '#ffebee', padding: '10px', borderRadius: '4px' }}>
-              <h4 style={{ fontSize: '14px', color: 'var(--aidstack-orange)', marginBottom: '5px', fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>7. Download Complete AI Report</h4>
+              <h4 style={{ fontSize: '14px', color: 'var(--aidstack-orange)', marginBottom: '5px', fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>7. Operational Outlook</h4>
               <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
-                Click the <strong>Download Complete AI Report</strong> button in the dashboard header to generate a comprehensive Word document that includes all AI-generated content: situation report, facility-specific recommendations, and detailed analysis.
+                Click the <strong>Operational Outlook</strong> button to generate a forward-looking humanitarian analysis. The AI analyzes current signals, identifies humanitarian drivers, describes possible developments (most likely, escalation, and stabilization scenarios), and provides operational implications.
               </p>
             </div>
           </div>
@@ -1840,7 +1867,7 @@ export default function Home() {
                 Download reports in Word format for easy sharing with stakeholders
               </li>
               <li style={{ marginBottom: '8px' }}>
-                For comprehensive reporting, use the "Download Complete AI Report" button to combine all AI-generated content into one document
+                Use the "Operational Outlook" button for forward-looking humanitarian analysis that combines predictions, current signals, humanitarian drivers, possible scenarios, and operational implications
               </li>
               <li style={{ marginBottom: '8px' }}>
                 Click the map legend to filter disasters by type
@@ -1888,17 +1915,49 @@ export default function Home() {
           onAcledUpload={handleAcledUpload}
           onClearAcledCache={handleClearAcledCache}
           onToggleAcled={handleToggleAcled}
+          districts={districts}
+          onDistrictsLoaded={setDistricts}
           onAcledConfigChange={handleAcledConfigChange}
           operationType={operationType}
           onOperationTypeChange={setOperationType}
+          onDistrictClick={(district) => {
+            setSelectedDistrictForForecast(district);
+            setShowPredictions(true);
+          }}
         />
 
         {selectedFacility && (
-          <RecommendationsPanel 
+          <RecommendationsPanel
             facility={selectedFacility}
             recommendations={recommendations}
             loading={loading.recommendations}
             isAIGenerated={recommendationsAIGenerated}
+          />
+        )}
+
+        {/* Prediction Dashboard */}
+        {showPredictions && (
+          <PredictionDashboard
+            facilities={facilities}
+            disasters={filteredDisasters}
+            districts={districts}
+            acledData={acledData}
+            selectedDistrict={selectedDistrictForForecast}
+            onClose={() => {
+              setShowPredictions(false);
+              setSelectedDistrictForForecast(null); // Clear selected district when closing
+            }}
+          />
+        )}
+
+        {/* Operational Outlook Dashboard */}
+        {showOperationalOutlook && (
+          <OperationalOutlook
+            facilities={facilities}
+            disasters={filteredDisasters}
+            acledData={acledData}
+            districts={districts}
+            onClose={() => setShowOperationalOutlook(false)}
           />
         )}
 

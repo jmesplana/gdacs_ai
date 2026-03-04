@@ -1,0 +1,682 @@
+/**
+ * Operational Outlook API
+ * Generates forward-looking humanitarian analysis based on current situation
+ */
+
+import OpenAI from 'openai';
+
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const {
+    facilities = [],
+    disasters = [],
+    acledData = [],
+    districts = [],
+    predictions = null, // Optional: predictions from disaster-forecast, outbreak-prediction, supply-chain-forecast
+  } = req.body;
+
+  if (!openai) {
+    return res.status(503).json({
+      error: 'AI service not available',
+      message: 'OpenAI API key not configured'
+    });
+  }
+
+  try {
+    // Extract country/region from shapefile for web search
+    let country = null;
+    let region = null;
+    if (districts && districts.length > 0) {
+      const firstDistrict = districts[0].properties || {};
+      country = firstDistrict.ADM0_EN || firstDistrict.COUNTRY || firstDistrict.Country ||
+                firstDistrict.admin0Name || firstDistrict.country || null;
+      region = firstDistrict.ADM1_EN || firstDistrict.REGION || firstDistrict.Region ||
+               firstDistrict.admin1Name || firstDistrict.region || null;
+    }
+
+    // Perform web search for recent humanitarian events if we have a country
+    let webSearchResults = null;
+    if (country) {
+      try {
+        const searchQuery = `${country} humanitarian crisis disaster conflict ${new Date().getFullYear()}`;
+        console.log(`🔍 Searching web for: "${searchQuery}"`);
+        webSearchResults = await performWebSearch(searchQuery);
+      } catch (searchError) {
+        console.warn('Web search failed:', searchError);
+        // Continue without web search results
+      }
+    }
+
+    // Build context from available data
+    const context = buildAnalysisContext(facilities, disasters, acledData, districts, predictions, webSearchResults, country);
+
+    console.log('Generating operational outlook with context:', {
+      facilities: facilities.length,
+      disasters: disasters.length,
+      acledEvents: acledData.length,
+      districts: districts.length,
+      hasPredictions: !!predictions,
+      country: country,
+      hasWebSearch: !!webSearchResults
+    });
+
+    // Generate outlook using AI
+    const outlook = await generateOutlook(context);
+
+    return res.status(200).json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      outlook,
+      context: {
+        facilitiesAnalyzed: facilities.length,
+        disastersMonitored: disasters.length,
+        securityEvents: acledData.length,
+        districtsIncluded: districts.length,
+        country: country,
+        hasWebSearch: !!webSearchResults
+      }
+    });
+
+  } catch (error) {
+    console.error('Operational outlook generation error:', error);
+    return res.status(500).json({
+      error: 'Failed to generate operational outlook',
+      message: error.message
+    });
+  }
+}
+
+/**
+ * Web search function using DuckDuckGo (same as chat.js)
+ */
+async function performWebSearch(query) {
+  try {
+    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`);
+    }
+
+    const html = await response.text();
+
+    // Parse DDG HTML results
+    const results = [];
+    const resultRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/g;
+    const snippetRegex = /<a[^>]*class="result__snippet"[^>]*>(.*?)<\/a>/g;
+
+    let match;
+    let count = 0;
+    while ((match = resultRegex.exec(html)) !== null && count < 5) {
+      const url = match[1];
+      const title = match[2].replace(/<[^>]*>/g, '');
+      results.push({ title, url });
+      count++;
+    }
+
+    // Extract snippets
+    count = 0;
+    while ((match = snippetRegex.exec(html)) !== null && count < results.length) {
+      results[count].snippet = match[1].replace(/<[^>]*>/g, '').trim();
+      count++;
+    }
+
+    if (results.length === 0) {
+      return "No recent web results found.";
+    }
+
+    return results.map((r, i) =>
+      `${i + 1}. ${r.title}\n   ${r.snippet || 'No description available'}\n   Source: ${r.url}`
+    ).join('\n\n');
+
+  } catch (error) {
+    console.error('Web search error:', error);
+    return `Web search unavailable: ${error.message}`;
+  }
+}
+
+/**
+ * Build analysis context from available data
+ */
+function buildAnalysisContext(facilities, disasters, acledData, districts, predictions, webSearchResults, country) {
+  let context = '# CURRENT SITUATION DATA\n\n';
+
+  // Add web search results first for recent context
+  if (webSearchResults && country) {
+    context += `## Recent Events and News (Web Search for ${country})\n\n`;
+    context += webSearchResults;
+    context += '\n\n**Note**: The above information is from recent web sources. Use this to contextualize the analysis below.\n\n';
+  }
+
+  // Geographic coverage from shapefile
+  if (districts && districts.length > 0) {
+    context += `## Geographic Area (Shapefile Data)\n`;
+
+    // Handle both GeoJSON FeatureCollection and array of features
+    let districtFeatures = districts;
+    if (districts.type === 'FeatureCollection' && districts.features) {
+      districtFeatures = districts.features;
+    }
+
+    // Extract country/region from first district
+    const firstDistrict = districtFeatures[0]?.properties || {};
+    const country = firstDistrict.ADM0_EN || firstDistrict.COUNTRY || firstDistrict.Country ||
+                    firstDistrict.admin0Name || firstDistrict.country || 'Unknown';
+    const region = firstDistrict.ADM1_EN || firstDistrict.REGION || firstDistrict.Region ||
+                   firstDistrict.admin1Name || firstDistrict.region || null;
+
+    context += `- Country: ${country}\n`;
+    if (region && region !== country) {
+      context += `- Region: ${region}\n`;
+    }
+    context += `- Total districts: ${districtFeatures.length}\n`;
+
+    // Debug: Log first district to understand structure
+    console.log('First district sample:', JSON.stringify(firstDistrict, null, 2).substring(0, 500));
+
+    // Calculate district risks based on ACLED events (same logic as MapComponent)
+    const enrichedDistricts = calculateDistrictRisks(districtFeatures, acledData);
+
+    // Calculate risk distribution from calculated data
+    const riskDistribution = enrichedDistricts.reduce((acc, d) => {
+      const risk = d.riskLevel || 'none';
+      acc[risk] = (acc[risk] || 0) + 1;
+      return acc;
+    }, {});
+
+    context += `- District Risk Levels:\n`;
+    if (riskDistribution['very-high']) context += `  * Very High Risk: ${riskDistribution['very-high']} districts\n`;
+    if (riskDistribution.high) context += `  * High Risk: ${riskDistribution.high} districts\n`;
+    if (riskDistribution.medium) context += `  * Medium Risk: ${riskDistribution.medium} districts\n`;
+    if (riskDistribution.low) context += `  * Low Risk: ${riskDistribution.low} districts\n`;
+    if (riskDistribution.none) context += `  * No Risk: ${riskDistribution.none} districts\n`;
+
+    // Extract sample district details with events
+    context += `\n### High Risk Districts (Examples):\n`;
+    const highRiskDistricts = enrichedDistricts
+      .filter(d => d.riskLevel === 'very-high' || d.riskLevel === 'high')
+      .slice(0, 5);
+
+    if (highRiskDistricts.length > 0) {
+      highRiskDistricts.forEach(district => {
+        const props = district.properties || {};
+        const name = props.ADM2_EN || props.NAME || props.name || props.district || props.ADM1_EN || props.REGION || 'Unnamed';
+        const risk = district.riskLevel || 'unknown';
+        const eventCount = district.eventCount || 0;
+        const score = district.riskScore || 0;
+        const population = props.population || props.POP || props.Population;
+
+        context += `- **${name}**: ${risk} (${eventCount} events, score: ${score.toFixed(1)})`;
+        if (population) context += ` - Population: ${population.toLocaleString()}`;
+        context += '\n';
+      });
+    } else {
+      context += `No high-risk districts identified based on ACLED conflict data.\n`;
+    }
+
+    // Population data if available
+    const totalPopulation = districtFeatures.reduce((sum, d) => {
+      const pop = d.properties?.population || d.properties?.POP || d.properties?.Population || 0;
+      return sum + (typeof pop === 'number' ? pop : 0);
+    }, 0);
+
+    if (totalPopulation > 0) {
+      context += `\n- Total population (from shapefile): ${totalPopulation.toLocaleString()}\n`;
+    }
+
+    context += '\n';
+  }
+
+  // Facilities
+  if (facilities && facilities.length > 0) {
+    context += `## Health Facilities (Uploaded Data)\n`;
+    context += `- Total facilities: ${facilities.length}\n`;
+
+    // Get facility types
+    const facilityTypes = facilities.reduce((acc, f) => {
+      const type = f.type || f.facility_type || f.Type || 'Unknown';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+
+    context += `- Facility types:\n`;
+    Object.entries(facilityTypes)
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([type, count]) => {
+        context += `  * ${type}: ${count}\n`;
+      });
+
+    // Extract operational status if available
+    const statusCounts = facilities.reduce((acc, f) => {
+      const status = f.status || f.operational_status || f.Status;
+      if (status) {
+        acc[status] = (acc[status] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    if (Object.keys(statusCounts).length > 0) {
+      context += `\n- Operational status:\n`;
+      Object.entries(statusCounts).forEach(([status, count]) => {
+        context += `  * ${status}: ${count}\n`;
+      });
+    }
+
+    // Get geographic distribution
+    const facilitiesByLocation = facilities.reduce((acc, f) => {
+      const district = f.district || f.District || f.admin2 || f.location;
+      if (district) {
+        acc[district] = (acc[district] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    if (Object.keys(facilitiesByLocation).length > 0) {
+      context += `\n- Top locations by facility count:\n`;
+      Object.entries(facilitiesByLocation)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .forEach(([location, count]) => {
+          context += `  * ${location}: ${count} facilities\n`;
+        });
+    }
+
+    context += '\n';
+  }
+
+  // Active disasters - filter to relevant country if we have shapefile data
+  if (disasters && disasters.length > 0) {
+    let relevantDisasters = disasters;
+
+    // If we have a country from shapefile, try to filter disasters to that country
+    if (country) {
+      const countryFiltered = disasters.filter(d => {
+        const disasterCountry = d.country || d.Country || '';
+        return disasterCountry.toLowerCase().includes(country.toLowerCase()) ||
+               country.toLowerCase().includes(disasterCountry.toLowerCase());
+      });
+
+      // Use filtered if we found any, otherwise keep all
+      if (countryFiltered.length > 0) {
+        relevantDisasters = countryFiltered;
+        context += `## Active Disasters (Filtered to ${country})\n`;
+        context += `- Disasters in ${country}: ${relevantDisasters.length}\n`;
+        context += `- Global disasters available: ${disasters.length}\n\n`;
+      } else {
+        context += `## Active Disasters (Global - none specific to ${country})\n`;
+        context += `- Total active disasters worldwide: ${disasters.length}\n`;
+        context += `- **Note**: No disasters specifically matched to ${country}. Showing nearby disasters for context.\n\n`;
+      }
+    } else {
+      context += `## Active Disasters\n`;
+      context += `- Total active disasters: ${disasters.length}\n\n`;
+    }
+
+    relevantDisasters.slice(0, 5).forEach((disaster, idx) => {
+      context += `### Disaster ${idx + 1}: ${disaster.eventName || disaster.title}\n`;
+      context += `- Type: ${disaster.eventType}\n`;
+      context += `- Country: ${disaster.country || 'Unknown'}\n`;
+      context += `- Alert Level: ${disaster.alertLevel || 'Unknown'}\n`;
+      if (disaster.severity) context += `- Severity: ${disaster.severity}\n`;
+      if (disaster.description) context += `- Description: ${disaster.description.substring(0, 200)}...\n`;
+      context += '\n';
+    });
+
+    if (relevantDisasters.length > 5) {
+      context += `... and ${relevantDisasters.length - 5} more disasters\n\n`;
+    }
+  }
+
+  // Security events (ACLED) - with detailed analysis
+  if (acledData && acledData.length > 0) {
+    context += `## Security Events (ACLED Conflict Data)\n`;
+    context += `- Total conflict events in area: ${acledData.length}\n`;
+
+    // Group by event type
+    const eventTypes = acledData.reduce((acc, event) => {
+      const type = event.event_type || 'Unknown';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+
+    context += `\n- Event types:\n`;
+    Object.entries(eventTypes)
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([type, count]) => {
+        const percentage = ((count / acledData.length) * 100).toFixed(1);
+        context += `  * ${type}: ${count} events (${percentage}%)\n`;
+      });
+
+    // Fatalities analysis
+    const totalFatalities = acledData.reduce((sum, event) => {
+      const fatalities = parseInt(event.fatalities) || 0;
+      return sum + fatalities;
+    }, 0);
+
+    if (totalFatalities > 0) {
+      context += `\n- Total fatalities: ${totalFatalities}\n`;
+      context += `- Average fatalities per event: ${(totalFatalities / acledData.length).toFixed(1)}\n`;
+    }
+
+    // Actor analysis
+    const actors = acledData.reduce((acc, event) => {
+      const actor1 = event.actor1 || 'Unknown';
+      if (actor1 !== 'Unknown') {
+        acc[actor1] = (acc[actor1] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    if (Object.keys(actors).length > 0) {
+      context += `\n- Key actors (top 5):\n`;
+      Object.entries(actors)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .forEach(([actor, count]) => {
+          context += `  * ${actor}: ${count} events\n`;
+        });
+    }
+
+    // Temporal analysis - recent trends
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+    const last30Days = acledData.filter(event => {
+      const eventDate = new Date(event.event_date);
+      return eventDate >= thirtyDaysAgo;
+    });
+
+    const previous30Days = acledData.filter(event => {
+      const eventDate = new Date(event.event_date);
+      return eventDate >= sixtyDaysAgo && eventDate < thirtyDaysAgo;
+    });
+
+    context += `\n- Temporal trends:\n`;
+    context += `  * Last 30 days: ${last30Days.length} events\n`;
+    context += `  * Previous 30 days: ${previous30Days.length} events\n`;
+
+    if (previous30Days.length > 0) {
+      const change = ((last30Days.length - previous30Days.length) / previous30Days.length) * 100;
+      const trend = change > 0 ? 'increase' : 'decrease';
+      context += `  * Trend: ${Math.abs(change).toFixed(1)}% ${trend}\n`;
+    }
+
+    // Geographic distribution
+    const eventsByLocation = acledData.reduce((acc, event) => {
+      const location = event.admin2 || event.location || 'Unknown';
+      if (location !== 'Unknown') {
+        acc[location] = (acc[location] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    if (Object.keys(eventsByLocation).length > 0) {
+      context += `\n- Most affected locations:\n`;
+      Object.entries(eventsByLocation)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .forEach(([location, count]) => {
+          context += `  * ${location}: ${count} events\n`;
+        });
+    }
+
+    // Sample recent high-impact events
+    if (last30Days.length > 0) {
+      context += `\n### Recent High-Impact Events (Examples):\n`;
+      last30Days
+        .filter(event => (parseInt(event.fatalities) || 0) > 0)
+        .slice(0, 3)
+        .forEach((event, idx) => {
+          const fatalities = event.fatalities || 0;
+          const location = event.admin2 || event.location || 'Unknown location';
+          context += `${idx + 1}. ${event.event_type} in ${location} (${event.event_date})\n`;
+          if (fatalities > 0) context += `   Fatalities: ${fatalities}\n`;
+          if (event.notes) context += `   Details: ${event.notes.substring(0, 150)}...\n`;
+        });
+    }
+
+    context += '\n';
+  }
+
+  // Predictions (if available)
+  if (predictions) {
+    context += `## Predictive Analysis\n\n`;
+
+    if (predictions.disaster) {
+      context += `### Disaster Forecast\n`;
+      if (predictions.disaster.flood) {
+        context += `- Flood Risk: ${predictions.disaster.flood.riskLevel} (${predictions.disaster.flood.probability}% probability)\n`;
+      }
+      if (predictions.disaster.drought) {
+        context += `- Drought Risk: ${predictions.disaster.drought.riskLevel}\n`;
+      }
+      if (predictions.disaster.cyclone) {
+        context += `- Cyclone Risk: ${predictions.disaster.cyclone.riskLevel}\n`;
+      }
+      context += '\n';
+    }
+
+    if (predictions.outbreak) {
+      context += `### Disease Outbreak Predictions\n`;
+      Object.entries(predictions.outbreak).forEach(([disease, data]) => {
+        if (data.risk) {
+          context += `- ${disease}: ${data.risk} risk (${data.probability}% probability)\n`;
+        }
+      });
+      context += '\n';
+    }
+
+    if (predictions.supplyChain) {
+      context += `### Supply Chain Assessment\n`;
+      context += `- Cold Chain Risk: ${predictions.supplyChain.coldChain?.riskLevel || 'Unknown'}\n`;
+      context += `- Road Access Risk: ${predictions.supplyChain.roadAccess?.riskLevel || 'Unknown'}\n`;
+      context += `- Air Transport Risk: ${predictions.supplyChain.airTransport?.riskLevel || 'Unknown'}\n`;
+      context += '\n';
+    }
+  }
+
+  return context;
+}
+
+/**
+ * Calculate district risks based on ACLED events (same logic as MapComponent)
+ */
+function calculateDistrictRisks(districts, acledData) {
+  if (!acledData || acledData.length === 0) {
+    return districts.map(d => ({ ...d, riskLevel: 'none', riskScore: 0, eventCount: 0 }));
+  }
+
+  return districts.map(district => {
+    const bounds = district.bounds || district.properties?.bounds;
+
+    // Calculate bounds if not provided
+    let districtBounds = bounds;
+    if (!districtBounds && district.geometry) {
+      const coords = district.geometry.coordinates;
+      let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+
+      const processCoord = (coord) => {
+        const [lng, lat] = coord;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+      };
+
+      if (district.geometry.type === 'Polygon') {
+        coords[0].forEach(processCoord);
+      } else if (district.geometry.type === 'MultiPolygon') {
+        coords.forEach(polygon => polygon[0].forEach(processCoord));
+      }
+
+      districtBounds = { minLat, maxLat, minLng, maxLng };
+    }
+
+    let riskScore = 0;
+    let eventCount = 0;
+
+    if (districtBounds && acledData) {
+      // Check ACLED events within district bounds
+      acledData.forEach(event => {
+        const eventLat = parseFloat(event.latitude);
+        const eventLng = parseFloat(event.longitude);
+
+        if (eventLat >= districtBounds.minLat && eventLat <= districtBounds.maxLat &&
+            eventLng >= districtBounds.minLng && eventLng <= districtBounds.maxLng) {
+          eventCount++;
+
+          // Weight by event type
+          const eventType = (event.event_type || '').toLowerCase();
+          if (eventType.includes('battles') || eventType.includes('violence against civilians')) {
+            riskScore += 10;
+          } else if (eventType.includes('explosion')) {
+            riskScore += 8;
+          } else if (eventType.includes('strategic development')) {
+            riskScore += 2;
+          } else {
+            riskScore += 5;
+          }
+
+          // Weight by fatalities
+          const fatalities = parseInt(event.fatalities) || 0;
+          if (fatalities > 10) {
+            riskScore += 10;
+          } else if (fatalities > 5) {
+            riskScore += 7;
+          } else if (fatalities > 0) {
+            riskScore += 3;
+          }
+        }
+      });
+    }
+
+    // Determine risk level
+    let riskLevel;
+    if (riskScore === 0) {
+      riskLevel = 'none';
+    } else if (riskScore < 10) {
+      riskLevel = 'low';
+    } else if (riskScore < 20) {
+      riskLevel = 'medium';
+    } else if (riskScore < 40) {
+      riskLevel = 'high';
+    } else {
+      riskLevel = 'very-high';
+    }
+
+    return {
+      ...district,
+      riskLevel,
+      riskScore,
+      eventCount
+    };
+  });
+}
+
+/**
+ * Generate operational outlook using AI
+ */
+async function generateOutlook(context) {
+  const prompt = `You are a **Humanitarian Analysis Assistant** supporting operational decision-making for humanitarian responders.
+
+Your task is to analyze the current situation and produce a **forward-looking humanitarian outlook** based on available data such as disaster alerts, conflict trends, facility status, and operational access constraints.
+
+**IMPORTANT INSTRUCTIONS**:
+1. **Prioritize the Geographic Area (Shapefile Data) section** - This contains the ACTUAL area of operations with district-level risk assessments
+2. **Use the Recent Events and News (Web Search)** section to provide current, real-time context
+3. **Focus your analysis on the specific country/districts** mentioned in the Geographic Area section
+4. **Reference specific district names** with their risk levels and event counts
+5. **Do NOT focus on global disasters** unless they directly affect the analyzed country
+6. **Integrate ACLED conflict data** with district-level analysis
+
+Do not simply summarize events. Focus on explaining **what humanitarian impacts are likely to occur next and why**, and how they may affect response operations in the SPECIFIC GEOGRAPHIC AREA provided.
+
+Use the following structure:
+
+**1. Situation Overview**
+Briefly describe the current situation in the affected area, including disaster events, conflict trends, and infrastructure status.
+
+**2. Key Signals**
+Identify the most important signals from the available data sources (for example GDACS alerts, ACLED conflict events, facility risk status, operational viability or access constraints).
+
+**3. Humanitarian Drivers**
+Explain the structural factors shaping humanitarian risk, such as:
+* damage to infrastructure or health facilities
+* population exposure and displacement
+* conflict dynamics
+* geographic access constraints
+* seasonal hazards or cascading risks
+
+**4. Possible Developments**
+Describe three plausible developments over the coming weeks or months:
+
+• **Most Likely Scenario** – what is most likely to happen based on current signals
+• **Escalation Scenario** – how the situation could worsen
+• **Stabilization Scenario** – how risks might stabilize or improve
+
+Provide a short narrative for each scenario.
+
+**5. Early Warning Indicators**
+List observable indicators that responders should monitor to understand which scenario may be unfolding.
+
+**6. Operational Implications**
+Explain how the evolving situation may affect humanitarian operations, including:
+* access to affected populations
+* logistics or infrastructure constraints
+* safety and security risks
+* potential humanitarian needs or service disruptions
+
+**7. Key Uncertainties**
+Highlight important unknowns or assumptions due to missing data.
+
+Write clearly and concisely for humanitarian decision makers.
+Focus on **humanitarian impact, operational access, and likely developments**, rather than speculation.
+
+---
+
+Here is the current situation data to analyze:
+
+${context}
+
+---
+
+Generate the operational outlook now:`;
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'system',
+        content: 'You are an expert humanitarian analyst specializing in forward-looking operational assessments. You provide clear, structured analysis focused on humanitarian impact and operational decision-making.'
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    temperature: 0.7,
+    max_tokens: 3000
+  });
+
+  return response.choices[0].message.content;
+}

@@ -9,6 +9,111 @@ export const config = {
   },
 };
 
+// Web search function using DuckDuckGo HTML scraping (no API key needed)
+async function performWebSearch(query) {
+  try {
+    console.log(`🔍 Performing web search for: "${query}"`);
+
+    // Use DuckDuckGo HTML search (no API key required)
+    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`);
+    }
+
+    const html = await response.text();
+
+    // Parse DDG HTML results (simple regex extraction)
+    const results = [];
+    const resultRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/g;
+    const snippetRegex = /<a[^>]*class="result__snippet"[^>]*>(.*?)<\/a>/g;
+
+    let match;
+    let count = 0;
+    while ((match = resultRegex.exec(html)) !== null && count < 5) {
+      const url = match[1];
+      const title = match[2].replace(/<[^>]*>/g, '');
+      results.push({ title, url });
+      count++;
+    }
+
+    // Extract snippets
+    count = 0;
+    while ((match = snippetRegex.exec(html)) !== null && count < results.length) {
+      results[count].snippet = match[1].replace(/<[^>]*>/g, '').trim();
+      count++;
+    }
+
+    console.log(`✅ Found ${results.length} web results`);
+
+    // Format results for AI
+    if (results.length === 0) {
+      return "No web results found for this query.";
+    }
+
+    return results.map((r, i) =>
+      `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.snippet || 'No description available'}`
+    ).join('\n\n');
+
+  } catch (error) {
+    console.error('Web search error:', error);
+    return `Web search failed: ${error.message}`;
+  }
+}
+
+// Get current date and time
+function getCurrentDateTime() {
+  const now = new Date();
+  return {
+    date: now.toISOString().split('T')[0], // YYYY-MM-DD
+    time: now.toUTCString(),
+    timestamp: now.toISOString(),
+    day: now.toLocaleDateString('en-US', { weekday: 'long' }),
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+    dayOfMonth: now.getDate()
+  };
+}
+
+// Define tools for OpenAI function calling
+const tools = [
+  {
+    type: "function",
+    function: {
+      name: "get_current_date",
+      description: "Get the current date and time. Use this when you need to know today's date, the current year, or when discussing 'today', 'now', or 'current' time periods.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_web",
+      description: "Search the web for current information, recent events, statistics, or facts that are not in your training data. Use this when the user asks about recent events, current data, or when you need up-to-date information.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The search query. Be specific and include relevant keywords."
+          }
+        },
+        required: ["query"]
+      }
+    }
+  }
+];
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -60,11 +165,26 @@ export default async function handler(req, res) {
       console.log('❌ ACLED data NOT in context summary');
     }
 
+    // Get current date
+    const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const currentDateTime = new Date().toUTCString();
+
     // Build conversation messages
     const messages = [
       {
         role: "system",
         content: `You are an expert humanitarian aid and disaster response advisor with deep knowledge of:
+
+**📅 CURRENT DATE & TIME**: Today is ${currentDate} (${currentDateTime}). Always use this date when discussing "today", "recent", or "current" events. You also have access to the 'get_current_date' function if you need to verify the current date during the conversation.
+
+**🌐 WEB SEARCH CAPABILITY**: You have access to real-time web search through the 'search_web' function. Use this when:
+- Users ask about recent events, current statistics, or up-to-date information
+- You need to verify or supplement information about ongoing disasters
+- Users request information about recent disease outbreaks, conflict events, or humanitarian situations
+- You need current best practices, recent WHO/CDC guidelines, or latest operational guidance
+- Any information that may have changed since your training data cutoff (January 2025)
+
+Core expertise areas:
 - Disaster management and emergency response
 - Public health programs (malaria, polio, immunization campaigns)
 - SPHERE standards and humanitarian protocols
@@ -177,23 +297,143 @@ Be direct, practical, and specific. Use the context data to give personalized an
         messages: messages,
         temperature: 0.7,
         max_tokens: 1500,
-        stream: true
+        stream: true,
+        tools: tools,
+        tool_choice: "auto"
       });
 
       console.timeEnd('OpenAI stream start');
       console.log('✅ OpenAI stream started, processing chunks...');
 
       let chunkCount = 0;
+      let toolCalls = [];
+
       for await (const chunk of streamResponse) {
-        const content = chunk.choices[0]?.delta?.content;
-        if (content) {
+        const choice = chunk.choices[0];
+        const delta = choice?.delta;
+
+        // Handle text content
+        if (delta?.content) {
           chunkCount++;
           if (chunkCount === 1) {
             console.log('🎉 First chunk received!');
           }
-          res.write(`data: ${JSON.stringify({ content })}\n\n`);
-          // Flush the response to ensure it's sent immediately
+          res.write(`data: ${JSON.stringify({ content: delta.content })}\n\n`);
           if (res.flush) res.flush();
+        }
+
+        // Handle tool calls (function calling)
+        if (delta?.tool_calls) {
+          for (const toolCallDelta of delta.tool_calls) {
+            if (toolCallDelta.index !== undefined) {
+              // New tool call or continuing existing one
+              if (!toolCalls[toolCallDelta.index]) {
+                toolCalls[toolCallDelta.index] = {
+                  id: toolCallDelta.id || '',
+                  type: toolCallDelta.type || 'function',
+                  function: {
+                    name: toolCallDelta.function?.name || '',
+                    arguments: toolCallDelta.function?.arguments || ''
+                  }
+                };
+              } else {
+                // Append to existing tool call
+                if (toolCallDelta.function?.arguments) {
+                  toolCalls[toolCallDelta.index].function.arguments += toolCallDelta.function.arguments;
+                }
+              }
+            }
+          }
+        }
+
+        // Check if finish reason indicates tool calls
+        if (choice?.finish_reason === 'tool_calls' && toolCalls.length > 0) {
+          console.log('🔧 AI requested tool calls:', toolCalls);
+
+          // Execute tool calls
+          const toolResults = [];
+          for (const toolCall of toolCalls) {
+            if (toolCall.function.name === 'get_current_date') {
+              try {
+                const dateInfo = getCurrentDateTime();
+                toolResults.push({
+                  tool_call_id: toolCall.id,
+                  role: 'tool',
+                  name: 'get_current_date',
+                  content: JSON.stringify(dateInfo, null, 2)
+                });
+                console.log('✅ Current date provided:', dateInfo.date);
+              } catch (error) {
+                console.error('Error getting current date:', error);
+                toolResults.push({
+                  tool_call_id: toolCall.id,
+                  role: 'tool',
+                  name: 'get_current_date',
+                  content: `Error: ${error.message}`
+                });
+              }
+            } else if (toolCall.function.name === 'search_web') {
+              try {
+                const args = JSON.parse(toolCall.function.arguments);
+                res.write(`data: ${JSON.stringify({ content: `\n\n🔍 Searching the web for: "${args.query}"...\n\n` })}\n\n`);
+                if (res.flush) res.flush();
+
+                const searchResults = await performWebSearch(args.query);
+                toolResults.push({
+                  tool_call_id: toolCall.id,
+                  role: 'tool',
+                  name: 'search_web',
+                  content: searchResults
+                });
+
+                console.log('✅ Web search completed');
+              } catch (error) {
+                console.error('Error executing web search:', error);
+                toolResults.push({
+                  tool_call_id: toolCall.id,
+                  role: 'tool',
+                  name: 'search_web',
+                  content: `Error: ${error.message}`
+                });
+              }
+            }
+          }
+
+          // Make a second API call with tool results
+          if (toolResults.length > 0) {
+            messages.push({
+              role: 'assistant',
+              tool_calls: toolCalls.map(tc => ({
+                id: tc.id,
+                type: tc.type,
+                function: {
+                  name: tc.function.name,
+                  arguments: tc.function.arguments
+                }
+              }))
+            });
+
+            toolResults.forEach(result => {
+              messages.push(result);
+            });
+
+            // Continue streaming with tool results
+            const followUpStream = await openai.chat.completions.create({
+              model: "gpt-4o",
+              messages: messages,
+              temperature: 0.7,
+              max_tokens: 1500,
+              stream: true
+            });
+
+            for await (const followUpChunk of followUpStream) {
+              const followUpContent = followUpChunk.choices[0]?.delta?.content;
+              if (followUpContent) {
+                res.write(`data: ${JSON.stringify({ content: followUpContent })}\n\n`);
+                if (res.flush) res.flush();
+              }
+            }
+          }
         }
       }
 
@@ -201,17 +441,85 @@ Be direct, practical, and specific. Use the context data to give personalized an
       res.write('data: [DONE]\n\n');
       res.end();
     } else {
-      const response = await openai.chat.completions.create({
+      // Non-streaming mode with function calling support
+      let response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: messages,
         temperature: 0.7,
-        max_tokens: 1500
+        max_tokens: 1500,
+        tools: tools,
+        tool_choice: "auto"
       });
 
-      const aiResponse = response.choices[0].message.content;
+      // Handle function calls if requested
+      let finalResponse = response.choices[0].message;
+
+      if (finalResponse.tool_calls && finalResponse.tool_calls.length > 0) {
+        console.log('🔧 AI requested tool calls (non-streaming)');
+
+        // Add assistant message with tool calls to history
+        messages.push(finalResponse);
+
+        // Execute each tool call
+        for (const toolCall of finalResponse.tool_calls) {
+          if (toolCall.function.name === 'get_current_date') {
+            try {
+              const dateInfo = getCurrentDateTime();
+              console.log(`📅 Providing current date: ${dateInfo.date}`);
+
+              messages.push({
+                tool_call_id: toolCall.id,
+                role: 'tool',
+                name: 'get_current_date',
+                content: JSON.stringify(dateInfo, null, 2)
+              });
+            } catch (error) {
+              console.error('Error getting current date:', error);
+              messages.push({
+                tool_call_id: toolCall.id,
+                role: 'tool',
+                name: 'get_current_date',
+                content: `Error: ${error.message}`
+              });
+            }
+          } else if (toolCall.function.name === 'search_web') {
+            try {
+              const args = JSON.parse(toolCall.function.arguments);
+              console.log(`🔍 Performing web search: "${args.query}"`);
+
+              const searchResults = await performWebSearch(args.query);
+
+              messages.push({
+                tool_call_id: toolCall.id,
+                role: 'tool',
+                name: 'search_web',
+                content: searchResults
+              });
+            } catch (error) {
+              console.error('Error executing web search:', error);
+              messages.push({
+                tool_call_id: toolCall.id,
+                role: 'tool',
+                name: 'search_web',
+                content: `Error: ${error.message}`
+              });
+            }
+          }
+        }
+
+        // Make a second API call with tool results
+        const followUpResponse = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 1500
+        });
+
+        finalResponse = followUpResponse.choices[0].message;
+      }
 
       res.status(200).json({
-        response: aiResponse,
+        response: finalResponse.content,
         isAIGenerated: true
       });
     }

@@ -238,7 +238,10 @@ const MapComponent = ({
   onToggleAcled,
   onAcledConfigChange,
   operationType = 'malaria_control',
-  onOperationTypeChange
+  onOperationTypeChange,
+  districts = [],
+  onDistrictsLoaded,
+  onDistrictClick
 }) => {
   // Map refs - keep these in main component
   const mapRef = useRef(null);
@@ -347,8 +350,7 @@ const MapComponent = ({
   // Campaign Dashboard state
   const [showCampaignDashboard, setShowCampaignDashboard] = useState(false);
 
-  // District boundaries state
-  const [districts, setDistricts] = useState([]);
+  // District boundaries state (districts is now passed as prop)
   const [showDistricts, setShowDistricts] = useState(true);
   const [highlightedDistricts, setHighlightedDistricts] = useState([]);
 
@@ -813,7 +815,7 @@ const MapComponent = ({
         impactedFacilities={impactedFacilities}
         impactStatistics={impactStatistics}
         districts={districts}
-        onDistrictsLoaded={setDistricts}
+        onDistrictsLoaded={onDistrictsLoaded}
         onFileUpload={(file) => {
           console.log('File selected:', file);
           const syntheticEvent = { target: { files: [file] } };
@@ -1191,9 +1193,61 @@ const MapComponent = ({
                   }
                 });
 
+                // Add "View Forecast" button if handler provided
+                if (onDistrictClick) {
+                  popupContent += `
+                    <button
+                      id="district-forecast-btn-${feature.id}"
+                      style="
+                        width: 100%;
+                        margin-top: 12px;
+                        padding: 10px 16px;
+                        background: var(--aidstack-navy);
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        font-family: 'Inter', sans-serif;
+                        transition: background 0.2s;
+                      "
+                      onmouseover="this.style.background='#2D5A7B'"
+                      onmouseout="this.style.background='var(--aidstack-navy)'"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                      </svg>
+                      View District Forecast
+                    </button>
+                  `;
+                }
+
                 popupContent += '</div>';
 
                 layer.bindPopup(popupContent);
+
+                // Add click event listener for the forecast button
+                if (onDistrictClick) {
+                  layer.on('popupopen', () => {
+                    const button = document.getElementById(`district-forecast-btn-${feature.id}`);
+                    if (button) {
+                      button.onclick = () => {
+                        // Find the full district object from the districts array
+                        const fullDistrict = districts.find(d => d.id === feature.id);
+                        if (fullDistrict) {
+                          onDistrictClick(fullDistrict);
+                        }
+                      };
+                    }
+                  });
+                }
               }}
             />
           );
