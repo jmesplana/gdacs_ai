@@ -954,75 +954,203 @@ const WeatherChartView = ({ data, locationInfo }) => {
         </div>
       </div>
 
-      {/* Temperature & Rainfall Chart */}
-      <div style={{ marginBottom: '24px' }}>
+      {/* Temperature Chart */}
+      <div style={{ marginBottom: '16px' }}>
         <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--aidstack-navy)', marginBottom: '12px' }}>
-          14-Day Temperature & Rainfall Forecast
+          14-Day Temperature Forecast
         </h3>
-        <div style={{ background: '#F8FAFC', padding: '20px', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
-          {/* Chart bars */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '200px', marginBottom: '12px' }}>
-            {daily.precipitation_sum.map((rain, idx) => {
-              const rainHeight = maxRain > 0 ? (rain / maxRain) * 180 : 0;
-              const temp = daily.temperature_2m_max[idx];
-              const tempColor = temp > 30 ? '#F59E0B' : temp > 20 ? '#10B981' : '#3B82F6';
+        <div style={{ background: 'linear-gradient(to bottom, #F8FAFC 0%, #FFFFFF 100%)', padding: '24px', borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          {/* Chart Container */}
+          <div style={{ position: 'relative', height: '240px', marginBottom: '20px' }}>
+            {/* Temperature scale on left */}
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 40, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontSize: '11px', color: '#94A3B8', fontWeight: 500 }}>
+              <div>{Math.ceil(maxTemp)}°C</div>
+              <div>{Math.ceil((maxTemp + minTemp) / 2)}°C</div>
+              <div>{Math.floor(minTemp)}°C</div>
+            </div>
 
-              return (
-                <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end' }}>
-                  {/* Rainfall bar */}
-                  <div
-                    style={{
-                      width: '100%',
-                      height: `${rainHeight}px`,
-                      background: 'linear-gradient(180deg, #3B82F6 0%, #1D4ED8 100%)',
-                      borderRadius: '4px 4px 0 0',
-                      marginBottom: '4px',
-                      transition: 'all 0.3s',
+            {/* Chart area */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '100%', paddingLeft: '40px', paddingRight: '20px', paddingBottom: '40px' }}>
+              {daily.temperature_2m_max.map((tempMax, idx) => {
+                const tempMin = daily.temperature_2m_min[idx];
+                const tempRange = maxTemp - minTemp;
+
+                // Calculate positions (bottom to top)
+                const maxTempPos = tempRange > 0 ? ((tempMax - minTemp) / tempRange) * 180 : 90;
+                const minTempPos = tempRange > 0 ? ((tempMin - minTemp) / tempRange) * 180 : 90;
+                const tempBarHeight = Math.abs(maxTempPos - minTempPos);
+
+                // Color based on temperature
+                const avgTemp = (tempMax + tempMin) / 2;
+                const tempGradient = avgTemp > 30
+                  ? 'linear-gradient(180deg, #F59E0B 0%, #D97706 100%)'
+                  : avgTemp > 20
+                  ? 'linear-gradient(180deg, #10B981 0%, #059669 100%)'
+                  : 'linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%)';
+
+                return (
+                  <div key={idx} style={{ flex: 1, position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '32px' }}>
+                    {/* Max temperature label */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: `${maxTempPos + 8}px`,
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: avgTemp > 30 ? '#D97706' : avgTemp > 20 ? '#059669' : '#3B82F6',
+                      textShadow: '0 0 3px white, 0 0 3px white'
+                    }}>
+                      {Math.round(tempMax)}°
+                    </div>
+
+                    {/* Temperature range bar (candlestick) */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: `${minTempPos}px`,
+                      width: '18px',
+                      height: `${Math.max(tempBarHeight, 2)}px`,
+                      background: tempGradient,
+                      borderRadius: '10px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      border: '2px solid white'
                     }}
-                    title={`${rain.toFixed(1)}mm`}
-                  ></div>
-                  {/* Temperature indicator */}
-                  <div style={{
-                    width: '20px',
-                    height: '20px',
-                    borderRadius: '50%',
-                    background: tempColor,
-                    marginBottom: '4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '9px',
-                    fontWeight: 700,
-                    color: 'white',
-                  }} title={`${temp.toFixed(1)}°C`}>
-                    {Math.round(temp)}
+                    title={`High: ${tempMax.toFixed(1)}°C, Low: ${tempMin.toFixed(1)}°C`}
+                    ></div>
+
+                    {/* Min temperature label */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: `${minTempPos - 16}px`,
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: avgTemp > 30 ? '#D97706' : avgTemp > 20 ? '#059669' : '#3B82F6',
+                      opacity: 0.7,
+                      textShadow: '0 0 3px white, 0 0 3px white'
+                    }}>
+                      {Math.round(tempMin)}°
+                    </div>
+
+                    {/* Date label */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '-32px',
+                      left: '50%',
+                      fontSize: '9px',
+                      color: '#64748B',
+                      fontWeight: 500,
+                      textAlign: 'center',
+                      whiteSpace: 'nowrap',
+                      transform: 'translateX(-50%) rotate(-45deg)',
+                      transformOrigin: 'center center'
+                    }}>
+                      {new Date(daily.time[idx]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </div>
                   </div>
-                  {/* Date label */}
-                  <div style={{ fontSize: '10px', color: '#64748B', textAlign: 'center', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-                    {new Date(daily.time[idx]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
           {/* Legend */}
-          <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', fontSize: '12px', color: '#64748B', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '24px', justifyContent: 'center', fontSize: '12px', color: '#64748B', flexWrap: 'wrap', paddingTop: '12px', borderTop: '1px solid #E5E7EB' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '18px', height: '18px', background: 'linear-gradient(180deg, #F59E0B 0%, #D97706 100%)', borderRadius: '10px', border: '2px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}></div>
+              <span style={{ fontWeight: 500 }}>Hot (&gt;30°C)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '18px', height: '18px', background: 'linear-gradient(180deg, #10B981 0%, #059669 100%)', borderRadius: '10px', border: '2px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}></div>
+              <span style={{ fontWeight: 500 }}>Warm (20-30°C)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '18px', height: '18px', background: 'linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%)', borderRadius: '10px', border: '2px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}></div>
+              <span style={{ fontWeight: 500 }}>Cool (&lt;20°C)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Rainfall Chart */}
+      <div style={{ marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--aidstack-navy)', marginBottom: '12px' }}>
+          14-Day Rainfall Forecast
+        </h3>
+        <div style={{ background: 'linear-gradient(to bottom, #EFF6FF 0%, #FFFFFF 100%)', padding: '24px', borderRadius: '12px', border: '1px solid #BFDBFE', boxShadow: '0 1px 3px rgba(59,130,246,0.05)' }}>
+          {/* Chart Container */}
+          <div style={{ position: 'relative', height: '120px', marginBottom: '16px' }}>
+            {/* Rainfall scale on left */}
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 30, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontSize: '10px', color: '#3B82F6', fontWeight: 500 }}>
+              <div>{Math.ceil(maxRain)} mm</div>
+              <div>{Math.ceil(maxRain / 2)} mm</div>
+              <div>0 mm</div>
+            </div>
+
+            {/* Chart area */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '100%', paddingLeft: '40px', paddingRight: '20px', paddingBottom: '30px' }}>
+              {daily.precipitation_sum.map((rain, idx) => {
+                const rainHeight = maxRain > 0 ? (rain / maxRain) * 80 : 0;
+
+                return (
+                  <div key={idx} style={{ flex: 1, position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '32px' }}>
+                    {/* Rainfall bar */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      width: '100%',
+                      height: `${rainHeight}px`,
+                      background: rain > 50 ? 'linear-gradient(180deg, #2563EB 0%, #1E40AF 100%)' : 'linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%)',
+                      borderRadius: '4px 4px 0 0',
+                      boxShadow: rain > 0 ? '0 2px 4px rgba(59, 130, 246, 0.2)' : 'none',
+                      transition: 'all 0.3s'
+                    }}
+                    title={`${rain.toFixed(1)}mm`}
+                    ></div>
+
+                    {/* Rainfall amount label (if > 0) */}
+                    {rain > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        bottom: `${rainHeight + 2}px`,
+                        fontSize: '8px',
+                        fontWeight: 700,
+                        color: '#1E40AF',
+                        background: 'rgba(255,255,255,0.95)',
+                        padding: '1px 3px',
+                        borderRadius: '3px',
+                        border: '1px solid #BFDBFE'
+                      }}>
+                        {rain.toFixed(0)}
+                      </div>
+                    )}
+
+                    {/* Date label */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '-24px',
+                      left: '50%',
+                      fontSize: '9px',
+                      color: '#64748B',
+                      fontWeight: 500,
+                      textAlign: 'center',
+                      whiteSpace: 'nowrap',
+                      transform: 'translateX(-50%) rotate(-45deg)',
+                      transformOrigin: 'center center'
+                    }}>
+                      {new Date(daily.time[idx]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', fontSize: '11px', color: '#64748B', paddingTop: '12px', borderTop: '1px solid #BFDBFE' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '12px', height: '12px', background: '#3B82F6', borderRadius: '2px' }}></div>
-              <span>Rainfall (mm)</span>
+              <div style={{ width: '14px', height: '14px', background: 'linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%)', borderRadius: '3px' }}></div>
+              <span style={{ fontWeight: 500 }}>Light Rain (&lt;50mm)</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '12px', height: '12px', background: '#F59E0B', borderRadius: '50%' }}></div>
-              <span>Temp &gt;30°C</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '12px', height: '12px', background: '#10B981', borderRadius: '50%' }}></div>
-              <span>Temp 20-30°C</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '12px', height: '12px', background: '#3B82F6', borderRadius: '50%' }}></div>
-              <span>Temp &lt;20°C</span>
+              <div style={{ width: '14px', height: '14px', background: 'linear-gradient(180deg, #2563EB 0%, #1E40AF 100%)', borderRadius: '3px' }}></div>
+              <span style={{ fontWeight: 500 }}>Heavy Rain (&gt;50mm)</span>
             </div>
           </div>
         </div>

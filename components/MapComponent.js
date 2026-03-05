@@ -241,7 +241,8 @@ const MapComponent = ({
   onOperationTypeChange,
   districts = [],
   onDistrictsLoaded,
-  onDistrictClick
+  onDistrictClick,
+  onDistrictOutlookClick
 }) => {
   // Map refs - keep these in main component
   const mapRef = useRef(null);
@@ -1116,7 +1117,7 @@ const MapComponent = ({
                   weight: isHighlighted ? 4 : 3, // Increased from 2 to 3
                   opacity: isHighlighted ? 1 : 1, // Changed from 0.8 to 1 for fully visible borders
                   fillColor: getRiskColor(riskLevel),
-                  fillOpacity: isHighlighted ? 0.7 : (riskLevel === 'none' ? 0 : 0.5), // Changed from 0.1 to 0 - no fill for no-risk districts, only borders
+                  fillOpacity: isHighlighted ? 0.7 : (riskLevel === 'none' ? 0.2 : 0.5), // Minimum 0.2 opacity for all districts to ensure clickability
                   className: isHighlighted ? 'highlighted-district' : ''
                 };
               }}
@@ -1193,58 +1194,111 @@ const MapComponent = ({
                   }
                 });
 
-                // Add "View Forecast" button if handler provided
-                if (onDistrictClick) {
-                  popupContent += `
-                    <button
-                      id="district-forecast-btn-${feature.id}"
-                      style="
-                        width: 100%;
-                        margin-top: 12px;
-                        padding: 10px 16px;
-                        background: var(--aidstack-navy);
-                        color: white;
-                        border: none;
-                        border-radius: 6px;
-                        font-size: 14px;
-                        font-weight: 600;
-                        cursor: pointer;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        gap: 8px;
-                        font-family: 'Inter', sans-serif;
-                        transition: background 0.2s;
-                      "
-                      onmouseover="this.style.background='#2D5A7B'"
-                      onmouseout="this.style.background='var(--aidstack-navy)'"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                      </svg>
-                      View District Forecast
-                    </button>
-                  `;
+                // Add action buttons if handlers provided
+                if (onDistrictClick || onDistrictOutlookClick) {
+                  popupContent += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">`;
+
+                  // View Forecast button
+                  if (onDistrictClick) {
+                    popupContent += `
+                      <button
+                        id="district-forecast-btn-${feature.id}"
+                        style="
+                          padding: 10px 12px;
+                          background: var(--aidstack-navy);
+                          color: white;
+                          border: none;
+                          border-radius: 6px;
+                          font-size: 13px;
+                          font-weight: 600;
+                          cursor: pointer;
+                          display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          gap: 6px;
+                          font-family: 'Inter', sans-serif;
+                          transition: background 0.2s;
+                        "
+                        onmouseover="this.style.background='#2D5A7B'"
+                        onmouseout="this.style.background='var(--aidstack-navy)'"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                        Forecast
+                      </button>
+                    `;
+                  }
+
+                  // Operational Outlook button
+                  if (onDistrictOutlookClick) {
+                    popupContent += `
+                      <button
+                        id="district-outlook-btn-${feature.id}"
+                        style="
+                          padding: 10px 12px;
+                          background: var(--aidstack-orange);
+                          color: white;
+                          border: none;
+                          border-radius: 6px;
+                          font-size: 13px;
+                          font-weight: 600;
+                          cursor: pointer;
+                          display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          gap: 6px;
+                          font-family: 'Inter', sans-serif;
+                          transition: background 0.2s;
+                        "
+                        onmouseover="this.style.background='#E55A2B'"
+                        onmouseout="this.style.background='var(--aidstack-orange)'"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        Outlook
+                      </button>
+                    `;
+                  }
+
+                  popupContent += `</div>`;
                 }
 
                 popupContent += '</div>';
 
                 layer.bindPopup(popupContent);
 
-                // Add click event listener for the forecast button
-                if (onDistrictClick) {
+                // Add click event listeners for buttons
+                if (onDistrictClick || onDistrictOutlookClick) {
                   layer.on('popupopen', () => {
-                    const button = document.getElementById(`district-forecast-btn-${feature.id}`);
-                    if (button) {
-                      button.onclick = () => {
-                        // Find the full district object from the districts array
-                        const fullDistrict = districts.find(d => d.id === feature.id);
-                        if (fullDistrict) {
-                          onDistrictClick(fullDistrict);
-                        }
-                      };
+                    // Forecast button handler
+                    if (onDistrictClick) {
+                      const forecastBtn = document.getElementById(`district-forecast-btn-${feature.id}`);
+                      if (forecastBtn) {
+                        forecastBtn.onclick = () => {
+                          const fullDistrict = districts.find(d => d.id === feature.id);
+                          if (fullDistrict) {
+                            onDistrictClick(fullDistrict);
+                          }
+                        };
+                      }
+                    }
+
+                    // Outlook button handler
+                    if (onDistrictOutlookClick) {
+                      const outlookBtn = document.getElementById(`district-outlook-btn-${feature.id}`);
+                      if (outlookBtn) {
+                        outlookBtn.onclick = () => {
+                          const fullDistrict = districts.find(d => d.id === feature.id);
+                          if (fullDistrict) {
+                            onDistrictOutlookClick(fullDistrict);
+                          }
+                        };
+                      }
                     }
                   });
                 }
@@ -1544,7 +1598,19 @@ const MapComponent = ({
         impactedFacilities={impactedFacilities}
         acledData={getFilteredAcledData()} // Use filtered ACLED data
         acledEnabled={acledEnabled}
-        districts={districts} // Pass districts for district-level operation planning
+        districts={(() => {
+          // Enrich districts with risk data before passing to dashboard
+          const districtRisks = calculateDistrictRisks(districts, filteredDisasters, getFilteredAcledData());
+          return districts.map(district => {
+            const risk = districtRisks[district.id] || { level: 'none', score: 0, eventCount: 0 };
+            return {
+              ...district,
+              riskLevel: risk.level,
+              riskScore: risk.score,
+              eventCount: risk.eventCount
+            };
+          });
+        })()} // Pass enriched districts with risk data
         isOpen={showCampaignDashboard}
         onClose={() => setShowCampaignDashboard(false)}
         operationType={operationType}
