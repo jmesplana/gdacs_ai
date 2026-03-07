@@ -1382,8 +1382,9 @@ const MapComponent = ({
             }}
           >
             {facilities.map((facility, idx) => {
+              // Fix: impactedFacilities has structure { facility: {...}, impacts: [...] }
               const isImpacted = impactedFacilities?.some(
-                impacted => impacted.name === facility.name
+                impacted => impacted.facility?.name === facility.name
               );
 
               const markerColor = isImpacted ? '#ff4444' : '#4CAF50';

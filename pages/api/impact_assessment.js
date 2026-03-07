@@ -15,10 +15,19 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { facilities, disasters } = req.body;
-    
-    if (!facilities || !disasters) {
-      return res.status(400).json({ error: 'Missing facilities or disasters data' });
+    const { facilities, disasters, acledEvents = [] } = req.body;
+
+    if (!facilities) {
+      return res.status(400).json({ error: 'Missing facilities data' });
+    }
+
+    // disasters and acledEvents are both optional - at least one should be provided
+    if ((!disasters || disasters.length === 0) && (!acledEvents || acledEvents.length === 0)) {
+      console.log('No disasters or ACLED events provided - returning empty impact assessment');
+      return res.status(200).json({
+        impactedFacilities: [],
+        statistics: { facilitiesImpacted: 0, totalImpacts: 0 }
+      });
     }
     
     // Process CSV data
@@ -52,9 +61,9 @@ export default async function handler(req, res) {
       facilityData = facilities;
     }
     
-    // Assess impact
-    const assessmentResult = assessImpact(facilityData, disasters);
-    
+    // Assess impact with both GDACS disasters and ACLED events
+    const assessmentResult = assessImpact(facilityData, disasters || [], acledEvents || []);
+
     res.status(200).json({
       impactedFacilities: assessmentResult.impactedFacilities,
       statistics: assessmentResult.statistics
@@ -65,51 +74,70 @@ export default async function handler(req, res) {
   }
 }
 
-function assessImpact(facilities, disasters) {
+function assessImpact(facilities, disasters, acledEvents) {
   console.time('Impact assessment total');
   const impacted = [];
   const disasterStats = {};
   const overlappingDisasters = {};
 
-  console.log(`Starting assessment: ${facilities.length} facilities vs ${disasters.length} disasters`);
+  // Combine GDACS disasters and ACLED events into a single threat array
+  // ACLED events need to be converted to disaster-like format for processing
+  const acledThreats = acledEvents.map(event => ({
+    eventType: event.event_type || 'Security Event',
+    eventName: event.event_type || 'ACLED Event',
+    title: `${event.event_type} - ${event.sub_event_type}`,
+    latitude: parseFloat(event.latitude),
+    longitude: parseFloat(event.longitude),
+    alertLevel: 'Orange', // Treat ACLED events as medium-high severity
+    severity: 'Moderate',
+    source: 'ACLED',
+    event_date: event.event_date,
+    fatalities: event.fatalities || 0,
+    notes: event.notes
+  }));
 
-  // Pre-process disasters to collect statistics
-  console.time('Pre-process disasters');
-  for (const disaster of disasters) {
-    if (!disaster.latitude || !disaster.longitude) continue;
+  const allThreats = [...disasters, ...acledThreats];
 
-    const disasterId = disaster.eventName || disaster.title || `${disaster.eventType}-${disaster.latitude}-${disaster.longitude}`;
-    disasterStats[disasterId] = {
-      type: disaster.eventType,
-      alertLevel: disaster.alertLevel || 'Unknown',
-      name: disaster.eventName || disaster.title || 'Unnamed',
+  console.log(`Starting assessment: ${facilities.length} facilities vs ${disasters.length} GDACS disasters + ${acledEvents.length} ACLED events = ${allThreats.length} total threats`);
+
+  // Pre-process all threats (GDACS + ACLED) to collect statistics
+  console.time('Pre-process threats');
+  for (const threat of allThreats) {
+    if (!threat.latitude || !threat.longitude) continue;
+
+    const threatId = threat.eventName || threat.title || `${threat.eventType}-${threat.latitude}-${threat.longitude}`;
+    disasterStats[threatId] = {
+      type: threat.eventType,
+      alertLevel: threat.alertLevel || 'Unknown',
+      name: threat.eventName || threat.title || 'Unnamed',
       affectedFacilities: 0,
-      impactArea: calculateImpactArea(disaster),
-      severity: disaster.severity || disaster.alertLevel || 'Unknown',
-      polygon: hasValidPolygon(disaster)
+      impactArea: calculateImpactArea(threat),
+      severity: threat.severity || threat.alertLevel || 'Unknown',
+      polygon: hasValidPolygon(threat),
+      source: threat.source || 'GDACS'
     };
   }
-  console.timeEnd('Pre-process disasters');
+  console.timeEnd('Pre-process threats');
 
   // Process each facility
   console.time('Process facilities');
 
-  // Pre-calculate impact radii and bounding boxes for disasters (optimization)
-  const disasterData = disasters.map(disaster => {
-    if (!disaster.latitude || !disaster.longitude) return null;
+  // Pre-calculate impact radii and bounding boxes for all threats (optimization)
+  const threatData = allThreats.map(threat => {
+    if (!threat.latitude || !threat.longitude) return null;
 
-    const impactRadius = getImpactRadius(disaster);
+    const impactRadius = getImpactRadius(threat);
     return {
-      disaster,
-      lat: parseFloat(disaster.latitude),
-      lng: parseFloat(disaster.longitude),
+      disaster: threat, // Keep property name as 'disaster' for compatibility
+      lat: parseFloat(threat.latitude),
+      lng: parseFloat(threat.longitude),
       radius: impactRadius,
       // Bounding box for quick rejection (approximate degrees per km at equator)
-      minLat: parseFloat(disaster.latitude) - (impactRadius / 111),
-      maxLat: parseFloat(disaster.latitude) + (impactRadius / 111),
-      minLng: parseFloat(disaster.longitude) - (impactRadius / (111 * Math.cos(disaster.latitude * Math.PI / 180))),
-      maxLng: parseFloat(disaster.longitude) + (impactRadius / (111 * Math.cos(disaster.latitude * Math.PI / 180))),
-      disasterId: disaster.eventName || disaster.title || `${disaster.eventType}-${disaster.latitude}-${disaster.longitude}`
+      minLat: parseFloat(threat.latitude) - (impactRadius / 111),
+      maxLat: parseFloat(threat.latitude) + (impactRadius / 111),
+      minLng: parseFloat(threat.longitude) - (impactRadius / (111 * Math.cos(threat.latitude * Math.PI / 180))),
+      maxLng: parseFloat(threat.longitude) + (impactRadius / (111 * Math.cos(threat.latitude * Math.PI / 180))),
+      disasterId: threat.eventName || threat.title || `${threat.eventType}-${threat.latitude}-${threat.longitude}`
     };
   }).filter(d => d !== null);
 
@@ -121,8 +149,8 @@ function assessImpact(facilities, disasters) {
     const facilityImpacts = [];
     const impactingDisasters = [];
 
-    for (const disasterInfo of disasterData) {
-      const { disaster, lat, lng, radius, minLat, maxLat, minLng, maxLng, disasterId } = disasterInfo;
+    for (const threatInfo of threatData) {
+      const { disaster, lat, lng, radius, minLat, maxLat, minLng, maxLng, disasterId } = threatInfo;
 
       // Quick bounding box check - skip if facility is clearly outside impact area
       if (facilityLat < minLat || facilityLat > maxLat ||
@@ -261,9 +289,36 @@ function calculateImpactArea(disaster) {
 // Helper function to determine impact radius based on disaster type
 function getImpactRadius(disaster) {
   let impactRadius = 0;
-  
+
+  // Handle ACLED security events with localized impact radius
+  if (disaster.source === 'ACLED') {
+    const eventType = disaster.eventType?.toLowerCase() || '';
+    const fatalities = disaster.fatalities || 0;
+
+    // Base radius for ACLED events (smaller than natural disasters)
+    if (eventType.includes('battle') || eventType.includes('violence against civilians')) {
+      impactRadius = 20; // km - battles and violence are localized
+    } else if (eventType.includes('explosion')) {
+      impactRadius = 30; // km - explosions have wider impact
+    } else if (eventType.includes('strategic development') || eventType.includes('protest')) {
+      impactRadius = 10; // km - protests/strategic developments very localized
+    } else {
+      impactRadius = 15; // km - default for other ACLED events
+    }
+
+    // Increase radius if high fatalities
+    if (fatalities > 50) {
+      impactRadius += 20; // Major incident with wider impact
+    } else if (fatalities > 10) {
+      impactRadius += 10; // Significant incident
+    }
+
+    return impactRadius;
+  }
+
+  // GDACS disasters (existing logic)
   if (disaster.eventType?.toLowerCase() === 'eq') {
-    // Earthquake - try to extract magnitude 
+    // Earthquake - try to extract magnitude
     let magnitude = 6.0; // Default magnitude
     const title = disaster.title?.toLowerCase() || '';
     if (title.includes('m=')) {
@@ -276,10 +331,10 @@ function getImpactRadius(disaster) {
         // Use default if parsing fails
       }
     }
-    
+
     // Adjust radius based on magnitude
     impactRadius = magnitude * 50; // km
-    
+
   } else if (disaster.eventType?.toLowerCase() === 'tc') {
     // Tropical Cyclone
     impactRadius = 300; // km
@@ -296,6 +351,6 @@ function getImpactRadius(disaster) {
     // Default for other disaster types
     impactRadius = 100; // km
   }
-  
+
   return impactRadius;
 }

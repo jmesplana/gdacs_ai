@@ -235,6 +235,7 @@ Your role is to:
 
 IMPORTANT:
 - The user has uploaded facility data that is visible in the "FACILITIES LIST" section above. When asked questions like "which facilities have I added" or "what facilities do I have", you should list out the facilities from the FACILITIES LIST in the context, including their names, locations, types, and any other relevant details.
+- **FACILITY DATA FIELDS**: If you see "📊 AI ANALYSIS FIELDS LOADED" in the context, the user has selected specific data fields for you to analyze. The actual data values from these fields are included in each facility's listing above (shown inline after the facility name and location). You MUST use this data to answer questions about facility characteristics, populations, disease prevalence, service coverage, or any other metrics the user asks about.
 - For campaign planning questions, consider: disaster proximity, cold chain risks, access constraints, population displacement, staff safety, and program-specific needs (ACTs for malaria, vaccines for immunization)
 - For malaria programs after floods: ALWAYS recommend 50% increase in ACT/RDT stock, coordinate with WASH for vector control, monitor for 40-60% case surge
 - Provide GO/NO-GO/DELAY/CAUTION recommendations with clear rationale based on AMP and WHO best practices
@@ -643,9 +644,20 @@ function buildContextSummary(context) {
       const totalCount = context.totalFacilities;
       const shownCount = context.facilities.length;
 
-      summary.push(`\nFACILITIES DATABASE (showing ${shownCount} of ${totalCount}):`);
-
       const aiAnalysisFields = context.aiAnalysisFields || [];
+
+      // Debug logging
+      console.log('Building facility list with AI fields:', aiAnalysisFields);
+      if (context.facilities.length > 0) {
+        console.log('Sample facility keys:', Object.keys(context.facilities[0]));
+      }
+
+      if (aiAnalysisFields.length > 0) {
+        summary.push(`\n📊 FACILITIES DATABASE WITH AI ANALYSIS DATA (showing ${shownCount} of ${totalCount}):`);
+        summary.push(`   The following fields are included for each facility: ${aiAnalysisFields.join(', ')}`);
+      } else {
+        summary.push(`\nFACILITIES DATABASE (showing ${shownCount} of ${totalCount}):`);
+      }
 
       // Compact one-line format for each facility
       context.facilities.forEach((facility, idx) => {
@@ -666,13 +678,13 @@ function buildContextSummary(context) {
           parts.push(`(${facility.country})`);
         }
 
-        // Add first 2 analysis fields, truncated
-        aiAnalysisFields.slice(0, 2).forEach(field => {
-          if (facility[field]) {
-            const val = String(facility[field]).length > 25
-              ? String(facility[field]).substring(0, 22) + '...'
+        // Add ALL analysis fields (not just first 2) to ensure AI has complete data
+        aiAnalysisFields.forEach(field => {
+          if (facility[field] !== undefined && facility[field] !== null && facility[field] !== '') {
+            const val = String(facility[field]).length > 30
+              ? String(facility[field]).substring(0, 27) + '...'
               : facility[field];
-            parts.push(`${field}:${val}`);
+            parts.push(`${field}=${val}`);
           }
         });
 
@@ -684,7 +696,10 @@ function buildContextSummary(context) {
       }
 
       if (aiAnalysisFields.length > 0) {
-        summary.push(`\nAvailable fields: ${aiAnalysisFields.join(', ')}`);
+        summary.push(`\n📊 AI ANALYSIS FIELDS LOADED FOR ALL FACILITIES:`);
+        summary.push(`   Fields available: ${aiAnalysisFields.join(', ')}`);
+        summary.push(`   ✅ The data from these fields is included in each facility listing above`);
+        summary.push(`   You can analyze trends, identify patterns, and answer questions about these field values`);
       }
     }
   }

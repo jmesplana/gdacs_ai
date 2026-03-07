@@ -75,6 +75,7 @@ export default function Home() {
   // District boundaries from shapefile upload
   const [districts, setDistricts] = useState([]);
   const [selectedDistrictForForecast, setSelectedDistrictForForecast] = useState(null); // For district-specific forecast
+  const [selectedDistrictForOutlook, setSelectedDistrictForOutlook] = useState(null); // For district-specific operational outlook
 
   // Operation type state (for multi-use humanitarian operations)
   const [operationType, setOperationType] = useState('malaria_control'); // Default to malaria control for backward compatibility
@@ -199,20 +200,31 @@ export default function Home() {
   // Filter disasters when disaster data or date filter changes
   useEffect(() => {
     filterDisastersByDate(dateFilter);
-    
+
     // Debug logging for disaster data
     console.log('Disasters data state:', {
       totalDisasters: disasters.length,
       disastersWithCoordinates: disasters.filter(d => d.latitude && d.longitude).length,
       dateFilter: dateFilter
     });
-    
+
     // Re-assess impact when filter changes if facilities are available
     if (facilities.length > 0) {
       console.log('Auto-refreshing impact assessment due to filter change');
       assessImpact(facilities);
     }
   }, [disasters, dateFilter]);
+
+  // Re-assess impact when ACLED data or enabled state changes
+  useEffect(() => {
+    if (facilities.length > 0) {
+      console.log('ACLED data/state changed - re-assessing facility impacts...', {
+        acledEvents: acledData.length,
+        acledEnabled: acledEnabled
+      });
+      assessImpact(facilities);
+    }
+  }, [acledData, acledEnabled]);
 
   // Initialize with disaster data on mount
   useEffect(() => {
@@ -521,7 +533,7 @@ export default function Home() {
             console.error('Error saving ACLED config:', error);
           }
 
-          // Update state
+          // Update state (useEffect will trigger reassessment automatically)
           setAcledData(validEvents);
           setAcledEnabled(true);
 
@@ -552,6 +564,7 @@ export default function Home() {
         showOnMap: true
       });
       console.log('ACLED cache cleared');
+      // useEffect will trigger reassessment automatically when acledData changes to []
     } catch (error) {
       console.error('Error clearing ACLED cache:', error);
       alert('Failed to clear ACLED cache. Please try again.');
@@ -567,6 +580,7 @@ export default function Home() {
     } catch (error) {
       console.error('Error saving ACLED config:', error);
     }
+    // useEffect will trigger reassessment automatically when acledEnabled changes
   };
 
   // Handle ACLED config changes (date range, etc.)
@@ -668,13 +682,18 @@ export default function Home() {
     try {
       assessImpactRef.current = true;
       setLoading(prev => ({ ...prev, impact: true }));
-      
+
       // Convert facilities to CSV string for API
       const facilitiesCsv = Papa.unparse(facilityData);
-      
+
       // Use filtered disasters instead of all disasters
       const disastersToAssess = filteredDisasters.length > 0 ? filteredDisasters : disasters;
-      
+
+      // Include ACLED events only if enabled and available
+      const acledToAssess = (acledEnabled && acledData && acledData.length > 0) ? acledData : [];
+
+      console.log(`Impact assessment: ${disastersToAssess.length} GDACS disasters + ${acledToAssess.length} ACLED events`);
+
       const response = await fetch('/api/impact_assessment', {
         method: 'POST',
         headers: {
@@ -682,7 +701,8 @@ export default function Home() {
         },
         body: JSON.stringify({
           facilities: facilitiesCsv,
-          disasters: disastersToAssess
+          disasters: disastersToAssess,
+          acledEvents: acledToAssess // May be empty array, API will handle it
         }),
       });
       
@@ -1924,6 +1944,10 @@ export default function Home() {
             setSelectedDistrictForForecast(district);
             setShowPredictions(true);
           }}
+          onDistrictOutlookClick={(district) => {
+            setSelectedDistrictForOutlook(district);
+            setShowOperationalOutlook(true);
+          }}
         />
 
         {selectedFacility && (
@@ -1957,7 +1981,11 @@ export default function Home() {
             disasters={filteredDisasters}
             acledData={acledData}
             districts={districts}
-            onClose={() => setShowOperationalOutlook(false)}
+            selectedDistrict={selectedDistrictForOutlook}
+            onClose={() => {
+              setShowOperationalOutlook(false);
+              setSelectedDistrictForOutlook(null); // Clear selected district when closing
+            }}
           />
         )}
 
