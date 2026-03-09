@@ -26,6 +26,7 @@ export default async function handler(req, res) {
     acledData = [],
     districts = [],
     predictions = null, // Optional: predictions from disaster-forecast, outbreak-prediction, supply-chain-forecast
+    selectedDistrict = null, // Optional: name of single admin level being analyzed
   } = req.body;
 
   if (!openai) {
@@ -61,7 +62,7 @@ export default async function handler(req, res) {
     }
 
     // Build context from available data
-    const context = buildAnalysisContext(facilities, disasters, acledData, districts, predictions, webSearchResults, country);
+    const context = buildAnalysisContext(facilities, disasters, acledData, districts, predictions, webSearchResults, country, selectedDistrict);
 
     console.log('Generating operational outlook with context:', {
       facilities: facilities.length,
@@ -70,11 +71,13 @@ export default async function handler(req, res) {
       districts: districts.length,
       hasPredictions: !!predictions,
       country: country,
-      hasWebSearch: !!webSearchResults
+      hasWebSearch: !!webSearchResults,
+      analysisLevel: selectedDistrict ? 'admin' : 'country',
+      selectedAdmin: selectedDistrict
     });
 
     // Generate outlook using AI
-    const outlook = await generateOutlook(context);
+    const outlook = await generateOutlook(context, selectedDistrict);
 
     return res.status(200).json({
       success: true,
@@ -156,8 +159,16 @@ async function performWebSearch(query) {
 /**
  * Build analysis context from available data
  */
-function buildAnalysisContext(facilities, disasters, acledData, districts, predictions, webSearchResults, country) {
+function buildAnalysisContext(facilities, disasters, acledData, districts, predictions, webSearchResults, country, selectedDistrict) {
   let context = '# CURRENT SITUATION DATA\n\n';
+
+  // Add analysis level indicator
+  if (selectedDistrict) {
+    context += `**ANALYSIS LEVEL**: Admin-level (single administrative unit)\n`;
+    context += `**ADMIN UNIT**: ${selectedDistrict}\n\n`;
+  } else {
+    context += `**ANALYSIS LEVEL**: Country-level (all administrative units)\n\n`;
+  }
 
   // Add web search results first for recent context
   if (webSearchResults && country) {
@@ -187,12 +198,12 @@ function buildAnalysisContext(facilities, disasters, acledData, districts, predi
     if (region && region !== country) {
       context += `- Region: ${region}\n`;
     }
-    context += `- Total districts: ${districtFeatures.length}\n`;
+    context += `- Total admin levels: ${districtFeatures.length}\n`;
 
     // Debug: Log first district to understand structure
-    console.log('First district sample:', JSON.stringify(firstDistrict, null, 2).substring(0, 500));
+    console.log('First admin level sample:', JSON.stringify(firstDistrict, null, 2).substring(0, 500));
 
-    // Calculate district risks based on ACLED events (same logic as MapComponent)
+    // Calculate admin level risks based on ACLED events (same logic as MapComponent)
     const enrichedDistricts = calculateDistrictRisks(districtFeatures, acledData);
 
     // Calculate risk distribution from calculated data
@@ -499,7 +510,7 @@ function buildAnalysisContext(facilities, disasters, acledData, districts, predi
 }
 
 /**
- * Calculate district risks based on ACLED events (same logic as MapComponent)
+ * Calculate admin level risks based on ACLED events (same logic as MapComponent)
  */
 function calculateDistrictRisks(districts, acledData) {
   if (!acledData || acledData.length === 0) {
@@ -596,20 +607,30 @@ function calculateDistrictRisks(districts, acledData) {
 /**
  * Generate operational outlook using AI
  */
-async function generateOutlook(context) {
+async function generateOutlook(context, selectedDistrict) {
+  // Determine analysis level and scope
+  const isAdminLevel = !!selectedDistrict;
+  const analysisScope = isAdminLevel ? `the **${selectedDistrict} admin level**` : 'the **entire operational area**';
+  const geoTerm = isAdminLevel ? 'admin level' : 'country/admin levels';
+
   const prompt = `You are a **Humanitarian Analysis Assistant** supporting operational decision-making for humanitarian responders.
 
 Your task is to analyze the current situation and produce a **forward-looking humanitarian outlook** based on available data such as disaster alerts, conflict trends, facility status, and operational access constraints.
 
-**IMPORTANT INSTRUCTIONS**:
-1. **Prioritize the Geographic Area (Shapefile Data) section** - This contains the ACTUAL area of operations with district-level risk assessments
-2. **Use the Recent Events and News (Web Search)** section to provide current, real-time context
-3. **Focus your analysis on the specific country/districts** mentioned in the Geographic Area section
-4. **Reference specific district names** with their risk levels and event counts
-5. **Do NOT focus on global disasters** unless they directly affect the analyzed country
-6. **Integrate ACLED conflict data** with district-level analysis
+${isAdminLevel ? `**ANALYSIS SCOPE**: You are analyzing a SINGLE administrative unit (${selectedDistrict}). Focus your analysis exclusively on this admin level, not the broader country.` : '**ANALYSIS SCOPE**: You are analyzing the entire operational area (all administrative units).'}
 
-Do not simply summarize events. Focus on explaining **what humanitarian impacts are likely to occur next and why**, and how they may affect response operations in the SPECIFIC GEOGRAPHIC AREA provided.
+**IMPORTANT INSTRUCTIONS**:
+1. **Prioritize the Geographic Area (Shapefile Data) section** - This contains the ACTUAL area of operations with ${geoTerm} risk assessments
+2. **Use the Recent Events and News (Web Search)** section to provide current, real-time context
+3. **Focus your analysis on ${analysisScope}** as specified in the context
+4. **Reference specific ${isAdminLevel ? 'locations within the admin level' : 'admin level names'}** with their risk levels and event counts (e.g., "${isAdminLevel ? 'Northern zone with 4 events' : 'District X with 4 events (score 46)'}")
+5. **Do NOT focus on global disasters** unless they directly affect the analyzed ${geoTerm}
+6. **Integrate ACLED conflict data** with ${geoTerm} analysis
+7. **Include timeframes for each scenario** (e.g., "Most Likely (next 2-4 weeks)", "Escalation (within 1-2 months)")
+8. **Quantify uncertainties** with specific data gaps (e.g., "Limited data on ${geoTerm} water infrastructure" not just "uncertainties remain")
+9. **Explicitly mention web search findings** in Situation Overview or Key Signals if available
+
+Do not simply summarize events. Focus on explaining **what humanitarian impacts are likely to occur next and why**, and how they may affect response operations in ${analysisScope}.
 
 Use the following structure:
 
@@ -628,16 +649,16 @@ Explain the structural factors shaping humanitarian risk, such as:
 * seasonal hazards or cascading risks
 
 **4. Possible Developments**
-Describe three plausible developments over the coming weeks or months:
+Describe three plausible developments with specific timeframes:
 
-• **Most Likely Scenario** – what is most likely to happen based on current signals
-• **Escalation Scenario** – how the situation could worsen
-• **Stabilization Scenario** – how risks might stabilize or improve
+• **Most Likely Scenario (next 2-4 weeks)** – what is most likely to happen based on current signals
+• **Escalation Scenario (within 1-2 months)** – how the situation could worsen
+• **Stabilization Scenario (within 1-2 months)** – how risks might stabilize or improve
 
-Provide a short narrative for each scenario.
+Provide a short narrative for each scenario, including realistic timeframes for when key developments would occur.
 
 **5. Early Warning Indicators**
-List observable indicators that responders should monitor to understand which scenario may be unfolding.
+List specific, observable indicators that responders should monitor to understand which scenario may be unfolding. Be concrete (e.g., "Daily cholera case reports from health facilities" not just "disease indicators", "River gauge levels in northern districts" not just "water levels").
 
 **6. Operational Implications**
 Explain how the evolving situation may affect humanitarian operations, including:
@@ -647,7 +668,7 @@ Explain how the evolving situation may affect humanitarian operations, including
 * potential humanitarian needs or service disruptions
 
 **7. Key Uncertainties**
-Highlight important unknowns or assumptions due to missing data.
+Highlight specific unknowns or data gaps that affect the analysis. Be concrete about what information is missing (e.g., "Limited data on district-level water infrastructure capacity", "Unknown: government drought response budget allocation", "No recent health facility capacity assessments available" instead of generic statements like "uncertainties remain").
 
 Write clearly and concisely for humanitarian decision makers.
 Focus on **humanitarian impact, operational access, and likely developments**, rather than speculation.

@@ -148,7 +148,7 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
       // Process districts locally
       const districts = features.map((feat, idx) => {
         const props = feat.properties || {};
-        const geometry = feat.geometry;
+        let geometry = feat.geometry;
 
         // Try to find district name from common field names
         const districtName = props.NAME || props.DISTRICT || props.District ||
@@ -159,6 +159,39 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
         const country = props.COUNTRY || props.Country || props.ADM0_NAME || props.NAME_0;
         const region = props.REGION || props.Region || props.ADM1_NAME || props.NAME_1;
         const population = props.POPULATION || props.Population || props.POP;
+
+        // Convert LineString to Polygon by closing the ring
+        if (geometry && geometry.type === 'LineString') {
+          console.log(`Converting LineString to Polygon for ${districtName}`);
+          const coords = geometry.coordinates;
+          // Check if first and last points are the same (closed ring)
+          const first = coords[0];
+          const last = coords[coords.length - 1];
+          const isClosed = first[0] === last[0] && first[1] === last[1];
+
+          // If not closed, close it
+          const ring = isClosed ? coords : [...coords, first];
+
+          geometry = {
+            type: 'Polygon',
+            coordinates: [ring]
+          };
+        }
+
+        // Convert MultiLineString to MultiPolygon
+        if (geometry && geometry.type === 'MultiLineString') {
+          console.log(`Converting MultiLineString to MultiPolygon for ${districtName}`);
+          geometry = {
+            type: 'MultiPolygon',
+            coordinates: geometry.coordinates.map(lineCoords => {
+              const first = lineCoords[0];
+              const last = lineCoords[lineCoords.length - 1];
+              const isClosed = first[0] === last[0] && first[1] === last[1];
+              const ring = isClosed ? lineCoords : [...lineCoords, first];
+              return [ring];
+            })
+          };
+        }
 
         // Simplify geometry to reduce size (tolerance = 0.001 degrees ~ 100m)
         let simplifiedGeometry = geometry;

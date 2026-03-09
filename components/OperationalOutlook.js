@@ -10,6 +10,7 @@ const OperationalOutlook = ({
   disasters = [],
   acledData = [],
   districts = [],
+  selectedDistrict = null, // If provided, analyze only this district/admin level
   onClose
 }) => {
   const [loading, setLoading] = useState(true);
@@ -26,16 +27,33 @@ const OperationalOutlook = ({
     setError(null);
 
     try {
-      // Calculate geographic bounds from districts for filtering
+      // If a single district is selected, focus the analysis on that district only
+      let analysisDistricts = districts;
       let geoBounds = null;
-      if (districts && districts.length > 0) {
-        geoBounds = calculateDistrictBounds(districts);
+
+      if (selectedDistrict) {
+        // Admin-level analysis: use only the selected district
+        console.log('Generating admin-level outlook for:', selectedDistrict.name);
+        analysisDistricts = [selectedDistrict];
+
+        // Calculate bounds from just this district
+        if (selectedDistrict.bounds) {
+          geoBounds = selectedDistrict.bounds;
+        } else if (selectedDistrict.geometry) {
+          geoBounds = calculateBoundsFromGeometry(selectedDistrict.geometry);
+        }
+      } else {
+        // Country-level analysis: use all districts
+        console.log('Generating country-level outlook for all districts');
+        if (districts && districts.length > 0) {
+          geoBounds = calculateDistrictBounds(districts);
+        }
       }
 
-      // Filter ACLED data to only the shapefile area
+      // Filter ACLED data to the analysis area (either single district or all districts)
       let filteredAcledData = acledData || [];
       if (geoBounds && acledData && acledData.length > 0) {
-        console.log('Filtering ACLED data to shapefile bounds:', geoBounds);
+        console.log('Filtering ACLED data to bounds:', geoBounds);
         filteredAcledData = acledData.filter(event => {
           const lat = parseFloat(event.latitude);
           const lng = parseFloat(event.longitude);
@@ -128,9 +146,10 @@ const OperationalOutlook = ({
         body: JSON.stringify({
           facilities,
           disasters, // Already filtered by app.js
-          acledData: filteredAcledData, // Filtered to shapefile bounds
-          districts,
-          predictions: predictionsData
+          acledData: filteredAcledData, // Filtered to analysis area bounds
+          districts: analysisDistricts, // Either single district or all districts
+          predictions: predictionsData,
+          selectedDistrict: selectedDistrict ? selectedDistrict.name : null // Signal to API if this is admin-level analysis
         })
       });
 
@@ -175,6 +194,40 @@ const OperationalOutlook = ({
         }
       }
     });
+
+    return {
+      minLat,
+      maxLat,
+      minLng,
+      maxLng
+    };
+  };
+
+  // Calculate bounding box from a single geometry object
+  const calculateBoundsFromGeometry = (geometry) => {
+    let minLat = Infinity, maxLat = -Infinity;
+    let minLng = Infinity, maxLng = -Infinity;
+
+    if (!geometry || !geometry.coordinates) return null;
+
+    const coords = geometry.coordinates;
+
+    const processCoord = (coord) => {
+      const lng = coord[0];
+      const lat = coord[1];
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    };
+
+    if (geometry.type === 'Polygon') {
+      coords[0].forEach(processCoord);
+    } else if (geometry.type === 'MultiPolygon') {
+      coords.forEach(polygon => {
+        polygon[0].forEach(processCoord);
+      });
+    }
 
     return {
       minLat,
@@ -290,7 +343,7 @@ const OperationalOutlook = ({
               color: 'var(--aidstack-navy)',
               fontFamily: "'Inter', sans-serif"
             }}>
-              Operational Outlook
+              {selectedDistrict ? `${selectedDistrict.name} - Operational Outlook` : 'Operational Outlook'}
             </h2>
           </div>
 
