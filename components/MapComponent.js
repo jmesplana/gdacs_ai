@@ -1359,7 +1359,7 @@ const MapComponent = ({
                 html: `<div style="
                   background: ${bgColor};
                   color: white;
-                  border-radius: 50%;
+                  border-radius: 4px;
                   width: ${dimension};
                   height: ${dimension};
                   display: flex;
@@ -1397,7 +1397,7 @@ const MapComponent = ({
                     height: 12px;
                     background-color: ${markerColor};
                     border: 2px solid white;
-                    border-radius: 50%;
+                    border-radius: 2px;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
                   "></div>
                 `,
