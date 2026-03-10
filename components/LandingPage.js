@@ -201,7 +201,7 @@ const LandingPage = () => {
               marginBottom: '32px',
               maxWidth: '540px'
             }}>
-              Plan ahead with AI-powered scenario analysis and predictive forecasts. Monitor disasters, assess risks, and anticipate what's coming next—all in one platform.
+              Plan ahead with AI-powered scenario analysis, weather forecasts, and temporal playback. Monitor disasters, assess risks, and anticipate what's coming next—all in one platform.
             </p>
             <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '40px' }}>
               <Link href="/app">
@@ -727,7 +727,8 @@ const LandingPage = () => {
                 paddingLeft: '20px'
               }}>
                 <li>Operational Outlook with 3 scenarios</li>
-                <li>Disaster & outbreak forecasts</li>
+                <li>Weather forecasts for campaign planning</li>
+                <li>Timeline playback for temporal analysis</li>
                 <li>Real-time web search for current events</li>
                 <li>Early warning indicators to monitor</li>
               </ul>
@@ -889,34 +890,46 @@ const LandingPage = () => {
           }}>
             {[
               {
-                title: 'Campaign Planning',
-                emoji: '🎯',
-                description: 'Plan immunization, WASH, nutrition, or shelter campaigns with forward-looking scenario analysis',
-                features: ['Operational Outlook scenarios', 'District risk visualization', 'Go/No-Go recommendations', 'Predictive disaster forecasts']
+                title: 'Immunization Campaigns',
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2l4 4M7.5 12.5l-4 4M4.5 16.5L2 19l3 3 2.5-2.5M9 6l6 6M16.5 7.5l3-3L22 7l-3 3"/><path d="M7 7l9 9"/></svg>,
+                description: 'Track vaccination coverage, map refusals, quantify missed children, and pause campaigns in conflict zones',
+                features: ['Campaign coverage tracking', 'Refusal hotspot mapping', 'Conflict impact analysis', 'Catch-up needs calculation'],
+                example: 'Calculate total missed children in districts affected by 14+ day interruptions'
               },
               {
-                title: 'Emergency Response',
-                emoji: '🚨',
-                description: 'Rapid deployment decisions with AI-powered scenario planning—anticipate what comes next',
-                features: ['Real-time disaster alerts', 'Escalation scenario planning', 'Early warning indicators', 'Web-sourced current events']
+                title: 'Cholera/OCV Response',
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>,
+                description: 'Joint WASH-OCV planning for flood-affected areas with disease surveillance integration',
+                features: ['Flood-cholera correlation', 'WASH access mapping', 'OCV prioritization', 'Emergency response targeting'],
+                example: 'Identify districts with floods + low WASH + high cholera cases needing urgent intervention'
               },
               {
-                title: 'Safety & Security',
-                emoji: '🛡️',
-                description: 'Monitor conflict zones and protect field teams with ACLED integration',
-                features: ['Conflict event tracking', 'Security incident mapping', 'Event type filtering', 'Trend analysis']
+                title: 'Humanitarian Access',
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+                description: 'Safety assessments for field teams with real-time conflict tracking and district risk scoring',
+                features: ['ACLED conflict events', 'No-go zone identification', 'Route safety scoring', 'Access timeline planning'],
+                example: 'Show which supply routes are safe this week based on recent security incidents'
               },
               {
-                title: 'Logistics & Routes',
-                emoji: '📦',
-                description: 'Plan safe supply routes and avoid disaster/conflict zones',
-                features: ['Route safety assessment', 'Multi-country operations', 'Shapefile boundary import', 'Coordinate system support']
+                title: 'Supply Chain Risk',
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+                description: 'Identify warehouse vulnerabilities and predict disruptions from disasters and conflict',
+                features: ['Pre-positioning recommendations', 'Route risk assessment', 'Disruption forecasting', 'Multi-hazard analysis'],
+                example: 'Predict supply disruptions for next 2 weeks based on weather patterns and conflict trends'
               },
               {
-                title: 'Strategic Planning',
-                emoji: '📊',
-                description: 'Forward-looking operational viability with scenario-based planning',
-                features: ['District dashboard', 'Scenario-based planning', 'Outbreak predictions', 'Supply chain forecasts']
+                title: 'Disease Surveillance',
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+                description: 'Map outbreak hotspots, track transmission patterns, and plan rapid response deployments',
+                features: ['Case clustering analysis', 'Transmission corridors', 'Coverage gap correlation', 'Zero-dose targeting'],
+                example: 'Identify polio transmission corridors and recommend rapid response team locations'
+              },
+              {
+                title: 'Multi-Sector Assessment',
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+                description: 'Integrated analysis across health, WASH, protection, and shelter with weather-aware forward-looking scenarios',
+                features: ['Operational Outlook', 'Weather-integrated planning', 'Timeline playback analysis', 'Early warning indicators'],
+                example: 'Generate operational outlook with weather forecasts to plan campaigns for the next 2 weeks'
               }
             ].map((useCase, idx) => (
               <div key={idx} style={{
@@ -940,11 +953,10 @@ const LandingPage = () => {
               }}
               >
                 <div style={{
-                  fontSize: '48px',
                   marginBottom: '20px',
                   lineHeight: 1
                 }}>
-                  {useCase.emoji}
+                  {useCase.icon}
                 </div>
                 <h3 style={{
                   fontFamily: "'Space Grotesk', sans-serif",
@@ -969,6 +981,7 @@ const LandingPage = () => {
                   lineHeight: '2',
                   paddingLeft: 0,
                   margin: 0,
+                  marginBottom: '20px',
                   listStyle: 'none'
                 }}>
                   {useCase.features.map((item, i) => (
@@ -984,8 +997,300 @@ const LandingPage = () => {
                     </li>
                   ))}
                 </ul>
+                {useCase.example && (
+                  <div style={{
+                    marginTop: '16px',
+                    padding: '12px 16px',
+                    background: '#F8FAFC',
+                    borderLeft: '3px solid #FF6B35',
+                    borderRadius: '6px'
+                  }}>
+                    <div style={{
+                      fontSize: '11px',
+                      color: '#FF6B35',
+                      fontWeight: 700,
+                      letterSpacing: '0.5px',
+                      marginBottom: '4px',
+                      textTransform: 'uppercase'
+                    }}>
+                      Example Query
+                    </div>
+                    <div style={{
+                      fontSize: '13px',
+                      color: '#475569',
+                      lineHeight: '1.6',
+                      fontStyle: 'italic'
+                    }}>
+                      "{useCase.example}"
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works - Data Flexibility Section */}
+      <section style={{
+        padding: '100px 20px',
+        background: 'white'
+      }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '60px' }}>
+            <div style={{
+              display: 'inline-block',
+              background: '#1A365D',
+              color: 'white',
+              padding: '6px 16px',
+              borderRadius: '20px',
+              fontSize: '13px',
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              marginBottom: '20px',
+              fontFamily: "'Inter', sans-serif"
+            }}>
+              DATA-AGNOSTIC APPROACH
+            </div>
+            <h2 style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontWeight: 700,
+              fontSize: '48px',
+              color: '#0F172A',
+              marginBottom: '20px',
+              letterSpacing: '-0.01em'
+            }}>
+              Upload <span style={{ color: '#FF6B35' }}>Any Data</span>, Get Instant Intelligence
+            </h2>
+            <p style={{
+              fontSize: '20px',
+              color: '#475569',
+              maxWidth: '700px',
+              margin: '0 auto',
+              lineHeight: '1.7'
+            }}>
+              No custom development needed. Upload any CSV with coordinates and select which columns to analyze.
+            </p>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '24px',
+            marginBottom: '60px'
+          }}>
+            {[
+              {
+                step: '1',
+                title: 'Upload Your Data',
+                description: 'Any CSV with lat/long: facilities, vaccination sites, warehouses, disease cases, etc.',
+                icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              },
+              {
+                step: '2',
+                title: 'Select AI Fields',
+                description: 'Choose columns for AI analysis: population, coverage, cases, refusals, partner, etc.',
+                icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+              },
+              {
+                step: '3',
+                title: 'Add Context Layers',
+                description: 'Upload ACLED conflict data and admin boundaries for district-level risk assessment',
+                icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              },
+              {
+                step: '4',
+                title: 'Ask Questions',
+                description: 'Natural language queries: "Which districts need catch-up campaigns?"',
+                icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              }
+            ].map((step, idx) => (
+              <div key={idx} style={{
+                background: '#F8FAFC',
+                padding: '28px',
+                borderRadius: '12px',
+                border: '2px solid #E5E7EB',
+                position: 'relative'
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  top: '-12px',
+                  left: '20px',
+                  background: '#FF6B35',
+                  color: 'white',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: '14px'
+                }}>
+                  {step.step}
+                </div>
+                <div style={{ marginBottom: '12px' }}>{step.icon}</div>
+                <h4 style={{
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontWeight: 700,
+                  fontSize: '18px',
+                  color: '#1A365D',
+                  marginBottom: '8px'
+                }}>
+                  {step.title}
+                </h4>
+                <p style={{
+                  fontSize: '14px',
+                  color: '#64748B',
+                  lineHeight: '1.6',
+                  margin: 0
+                }}>
+                  {step.description}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Visual Guide */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1A365D 0%, #2D4A7C 100%)',
+            borderRadius: '16px',
+            padding: '48px',
+            color: 'white'
+          }}>
+            <h3 style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontWeight: 700,
+              fontSize: '28px',
+              marginBottom: '32px',
+              textAlign: 'center'
+            }}>
+              Visual Differentiation at a Glance
+            </h3>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '32px'
+            }}>
+              {[
+                {
+                  label: 'Facilities',
+                  shape: 'square',
+                  colors: [
+                    { label: 'Safe', color: '#4CAF50' },
+                    { label: 'Impacted', color: '#ff4444' }
+                  ],
+                  description: 'Square markers'
+                },
+                {
+                  label: 'ACLED Events',
+                  shape: 'circle',
+                  colors: [
+                    { label: 'Battles', color: '#d32f2f' },
+                    { label: 'Violence', color: '#ff6f00' },
+                    { label: 'Protests', color: '#fbc02d' }
+                  ],
+                  description: 'Circular markers'
+                },
+                {
+                  label: 'District Risk',
+                  shape: 'polygon',
+                  colors: [
+                    { label: 'None', color: '#4A90E2' },
+                    { label: 'Low', color: '#7cb342' },
+                    { label: 'Medium', color: '#fdd835' },
+                    { label: 'High', color: '#fb8c00' },
+                    { label: 'Very High', color: '#e53935' }
+                  ],
+                  description: 'Filled polygons'
+                }
+              ].map((item, idx) => (
+                <div key={idx} style={{
+                  textAlign: 'center',
+                  padding: '20px',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)'
+                }}>
+                  <div style={{
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    marginBottom: '12px',
+                    fontFamily: "'Space Grotesk', sans-serif"
+                  }}>
+                    {item.label}
+                  </div>
+                  <div style={{
+                    fontSize: '13px',
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    marginBottom: '12px',
+                    fontStyle: 'italic'
+                  }}>
+                    {item.description}
+                  </div>
+                  <div style={{
+                    fontSize: '12px',
+                    lineHeight: '1.8',
+                    color: 'rgba(255, 255, 255, 0.9)'
+                  }}>
+                    {item.colors.map((colorItem, i) => (
+                      <div key={i} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px'
+                      }}>
+                        <div style={{
+                          width: '12px',
+                          height: '12px',
+                          background: colorItem.color,
+                          borderRadius: item.shape === 'circle' ? '50%' : item.shape === 'square' ? '2px' : '1px',
+                          border: '1px solid rgba(255, 255, 255, 0.3)'
+                        }}></div>
+                        <span>{colorItem.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Documentation Link */}
+          <div style={{
+            marginTop: '48px',
+            textAlign: 'center'
+          }}>
+            <a
+              href="https://github.com/jmesplana/gdacs_ai/blob/main/IMMUNIZATION_USE_CASE.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ textDecoration: 'none' }}
+            >
+              <button style={{
+                background: 'white',
+                border: '2px solid #FF6B35',
+                color: '#FF6B35',
+                padding: '14px 32px',
+                borderRadius: '8px',
+                fontSize: '16px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                fontFamily: "'Space Grotesk', sans-serif"
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = '#FF6B35';
+                e.target.style.color = 'white';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'white';
+                e.target.style.color = '#FF6B35';
+              }}
+              >
+                📖 Read the Immunization Use Case Guide
+              </button>
+            </a>
           </div>
         </div>
       </section>
@@ -1107,12 +1412,12 @@ const LandingPage = () => {
                 description: 'System calculates which facilities fall within disaster impact radii and highlights affected districts'
               },
               {
-                title: 'Get Operational Outlook',
-                description: 'AI generates 3 scenarios (most likely, escalation, stabilization) with early warning indicators to monitor'
+                title: 'Get Weather-Aware Operational Outlook',
+                description: 'AI generates 3 scenarios with weather forecasts, flood risks, and heat stress warnings for the next 2 weeks'
               },
               {
-                title: 'View Predictive Forecasts',
-                description: 'Access disaster forecasts, outbreak predictions, and supply chain disruption assessments'
+                title: 'Analyze with Timeline Playback',
+                description: 'Replay disaster evolution over time with adjustable speed controls to understand progression patterns'
               }
             ].map((step, idx) => (
               <div key={idx} style={{
@@ -1296,8 +1601,12 @@ const LandingPage = () => {
                 answer: 'The Operational Outlook uses AI to generate forward-looking humanitarian analysis with 3 scenarios (most likely, escalation, stabilization), early warning indicators, and operational implications. It helps you anticipate what\'s coming next, not just what happened.'
               },
               {
-                question: 'What predictive forecasts are available?',
-                answer: 'The platform provides weather-based disaster forecasts (cyclones, floods), disease outbreak predictions, and supply chain disruption assessments. All forecasts integrate with the Operational Outlook for comprehensive scenario planning.'
+                question: 'How does weather forecast integration work?',
+                answer: 'The AI chatbot integrates 2-week weather forecasts for your operational area and districts. It automatically generates warnings for flood risk, disease outbreak conditions, heat stress, and cold chain risks. Ask questions like "Can I run campaigns this week?" or "Which districts have flood risk?"'
+              },
+              {
+                question: 'What is Timeline Playback?',
+                answer: 'Timeline Playback lets you replay disasters and conflict events over time with adjustable speed controls (1x to 10x). Watch how disasters evolved, identify progression patterns, and understand temporal relationships between events. Perfect for after-action reviews and historical analysis.'
               },
               {
                 question: 'How does the AI use real-time web search?',
@@ -1305,7 +1614,7 @@ const LandingPage = () => {
               },
               {
                 question: 'Can I use my own facility data?',
-                answer: 'Yes, upload any CSV or Excel file with name, latitude, and longitude columns. You can also upload shapefiles for district boundaries to get district-level risk assessments.'
+                answer: 'Yes, upload any CSV or Excel file with name, latitude, and longitude columns. You can also upload shapefiles for district boundaries to get district-level risk assessments and weather forecasts.'
               },
               {
                 question: 'Is my data stored on servers?',
