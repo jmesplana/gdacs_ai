@@ -62,6 +62,8 @@ import {
   toggleFullscreen
 } from './MapComponent/utils';
 
+import buildWeatherContext from '../utils/weatherContextBuilder';
+
 // Import constants
 import {
   MAP_LAYERS,
@@ -355,6 +357,10 @@ const MapComponent = ({
   const [showDistricts, setShowDistricts] = useState(true);
   const [highlightedDistricts, setHighlightedDistricts] = useState([]);
 
+  // Weather context state for chatbot
+  const [weatherContext, setWeatherContext] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+
   // Auto-zoom to fit districts when loaded (only once when first loaded)
   const hasZoomedToDistricts = useRef(false);
   useEffect(() => {
@@ -387,6 +393,53 @@ const MapComponent = ({
       }
     }
   }, [districts]);
+
+  // Fetch weather context when chat drawer opens or data changes
+  useEffect(() => {
+    // Only fetch if chat drawer is open and we have facilities
+    if (!showChatDrawer || !facilities || facilities.length === 0) {
+      return;
+    }
+
+    // Avoid refetching if we already have weather data
+    if (weatherContext) {
+      return;
+    }
+
+    const fetchWeather = async () => {
+      setWeatherLoading(true);
+      console.log('Fetching weather context for chatbot...');
+
+      try {
+        // Extract GeoJSON features from districts for weather context
+        const districtFeatures = districts && districts.length > 0
+          ? districts.map(d => ({
+              geometry: d.geometry,
+              properties: {
+                name: d.name,
+                NAME: d.name,
+                DISTRICT: d.name
+              }
+            }))
+          : null;
+
+        const weather = await buildWeatherContext(facilities, districtFeatures);
+
+        if (weather) {
+          console.log('Weather context loaded:', weather);
+          setWeatherContext(weather);
+        } else {
+          console.log('No weather data available');
+        }
+      } catch (error) {
+        console.error('Failed to fetch weather context:', error);
+      } finally {
+        setWeatherLoading(false);
+      }
+    };
+
+    fetchWeather();
+  }, [showChatDrawer, facilities, districts, weatherContext]);
 
   // Function to highlight districts based on criteria from AI chat
   const handleHighlightDistricts = (criteria) => {
@@ -1588,7 +1641,8 @@ const MapComponent = ({
           recentAnalysis: analysisData ? JSON.stringify(analysisData).substring(0, 200) : null,
           acledData: getFilteredAcledData().slice(0, 30), // Reduced ACLED to 30 for performance
           acledEnabled: acledEnabled,
-          acledConfig: acledConfig
+          acledConfig: acledConfig,
+          weatherForecast: weatherContext // Add weather context for chatbot
         }}
       />
 

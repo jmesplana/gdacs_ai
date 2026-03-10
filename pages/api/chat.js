@@ -184,6 +184,13 @@ export default async function handler(req, res) {
 - You need current best practices, recent WHO/CDC guidelines, or latest operational guidance
 - Any information that may have changed since your training data cutoff (January 2025)
 
+**🌤️ WEATHER FORECAST DATA**: You have access to weather forecast data in your context when facilities or districts are loaded:
+- Regional weather forecasts cover the operational area (center point of all facilities)
+- District-level forecasts (when administrative boundaries are uploaded)
+- Use weather data to assess campaign viability, predict disease outbreaks (cholera, malaria), and identify supply chain risks
+- Weather warnings indicate flood risk, extreme temperatures, or conditions affecting operations
+- Integrate weather with disaster data for comprehensive risk assessment
+
 Core expertise areas:
 - Disaster management and emergency response
 - Public health programs (malaria, polio, immunization campaigns)
@@ -702,6 +709,60 @@ function buildContextSummary(context) {
         summary.push(`   You can analyze trends, identify patterns, and answer questions about these field values`);
       }
     }
+  }
+
+  // Weather forecast information
+  if (context.weatherForecast) {
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`WEATHER FORECAST DATA`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+
+    // Regional forecast (Option 1)
+    if (context.weatherForecast.regional) {
+      const regional = context.weatherForecast.regional;
+      summary.push(`\n🌤️ REGIONAL FORECAST (Operational Area):`);
+      summary.push(`   Location: ${regional.location || 'Center of facility area'}`);
+      summary.push(`   Coordinates: ${regional.latitude?.toFixed(2)}°, ${regional.longitude?.toFixed(2)}°`);
+      summary.push(`   Forecast Period: Next ${regional.forecastDays} days`);
+
+      if (regional.summary) {
+        summary.push(`\n   📊 7-Day Summary:`);
+        summary.push(`   • Total Rainfall: ${regional.summary.totalRainfall}mm`);
+        summary.push(`   • Peak Rainfall: ${regional.summary.peakRainfall}mm (${regional.summary.peakRainfallDay})`);
+        summary.push(`   • Temperature Range: ${regional.summary.minTemp}°C to ${regional.summary.maxTemp}°C`);
+        summary.push(`   • Avg Wind Speed: ${regional.summary.avgWindSpeed} km/h`);
+        summary.push(`   • Avg Humidity: ${regional.summary.avgHumidity}%`);
+      }
+
+      if (regional.warnings && regional.warnings.length > 0) {
+        summary.push(`\n   ⚠️ WEATHER WARNINGS:`);
+        regional.warnings.forEach(warning => {
+          summary.push(`   • ${warning}`);
+        });
+      }
+
+      if (regional.operationalImplications && regional.operationalImplications.length > 0) {
+        summary.push(`\n   💡 Operational Implications:`);
+        regional.operationalImplications.forEach(implication => {
+          summary.push(`   • ${implication}`);
+        });
+      }
+    }
+
+    // District-level forecasts (Option 3)
+    if (context.weatherForecast.districts && context.weatherForecast.districts.length > 0) {
+      summary.push(`\n🗺️ DISTRICT-LEVEL WEATHER FORECASTS:`);
+      summary.push(`   Showing weather for ${context.weatherForecast.districts.length} districts`);
+
+      context.weatherForecast.districts.forEach(dist => {
+        const warnings = dist.warnings && dist.warnings.length > 0
+          ? ` ⚠️ ${dist.warnings.join(', ')}`
+          : '';
+        summary.push(`   • ${dist.name}: ${dist.totalRainfall}mm rain, ${dist.avgTemp}°C${warnings}`);
+      });
+    }
+
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   }
 
   // Disaster information
