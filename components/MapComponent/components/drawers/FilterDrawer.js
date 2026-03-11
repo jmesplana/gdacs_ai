@@ -24,6 +24,8 @@ const FilterDrawer = ({
   dateFilter,
   handleDateFilterChange
 }) => {
+  // All possible disaster types (7 total)
+  const allDisasterTypes = ['eq', 'tc', 'fl', 'vo', 'dr', 'wf', 'ts'];
   const availableTypes = getAvailableDisasterTypes(disasters);
 
   return (
@@ -425,14 +427,16 @@ const FilterDrawer = ({
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
-              {availableTypes.map(type => {
+              {allDisasterTypes.map(type => {
                 const info = getDisasterInfo(type);
                 const isActive = visibleDisasterTypes[type];
+                const hasData = availableTypes.includes(type);
 
                 return (
                   <button
                     key={type}
                     onClick={() => toggleDisasterType(type)}
+                    disabled={!hasData}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -440,8 +444,8 @@ const FilterDrawer = ({
                       borderRadius: '20px',
                       border: '1px solid #ddd',
                       backgroundColor: isActive ? 'rgba(26, 54, 93, 0.1)' : '#f5f5f5',
-                      cursor: 'pointer',
-                      opacity: isActive ? 1 : 0.65,
+                      cursor: hasData ? 'pointer' : 'not-allowed',
+                      opacity: hasData ? (isActive ? 1 : 0.65) : 0.3,
                       transition: 'all 0.2s ease',
                       boxShadow: isActive ? '0 2px 5px rgba(26, 54, 93, 0.2)' : 'none',
                       position: 'relative',
@@ -498,13 +502,13 @@ const FilterDrawer = ({
               })}
             </div>
 
-            {availableTypes.length > 0 && (
+            {allDisasterTypes.length > 0 && (
               <button
                 onClick={() => {
-                  const allActive = Object.values(visibleDisasterTypes).every(Boolean);
+                  const allActive = allDisasterTypes.every(type => visibleDisasterTypes[type]);
                   const newState = {};
 
-                  availableTypes.forEach(type => {
+                  allDisasterTypes.forEach(type => {
                     newState[type] = !allActive;
                   });
 
@@ -526,7 +530,7 @@ const FilterDrawer = ({
                   marginTop: '5px'
                 }}
               >
-                {Object.values(visibleDisasterTypes).every(Boolean) ? (
+                {allDisasterTypes.every(type => visibleDisasterTypes[type]) ? (
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -537,7 +541,7 @@ const FilterDrawer = ({
                     <line x1="12" y1="8" x2="12" y2="16"></line>
                   </svg>
                 )}
-                {Object.values(visibleDisasterTypes).every(Boolean) ? 'Hide All Disaster Types' : 'Show All Disaster Types'}
+                {allDisasterTypes.every(type => visibleDisasterTypes[type]) ? 'Hide All Disaster Types' : 'Show All Disaster Types'}
               </button>
             )}
 
@@ -550,7 +554,7 @@ const FilterDrawer = ({
               textAlign: 'center'
             }}>
               <span>
-                {Object.values(visibleDisasterTypes).filter(Boolean).length} of {availableTypes.length} disaster types visible
+                {allDisasterTypes.filter(type => visibleDisasterTypes[type]).length} of {allDisasterTypes.length} disaster types visible
               </span>
             </div>
           </div>

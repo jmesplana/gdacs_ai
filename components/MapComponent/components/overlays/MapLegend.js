@@ -3,8 +3,6 @@ import { useState } from 'react';
 const MapLegend = ({
   showLegend,
   setShowLegend,
-  showTimeline,
-  setShowTimeline,
   showStatistics,
   setShowStatistics,
   showLabels,
@@ -49,30 +47,6 @@ const MapLegend = ({
           <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 13l5.553-2.276A1 1 0 0 0 21 16.382V5.618a1 1 0 0 0-1.447-.894L15 7m0 13V7"></path>
         </svg>
         {showLegend ? 'Hide Legend' : 'Show Legend'}
-      </button>
-
-      {/* Timeline toggle button */}
-      <button
-        onClick={() => setShowTimeline(!showTimeline)}
-        style={{
-          backgroundColor: showTimeline ? 'rgba(255, 107, 53, 0.1)' : 'white',
-          borderRadius: '4px',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-          border: showTimeline ? '1px solid var(--aidstack-orange)' : 'none',
-          padding: '8px 12px',
-          fontSize: '12px',
-          fontWeight: 'bold',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          color: '#F44336'
-        }}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
-          <circle cx="12" cy="12" r="10"></circle>
-          <polyline points="12 6 12 12 16 14"></polyline>
-        </svg>
-        {showTimeline ? 'Hide Timeline' : 'Show Timeline'}
       </button>
 
       {/* Facility labels toggle button */}

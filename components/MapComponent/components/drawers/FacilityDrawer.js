@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import ShapefileUploader from '../../../ShapefileUploader';
+import CollapsibleSection from './CollapsibleSection';
 
 const FacilityDrawer = ({
   isOpen,
@@ -268,36 +269,26 @@ const FacilityDrawer = ({
           </div>
 
           {/* ACLED Security Data Section */}
-          <div className="drawer-section" style={{
-            backgroundColor: 'rgba(244, 67, 54, 0.03)',
-            padding: '15px',
-            borderRadius: '8px',
-            border: '1px solid rgba(244, 67, 54, 0.1)'
-          }}>
-            <div style={{
-              fontWeight: 'bold',
-              marginBottom: '12px',
-              fontSize: '15px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              borderBottom: '2px solid rgba(244, 67, 54, 0.1)',
-              paddingBottom: '10px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F44336" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                </svg>
-                SECURITY DATA (ACLED)
-              </div>
-              {acledData.length > 0 && (
+          <CollapsibleSection
+            title="ACLED Security Data"
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+            }
+            count={acledData.length}
+            color="#F44336"
+            defaultExpanded={false}
+          >
+            {acledData.length > 0 && (
+              <div style={{ marginBottom: '15px' }}>
                 <label style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  fontSize: '12px',
+                  fontSize: '13px',
                   cursor: 'pointer',
-                  fontWeight: 'normal'
+                  fontWeight: '600'
                 }}>
                   <input
                     type="checkbox"
@@ -307,8 +298,8 @@ const FacilityDrawer = ({
                   />
                   Include in Analysis
                 </label>
-              )}
-            </div>
+              </div>
+            )}
 
             {acledData.length === 0 ? (
               <>
@@ -653,45 +644,36 @@ const FacilityDrawer = ({
                 </div>
               </>
             )}
-          </div>
+          </CollapsibleSection>
 
           {/* Admin Level Boundaries Section */}
-          <div className="drawer-section">
+          <CollapsibleSection
+            title="Admin Boundaries"
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+            }
+            count={districts.length}
+            color="var(--aidstack-teal)"
+            defaultExpanded={false}
+          >
             <ShapefileUploader onDistrictsLoaded={onDistrictsLoaded} />
-          </div>
+          </CollapsibleSection>
 
-          <div className="drawer-section">
-            <div style={{
-              fontWeight: 'bold',
-              marginBottom: '12px',
-              fontSize: '15px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              borderBottom: '2px solid #f5f5f5',
-              paddingBottom: '10px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F44336" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>
-                FACILITIES
-              </div>
-              {facilities.length > 0 && (
-                <span style={{
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  color: '#666',
-                  backgroundColor: '#f5f5f5',
-                  padding: '4px 8px',
-                  borderRadius: '12px',
-                  fontFamily: 'Inter, sans-serif'
-                }}>
-                  {filteredAndSortedFacilities.length} / {facilities.length}
-                </span>
-              )}
-            </div>
+          <CollapsibleSection
+            title="Facilities"
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
+            }
+            count={facilities.length}
+            color="var(--aidstack-navy)"
+            defaultExpanded={true}
+          >
 
             {facilities.length > 0 && (
               <>
@@ -1024,7 +1006,7 @@ const FacilityDrawer = ({
                 })
               )}
             </div>
-          </div>
+          </CollapsibleSection>
 
           <button
             onClick={onGenerateSitrep}

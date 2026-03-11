@@ -2002,10 +2002,12 @@ export default function Home() {
         textAlign: 'center',
         borderTop: '1px solid #eaeaea',
         marginTop: '0',
-        marginBottom: '-20px',
+        marginBottom: '0',
         fontSize: '12px',
         color: '#666',
-        backgroundColor: '#fafafa'
+        backgroundColor: '#fafafa',
+        position: 'relative',
+        bottom: '-20px'
       }}>
         Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#2196F3', textDecoration: 'none', fontWeight: 'bold' }}>John Mark Esplana</a> | Disaster Impact Assessment Tool
       </footer>

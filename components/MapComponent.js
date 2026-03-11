@@ -42,7 +42,8 @@ import {
 import {
   MapLegend,
   CampaignDashboard,
-  HamburgerMenu
+  HamburgerMenu,
+  TimelineScrubber
 } from './MapComponent/components/overlays';
 
 // Import hooks
@@ -51,7 +52,8 @@ import {
   useDrawing,
   useFileUpload,
   useMapControls,
-  useAIAnalysis
+  useAIAnalysis,
+  usePlayback
 } from './MapComponent/hooks';
 
 // Import utils
@@ -338,6 +340,20 @@ const MapComponent = ({
     setSelectedFacility,
     setAnalysisData
   } = useAIAnalysis();
+
+  // Playback hook - must come after filteredDisasters is defined
+  const {
+    playbackEnabled,
+    isPlaying,
+    currentDate,
+    playbackSpeed,
+    dateRange,
+    togglePlayback,
+    togglePlayPause,
+    changeSpeed,
+    jumpToDate,
+    filterByPlaybackDate
+  } = usePlayback(filteredDisasters, acledData);
 
   // Recommendations drawer state
   const [showRecommendationsDrawer, setShowRecommendationsDrawer] = useState(false);
@@ -830,6 +846,8 @@ const MapComponent = ({
         drawingsCount={drawings.length}
         operationType={operationType}
         onOperationTypeChange={onOperationTypeChange}
+        playbackEnabled={playbackEnabled}
+        onPlaybackClick={togglePlayback}
       />
 
       {/* Filter Drawer */}
@@ -1086,8 +1104,10 @@ const MapComponent = ({
         {showDistricts && districts && districts.length > 0 && (() => {
           console.log(`Rendering ${districts.length} districts on map`);
 
-          // Calculate risk levels for all districts
-          const districtRisks = calculateDistrictRisks(districts, filteredDisasters, getFilteredAcledData());
+          // Calculate risk levels for all districts (use playback-filtered data if enabled)
+          const disastersForRisk = playbackEnabled ? filterByPlaybackDate(filteredDisasters, 'pubDate') : filteredDisasters;
+          const acledForRisk = playbackEnabled ? filterByPlaybackDate(getFilteredAcledData(), 'event_date') : getFilteredAcledData();
+          const districtRisks = calculateDistrictRisks(districts, disastersForRisk, acledForRisk);
 
           // Risk level colors (nice gradient)
           const getRiskColor = (level) => {
@@ -1361,17 +1381,17 @@ const MapComponent = ({
         })()}
 
         {/* Heatmap layer */}
-        {showHeatmap && <HeatmapLayer disasters={filteredDisasters} />}
+        {showHeatmap && <HeatmapLayer disasters={playbackEnabled ? filterByPlaybackDate(filteredDisasters, 'pubDate') : filteredDisasters} />}
 
         {/* Disaster markers */}
         <DisasterMarkers
-          disasters={filteredDisasters}
+          disasters={playbackEnabled ? filterByPlaybackDate(filteredDisasters, 'pubDate') : filteredDisasters}
           showImpactZones={showImpactZones}
         />
 
         {/* ACLED conflict event markers */}
         <AcledMarkers
-          acledData={acledData}
+          acledData={playbackEnabled ? filterByPlaybackDate(acledData, 'event_date') : acledData}
           acledEnabled={acledEnabled}
           acledConfig={acledConfig}
         />
@@ -1712,6 +1732,20 @@ const MapComponent = ({
         </svg>
         <span style={{fontSize: '11px', marginTop: '2px', fontWeight: 700}}>AI</span>
       </button>
+
+      {/* Timeline Scrubber - Bottom playback controls */}
+      <TimelineScrubber
+        isEnabled={playbackEnabled}
+        minDate={dateRange.minDate}
+        maxDate={dateRange.maxDate}
+        currentDate={currentDate}
+        onDateChange={jumpToDate}
+        onPlayPause={togglePlayPause}
+        isPlaying={isPlaying}
+        playbackSpeed={playbackSpeed}
+        onSpeedChange={changeSpeed}
+        onClose={togglePlayback}
+      />
     </div>
   );
 };
