@@ -325,13 +325,15 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
     const remappedDistricts = pendingData.districts.map(district => ({
       ...district,
       name: district.properties[fieldName] || district.name,
+      labelField: fieldName, // Store which field is being used for labels
       properties: {
         ...district.properties,
         displayName: district.properties[fieldName] || district.name
       }
     }));
 
-    onDistrictsLoaded(remappedDistricts);
+    // Pass districts along with metadata about available fields
+    onDistrictsLoaded(remappedDistricts, pendingData.availableFields, fieldName);
     setUploaded(true);
     setAvailableFields(null);
     setPendingData(null);

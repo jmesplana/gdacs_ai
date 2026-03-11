@@ -25,7 +25,12 @@ const FacilityDrawer = ({
   onDistrictsLoaded,
   embedded = false, // New prop for when embedded in UnifiedDrawer
   showLabels,
-  setShowLabels
+  setShowLabels,
+  showDistrictLabels,
+  setShowDistrictLabels,
+  districtAvailableFields = [],
+  districtLabelField = null,
+  onDistrictLabelFieldChange
 }) => {
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -662,6 +667,93 @@ const FacilityDrawer = ({
             defaultExpanded={false}
           >
             <ShapefileUploader onDistrictsLoaded={onDistrictsLoaded} />
+
+            {/* Label Field Selector - Only show when districts are loaded and fields are available */}
+            {districts.length > 0 && districtAvailableFields.length > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: 'var(--aidstack-slate-medium)',
+                  marginBottom: '10px',
+                  fontFamily: "'Inter', sans-serif"
+                }}>
+                  Select Label Field:
+                </label>
+                <select
+                  value={districtLabelField || ''}
+                  onChange={(e) => onDistrictLabelFieldChange && onDistrictLabelFieldChange(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '6px',
+                    border: '2px solid var(--aidstack-teal)',
+                    backgroundColor: 'white',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    fontFamily: "'Inter', sans-serif",
+                    color: 'var(--aidstack-navy)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {districtAvailableFields.map(field => (
+                    <option key={field} value={field}>
+                      {field}
+                    </option>
+                  ))}
+                </select>
+                <div style={{
+                  marginTop: '8px',
+                  fontSize: '12px',
+                  color: '#666',
+                  fontStyle: 'italic'
+                }}>
+                  This field will be used as labels on the map
+                </div>
+              </div>
+            )}
+
+            {/* Show Admin Labels Toggle - Only show when districts are loaded */}
+            {districts.length > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  cursor: 'pointer',
+                  padding: '12px',
+                  backgroundColor: showDistrictLabels ? '#e0f2f1' : '#f5f5f5',
+                  borderRadius: '8px',
+                  border: `2px solid ${showDistrictLabels ? '#009688' : '#e0e0e0'}`,
+                  transition: 'all 0.2s',
+                  fontFamily: "'Inter', sans-serif"
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={showDistrictLabels}
+                    onChange={(e) => setShowDistrictLabels(e.target.checked)}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={showDistrictLabels ? '#009688' : '#666'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  <span style={{
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: showDistrictLabels ? '#00796b' : '#666'
+                  }}>
+                    Show Admin Labels on Map
+                  </span>
+                </label>
+              </div>
+            )}
           </CollapsibleSection>
 
           <CollapsibleSection

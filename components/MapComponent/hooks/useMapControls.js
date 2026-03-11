@@ -14,6 +14,7 @@ export const useMapControls = () => {
   const [showStatistics, setShowStatistics] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
+  const [showDistrictLabels, setShowDistrictLabels] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Drawer states
@@ -84,6 +85,7 @@ export const useMapControls = () => {
     showStatistics,
     showLegend,
     showLabels,
+    showDistrictLabels,
     isFullscreen,
 
     // Drawer states
@@ -103,6 +105,7 @@ export const useMapControls = () => {
     setShowStatistics,
     setShowLegend,
     setShowLabels,
+    setShowDistrictLabels,
     setIsFullscreen,
     setCurrentMapLayer,
     setShowRoads,

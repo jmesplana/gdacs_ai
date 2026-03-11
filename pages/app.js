@@ -74,6 +74,9 @@ export default function Home() {
 
   // District boundaries from shapefile upload
   const [districts, setDistricts] = useState([]);
+  const [districtAvailableFields, setDistrictAvailableFields] = useState([]);
+  const [districtLabelField, setDistrictLabelField] = useState(null);
+  const [districtRawData, setDistrictRawData] = useState([]); // Store original district data for remapping
   const [selectedDistrictForForecast, setSelectedDistrictForForecast] = useState(null); // For district-specific forecast
   const [selectedDistrictForOutlook, setSelectedDistrictForOutlook] = useState(null); // For district-specific operational outlook
 
@@ -482,6 +485,39 @@ export default function Home() {
       console.error('Error clearing cache:', error);
       alert('Failed to clear cache. Please try again.');
     }
+  };
+
+  // Handle districts loaded from shapefile
+  const handleDistrictsLoaded = (districtsData, availableFields, selectedField) => {
+    setDistricts(districtsData);
+    setDistrictRawData(districtsData); // Store raw data for remapping
+    if (availableFields) {
+      setDistrictAvailableFields(availableFields);
+    }
+    if (selectedField) {
+      setDistrictLabelField(selectedField);
+    }
+  };
+
+  // Handle label field change for districts
+  const handleDistrictLabelFieldChange = (fieldName) => {
+    if (!districtRawData || districtRawData.length === 0) {
+      return;
+    }
+
+    // Remap districts using the new field
+    const remappedDistricts = districtRawData.map(district => ({
+      ...district,
+      name: district.properties[fieldName] || district.name,
+      labelField: fieldName,
+      properties: {
+        ...district.properties,
+        displayName: district.properties[fieldName] || district.name
+      }
+    }));
+
+    setDistricts(remappedDistricts);
+    setDistrictLabelField(fieldName);
   };
 
   // Handle ACLED data upload
@@ -1936,7 +1972,10 @@ export default function Home() {
           onClearAcledCache={handleClearAcledCache}
           onToggleAcled={handleToggleAcled}
           districts={districts}
-          onDistrictsLoaded={setDistricts}
+          onDistrictsLoaded={handleDistrictsLoaded}
+          districtAvailableFields={districtAvailableFields}
+          districtLabelField={districtLabelField}
+          onDistrictLabelFieldChange={handleDistrictLabelFieldChange}
           onAcledConfigChange={handleAcledConfigChange}
           operationType={operationType}
           onOperationTypeChange={setOperationType}

@@ -130,6 +130,21 @@ const customStyles = `
     border-color: #388e3c;
   }
 
+  .district-label {
+    background: rgba(33, 150, 243, 0.9) !important;
+    border: 2px solid rgba(25, 118, 210, 0.9) !important;
+    border-radius: 6px !important;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    font-family: 'Inter', sans-serif !important;
+    color: white !important;
+    white-space: nowrap !important;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3) !important;
+    pointer-events: none !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+  }
+
   .drawer-backdrop {
     position: fixed;
     top: 0;
@@ -245,6 +260,9 @@ const MapComponent = ({
   onOperationTypeChange,
   districts = [],
   onDistrictsLoaded,
+  districtAvailableFields = [],
+  districtLabelField = null,
+  onDistrictLabelFieldChange,
   onDistrictClick,
   onDistrictOutlookClick
 }) => {
@@ -303,6 +321,7 @@ const MapComponent = ({
     showStatistics,
     showLegend,
     showLabels,
+    showDistrictLabels,
     isFullscreen,
     filterDrawerOpen,
     unifiedDrawerOpen,
@@ -316,6 +335,7 @@ const MapComponent = ({
     setShowStatistics,
     setShowLegend,
     setShowLabels,
+    setShowDistrictLabels,
     setIsFullscreen,
     setCurrentMapLayer,
     setShowRoads,
@@ -888,6 +908,9 @@ const MapComponent = ({
         impactStatistics={impactStatistics}
         districts={districts}
         onDistrictsLoaded={onDistrictsLoaded}
+        districtAvailableFields={districtAvailableFields}
+        districtLabelField={districtLabelField}
+        onDistrictLabelFieldChange={onDistrictLabelFieldChange}
         onFileUpload={(file) => {
           console.log('File selected:', file);
           const syntheticEvent = { target: { files: [file] } };
@@ -931,6 +954,8 @@ const MapComponent = ({
         // Label control
         showLabels={showLabels}
         setShowLabels={setShowLabels}
+        showDistrictLabels={showDistrictLabels}
+        setShowDistrictLabels={setShowDistrictLabels}
 
         // Reports tab props
         sitrep={sitrep}
@@ -1181,7 +1206,7 @@ const MapComponent = ({
 
           return (
             <GeoJSON
-              key={`districts-${districts.length}-${filteredDisasters.length}-${getFilteredAcledData().length}-${highlightedDistricts.length}`}
+              key={`districts-${districts.length}-${filteredDisasters.length}-${getFilteredAcledData().length}-${highlightedDistricts.length}-labels-${showDistrictLabels}-field-${districtLabelField}`}
               data={featureCollection}
               pane="overlayPane"
               interactive={true}
@@ -1348,6 +1373,40 @@ const MapComponent = ({
                 popupContent += '</div>';
 
                 layer.bindPopup(popupContent);
+
+                // Add zoom-dependent label (tooltip) if showDistrictLabels is true
+                if (showDistrictLabels && mapInstance) {
+                  // Create tooltip
+                  const tooltip = layer.bindTooltip(displayName, {
+                    permanent: true,
+                    direction: 'center',
+                    className: 'district-label',
+                    opacity: 0.9
+                  });
+
+                  // Initially show/hide based on current zoom
+                  const currentZoom = mapInstance.getZoom();
+                  const minZoom = 8; // Only show labels at zoom level 8 or higher
+
+                  if (currentZoom < minZoom) {
+                    layer.closeTooltip();
+                  }
+
+                  // Add zoom event listener to show/hide label based on zoom level
+                  const onZoomEnd = () => {
+                    const zoom = mapInstance.getZoom();
+                    if (zoom >= minZoom && showDistrictLabels) {
+                      layer.openTooltip();
+                    } else {
+                      layer.closeTooltip();
+                    }
+                  };
+
+                  mapInstance.on('zoomend', onZoomEnd);
+
+                  // Store the event handler so we can remove it later if needed
+                  layer._zoomEndHandler = onZoomEnd;
+                }
 
                 // Add click event listeners for buttons
                 if (onDistrictClick || onDistrictOutlookClick) {

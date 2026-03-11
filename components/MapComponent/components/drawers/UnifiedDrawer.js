@@ -49,7 +49,14 @@ const UnifiedDrawer = ({
 
   // Label control
   showLabels,
-  setShowLabels
+  setShowLabels,
+  showDistrictLabels,
+  setShowDistrictLabels,
+
+  // District label field selection
+  districtAvailableFields,
+  districtLabelField,
+  onDistrictLabelFieldChange
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -288,6 +295,11 @@ const UnifiedDrawer = ({
               onDistrictsLoaded={onDistrictsLoaded}
               showLabels={showLabels}
               setShowLabels={setShowLabels}
+              showDistrictLabels={showDistrictLabels}
+              setShowDistrictLabels={setShowDistrictLabels}
+              districtAvailableFields={districtAvailableFields}
+              districtLabelField={districtLabelField}
+              onDistrictLabelFieldChange={onDistrictLabelFieldChange}
             />
           )}
 
