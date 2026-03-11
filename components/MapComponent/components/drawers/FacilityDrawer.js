@@ -23,7 +23,9 @@ const FacilityDrawer = ({
   onAcledConfigChange,
   districts = [],
   onDistrictsLoaded,
-  embedded = false // New prop for when embedded in UnifiedDrawer
+  embedded = false, // New prop for when embedded in UnifiedDrawer
+  showLabels,
+  setShowLabels
 }) => {
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -674,6 +676,43 @@ const FacilityDrawer = ({
             color="var(--aidstack-navy)"
             defaultExpanded={true}
           >
+            {/* Show Labels Toggle - Always visible */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                cursor: 'pointer',
+                padding: '12px',
+                backgroundColor: showLabels ? '#e8f5e9' : '#f5f5f5',
+                borderRadius: '8px',
+                border: `2px solid ${showLabels ? '#4CAF50' : '#e0e0e0'}`,
+                transition: 'all 0.2s',
+                fontFamily: "'Inter', sans-serif"
+              }}>
+                <input
+                  type="checkbox"
+                  checked={showLabels}
+                  onChange={(e) => setShowLabels(e.target.checked)}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    cursor: 'pointer'
+                  }}
+                />
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={showLabels ? '#4CAF50' : '#666'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <path d="M9 3v18"></path>
+                </svg>
+                <span style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: showLabels ? '#2e7d32' : '#666'
+                }}>
+                  Show Facility Labels on Map
+                </span>
+              </label>
+            </div>
 
             {facilities.length > 0 && (
               <>

@@ -928,6 +928,10 @@ const MapComponent = ({
         operationType={operationType}
         onViewRecommendations={handleGenerateRecommendations}
 
+        // Label control
+        showLabels={showLabels}
+        setShowLabels={setShowLabels}
+
         // Reports tab props
         sitrep={sitrep}
         sitrepTimestamp={analysisTimestamp}

@@ -45,7 +45,11 @@ const UnifiedDrawer = ({
 
   // Additional props
   onTabChange,
-  operationType = 'general'
+  operationType = 'general',
+
+  // Label control
+  showLabels,
+  setShowLabels
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -282,6 +286,8 @@ const UnifiedDrawer = ({
               onAcledConfigChange={onAcledConfigChange}
               districts={districts}
               onDistrictsLoaded={onDistrictsLoaded}
+              showLabels={showLabels}
+              setShowLabels={setShowLabels}
             />
           )}
 

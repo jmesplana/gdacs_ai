@@ -49,32 +49,6 @@ const MapLegend = ({
         {showLegend ? 'Hide Legend' : 'Show Legend'}
       </button>
 
-      {/* Facility labels toggle button */}
-      {hasFacilities && (
-        <button
-          onClick={() => setShowLabels(!showLabels)}
-          style={{
-            backgroundColor: showLabels ? '#e8f5e9' : 'white',
-            borderRadius: '4px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-            border: showLabels ? '1px solid #4CAF50' : 'none',
-            padding: '8px 12px',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            color: '#4CAF50'
-          }}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <path d="M9 3v18"></path>
-          </svg>
-          {showLabels ? 'Hide Labels' : 'Show Labels'}
-        </button>
-      )}
-
       {/* District boundaries toggle button */}
       {hasDistricts && (
         <button

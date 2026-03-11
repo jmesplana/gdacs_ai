@@ -13,7 +13,7 @@ export const useMapControls = () => {
   const [showTimeline, setShowTimeline] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
-  const [showLabels, setShowLabels] = useState(false);
+  const [showLabels, setShowLabels] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Drawer states
