@@ -9,63 +9,8 @@ export const config = {
   },
 };
 
-// Web search function using DuckDuckGo HTML scraping (no API key needed)
-async function performWebSearch(query) {
-  try {
-    console.log(`🔍 Performing web search for: "${query}"`);
-
-    // Use DuckDuckGo HTML search (no API key required)
-    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-
-    const response = await fetch(searchUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Search failed: ${response.status}`);
-    }
-
-    const html = await response.text();
-
-    // Parse DDG HTML results (simple regex extraction)
-    const results = [];
-    const resultRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/g;
-    const snippetRegex = /<a[^>]*class="result__snippet"[^>]*>(.*?)<\/a>/g;
-
-    let match;
-    let count = 0;
-    while ((match = resultRegex.exec(html)) !== null && count < 5) {
-      const url = match[1];
-      const title = match[2].replace(/<[^>]*>/g, '');
-      results.push({ title, url });
-      count++;
-    }
-
-    // Extract snippets
-    count = 0;
-    while ((match = snippetRegex.exec(html)) !== null && count < results.length) {
-      results[count].snippet = match[1].replace(/<[^>]*>/g, '').trim();
-      count++;
-    }
-
-    console.log(`✅ Found ${results.length} web results`);
-
-    // Format results for AI
-    if (results.length === 0) {
-      return "No web results found for this query.";
-    }
-
-    return results.map((r, i) =>
-      `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.snippet || 'No description available'}`
-    ).join('\n\n');
-
-  } catch (error) {
-    console.error('Web search error:', error);
-    return `Web search failed: ${error.message}`;
-  }
-}
+// Note: Web search is now handled natively by OpenAI's gpt-4o-search-preview model
+// The model will automatically perform web searches when needed using the web_search tool
 
 // Get current date and time
 function getCurrentDateTime() {
@@ -94,25 +39,12 @@ const tools = [
         required: []
       }
     }
-  },
-  {
-    type: "function",
-    function: {
-      name: "search_web",
-      description: "Search the web for current information, recent events, statistics, or facts that are not in your training data. Use this when the user asks about recent events, current data, or when you need up-to-date information.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description: "The search query. Be specific and include relevant keywords."
-          }
-        },
-        required: ["query"]
-      }
-    }
   }
 ];
+
+// Web search configuration for Chat Completions API
+// Note: For gpt-4o-search-preview, use web_search_options parameter instead of tools array
+const webSearchOptions = {};
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -177,12 +109,13 @@ export default async function handler(req, res) {
 
 **📅 CURRENT DATE & TIME**: Today is ${currentDate} (${currentDateTime}). Always use this date when discussing "today", "recent", or "current" events. You also have access to the 'get_current_date' function if you need to verify the current date during the conversation.
 
-**🌐 WEB SEARCH CAPABILITY**: You have access to real-time web search through the 'search_web' function. Use this when:
+**🌐 WEB SEARCH CAPABILITY**: You have access to real-time web search through OpenAI's native web_search tool. Use this when:
 - Users ask about recent events, current statistics, or up-to-date information
 - You need to verify or supplement information about ongoing disasters
 - Users request information about recent disease outbreaks, conflict events, or humanitarian situations
 - You need current best practices, recent WHO/CDC guidelines, or latest operational guidance
 - Any information that may have changed since your training data cutoff (January 2025)
+- The web search is performed automatically by the model when needed
 
 **🌤️ WEATHER FORECAST DATA**: You have access to weather forecast data in your context when facilities or districts are loaded:
 - Regional weather forecasts cover the operational area (center point of all facilities)
@@ -298,20 +231,22 @@ Be direct, practical, and specific. Use the context data to give personalized an
       }
 
       console.log('📤 Calling OpenAI API with streaming...');
+      console.log('Model:', "gpt-4o-search-preview");
+      console.log('Web search enabled:', true);
       console.time('OpenAI stream start');
 
-      const streamResponse = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 1500,
-        stream: true,
-        tools: tools,
-        tool_choice: "auto"
-      });
+      try {
+        const streamResponse = await openai.chat.completions.create({
+          model: "gpt-4o-search-preview",
+          messages: messages,
+          max_tokens: 1500,
+          stream: true,
+          web_search_options: webSearchOptions
+          // Note: gpt-4o-search-preview doesn't support tools or temperature parameters
+        });
 
-      console.timeEnd('OpenAI stream start');
-      console.log('✅ OpenAI stream started, processing chunks...');
+        console.timeEnd('OpenAI stream start');
+        console.log('✅ OpenAI stream started, processing chunks...');
 
       let chunkCount = 0;
       let toolCalls = [];
@@ -380,31 +315,9 @@ Be direct, practical, and specific. Use the context data to give personalized an
                   content: `Error: ${error.message}`
                 });
               }
-            } else if (toolCall.function.name === 'search_web') {
-              try {
-                const args = JSON.parse(toolCall.function.arguments);
-                res.write(`data: ${JSON.stringify({ content: `\n\n🔍 Searching the web for: "${args.query}"...\n\n` })}\n\n`);
-                if (res.flush) res.flush();
-
-                const searchResults = await performWebSearch(args.query);
-                toolResults.push({
-                  tool_call_id: toolCall.id,
-                  role: 'tool',
-                  name: 'search_web',
-                  content: searchResults
-                });
-
-                console.log('✅ Web search completed');
-              } catch (error) {
-                console.error('Error executing web search:', error);
-                toolResults.push({
-                  tool_call_id: toolCall.id,
-                  role: 'tool',
-                  name: 'search_web',
-                  content: `Error: ${error.message}`
-                });
-              }
             }
+            // Note: web_search tool calls are handled natively by OpenAI
+            // No need to manually execute them
           }
 
           // Make a second API call with tool results
@@ -427,11 +340,11 @@ Be direct, practical, and specific. Use the context data to give personalized an
 
             // Continue streaming with tool results
             const followUpStream = await openai.chat.completions.create({
-              model: "gpt-4o",
+              model: "gpt-4o-search-preview",
               messages: messages,
-              temperature: 0.7,
               max_tokens: 1500,
-              stream: true
+              stream: true,
+              web_search_options: webSearchOptions
             });
 
             for await (const followUpChunk of followUpStream) {
@@ -448,15 +361,24 @@ Be direct, practical, and specific. Use the context data to give personalized an
       console.log(`✅ Stream complete. Total chunks: ${chunkCount}`);
       res.write('data: [DONE]\n\n');
       res.end();
+      } catch (streamError) {
+        console.error('❌ Streaming error:', streamError);
+        console.error('Error details:', streamError.message);
+        if (streamError.response) {
+          console.error('OpenAI error response:', await streamError.response.json());
+        }
+        res.write(`data: ${JSON.stringify({ content: `Error: ${streamError.message}` })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        res.end();
+      }
     } else {
-      // Non-streaming mode with function calling support
+      // Non-streaming mode with web search
       let response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-search-preview",
         messages: messages,
-        temperature: 0.7,
         max_tokens: 1500,
-        tools: tools,
-        tool_choice: "auto"
+        web_search_options: webSearchOptions
+        // Note: gpt-4o-search-preview doesn't support tools or temperature parameters
       });
 
       // Handle function calls if requested
@@ -490,37 +412,17 @@ Be direct, practical, and specific. Use the context data to give personalized an
                 content: `Error: ${error.message}`
               });
             }
-          } else if (toolCall.function.name === 'search_web') {
-            try {
-              const args = JSON.parse(toolCall.function.arguments);
-              console.log(`🔍 Performing web search: "${args.query}"`);
-
-              const searchResults = await performWebSearch(args.query);
-
-              messages.push({
-                tool_call_id: toolCall.id,
-                role: 'tool',
-                name: 'search_web',
-                content: searchResults
-              });
-            } catch (error) {
-              console.error('Error executing web search:', error);
-              messages.push({
-                tool_call_id: toolCall.id,
-                role: 'tool',
-                name: 'search_web',
-                content: `Error: ${error.message}`
-              });
-            }
           }
+          // Note: web_search tool calls are handled natively by OpenAI
+          // No need to manually execute them
         }
 
         // Make a second API call with tool results
         const followUpResponse = await openai.chat.completions.create({
-          model: "gpt-4o",
+          model: "gpt-4o-search-preview",
           messages: messages,
-          temperature: 0.7,
-          max_tokens: 1500
+          max_tokens: 1500,
+          web_search_options: webSearchOptions
         });
 
         finalResponse = followUpResponse.choices[0].message;
