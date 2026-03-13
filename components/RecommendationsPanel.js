@@ -1,6 +1,25 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const RecommendationsPanel = ({ facility, recommendations, loading, isAIGenerated }) => {
+  const [progressMsg, setProgressMsg] = useState('');
+  useEffect(() => {
+    if (!loading) { setProgressMsg(''); return; }
+    const msgs = [
+      'Assessing facility risks...',
+      'Reviewing disaster context...',
+      'Generating response guidance...',
+      'Compiling recommendations...',
+      'Almost done...'
+    ];
+    let i = 0;
+    setProgressMsg(msgs[0]);
+    const interval = setInterval(() => {
+      i = (i + 1) % msgs.length;
+      setProgressMsg(msgs[i]);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [loading]);
+
   if (!facility) {
     return null;
   }
@@ -197,7 +216,7 @@ const RecommendationsPanel = ({ facility, recommendations, loading, isAIGenerate
             <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
             <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
           </svg>
-          <span>Generating recommendations...</span>
+          <span>{progressMsg || 'Starting...'}</span>
         </div>
       ) : recommendations ? (
         <div>

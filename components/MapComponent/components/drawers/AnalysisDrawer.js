@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import TimestampBadge from '../TimestampBadge';
+import { useToast } from '../../../Toast';
 
 const AnalysisDrawer = ({
   isOpen,
@@ -17,6 +18,25 @@ const AnalysisDrawer = ({
   acledEnabled = false,
   operationType = 'general'
 }) => {
+  const { addToast } = useToast();
+  const [progressMsg, setProgressMsg] = useState('');
+  useEffect(() => {
+    if (!analysisLoading) { setProgressMsg(''); return; }
+    const msgs = [
+      'Fetching disaster data...',
+      'Assessing facility exposure...',
+      'Running AI analysis...',
+      'Compiling risk profile...',
+      'Almost done...'
+    ];
+    let i = 0;
+    setProgressMsg(msgs[0]);
+    const interval = setInterval(() => {
+      i = (i + 1) % msgs.length;
+      setProgressMsg(msgs[i]);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [analysisLoading]);
   const [operationViability, setOperationViability] = useState(null);
   const [viabilityLoading, setViabilityLoading] = useState(false);
   const [showViability, setShowViability] = useState(false);
@@ -100,11 +120,11 @@ const AnalysisDrawer = ({
           printWindow.print();
         };
       } else {
-        alert('Failed to generate decision brief');
+        addToast('Failed to generate decision brief', 'error');
       }
     } catch (error) {
       console.error('Error exporting brief:', error);
-      alert('Error generating decision brief');
+      addToast('Error generating decision brief', 'error');
     }
   };
 
@@ -125,7 +145,7 @@ const AnalysisDrawer = ({
                   <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
                   <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
                 </svg>
-                <span>Generating AI analysis...</span>
+                <span>{progressMsg || 'Starting...'}</span>
               </div>
             </div>
           ) : selectedFacility && analysisData ? (

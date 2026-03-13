@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useToast } from './Toast';
 
 const PredictionDashboard = ({
   facilities,
@@ -15,6 +16,7 @@ const PredictionDashboard = ({
   selectedDistrict = null, // If provided, shows district-specific forecast
   onClose
 }) => {
+  const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [predictions, setPredictions] = useState(null);
   const [activeTab, setActiveTab] = useState('disaster'); // disaster, outbreak, supply, weather
@@ -200,7 +202,7 @@ const PredictionDashboard = ({
   const loadPredictions = async () => {
     const center = getCenterPoint();
     if (!center) {
-      alert('No location data available. Please upload facilities or ensure disasters are loaded.');
+      addToast('No location data available. Please upload facilities or ensure disasters are loaded.', 'error');
       return;
     }
 
@@ -383,7 +385,7 @@ const PredictionDashboard = ({
 
     } catch (error) {
       console.error('Failed to load predictions:', error);
-      alert('Failed to load predictions. Please try again.');
+      addToast('Failed to load predictions. Please try again.', 'error');
     } finally {
       setLoading(false);
     }

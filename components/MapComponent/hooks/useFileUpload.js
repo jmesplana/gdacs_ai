@@ -5,7 +5,7 @@ import { processUploadedFile, convertFacilitiesToCSV } from '../utils/fileHelper
  * Custom hook for managing file upload and column selection
  * @returns {Object} File upload state and handlers
  */
-export const useFileUpload = () => {
+export const useFileUpload = (addToast) => {
   const [showColumnModal, setShowColumnModal] = useState(false);
   const [fileData, setFileData] = useState(null);
   const [fileColumns, setFileColumns] = useState([]);
@@ -53,13 +53,15 @@ export const useFileUpload = () => {
       setSelectedColumns(autoSelectedColumns);
     } catch (error) {
       console.error('Error processing file:', error);
-      alert('Error processing file. Please make sure it\'s a valid CSV or Excel file.');
+      if (addToast) addToast('Error processing file. Please make sure it\'s a valid CSV or Excel file.', 'error');
+      else console.error('Error processing file. Please make sure it\'s a valid CSV or Excel file.');
     }
   }, []);
 
   const processExcelData = useCallback((onSuccess) => {
     if (!fileData || !selectedColumns.name || !selectedColumns.latitude || !selectedColumns.longitude) {
-      alert('Please select required columns: Name, Latitude, and Longitude');
+      if (addToast) addToast('Please select required columns: Name, Latitude, and Longitude', 'error');
+      else console.error('Please select required columns: Name, Latitude, and Longitude');
       return;
     }
 
@@ -82,7 +84,8 @@ export const useFileUpload = () => {
       }
     } catch (error) {
       console.error('Error processing data:', error);
-      alert('Error processing facility data. Please check your file and column selections.');
+      if (addToast) addToast('Error processing facility data. Please check your file and column selections.', 'error');
+      else console.error('Error processing facility data. Please check your file and column selections.');
     }
   }, [fileData, selectedColumns]);
 

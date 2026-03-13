@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useToast } from '../../../Toast';
 
 const SitrepDrawer = ({
   isOpen,
@@ -11,6 +12,26 @@ const SitrepDrawer = ({
   facilities,
   impactedFacilities = []
 }) => {
+  const { addToast } = useToast();
+  const [progressMsg, setProgressMsg] = useState('');
+  useEffect(() => {
+    if (!sitrepLoading) { setProgressMsg(''); return; }
+    const msgs = [
+      'Analyzing disaster impacts...',
+      'Reviewing facility exposure...',
+      'Compiling situation data...',
+      'Drafting situation report...',
+      'Almost done...'
+    ];
+    let i = 0;
+    setProgressMsg(msgs[0]);
+    const interval = setInterval(() => {
+      i = (i + 1) % msgs.length;
+      setProgressMsg(msgs[i]);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [sitrepLoading]);
+
   const handleDownloadDoc = () => {
     // Create Word document format using basic HTML with MS Word-specific XML
     const htmlContent = `
@@ -86,7 +107,7 @@ const SitrepDrawer = ({
   const handleCopyToClipboard = () => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(sitrep).then(() => {
-        alert('Report copied to clipboard');
+        addToast('Report copied to clipboard', 'success');
       }).catch(err => {
         console.error('Could not copy text: ', err);
       });
@@ -97,7 +118,7 @@ const SitrepDrawer = ({
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
-      alert('Report copied to clipboard');
+      addToast('Report copied to clipboard', 'success');
     }
   };
 
@@ -198,7 +219,7 @@ const SitrepDrawer = ({
                       <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
                       <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
                     </svg>
-                    Generating...
+                    {progressMsg || 'Starting...'}
                   </>
                 ) : (
                   <>

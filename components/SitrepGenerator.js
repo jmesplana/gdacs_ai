@@ -1,7 +1,27 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useToast } from './Toast';
 
 const SitrepGenerator = ({ sitrep, loading, onGenerate, hasImpactedFacilities, dateFilter }) => {
+  const { addToast } = useToast();
+  const [progressMsg, setProgressMsg] = useState('');
+  useEffect(() => {
+    if (!loading) { setProgressMsg(''); return; }
+    const msgs = [
+      'Analyzing disaster impacts...',
+      'Reviewing facility exposure...',
+      'Compiling situation data...',
+      'Drafting situation report...',
+      'Almost done...'
+    ];
+    let i = 0;
+    setProgressMsg(msgs[0]);
+    const interval = setInterval(() => {
+      i = (i + 1) % msgs.length;
+      setProgressMsg(msgs[i]);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [loading]);
   return (
     <div>
       <h2>Situation Report</h2>
@@ -77,7 +97,7 @@ const SitrepGenerator = ({ sitrep, loading, onGenerate, hasImpactedFacilities, d
                   <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
                   <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
                 </svg>
-                <span>Generating AI situation report...</span>
+                <span>{progressMsg || 'Starting...'}</span>
               </div>
             </div>
           ) : sitrep ? (
@@ -183,7 +203,7 @@ const SitrepGenerator = ({ sitrep, loading, onGenerate, hasImpactedFacilities, d
                           document.body.removeChild(link);
                         } catch (finalError) {
                           console.error('Final error trying to download Word document:', finalError);
-                          alert('Unable to download Word document. Please try again or copy the content manually.');
+                          addToast('Unable to download Word document. Please try again or copy the content manually.', 'error');
                         }
                       }
                     }}

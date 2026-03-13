@@ -65,6 +65,7 @@ import {
 } from './MapComponent/utils';
 
 import buildWeatherContext from '../utils/weatherContextBuilder';
+import { useToast } from './Toast';
 
 // Import constants
 import {
@@ -271,6 +272,7 @@ const MapComponent = ({
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const [mapInstance, setMapInstance] = useState(null);
+  const { addToast } = useToast();
 
   // Use custom hooks
   const {
@@ -312,7 +314,7 @@ const MapComponent = ({
     resetFileUpload,
     setShowColumnModal,
     setSelectedColumns
-  } = useFileUpload();
+  } = useFileUpload(addToast);
 
   const {
     showHeatmap,
@@ -1374,26 +1376,27 @@ const MapComponent = ({
 
                 // Add zoom-dependent label (tooltip) if showDistrictLabels is true
                 if (showDistrictLabels && mapInstance) {
-                  // Create tooltip
-                  const tooltip = layer.bindTooltip(displayName, {
+                  const minZoom = 7;
+
+                  layer.bindTooltip(displayName, {
                     permanent: true,
                     direction: 'center',
                     className: 'district-label',
                     opacity: 0.9
                   });
 
-                  // Initially show/hide based on current zoom
-                  const currentZoom = mapInstance.getZoom();
-                  const minZoom = 8; // Only show labels at zoom level 8 or higher
+                  // closeTooltip() is a no-op during onEachFeature because the tooltip
+                  // DOM hasn't been created yet. Use the layer 'add' event instead, which
+                  // fires after the layer is actually rendered on the map.
+                  layer.on('add', () => {
+                    if (mapInstance.getZoom() < minZoom) {
+                      layer.closeTooltip();
+                    }
+                  });
 
-                  if (currentZoom < minZoom) {
-                    layer.closeTooltip();
-                  }
-
-                  // Add zoom event listener to show/hide label based on zoom level
                   const onZoomEnd = () => {
                     const zoom = mapInstance.getZoom();
-                    if (zoom >= minZoom && showDistrictLabels) {
+                    if (zoom >= minZoom) {
                       layer.openTooltip();
                     } else {
                       layer.closeTooltip();
@@ -1401,8 +1404,6 @@ const MapComponent = ({
                   };
 
                   mapInstance.on('zoomend', onZoomEnd);
-
-                  // Store the event handler so we can remove it later if needed
                   layer._zoomEndHandler = onZoomEnd;
                 }
 
@@ -1807,6 +1808,62 @@ const MapComponent = ({
         onSpeedChange={changeSpeed}
         onClose={togglePlayback}
       />
+
+      {/* Empty state overlay — shown when no data is loaded and onboarding is complete */}
+      {facilities.length === 0 && disasters.length === 0 && !loading && (() => {
+        try { return !!localStorage.getItem('gdacs_onboarding_done'); } catch (_) { return false; }
+      })() && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 1000,
+          pointerEvents: 'auto'
+        }}>
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.92)',
+            backdropFilter: 'blur(4px)',
+            borderRadius: '12px',
+            padding: '32px 40px',
+            textAlign: 'center',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
+            maxWidth: '320px'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>🗺️</div>
+            <div style={{
+              fontSize: '18px',
+              fontWeight: 700,
+              color: 'var(--aidstack-navy)',
+              fontFamily: "'Space Grotesk', sans-serif",
+              marginBottom: '8px'
+            }}>No data loaded yet</div>
+            <div style={{
+              fontSize: '13px',
+              color: '#666',
+              fontFamily: "'Inter', sans-serif",
+              marginBottom: '20px',
+              lineHeight: '1.5'
+            }}>Upload facility data or load live disasters to get started</div>
+            <button
+              onClick={() => openUnifiedDrawer('facilities')}
+              style={{
+                backgroundColor: 'var(--aidstack-orange)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '10px 24px',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: "'Inter', sans-serif"
+              }}
+            >
+              Get Started
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

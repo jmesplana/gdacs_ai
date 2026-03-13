@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getOperationType } from '../../../../config/operationTypes';
+import { useToast } from '../../../Toast';
 
 /**
  * Operation Readiness Dashboard
@@ -20,6 +21,7 @@ const CampaignDashboard = ({
 }) => {
   // Get operation config for dynamic labels
   const opConfig = getOperationType(operationType);
+  const { addToast } = useToast();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [assessmentMode, setAssessmentMode] = useState('district'); // 'district' or 'facility'
@@ -95,7 +97,7 @@ const CampaignDashboard = ({
 
     } catch (error) {
       console.error('Error calculating district dashboard:', error);
-      alert('Failed to calculate district campaign assessment. Check console for details.');
+      addToast('Failed to calculate district campaign assessment. Check console for details.', 'error');
     } finally {
       setLoading(false);
     }
@@ -306,11 +308,11 @@ const CampaignDashboard = ({
           printWindow.print();
         };
       } else {
-        alert('Failed to generate decision brief');
+        addToast('Failed to generate decision brief', 'error');
       }
     } catch (error) {
       console.error('Error exporting brief:', error);
-      alert('Error generating decision brief');
+      addToast('Error generating decision brief', 'error');
     }
   };
 

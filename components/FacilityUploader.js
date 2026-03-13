@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useToast } from './Toast';
 
 const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, onClearCache }) => {
+  const { addToast } = useToast();
   const [dragActive, setDragActive] = useState(false);
 
   // Handle file selection
@@ -10,7 +12,7 @@ const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, o
     
     // Validate file type
     if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-      alert('Please upload a valid CSV file.');
+      addToast('Please upload a valid CSV file.', 'error');
       return;
     }
     
@@ -40,7 +42,7 @@ const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, o
       
       // Validate file type
       if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-        alert('Please upload a valid CSV file.');
+        addToast('Please upload a valid CSV file.', 'error');
         return;
       }
       
@@ -90,7 +92,7 @@ const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, o
       <div className="facility-stats">
         <h3>Facility Statistics</h3>
         <p>Total Facilities: {facilities.length}</p>
-        <p>Potentially Impacted: {impactedFacilities.length}</p>
+        <p>Impacted: {impactedFacilities.length}</p>
 
         {facilities.length > 0 && onClearCache && (
           <div style={{ marginTop: '15px' }}>
@@ -151,7 +153,7 @@ const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, o
                     <td style={{ padding: '8px', borderBottom: '1px solid #ddd' }}>{facility.longitude}</td>
                     <td style={{ padding: '8px', borderBottom: '1px solid #ddd' }}>
                       {isImpacted ? 
-                        <span style={{ color: '#ff4444' }}>⚠️ Potentially Impacted</span> : 
+                        <span style={{ color: '#ff4444' }}>⚠️ Impacted</span> :
                         <span style={{ color: '#4CAF50' }}>✅ Not Impacted</span>
                       }
                     </td>
