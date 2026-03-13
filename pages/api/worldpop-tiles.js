@@ -129,11 +129,15 @@ async function handler(req, res) {
     let visualizationImage;
     if (dataType === 'agesex') {
       // Sum all f_* and m_* bands to get total population
-      const bandNames = image.bandNames();
-      visualizationImage = image.expression(
-        'reduce_sum(b())',
-        { b: image }
-      ).rename('total_pop');
+      // List all 38 age-sex bands explicitly and sum them
+      visualizationImage = selectedImage
+        .select(['f_00', 'm_00', 'f_01', 'm_01', 'f_05', 'm_05', 'f_10', 'm_10',
+                 'f_15', 'm_15', 'f_20', 'm_20', 'f_25', 'm_25', 'f_30', 'm_30',
+                 'f_35', 'm_35', 'f_40', 'm_40', 'f_45', 'm_45', 'f_50', 'm_50',
+                 'f_55', 'm_55', 'f_60', 'm_60', 'f_65', 'm_65', 'f_70', 'm_70',
+                 'f_75', 'm_75', 'f_80', 'm_80', 'f_85', 'm_85', 'f_90', 'm_90'])
+        .reduce(ee.Reducer.sum())
+        .rename('total_pop');
     } else {
       visualizationImage = selectedImage;
     }
@@ -153,10 +157,11 @@ async function handler(req, res) {
 
     const mapId = await mapIdPromise;
 
-    // Construct the tile URL
-    const tileUrl = `https://earthengine.googleapis.com/v1alpha/${mapId.mapid}/tiles/{z}/{x}/{y}`;
+    // Use the urlFormat provided by GEE (it has the correct URL structure)
+    // GEE returns a urlFormat field with the proper tile URL template
+    const tileUrl = mapId.urlFormat || `https://earthengine.googleapis.com/v1alpha/${mapId.mapid}/tiles/{z}/{x}/{y}`;
 
-    console.log('[WorldPop Tiles] Tile URL generated successfully');
+    console.log('[WorldPop Tiles] Tile URL generated successfully:', tileUrl);
 
     return res.status(200).json({
       success: true,
