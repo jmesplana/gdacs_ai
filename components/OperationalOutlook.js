@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 
 const OperationalOutlook = ({
   facilities = [],
@@ -453,7 +454,7 @@ const OperationalOutlook = ({
               lineHeight: '1.7',
               color: '#333'
             }}>
-              <div dangerouslySetInnerHTML={{ __html: formatMarkdown(outlook) }} />
+              <div dangerouslySetInnerHTML={{ __html: typeof window !== 'undefined' ? DOMPurify.sanitize(formatMarkdown(outlook)) : '' }} />
             </div>
           )}
         </div>

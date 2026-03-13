@@ -243,6 +243,7 @@ const MapComponent = ({
   onGenerateSitrep,
   sitrepLoading,
   sitrep,
+  sitrepTimestamp,
   showHelp,
   setShowHelp,
   showChatDrawer,
@@ -382,9 +383,6 @@ const MapComponent = ({
   const [recommendationsAIGenerated, setRecommendationsAIGenerated] = useState(false);
   const [recommendationsTimestamp, setRecommendationsTimestamp] = useState(null);
   const [recommendationsCache, setRecommendationsCache] = useState({}); // Cache by facility name
-
-  // Sitrep timestamp
-  const [sitrepTimestamp, setSitrepTimestamp] = useState(null);
 
   // Campaign Dashboard state
   const [showCampaignDashboard, setShowCampaignDashboard] = useState(false);
@@ -562,11 +560,11 @@ const MapComponent = ({
             if (lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng) {
               eventCount++;
               // Weight by severity
-              if (disaster.severity === 'Extreme' || disaster.alertlevel === 'Red') {
+              if (disaster.severity === 'Extreme' || disaster.alertLevel === 'Red') {
                 riskScore += 10;
-              } else if (disaster.severity === 'Severe' || disaster.alertlevel === 'Orange') {
+              } else if (disaster.severity === 'Severe' || disaster.alertLevel === 'Orange') {
                 riskScore += 7;
-              } else if (disaster.severity === 'Moderate' || disaster.alertlevel === 'Yellow') {
+              } else if (disaster.severity === 'Moderate' || disaster.alertLevel === 'Yellow') {
                 riskScore += 5;
               } else {
                 riskScore += 3;
@@ -959,7 +957,7 @@ const MapComponent = ({
 
         // Reports tab props
         sitrep={sitrep}
-        sitrepTimestamp={analysisTimestamp}
+        sitrepTimestamp={sitrepTimestamp}
 
         // Layers tab props
         layerSettings={{
@@ -1454,7 +1452,7 @@ const MapComponent = ({
 
         {/* ACLED conflict event markers */}
         <AcledMarkers
-          acledData={playbackEnabled ? filterByPlaybackDate(acledData, 'event_date') : acledData}
+          acledData={playbackEnabled ? filterByPlaybackDate(getFilteredAcledData(), 'event_date') : getFilteredAcledData()}
           acledEnabled={acledEnabled}
           acledConfig={acledConfig}
         />

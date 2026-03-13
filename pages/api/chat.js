@@ -198,8 +198,8 @@ Be direct, practical, and specific. Use the context data to give personalized an
       }
     ];
 
-    // Add conversation history
-    conversationHistory.forEach(msg => {
+    // Add conversation history (capped to last 20 messages to avoid token limit failures)
+    conversationHistory.slice(-20).forEach(msg => {
       messages.push({
         role: msg.role,
         content: msg.content

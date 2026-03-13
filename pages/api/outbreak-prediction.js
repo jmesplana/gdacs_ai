@@ -25,12 +25,13 @@ export default async function handler(req, res) {
     latitude,
     longitude,
     disasters = [],
-    populationEstimate = 10000,
     washFacilitiesDamaged = 0,
     healthFacilitiesDamaged = 0,
     displacedPopulation = 0,
-    forecastDays = 30,
   } = req.body;
+
+  const populationEstimate = Math.max(1, parseInt(req.body.populationEstimate) || 10000);
+  const forecastDays = Math.min(Math.max(1, parseInt(req.body.forecastDays) || 30), 90);
 
   if (!latitude || !longitude) {
     return res.status(400).json({ error: 'Missing latitude or longitude' });
@@ -38,7 +39,9 @@ export default async function handler(req, res) {
 
   try {
     // Get weather forecast
-    const weatherResponse = await fetch(`${req.headers.origin || 'http://localhost:3000'}/api/weather-forecast`, {
+    const baseUrl = process.env.APP_BASE_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    const weatherResponse = await fetch(`${baseUrl}/api/weather-forecast`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ latitude, longitude, days: 14 }),
@@ -143,7 +146,7 @@ function calculateDiseaseRiskFactors(
   const factors = {};
 
   // Check for flooding disasters
-  const hasFlood = disasters.some(d => d.eventtype && d.eventtype.toLowerCase().includes('flood'));
+  const hasFlood = disasters.some(d => d.eventType && d.eventType.toLowerCase().includes('flood'));
   factors.flooding = hasFlood ? 1.0 : 0.0;
 
   // WASH infrastructure damage factor
@@ -194,7 +197,7 @@ async function generateAIAnalysis(predictions, disasters, population) {
     ).join('\n');
 
     const disasterContext = disasters.length > 0
-      ? disasters.map(d => `${d.eventtype} (${d.alertlevel || 'Unknown'} alert)`).join(', ')
+      ? disasters.map(d => `${d.eventType} (${d.alertLevel || 'Unknown'} alert)`).join(', ')
       : 'No active disasters';
 
     const prompt = `As a public health epidemiologist, provide a brief outbreak risk assessment:

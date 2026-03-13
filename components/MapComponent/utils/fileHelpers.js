@@ -61,6 +61,15 @@ export const processUploadedFile = (file) => {
  * @param {Object} columnMapping - Mapping of required fields
  * @returns {string} CSV string
  */
+const escapeCSVValue = (value) => {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+};
+
 export const convertFacilitiesToCSV = (facilities, columnMapping) => {
   if (!facilities || facilities.length === 0) {
     return '';
@@ -80,10 +89,10 @@ export const convertFacilitiesToCSV = (facilities, columnMapping) => {
       ...displayFields.map(field => facility[field] || ''),
       ...aiAnalysisFields.map(field => facility[field] || '')
     ];
-    return row.join(',');
+    return row.map(escapeCSVValue).join(',');
   });
 
-  return [headers.join(','), ...rows].join('\n');
+  return [headers.map(escapeCSVValue).join(','), ...rows].join('\n');
 };
 
 /**

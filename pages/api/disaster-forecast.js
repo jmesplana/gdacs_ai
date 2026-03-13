@@ -26,7 +26,9 @@ export default async function handler(req, res) {
 
   try {
     // Get weather forecast
-    const weatherResponse = await fetch(`${req.headers.origin || 'http://localhost:3000'}/api/weather-forecast`, {
+    const baseUrl = process.env.APP_BASE_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    const weatherResponse = await fetch(`${baseUrl}/api/weather-forecast`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ latitude, longitude, days }),
@@ -207,7 +209,7 @@ function generateRecommendations(riskLevel, threats) {
   if (riskLevel === 'CRITICAL') {
     recommendations.push('⚠️ URGENT: Activate emergency response protocols');
     recommendations.push('Notify all field teams and facilities');
-    recommendations.push('Preposi tion emergency supplies');
+    recommendations.push('Pre-position emergency supplies');
   }
 
   if (riskLevel === 'HIGH' || riskLevel === 'CRITICAL') {

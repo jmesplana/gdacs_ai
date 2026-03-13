@@ -31,7 +31,9 @@ export default async function handler(req, res) {
 
   try {
     // Get weather forecast
-    const weatherResponse = await fetch(`${req.headers.origin || 'http://localhost:3000'}/api/weather-forecast`, {
+    const baseUrl = process.env.APP_BASE_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    const weatherResponse = await fetch(`${baseUrl}/api/weather-forecast`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ latitude, longitude, days: forecastDays }),
@@ -77,14 +79,14 @@ function predictColdChainDisruption(disasters, weatherData) {
 
   // Check disaster impacts
   disasters.forEach(disaster => {
-    const eventType = (disaster.eventtype || '').toLowerCase();
+    const eventType = (disaster.eventType || '').toLowerCase();
 
     Object.entries(model.disasterImpact).forEach(([type, impact]) => {
       if (eventType.includes(type)) {
         disruptionProbability = Math.max(disruptionProbability, impact.probability);
         estimatedDuration = Math.max(estimatedDuration, impact.durationDays);
         threats.push({
-          source: disaster.eventtype,
+          source: disaster.eventType,
           probability: Math.round(impact.probability * 100),
           expectedDuration: impact.durationDays,
         });
@@ -132,14 +134,14 @@ function predictRoadAccessDisruption(disasters, weatherData) {
 
   // Check disaster impacts
   disasters.forEach(disaster => {
-    const eventType = (disaster.eventtype || '').toLowerCase();
+    const eventType = (disaster.eventType || '').toLowerCase();
 
     Object.entries(model.disasterImpact).forEach(([type, impact]) => {
       if (eventType.includes(type)) {
         disruptionProbability = Math.max(disruptionProbability, impact.probability);
         recoveryDays = Math.max(recoveryDays, impact.recoveryDays);
         threats.push({
-          source: disaster.eventtype,
+          source: disaster.eventType,
           probability: Math.round(impact.probability * 100),
           recoveryTime: impact.recoveryDays,
         });
@@ -183,7 +185,7 @@ function predictAirTransportDisruption(disasters, weatherData) {
 
   // Check for cyclones, volcanic activity
   disasters.forEach(disaster => {
-    const eventType = (disaster.eventtype || '').toLowerCase();
+    const eventType = (disaster.eventType || '').toLowerCase();
 
     if (eventType.includes('cyclone') || eventType.includes('tropical')) {
       disruptionProbability = Math.max(disruptionProbability, 1.0);

@@ -103,11 +103,6 @@ export default function Home() {
     }
   }, []);
 
-  // Fetch disaster data on component mount
-  useEffect(() => {
-    fetchDisasterData();
-  }, []);
-
   // Load cached facilities and ACLED data from localStorage on mount
   useEffect(() => {
     try {
@@ -156,9 +151,9 @@ export default function Home() {
     }
   }, []);
 
-  // Reassess impact when disasters are loaded and we have cached facilities
+  // Reassess impact whenever disaster data changes (initial load or refresh)
   useEffect(() => {
-    if (disasters.length > 0 && facilities.length > 0 && impactedFacilities.length === 0) {
+    if (disasters.length > 0 && facilities.length > 0) {
       assessImpact(facilities);
     }
   }, [disasters]);
@@ -853,19 +848,9 @@ export default function Home() {
   };
 
   // Handle refreshing data from GDACS
+  // Impact reassessment is triggered automatically by the [disasters] effect above
   const handleRefreshData = () => {
     fetchDisasterData();
-    
-    // If we have facilities, reassess impact with the new disaster data
-    if (facilities.length > 0) {
-      // We delay this slightly to ensure we have the new disaster data
-      setTimeout(() => {
-        assessImpact(facilities);
-      }, 1000);
-    }
-    
-    // Last updated will be set by fetchDisasterData, but we could also set it here
-    // if there are cases where we update data without calling fetchDisasterData
   };
 
   // Handle date filter change
@@ -1957,6 +1942,7 @@ export default function Home() {
           onGenerateSitrep={generateSitrep}
           sitrepLoading={loading.sitrep}
           sitrep={sitrep}
+          sitrepTimestamp={sitrepTimestamp}
           showHelp={showHelp}
           setShowHelp={setShowHelp}
           showChatDrawer={showChatDrawer}
