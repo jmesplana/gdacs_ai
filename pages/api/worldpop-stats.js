@@ -147,10 +147,33 @@ async function fetchWorldPopStats(districts, year, dataType) {
   const featureCollection = ee.FeatureCollection(features);
 
   // Single reduceRegions call for all districts — one GEE computation
-  // Use bestEffort: true to let GEE automatically handle the appropriate scale
+  // For agesex data, we need to sum each band separately and preserve band names
+  let reducer;
+  if (dataType === 'agesex') {
+    // CRITICAL: Must use static ee.List, not ComputedObject from bandNames()
+    // forEach() requires a static list to iterate at reduce time
+    const bandNames = ee.List([
+      'f_00', 'm_00', 'f_01', 'm_01',           // Under 5
+      'f_05', 'm_05', 'f_10', 'm_10',           // 5-14
+      'f_15', 'm_15', 'f_20', 'm_20',           // 15-49
+      'f_25', 'm_25', 'f_30', 'm_30',
+      'f_35', 'm_35', 'f_40', 'm_40',
+      'f_45', 'm_45',
+      'f_50', 'm_50', 'f_55', 'm_55',           // 50-59
+      'f_60', 'm_60', 'f_65', 'm_65',           // 60+
+      'f_70', 'm_70', 'f_75', 'm_75',
+      'f_80', 'm_80', 'f_85', 'm_85',
+      'f_90', 'm_90'
+    ]);
+    reducer = ee.Reducer.sum().forEach(bandNames);
+  } else {
+    // For total population, simple sum is fine
+    reducer = ee.Reducer.sum();
+  }
+
   const reduced = selectedImage.reduceRegions({
     collection: featureCollection,
-    reducer: ee.Reducer.sum(),
+    reducer: reducer,
     scale: 100, // WorldPop Global 2 is at 100m resolution
     tileScale: 4, // Increase tile size to handle larger areas without timeout
   });

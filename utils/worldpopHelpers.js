@@ -20,7 +20,7 @@ export const AGE_GROUPS = [
   { key: 'under5',   label: 'Under 5',   color: '#EF4444', bands: ['f_00','m_00','f_01','m_01'] },
   { key: 'age5_14',  label: '5–14',      color: '#F97316', bands: ['f_05','m_05','f_10','m_10'] },
   { key: 'age15_49', label: '15–49',     color: '#3B82F6', bands: ['f_15','m_15','f_20','m_20','f_25','m_25','f_30','m_30','f_35','m_35','f_40','m_40','f_45','m_45'] },
-  { key: 'age50_59', label: '50–59',     color: '#8B5CF6', bands: ['f_50','m_50'] },
+  { key: 'age50_59', label: '50–59',     color: '#8B5CF6', bands: ['f_50','m_50','f_55','m_55'] },
   { key: 'age60plus',label: '60+',       color: '#6B7280', bands: ['f_60','m_60','f_65','m_65','f_70','m_70','f_75','m_75','f_80','m_80','f_85','m_85','f_90','m_90'] },
 ];
 
