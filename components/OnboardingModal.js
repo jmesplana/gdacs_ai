@@ -1,0 +1,190 @@
+import React, { useState } from 'react';
+
+const STEPS = [
+  {
+    icon: '📂',
+    title: 'Upload your facility data',
+    description: 'Prepare a CSV with columns: name, latitude, longitude. Add any extra columns (population, coverage_rate, facility_type) for richer AI analysis. Open the Data Hub drawer to upload.',
+    cta: 'Download CSV template',
+    ctaAction: 'template',
+  },
+  {
+    icon: '🗺️',
+    title: 'Review live disaster & security data',
+    description: 'GDACS disaster alerts load automatically. Optionally upload an admin boundary shapefile (.zip) to see district-level risk, and upload ACLED security event data for conflict overlays.',
+    cta: null,
+  },
+  {
+    icon: '🤖',
+    title: 'Analyze and generate reports',
+    description: 'Click any facility marker for AI recommendations. Use the chatbot to ask questions about your operational area. Generate a full Situation Report in one click from the Reports tab.',
+    cta: null,
+  },
+];
+
+export default function OnboardingModal({ onClose }) {
+  const [step, setStep] = useState(0);
+  const current = STEPS[step];
+
+  const handleCta = () => {
+    if (current.ctaAction === 'template') {
+      const csv = [
+        'name,latitude,longitude,facility_type,population',
+        'Example Health Post,1.2345,32.6789,health_post,5000',
+        'Example Warehouse,-1.5000,30.1000,warehouse,0',
+        'Example Clinic,2.0000,31.5000,clinic,12000',
+      ].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'facility_template.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 10000,
+      background: 'rgba(15,23,42,0.65)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: "'Inter', sans-serif",
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        padding: '36px',
+        maxWidth: '460px',
+        width: '90vw',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
+          <div>
+            <div style={{
+              fontSize: '11px', fontWeight: 600, color: '#FF6B35',
+              letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px',
+              fontFamily: "'Inter', sans-serif",
+            }}>
+              Getting started
+            </div>
+            <h2 style={{
+              margin: 0, fontSize: '20px', fontWeight: 700,
+              color: '#1A365D', fontFamily: "'Space Grotesk', sans-serif",
+            }}>
+              Welcome to Aidstack Disasters
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+              Intelligence for impact workers
+            </p>
+          </div>
+          <button onClick={onClose} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: '22px', color: '#94A3B8', lineHeight: 1, padding: '0', marginTop: '-2px',
+          }}>×</button>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '28px' }}>
+          {STEPS.map((_, i) => (
+            <div
+              key={i}
+              onClick={() => i < step && setStep(i)}
+              style={{
+                flex: 1, height: '4px', borderRadius: '2px',
+                cursor: i < step ? 'pointer' : 'default',
+                background: i <= step ? '#FF6B35' : '#E2E8F0',
+                transition: 'background 0.2s',
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Current step content */}
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <div style={{ fontSize: '44px', marginBottom: '14px' }}>{current.icon}</div>
+          <div style={{
+            fontSize: '11px', fontWeight: 600, color: '#94A3B8',
+            letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px',
+          }}>
+            Step {step + 1} of {STEPS.length}
+          </div>
+          <h3 style={{
+            margin: '0 0 10px', fontSize: '17px', fontWeight: 600,
+            color: '#0F172A', fontFamily: "'Space Grotesk', sans-serif",
+          }}>
+            {current.title}
+          </h3>
+          <p style={{ margin: 0, fontSize: '14px', color: '#475569', lineHeight: '1.65' }}>
+            {current.description}
+          </p>
+        </div>
+
+        {current.cta && (
+          <button onClick={handleCta} style={{
+            display: 'block', width: '100%', marginBottom: '12px',
+            background: 'transparent',
+            border: '1px solid #1A365D',
+            color: '#1A365D', borderRadius: '6px', padding: '10px',
+            fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+            fontFamily: "'Inter', sans-serif",
+          }}>
+            {current.cta}
+          </button>
+        )}
+
+        {/* Navigation */}
+        <div style={{ display: 'flex', gap: '10px' }}>
+          {step > 0 && (
+            <button
+              onClick={() => setStep(s => s - 1)}
+              style={{
+                flex: 1, background: '#F1F5F9', border: 'none', borderRadius: '6px',
+                padding: '12px', fontSize: '14px', fontWeight: 600,
+                color: '#475569', cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              Back
+            </button>
+          )}
+          {step < STEPS.length - 1 ? (
+            <button
+              onClick={() => setStep(s => s + 1)}
+              style={{
+                flex: 1, background: '#FF6B35', border: 'none', borderRadius: '6px',
+                padding: '12px', fontSize: '14px', fontWeight: 700,
+                color: 'white', cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              Next
+            </button>
+          ) : (
+            <button
+              onClick={onClose}
+              style={{
+                flex: 1, background: '#1A365D', border: 'none', borderRadius: '6px',
+                padding: '12px', fontSize: '14px', fontWeight: 700,
+                color: 'white', cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              Get started
+            </button>
+          )}
+        </div>
+
+        <div style={{ marginTop: '14px', textAlign: 'center' }}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: '13px', color: '#94A3B8', fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            Skip — I know what I&apos;m doing
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

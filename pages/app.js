@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import Papa from 'papaparse';
+import { ToastContainer, useToast } from '../components/Toast';
+import OnboardingModal from '../components/OnboardingModal';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // Import components with dynamic loading (no SSR) for Leaflet compatibility
 const MapComponent = dynamic(() => import('../components/MapComponent'), {
@@ -51,7 +54,6 @@ export default function Home() {
   const [dataSource, setDataSource] = useState('');
   const [dateFilter, setDateFilter] = useState('72h'); // default to 72 hours
   const [fetchError, setFetchError] = useState(null);
-  const [useMockData, setUseMockData] = useState(false); // Default to live data
   const [showHelp, setShowHelp] = useState(false); // Help panel visibility
   const [showChatDrawer, setShowChatDrawer] = useState(false); // Chat drawer visibility
   const [showPredictions, setShowPredictions] = useState(false); // Prediction dashboard visibility
@@ -79,6 +81,23 @@ export default function Home() {
   const [districtRawData, setDistrictRawData] = useState([]); // Store original district data for remapping
   const [selectedDistrictForForecast, setSelectedDistrictForForecast] = useState(null); // For district-specific forecast
   const [selectedDistrictForOutlook, setSelectedDistrictForOutlook] = useState(null); // For district-specific operational outlook
+
+  // Toast notifications
+  const { toasts, addToast, dismissToast } = useToast();
+
+  // First-time onboarding
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem('gdacs_onboarding_done')) {
+        setShowOnboarding(true);
+      }
+    } catch (_) {}
+  }, []);
+  const handleCloseOnboarding = () => {
+    setShowOnboarding(false);
+    try { localStorage.setItem('gdacs_onboarding_done', '1'); } catch (_) {}
+  };
 
   // Operation type state (for multi-use humanitarian operations)
   const [operationType, setOperationType] = useState('malaria_control'); // Default to malaria control for backward compatibility
@@ -227,173 +246,44 @@ export default function Home() {
   // Initialize with disaster data on mount
   useEffect(() => {
     fetchDisasterData();
-    setDateFilter('72h'); // Set to show last 72 hours by default
-  }, [useMockData]); // Re-fetch when toggle changes
+    setDateFilter('72h');
+  }, []);
 
   // Fetch GDACS disaster data
   const fetchDisasterData = async () => {
     try {
       setLoading(prev => ({ ...prev, disasters: true }));
       setFetchError(null);
-      
-      if (useMockData) {
-        // Use mock data
-        const mockData = generateMockDisasters();
-        console.log('Using mock disaster data:', mockData);
-        
-        // Ensure all coordinates are valid numbers
-        const processedData = mockData.map(disaster => ({
-          ...disaster,
-          latitude: typeof disaster.latitude === 'string' ? parseFloat(disaster.latitude) : disaster.latitude,
-          longitude: typeof disaster.longitude === 'string' ? parseFloat(disaster.longitude) : disaster.longitude
-        }));
-        
-        console.log('Processed mock data:', processedData);
-        setDisasters(processedData);
-        setFilteredDisasters(processedData);
-        setDataSource('Mock data');
-        return;
-      }
-      
-      // Fetch real data from GDACS
-      console.log('Fetching real GDACS data...');
-      
-      // Make sure to use the right port and protocol
-      const protocol = window.location.protocol;
-      const hostname = window.location.hostname;
-      const port = window.location.port || (protocol === 'https:' ? '443' : '80');
-      const baseUrl = `${protocol}//${hostname}${port === '80' || port === '443' ? '' : `:${port}`}`;
-      
-      // Use the Next.js API endpoint, not the Python one
-      console.log(`Attempting to fetch from ${baseUrl}/api/gdacs`);
-      const response = await fetch(`${baseUrl}/api/gdacs`);
-      
-      if (!response.ok) {
-        throw new Error(`API responded with status: ${response.status}`);
-      }
-      
+
+      const response = await fetch('/api/gdacs');
+      if (!response.ok) throw new Error(`GDACS API responded with status: ${response.status}`);
+
       const data = await response.json();
-      
-      if (!data || !Array.isArray(data)) {
-        throw new Error('Invalid data format received from API');
-      }
-      
-      console.log(`Received ${data.length} disaster events from GDACS API`);
-      
-      // Debug: Check if any disasters have polygon data
-      const disastersWithPolygons = data.filter(d => d.polygon && d.polygon.length > 2);
-      console.log(`Found ${disastersWithPolygons.length} disasters with polygon data out of ${data.length} total`);
-      
-      if (disastersWithPolygons.length > 0) {
-        console.log('Example polygon data:', disastersWithPolygons[0].polygon.slice(0, 3), '...');
-      }
-      console.log('Raw GDACS data sample:', data.slice(0, 2));
-      
-      // Filter out items without coordinates
-      const validData = data.filter(disaster => {
-        const hasCoords = disaster.latitude !== null && 
-                         disaster.longitude !== null && 
-                         !isNaN(parseFloat(disaster.latitude)) && 
-                         !isNaN(parseFloat(disaster.longitude));
-        
-        if (!hasCoords) {
-          console.log(`Skipping disaster without valid coordinates: ${disaster.title}`);
-        }
-        
-        return hasCoords;
-      });
-      
-      console.log(`Found ${validData.length} disasters with valid coordinates`);
-      
-      // Ensure all coordinates are valid numbers
-      const processedData = validData.map(disaster => {
-        const lat = typeof disaster.latitude === 'string' ? parseFloat(disaster.latitude) : disaster.latitude;
-        const lng = typeof disaster.longitude === 'string' ? parseFloat(disaster.longitude) : disaster.longitude;
-        
-        console.log(`Processing disaster: ${disaster.title} at [${lat}, ${lng}]`);
-        
-        return {
-          ...disaster,
-          latitude: lat,
-          longitude: lng
-        };
-      });
-      
-      console.log('First few processed disasters:', processedData.slice(0, 3));
-      
+      if (!data || !Array.isArray(data)) throw new Error('Invalid data format received from GDACS API');
+
+      // Filter to events with valid coordinates
+      const processedData = data
+        .filter(d => d.latitude !== null && d.longitude !== null &&
+          !isNaN(parseFloat(d.latitude)) && !isNaN(parseFloat(d.longitude)))
+        .map(d => ({
+          ...d,
+          latitude: typeof d.latitude === 'string' ? parseFloat(d.latitude) : d.latitude,
+          longitude: typeof d.longitude === 'string' ? parseFloat(d.longitude) : d.longitude,
+        }));
+
       setDisasters(processedData);
       setFilteredDisasters(processedData);
-      
-      // Find the latest publication date from GDACS data
-      if (processedData && processedData.length > 0) {
-        try {
-          // Sort the disasters by publication date (newest first)
-          const sortedByDate = [...processedData].sort((a, b) => {
-            // Handle potential missing dates by using a fallback
-            const dateA = a.pubDate ? new Date(a.pubDate) : new Date(0);
-            const dateB = b.pubDate ? new Date(b.pubDate) : new Date(0);
-            return dateB - dateA;
-          });
-          
-          // Get the most recent publication date
-          const mostRecentDisaster = sortedByDate[0];
-          if (mostRecentDisaster && mostRecentDisaster.pubDate) {
-            const gdacsUpdateTime = new Date(mostRecentDisaster.pubDate);
-            console.log('Most recent GDACS update:', gdacsUpdateTime);
-            setLastUpdated(gdacsUpdateTime);
-          } else {
-            // Fallback if no valid dates found
-            console.log('No valid publication dates found in GDACS data, using current time');
-            setLastUpdated(new Date());
-          }
-        } catch (err) {
-          console.error('Error processing GDACS update dates:', err);
-          // Fallback to current time
-          setLastUpdated(new Date());
-        }
-      } else {
-        // No data, use current time
-        setLastUpdated(new Date());
-      }
-      
-      // Check if we got real data or API returned mock data
-      if (processedData && processedData.length > 0) {
-        // Check if the data is likely from our mock function (uses specific IDs)
-        if (processedData[0].link && processedData[0].link.includes('eventid=1345678')) {
-          setDataSource('API Mock data (GDACS connection unavailable)');
-        } else {
-          setDataSource(`Live GDACS data (${processedData.length} events)`);
-        }
-      } else {
-        setDataSource('No data available from GDACS');
-        
-        // If no valid data, fall back to mock data
-        console.log('No valid GDACS data, falling back to mock data');
-        const mockData = generateMockDisasters();
-        setDisasters(mockData);
-        setFilteredDisasters(mockData);
-        setDataSource('Mock data (no valid GDACS data)');
-        
-        // For mock data, use the most recent mock date
-        try {
-          const sortedMockData = [...mockData].sort((a, b) => {
-            const dateA = a.pubDate ? new Date(a.pubDate) : new Date(0);
-            const dateB = b.pubDate ? new Date(b.pubDate) : new Date(0);
-            return dateB - dateA;
-          });
-          const mockUpdateTime = new Date(sortedMockData[0].pubDate);
-          setLastUpdated(mockUpdateTime);
-        } catch (err) {
-          console.log('Error processing mock data dates:', err);
-          setLastUpdated(new Date());
-        }
-      }
+      setDataSource(`Live GDACS data (${processedData.length} events)`);
+
+      // Set last updated from most recent event date
+      const sorted = [...processedData].sort((a, b) =>
+        (b.pubDate ? new Date(b.pubDate) : 0) - (a.pubDate ? new Date(a.pubDate) : 0));
+      setLastUpdated(sorted[0]?.pubDate ? new Date(sorted[0].pubDate) : new Date());
+
     } catch (error) {
       console.error('Error fetching disaster data:', error);
       setFetchError(error.message);
-      setDataSource('Error fetching data');
-      
-      // Provide mock data in case of error - done in useEffect
+      setDataSource('GDACS data unavailable');
     } finally {
       setLoading(prev => ({ ...prev, disasters: false }));
     }
@@ -475,10 +365,10 @@ export default function Home() {
       setSelectedFacility(null);
       setRecommendations(null);
 
-      console.log('Facility cache cleared');
+      addToast('Facility data cleared.', 'success');
     } catch (error) {
       console.error('Error clearing cache:', error);
-      alert('Failed to clear cache. Please try again.');
+      addToast('Failed to clear cache. Please try again.', 'error');
     }
   };
 
@@ -548,7 +438,7 @@ export default function Home() {
           }));
 
           if (validEvents.length === 0) {
-            alert('No valid ACLED events found in the CSV. Please check the format.');
+            addToast('No valid ACLED events found. Check that your CSV has event_date, latitude, longitude, and event_type columns.', 'error');
             return;
           }
 
@@ -568,17 +458,16 @@ export default function Home() {
           setAcledData(validEvents);
           setAcledEnabled(true);
 
-          // Show success message
-          alert(`Successfully loaded ${validEvents.length.toLocaleString()} ACLED events.\n\nNote: Data will need to be re-uploaded after page refresh (file is too large for browser cache).`);
+          addToast(`${validEvents.length.toLocaleString()} ACLED security events loaded. Re-upload after page refresh — file is too large for browser cache.`, 'success');
         },
         error: (error) => {
           console.error('Error parsing ACLED CSV:', error);
-          alert('Failed to parse ACLED CSV file. Please check the format.');
+          addToast('Failed to parse ACLED CSV. Please check the file format.', 'error');
         }
       });
     } catch (error) {
       console.error('Error processing ACLED upload:', error);
-      alert('Failed to process ACLED data. Please try again.');
+      addToast('Failed to process ACLED data. Please try again.', 'error');
     }
   };
 
@@ -594,11 +483,10 @@ export default function Home() {
         eventTypes: ['Battles', 'Explosions/Remote violence', 'Violence against civilians', 'Riots'],
         showOnMap: true
       });
-      console.log('ACLED cache cleared');
-      // useEffect will trigger reassessment automatically when acledData changes to []
+      addToast('Security event data cleared.', 'success');
     } catch (error) {
       console.error('Error clearing ACLED cache:', error);
-      alert('Failed to clear ACLED cache. Please try again.');
+      addToast('Failed to clear security data. Please try again.', 'error');
     }
   };
 
@@ -662,7 +550,7 @@ export default function Home() {
           });
 
           if (validFacilities.length === 0) {
-            alert('No valid facilities found in the CSV. Please check the format.');
+            addToast('No valid facilities found. Ensure your CSV has name, latitude, and longitude columns.', 'error');
             return;
           }
 
@@ -692,12 +580,12 @@ export default function Home() {
         },
         error: (error) => {
           console.error('Error parsing CSV:', error);
-          alert('Failed to parse CSV file. Please check the format.');
+          addToast('Failed to parse CSV. Please check the file format.', 'error');
         }
       });
     } catch (error) {
       console.error('Error processing facility upload:', error);
-      alert('Failed to process facility data. Please try again.');
+      addToast('Failed to process facility data. Please try again.', 'error');
     }
   };
 
@@ -757,7 +645,7 @@ export default function Home() {
       setRecommendations(null);
     } catch (error) {
       console.error('Error assessing impact:', error);
-      alert('Failed to assess facility impact. Please try again.');
+      addToast('Failed to assess facility impact. Please try again.', 'error');
     } finally {
       assessImpactRef.current = false;
       setLoading(prev => ({ ...prev, impact: false }));
@@ -786,7 +674,7 @@ export default function Home() {
       setRecommendationsAIGenerated(data.isAIGenerated || false);
     } catch (error) {
       console.error('Error generating recommendations:', error);
-      alert('Failed to generate recommendations. Please try again.');
+      addToast('Failed to generate recommendations. Please try again.', 'error');
     } finally {
       setLoading(prev => ({ ...prev, recommendations: false }));
     }
@@ -825,7 +713,7 @@ export default function Home() {
       setActiveTab('sitrep');
     } catch (error) {
       console.error('Error generating sitrep:', error);
-      alert('Failed to generate situation report. Please try again.');
+      addToast('Failed to generate situation report. Please try again.', 'error');
     } finally {
       setLoading(prev => ({ ...prev, sitrep: false }));
     }
@@ -1197,7 +1085,7 @@ export default function Home() {
       
     } catch (error) {
       console.error('Error generating comprehensive report:', error);
-      alert('Failed to generate comprehensive report. Please try again.');
+      addToast('Failed to generate comprehensive report. Please try again.', 'error');
     } finally {
       setLoading(prev => ({ ...prev, sitrep: false }));
     }
@@ -1322,130 +1210,13 @@ export default function Home() {
         document.body.removeChild(a);
       } catch (finalError) {
         console.error('Final error trying to download Word document:', finalError);
-        alert('Unable to download Word document. Please try again or copy the content manually.');
+        addToast('Unable to download Word document. Please try again.', 'error');
       }
     }
   };
 
-  // Generate mock disaster data (moved from API to here for fallback)
-  const generateMockDisasters = () => {
-    console.log("Generating mock disaster data with numeric coordinates");
-    return [
-      {
-        title: "EQ 6.2 M, Indonesia (Indonesia) 2024-03-30 UTC",
-        description: "Earthquake of magnitude 6.2M in Indonesia. The earthquake occurred at a depth of 10km.",
-        pubDate: "Sat, 30 Mar 2024 10:15:00 UTC",
-        link: "https://gdacs.org/report.aspx?eventid=1345678",
-        latitude: -0.7893,
-        longitude: 131.2461,
-        alertLevel: "Orange",
-        eventType: "EQ",
-        eventName: "Earthquake Indonesia"
-      },
-      {
-        title: "TC IRENE-24, Philippines (Philippines) 2024-03-29 UTC",
-        description: "Tropical Cyclone IRENE-24 with maximum sustained winds of 120 km/h making landfall in Philippines.",
-        pubDate: "Fri, 29 Mar 2024 18:30:00 UTC",
-        link: "https://gdacs.org/report.aspx?eventid=1345679",
-        latitude: 13.2543,
-        longitude: 123.6714,
-        alertLevel: "Red",
-        eventType: "TC",
-        eventName: "Tropical Cyclone IRENE-24"
-      },
-      {
-        title: "FL, Vietnam (Vietnam) 2024-03-28 UTC",
-        description: "Flooding reported in central Vietnam after heavy rainfall. Multiple provinces affected.",
-        pubDate: "Thu, 28 Mar 2024 09:45:00 UTC",
-        link: "https://gdacs.org/report.aspx?eventid=1345680",
-        latitude: 16.4637,
-        longitude: 107.5909,
-        alertLevel: "Orange",
-        eventType: "FL",
-        eventName: "Flood Vietnam"
-      },
-      {
-        title: "VO, Iceland (Iceland) 2024-03-26 UTC",
-        description: "Volcanic activity reported in Iceland. Eruption ongoing with ash emissions.",
-        pubDate: "Tue, 26 Mar 2024 14:20:00 UTC",
-        link: "https://gdacs.org/report.aspx?eventid=1345681",
-        latitude: 63.6301,
-        longitude: -19.0516,
-        alertLevel: "Green",
-        eventType: "VO",
-        eventName: "Volcano Iceland"
-      },
-      {
-        title: "DR, Ethiopia (Ethiopia) 2024-03-25 UTC",
-        description: "Drought conditions worsening in Ethiopia affecting agricultural production and water availability.",
-        pubDate: "Mon, 25 Mar 2024 11:10:00 UTC",
-        link: "https://gdacs.org/report.aspx?eventid=1345682",
-        latitude: 9.1450,
-        longitude: 40.4897,
-        alertLevel: "Orange",
-        eventType: "DR",
-        eventName: "Drought Ethiopia"
-      },
-      // Add more mock disasters with dates further in the past
-      {
-        title: "EQ 5.8 M, Peru (Peru) 2024-03-20 UTC",
-        description: "Earthquake of magnitude 5.8M in Peru. Minimal damage reported.",
-        pubDate: "Mon, 20 Mar 2024 08:30:00 UTC",
-        link: "https://gdacs.org/report.aspx?eventid=1345683",
-        latitude: -12.0464,
-        longitude: -77.0428,
-        alertLevel: "Green",
-        eventType: "EQ",
-        eventName: "Earthquake Peru"
-      },
-      {
-        title: "TC ALEX-24, Madagascar (Madagascar) 2024-03-15 UTC",
-        description: "Tropical Cyclone ALEX-24 affecting eastern coast of Madagascar.",
-        pubDate: "Wed, 15 Mar 2024 12:20:00 UTC",
-        link: "https://gdacs.org/report.aspx?eventid=1345684",
-        latitude: -18.9249,
-        longitude: 47.5185,
-        alertLevel: "Orange",
-        eventType: "TC",
-        eventName: "Tropical Cyclone ALEX-24"
-      },
-      {
-        title: "FL, Brazil (Brazil) 2024-03-10 UTC",
-        description: "Severe flooding in Southern Brazil after prolonged rainfall.",
-        pubDate: "Fri, 10 Mar 2024 10:00:00 UTC",
-        link: "https://gdacs.org/report.aspx?eventid=1345685",
-        latitude: -23.5505,
-        longitude: -46.6333,
-        alertLevel: "Red",
-        eventType: "FL",
-        eventName: "Flood Brazil"
-      },
-      {
-        title: "VO, Japan (Japan) 2024-03-05 UTC",
-        description: "Volcanic activity reported in Japan. Minor eruption with ash plume.",
-        pubDate: "Sun, 05 Mar 2024 14:45:00 UTC",
-        link: "https://gdacs.org/report.aspx?eventid=1345686",
-        latitude: 35.3606,
-        longitude: 138.7274,
-        alertLevel: "Green",
-        eventType: "VO",
-        eventName: "Volcano Japan"
-      },
-      {
-        title: "DR, Kenya (Kenya) 2024-03-01 UTC",
-        description: "Drought affecting eastern regions of Kenya. Agricultural impact significant.",
-        pubDate: "Fri, 01 Mar 2024 09:30:00 UTC",
-        link: "https://gdacs.org/report.aspx?eventid=1345687",
-        latitude: 1.2921,
-        longitude: 36.8219,
-        alertLevel: "Orange",
-        eventType: "DR",
-        eventName: "Drought Kenya"
-      }
-    ];
-  };
-
   return (
+    <ErrorBoundary>
     <div className="container">
       <Head>
         <title>Aidstack Disasters - Real-time Disaster Intelligence</title>
@@ -1453,7 +1224,32 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
+      {showOnboarding && <OnboardingModal onClose={handleCloseOnboarding} />}
+
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
       <main>
+
+        {/* GDACS data unavailable banner */}
+        {fetchError && !loading.disasters && (
+          <div style={{
+            background: '#FEF3C7', border: '1px solid #F59E0B',
+            borderRadius: '6px', padding: '10px 16px',
+            marginBottom: '8px', display: 'flex',
+            alignItems: 'center', justifyContent: 'space-between',
+            fontFamily: "'Inter', sans-serif", fontSize: '13px', color: '#92400E',
+          }}>
+            <span>⚠️ Live GDACS data unavailable — disaster map may be empty. Check your connection or try refreshing.</span>
+            <button
+              onClick={handleRefreshData}
+              style={{
+                background: '#F59E0B', color: 'white', border: 'none',
+                borderRadius: '4px', padding: '4px 10px',
+                fontSize: '12px', fontWeight: 600, cursor: 'pointer', marginLeft: '12px',
+              }}
+            >Retry</button>
+          </div>
+        )}
         <div className="header">
           <h1 style={{
             color: 'var(--aidstack-navy)',
@@ -2037,5 +1833,6 @@ export default function Home() {
         Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#2196F3', textDecoration: 'none', fontWeight: 'bold' }}>John Mark Esplana</a> | Disaster Impact Assessment Tool
       </footer>
     </div>
+    </ErrorBoundary>
   )
 }

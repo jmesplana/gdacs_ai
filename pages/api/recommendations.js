@@ -28,23 +28,30 @@ export default async function handler(req, res) {
       ? createSituationSummary(facility, impacts)
       : `Facility '${facility.name || 'Unnamed facility'}' at coordinates ${facility.latitude}, ${facility.longitude} is currently not impacted by any active disasters. Provide preparedness and risk mitigation recommendations.`;
     
-    // If OpenAI API key exists and AI is requested, use AI-powered recommendations
-    if (process.env.OPENAI_API_KEY && useAI) {
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({ error: 'AI recommendations unavailable. Please check your API key configuration.' });
+    }
+
+    // Try primary AI recommendations
+    if (useAI) {
       try {
         console.log(`Generating ${hasImpacts ? 'response' : 'preparedness'} recommendations...`);
         const recommendations = await generateAIRecommendations(facility, impacts || [], situationSummary, hasImpacts);
         res.status(200).json({ recommendations, isAIGenerated: true });
         return;
       } catch (aiError) {
-        console.error('Error generating AI recommendations, falling back to mock:', aiError);
-        // Fall back to mock recommendations if AI fails
+        console.error('Error generating AI recommendations, trying simplified prompt:', aiError);
       }
     }
 
-    // For demo purposes, generate mock recommendations based on disaster types
-    const recommendations = generateMockRecommendations(facility, impacts || [], hasImpacts);
-    
-    res.status(200).json({ recommendations, isAIGenerated: false });
+    // Try fallback with simplified prompt
+    try {
+      const recommendations = await generateFallbackRecommendations(facility, impacts || [], hasImpacts);
+      res.status(200).json({ recommendations, isAIGenerated: true });
+      return;
+    } catch (_) {}
+
+    res.status(503).json({ error: 'AI recommendations unavailable. Please check your API key configuration.' });
   } catch (error) {
     console.error('Error generating recommendations:', error);
     res.status(500).json({ error: error.message });
@@ -173,133 +180,62 @@ function createSituationSummary(facility, impacts) {
   return summary;
 }
 
-// Generate recommendations using a simplified AI call
-async function generateMockRecommendations(facility, impacts, hasImpacts) {
-  try {
-    // Try to use OpenAI with a simplified prompt for fallback
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+// Generate recommendations using a simplified AI call (fallback)
+async function generateFallbackRecommendations(facility, impacts, hasImpacts) {
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
 
-    // Generate situation summary
-    const situationSummary = hasImpacts
-      ? createSituationSummary(facility, impacts)
-      : `Facility '${facility.name || 'Unnamed facility'}' at coordinates ${facility.latitude}, ${facility.longitude} is currently not impacted by any active disasters.`;
-    
-    // Create a simplified prompt
-    const prompt = hasImpacts ? `
-    As a disaster management expert, provide recommendations for this facility impacted by disasters:
+  const situationSummary = hasImpacts
+    ? createSituationSummary(facility, impacts)
+    : `Facility '${facility.name || 'Unnamed facility'}' at coordinates ${facility.latitude}, ${facility.longitude} is currently not impacted by any active disasters.`;
 
-    ${situationSummary}
+  const prompt = hasImpacts ? `
+  As a disaster management expert, provide recommendations for this facility impacted by disasters:
 
-    Provide recommendations in these categories:
-    1. Immediate Safety Measures
-    2. Resource Mobilization
-    3. Evacuation Considerations
-    4. Communication Protocols
-    5. Medium-term Mitigation Strategies
+  ${situationSummary}
 
-    Format your response as a JSON object with these categories as keys and arrays of specific recommendations as values.
-    Do not use JSON symbols like {}, [], or quotes within your text content.
-    ` : `
-    As a disaster preparedness expert, provide preparedness recommendations for this facility:
+  Provide recommendations in these categories:
+  1. Immediate Safety Measures
+  2. Resource Mobilization
+  3. Evacuation Considerations
+  4. Communication Protocols
+  5. Medium-term Mitigation Strategies
 
-    ${situationSummary}
+  Format your response as a JSON object with these categories as keys and arrays of specific recommendations as values.
+  Do not use JSON symbols like {}, [], or quotes within your text content.
+  ` : `
+  As a disaster preparedness expert, provide preparedness recommendations for this facility:
 
-    Provide recommendations in these categories:
-    1. Risk Assessment and Planning
-    2. Infrastructure Hardening
-    3. Emergency Supplies and Resources
-    4. Staff Training and Drills
-    5. Communication Systems
-    6. Early Warning Systems
+  ${situationSummary}
 
-    Format your response as a JSON object with these categories as keys and arrays of specific recommendations as values.
-    Do not use JSON symbols like {}, [], or quotes within your text content.
-    `;
-    
-    // Call OpenAI API
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {role: "system", content: "You are a disaster management expert providing structured recommendations in JSON format."},
-        {role: "user", content: prompt}
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.7
-    });
-    
-    // Parse the response
-    const recommendationsJSON = response.choices[0].message.content.trim();
-    let recommendations = JSON.parse(recommendationsJSON);
-    
-    // Add a credit section if it doesn't exist
-    if (!recommendations["Credits"]) {
-      recommendations["Credits"] = ["Recommendations provided by John Mark Esplana's GDACS Facilities Impact Assessment Tool"];
-    }
-    
-    return recommendations;
-    
-  } catch (error) {
-    console.error("Error using OpenAI API for mock recommendations:", error);
+  Provide recommendations in these categories:
+  1. Risk Assessment and Planning
+  2. Infrastructure Hardening
+  3. Emergency Supplies and Resources
+  4. Staff Training and Drills
+  5. Communication Systems
+  6. Early Warning Systems
 
-    // Create minimal fallback recommendations if API call fails
-    if (hasImpacts) {
-      return {
-        "Immediate Safety Measures": [
-          "Conduct a comprehensive facility safety assessment",
-          "Implement appropriate safety protocols based on disaster types"
-        ],
-        "Resource Mobilization": [
-          "Prepare emergency supplies kit with food, water, and medical supplies",
-          "Ensure communication equipment is charged and operational"
-        ],
-        "Evacuation Considerations": [
-          "Identify safe evacuation routes",
-          "Designate assembly points away from hazard zones"
-        ],
-        "Communication Protocols": [
-          "Establish emergency communication channels for all staff",
-          "Maintain regular contact with emergency services"
-        ],
-        "Medium-term Mitigation Strategies": [
-          "Develop comprehensive disaster response plan",
-          "Conduct regular drills and staff training"
-        ]
-      };
-    } else {
-      return {
-        "Risk Assessment and Planning": [
-          "Conduct comprehensive hazard and vulnerability assessment",
-          "Develop facility-specific disaster preparedness plan",
-          "Identify potential risks based on geographic location and facility type"
-        ],
-        "Infrastructure Hardening": [
-          "Assess structural integrity and seismic resistance",
-          "Install backup power systems and water storage",
-          "Strengthen critical infrastructure elements"
-        ],
-        "Emergency Supplies and Resources": [
-          "Stock emergency supplies (food, water, medical kits) for at least 72 hours",
-          "Maintain inventory of emergency equipment and tools",
-          "Establish supply chain backup for critical resources"
-        ],
-        "Staff Training and Drills": [
-          "Conduct regular disaster preparedness drills",
-          "Train staff on emergency protocols and first aid",
-          "Designate and train emergency response team members"
-        ],
-        "Communication Systems": [
-          "Install redundant communication systems (satellite, radio, cellular)",
-          "Create emergency contact lists and update regularly",
-          "Establish communication protocols with local authorities"
-        ],
-        "Early Warning Systems": [
-          "Subscribe to local disaster alert systems",
-          "Install environmental monitoring equipment as appropriate",
-          "Develop standard operating procedures for alert response"
-        ]
-      };
-    }
-  }
+  Format your response as a JSON object with these categories as keys and arrays of specific recommendations as values.
+  Do not use JSON symbols like {}, [], or quotes within your text content.
+  `;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo",
+    messages: [
+      {role: "system", content: "You are a disaster management expert providing structured recommendations in JSON format."},
+      {role: "user", content: prompt}
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.7
+  });
+
+  const recommendationsJSON = response.choices[0].message.content.trim();
+  let recommendations = JSON.parse(recommendationsJSON);
+
+  if (recommendations["Credits"]) delete recommendations["Credits"];
+  if (recommendations["About"]) delete recommendations["About"];
+
+  return recommendations;
 }

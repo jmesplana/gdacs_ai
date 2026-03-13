@@ -30,17 +30,24 @@ export default async function handler(req, res) {
         res.status(200).json({ analysis, isAIGenerated: true });
         return;
       } catch (aiError) {
-        console.error('Error generating AI analysis, falling back to mock:', aiError);
-        // Fall back to mock if AI fails
+        console.error('Error generating AI analysis, trying simplified prompt:', aiError);
+        // Fall through to simplified fallback below
       }
     }
-    
-    // Generate mock analysis if no API key or if AI generation fails
-    const analysis = generateMockAnalysis(facility, impacts);
-    res.status(200).json({ analysis, isAIGenerated: false });
+
+    // Fallback: try a simpler OpenAI prompt if the main call failed
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const analysis = await generateFallbackAnalysis(facility, impacts);
+        res.status(200).json({ analysis, isAIGenerated: true });
+        return;
+      } catch (_) {}
+    }
+
+    res.status(503).json({ error: 'AI analysis unavailable. Please check your API key configuration.' });
   } catch (error) {
     console.error('Error generating analysis:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
 
@@ -104,10 +111,9 @@ Format your response as a JSON object with these section headings as keys and de
   }
 }
 
-// Generate analysis using simplified OpenAI call if main one fails
-async function generateMockAnalysis(facility, impacts) {
+// Simplified fallback analysis prompt (used when primary call fails)
+async function generateFallbackAnalysis(facility, impacts) {
   try {
-    // Try to use OpenAI with a simplified prompt for fallback
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
@@ -157,36 +163,10 @@ async function generateMockAnalysis(facility, impacts) {
     const analysisJSON = response.choices[0].message.content.trim();
     let analysis = JSON.parse(analysisJSON);
     
-    // Add a credit line
-    if (analysis["About"]) {
-      analysis["About"] += " | Developed by John Mark Esplana (https://github.com/jmesplana)";
-    } else {
-      analysis["About"] = "Developed by John Mark Esplana (https://github.com/jmesplana)";
-    }
-    
     return analysis;
-    
+
   } catch (error) {
-    console.error("Error using OpenAI API for mock analysis:", error);
-    
-    // Create minimal fallback analysis if API call fails
-    const facilityName = facility.name || 'Unnamed facility';
-    
-    // Create minimal fallback response
-    return {
-      "Executive Summary": `Analysis of ${facilityName} based on available disaster data.`,
-      "Vulnerability Assessment": `${facilityName} may have vulnerabilities based on its location and facility type.`,
-      "Impact Scenarios": ["Potential impacts from nearby disaster events if any are active."],
-      "Risk Rating": "Assessment incomplete. Please try again with API access.",
-      "Potential Health Risks": [
-        "Standard health and safety risks associated with facility operations",
-        "Potential for stress-related health impacts during emergency situations"
-      ],
-      "Recommended Monitoring": [
-        "Regular monitoring of local disaster alerts and warnings",
-        "Periodic facility integrity inspections",
-        "Annual comprehensive risk assessment"
-      ]
-    };
+    console.error("Error using OpenAI API for fallback analysis:", error);
+    throw error;
   }
 }

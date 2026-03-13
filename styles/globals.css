@@ -79,6 +79,19 @@ a {
   box-shadow: 0 4px 20px rgba(0,0,0,0.1);
 }
 
+@supports (height: 100dvh) {
+  .map-container {
+    height: calc(100dvh - 180px);
+  }
+}
+
+@media (max-width: 640px) {
+  .map-container {
+    height: calc(100dvh - 120px);
+    border-radius: 4px;
+  }
+}
+
 .leaflet-container {
   height: 100%;
   width: 100%;
@@ -332,7 +345,7 @@ a {
   top: 0;
   width: 45vw;
   max-width: 800px;
-  min-width: 600px;
+  min-width: 320px;
   height: 100vh;
   background-color: white;
   box-shadow: 0 0 15px rgba(0,0,0,0.2);
@@ -349,6 +362,21 @@ a {
 
 .drawer-right.open {
   transform: translateX(0);
+}
+
+@media (max-width: 768px) {
+  .drawer {
+    width: 95vw;
+    min-width: unset;
+  }
+}
+
+@media (max-width: 480px) {
+  .drawer {
+    width: 100vw;
+    min-width: unset;
+    padding: 16px;
+  }
 }
 
 .drawer-left {
