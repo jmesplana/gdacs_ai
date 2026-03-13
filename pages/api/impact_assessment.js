@@ -1,3 +1,4 @@
+import { withRateLimit } from '../../lib/rateLimit';
 import Papa from 'papaparse';
 import { getDistance, isPointInPolygon, getAreaOfPolygon } from 'geolib';
 
@@ -9,7 +10,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -354,3 +355,4 @@ function getImpactRadius(disaster) {
 
   return impactRadius;
 }
+export default withRateLimit(handler);

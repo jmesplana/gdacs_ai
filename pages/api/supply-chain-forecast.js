@@ -1,3 +1,4 @@
+import { withRateLimit } from '../../lib/rateLimit';
 /**
  * Supply Chain Disruption Forecast API
  * Predicts logistical challenges based on disasters and weather
@@ -13,7 +14,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -305,3 +306,5 @@ function generateOverallRecommendations(riskLevel, criticalComponents) {
   }
   return recs;
 }
+
+export default withRateLimit(handler);

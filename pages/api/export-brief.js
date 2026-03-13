@@ -1,3 +1,4 @@
+import { withRateLimit } from '../../lib/rateLimit';
 /**
  * Campaign Decision Brief Export API
  * Generates a formatted HTML document suitable for printing or PDF export
@@ -11,7 +12,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -762,3 +763,5 @@ function formatRecommendations(text) {
 
   return `<p style="margin: 6px 0;">${formatted}</p>`;
 }
+
+export default withRateLimit(handler);

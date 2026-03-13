@@ -1,3 +1,4 @@
+import { withRateLimit } from '../../lib/rateLimit';
 /**
  * Disease Outbreak Prediction API
  * Predicts epidemic risk based on disasters, weather, and facility damage
@@ -16,7 +17,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -232,3 +233,5 @@ Keep response concise and actionable for field coordinators.`;
     return null;
   }
 }
+
+export default withRateLimit(handler);

@@ -30,17 +30,17 @@ Four specialized agents audited the codebase across security, UX, mobile/perform
 ---
 
 ## Phase 1 — Make It Safe
-**Target**: 1 day | **Status**: Pending
+**Target**: 1 day | **Status**: In Progress
 
 Security blockers that must be resolved before any organization evaluates this seriously.
 
-- [ ] Rate limit all OpenAI API routes (100 req/hour per IP)
+- [x] Rate limit all OpenAI API routes (100 req/hour per IP)
 - [ ] Reduce request body size limits from 10MB → 1MB across all API routes
 - [ ] Replace all `error.message` in API responses with generic "Internal server error"
-- [ ] Cap shapefile upload to 10MB max (currently 100MB)
-- [ ] Fix `NEXT_PUBLIC_BASE_URL` pattern in `operation-viability.js` and `campaign-viability.js`
+- [ ] Cap shapefile upload size (currently 100MB — decide on appropriate limit)
+- [x] Fix `NEXT_PUBLIC_BASE_URL` pattern in `operation-viability.js` and `campaign-viability.js`
 - [ ] Strip sensitive data from `console.log` calls in API routes (production leakage)
-- [ ] Add method validation (`POST` only) on all state-changing endpoints
+- [x] Add method validation (`POST` only) on all state-changing endpoints
 - [ ] Add timeout to external HTTP calls in `operational-outlook.js` (DuckDuckGo scraping, no timeout)
 
 ---
@@ -50,17 +50,17 @@ Security blockers that must be resolved before any organization evaluates this s
 
 UX improvements that cut time-to-value from ~30 minutes to ~5 minutes for a first-time humanitarian org user.
 
-- [ ] Replace all 13 `alert()` calls with in-app toast notifications (error + success)
-- [ ] Add guided onboarding modal (3-step: Upload → Assess → Report) shown on first visit
-- [ ] Add empty state with "Get Started" CTA when no data is loaded
+- [x] Replace all 13 `alert()` calls with in-app toast notifications (error + success)
+- [x] Add guided onboarding modal (3-step: Upload → Assess → Report) shown on first visit
+- [x] Add empty state with "Get Started" CTA when no data is loaded
 - [ ] Add `"Using demo data"` warning banner when GDACS live feed fails
 - [ ] Add facility search + status filter to the facility drawer
 - [ ] Add React Error Boundary — prevent full white-screen on component crash
 - [ ] Fix mobile drawer: remove hardcoded `min-width: 600px`, make fully responsive
 - [ ] Fix map container height for mobile (`100dvh` instead of `calc(100vh - 180px)`)
-- [ ] Add progress detail messages for long AI operations (10–30s) so users don't think it froze
+- [x] Add progress detail messages for long AI operations (10–30s) so users don't think it froze
 - [ ] Expand map legend with facility status, disaster types, and risk zone explanations
-- [ ] Add data freshness indicator ("Refreshed 2 min ago") to header
+- [x] Add data freshness indicator ("Refreshed 2 min ago") to header
 - [ ] Standardize UI terminology: "Situation Report", "Impacted Facility", "Data Hub" consistently
 
 ---
@@ -211,4 +211,4 @@ The combination of:
 
 ---
 
-*Last updated: March 2026*
+*Last updated: 13 March 2026*

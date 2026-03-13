@@ -1,3 +1,4 @@
+import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
 import { getDistance } from 'geolib';
 
@@ -14,7 +15,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -370,3 +371,5 @@ Format your response in clear sections with bullet points. Be specific and actio
     note: 'Security assessment based on AI analysis of known conflict zones. For real-time data, upload ACLED conflict data.'
   };
 }
+
+export default withRateLimit(handler);

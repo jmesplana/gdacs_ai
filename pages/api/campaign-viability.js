@@ -1,3 +1,4 @@
+import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
 import { getDistance } from 'geolib';
 import { getOperationType } from '../../config/operationTypes';
@@ -10,7 +11,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -691,3 +692,5 @@ function generateBasicRecommendations(assessment, opConfig) {
 
   return recommendations;
 }
+
+export default withRateLimit(handler);

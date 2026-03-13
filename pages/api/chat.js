@@ -1,3 +1,4 @@
+import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
 
 export const config = {
@@ -48,7 +49,7 @@ const webSearchOptions = {
   search_context_size: "high"
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -842,3 +843,5 @@ function buildContextSummary(context) {
 
   return summary.join('\n');
 }
+
+export default withRateLimit(handler);

@@ -1,3 +1,4 @@
+import { withRateLimit } from '../../lib/rateLimit';
 /**
  * Disaster Trend Forecast API
  * Predicts future disaster risks based on weather forecasts
@@ -13,7 +14,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -263,3 +264,5 @@ function generateRecommendations(riskLevel, threats) {
 
   return recommendations;
 }
+
+export default withRateLimit(handler);

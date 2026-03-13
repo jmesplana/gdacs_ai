@@ -1,3 +1,4 @@
+import { withRateLimit } from '../../lib/rateLimit';
 /**
  * Weather Forecast API with Server-Side Caching
  * Uses Open-Meteo (FREE, no API key) + optional Vercel KV cache
@@ -16,7 +17,7 @@ try {
 // Fallback in-memory cache (for development)
 const memoryCache = new Map();
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -172,3 +173,5 @@ async function saveToCache(key, data, expirySeconds) {
     console.warn('Cache write error:', error.message);
   }
 }
+
+export default withRateLimit(handler);

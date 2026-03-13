@@ -1,3 +1,4 @@
+import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
 
 export const config = {
@@ -8,7 +9,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -409,3 +410,5 @@ function isPointInDistrict(lat, lng, district) {
   const { minLat, maxLat, minLng, maxLng } = district.bounds;
   return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
 }
+
+export default withRateLimit(handler);

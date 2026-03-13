@@ -1,3 +1,4 @@
+import { withRateLimit } from '../../lib/rateLimit';
 /**
  * Operational Outlook API
  * Generates forward-looking humanitarian analysis based on current situation
@@ -15,7 +16,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -701,3 +702,5 @@ Generate the operational outlook now:`;
 
   return response.choices[0].message.content;
 }
+
+export default withRateLimit(handler);
