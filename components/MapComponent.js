@@ -67,7 +67,7 @@ import {
 } from './MapComponent/utils';
 
 import buildWeatherContext from '../utils/weatherContextBuilder';
-import { WORLDPOP_TILE_LAYERS } from '../utils/worldpopHelpers';
+// import { WORLDPOP_TILE_LAYERS } from '../utils/worldpopHelpers'; // Not needed - using GEE tiles
 import { useToast } from './Toast';
 
 // Import constants
@@ -394,6 +394,9 @@ const MapComponent = ({
     toggleWorldPopLayer,
     fetchWorldPopData,
     clearWorldPopData,
+    geeTileUrl, // GEE tile URL for raster visualization
+    scopeToShapefile,
+    toggleScopeToShapefile,
   } = useWorldPop();
   const [showWorldPopDrawer, setShowWorldPopDrawer] = useState(false);
 
@@ -1149,16 +1152,31 @@ const MapComponent = ({
           />
         )}
 
-        {/* WorldPop population density overlay */}
-        {showWorldPopLayer && (() => {
-          const layer = Object.values(WORLDPOP_TILE_LAYERS).find(l => l.id === worldPopLayerType)
-            || WORLDPOP_TILE_LAYERS.population1km;
+        {/* WorldPop population density overlay - using GEE tiles */}
+        {showWorldPopLayer && geeTileUrl && (() => {
+          console.log('[WorldPop] Rendering GEE tile layer:', {
+            showWorldPopLayer,
+            geeTileUrl
+          });
           return (
             <TileLayer
-              key={layer.id}
-              url={layer.url}
-              attribution={layer.attribution}
-              opacity={layer.opacity}
+              key={geeTileUrl}
+              url={geeTileUrl}
+              attribution='&copy; <a href="https://www.worldpop.org">WorldPop</a> via Google Earth Engine'
+              opacity={0.65}
+              pane="overlayPane"
+              zIndex={650}
+              eventHandlers={{
+                tileerror: (error) => {
+                  console.error('[WorldPop] GEE tile load error:', error);
+                },
+                tileload: () => {
+                  console.log('[WorldPop] GEE tile loaded successfully');
+                },
+                loading: () => {
+                  console.log('[WorldPop] GEE tiles loading...');
+                }
+              }}
             />
           );
         })()}
@@ -1783,6 +1801,8 @@ const MapComponent = ({
         toggleWorldPopLayer={toggleWorldPopLayer}
         fetchWorldPopData={fetchWorldPopData}
         clearWorldPopData={clearWorldPopData}
+        scopeToShapefile={scopeToShapefile}
+        toggleScopeToShapefile={toggleScopeToShapefile}
       />
 
       {/* Campaign Dashboard */}

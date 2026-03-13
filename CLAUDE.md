@@ -26,7 +26,9 @@ OPENAI_API_KEY=sk-proj-...
 APP_BASE_URL=http://localhost:3000
 ```
 
-For rate limiting (production), configure `@vercel/kv` Redis environment variables. The rate limiter degrades gracefully if Redis is unavailable.
+Optional environment variables:
+- `REDIS_URL` — For rate limiting (production). Degrades gracefully if unavailable.
+- Google Earth Engine service account credentials — For WorldPop population data integration (`pages/api/worldpop-stats.js`). This endpoint uses the `@google/earthengine` package and has a 120s timeout via `vercel.json`.
 
 ## Architecture
 
@@ -39,7 +41,11 @@ For rate limiting (production), configure `@vercel/kv` Redis environment variabl
 
 **Component hierarchy**:
 - `components/MapComponent.js` (~10,300 LOC including subcomponents) — the core map interface
-  - `components/MapComponent/` — subcomponents split into: hooks (`useAIAnalysis`, `useDrawing`, `useFileUpload`, `useMapControls`, `useMapFilters`, `usePlayback`), drawers (side panels for data/chat/recommendations/filters), overlays (legend, menus), and utils (geospatial helpers)
+  - `components/MapComponent/hooks/` — Custom hooks: `useAIAnalysis`, `useDrawing`, `useFileUpload`, `useMapControls`, `useMapFilters`, `usePlayback`, `useWorldPop`
+  - `components/MapComponent/components/drawers/` — Side panels: `ChatDrawer`, `FacilityDrawer`, `FilterDrawer`, `MapLayersDrawer`, `RecommendationsDrawer`, `SitrepDrawer`, `UnifiedDrawer`, `WorldPopDrawer`
+  - `components/MapComponent/components/overlays/` — Map overlays: `FloatingActionButtons`, `HamburgerMenu`, `MapLegend`, `TimelineScrubber`, `CampaignDashboard`
+  - `components/MapComponent/components/` — Map layers: `AcledMarkers`, `DisasterMarkers`, `DrawingLayer`, `HeatmapLayer`, `TimelineVisualization`
+  - `components/MapComponent/utils/` — Geospatial helpers: `disasterHelpers`, `fileHelpers`, `mapHelpers`
 - Other major components: `PredictionDashboard.js`, `OperationalOutlook.js`, `LandingPage.js`, `ShapefileUploader.js`, `SitrepGenerator.js`
 
 **State management**: Local `useState` throughout — no Redux/Zustand. `pages/app.js` owns top-level state and passes down via props.
@@ -52,8 +58,11 @@ Key routes:
 - `pages/api/chat.js` — Chatbot using GPT-4o with web search
 - `pages/api/impact_assessment.js` — Calculates disaster proximity to uploaded facilities using `geolib`
 - `pages/api/process-shapefile.js` — Parses SHP/GeoJSON uploads (60s timeout, 3GB memory via `vercel.json`)
+- `pages/api/worldpop-stats.js` — Fetches WorldPop population data via Google Earth Engine (120s timeout, 1GB memory via `vercel.json`)
 - `pages/api/gdacs.js` — Proxies/parses GDACS RSS feed
 - `pages/api/operational-outlook.js` — Forward-looking analysis with DuckDuckGo scraping
+
+Other AI endpoints (all rate-limited): `analysis.js`, `campaign-viability.js`, `campaign-viability-batch.js`, `disaster-forecast.js`, `district-campaign-viability.js`, `operation-viability.js`, `outbreak-prediction.js`, `recommendations.js`, `security-assessment.js`, `sitrep.js`, `supply-chain-forecast.js`, `weather-forecast.js`
 
 The `APP_BASE_URL` env var is used for internal API-to-API calls (avoid hardcoding `localhost`).
 
@@ -75,8 +84,12 @@ GDACS disasters are auto-fetched on load via `/api/gdacs` (proxied RSS → parse
 
 - `config/operationTypes.js` — Defines operation type categories and their analysis templates
 - `config/predictionConfig.js` — Prediction model configuration
-- `next.config.js` — Rewrites `/api/gdacs-feed` → `https://gdacs.org/xml/rss.xml`
-- `vercel.json` — Shapefile endpoint gets 60s timeout and 3GB memory; all others use Vercel defaults
+- `next.config.js` — Rewrites `/api/gdacs-feed` → `https://gdacs.org/xml/rss.xml`; marks `@google/earthengine` as server-only
+- `vercel.json` — Custom timeouts/memory: `process-shapefile.js` (60s/3GB), `worldpop-stats.js` (120s/1GB)
+
+## Custom Slash Commands
+
+- `/brand-aidstack` — Apply Aidstack branding to components and pages using official brand guidelines
 
 ## Known Issues & Production Gaps
 
@@ -86,3 +99,10 @@ From `PRODUCTION_ROADMAP.md`:
 - `pages/api/operational-outlook.js` has no timeout on external HTTP calls — potential hanging
 - Mobile layout is broken (hardcoded 600px min-width)
 - No automated tests exist
+
+## Development Notes
+
+- **Leaflet SSR incompatibility**: All Leaflet-dependent components must be dynamically imported with `{ ssr: false }` to prevent Next.js server-side rendering errors
+- **Large state in app.js**: The main `pages/app.js` contains 80+ `useState` hooks. Consider using context or state management library for major refactors
+- **No TypeScript**: This is a JavaScript-only codebase. Do not add TypeScript files or types
+- **Rate limiting**: Gracefully degrades if Redis is unavailable — app continues to function without rate limiting

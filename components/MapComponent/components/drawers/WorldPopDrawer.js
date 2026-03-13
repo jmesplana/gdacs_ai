@@ -15,6 +15,8 @@ const WorldPopDrawer = ({
   toggleWorldPopLayer,
   fetchWorldPopData,
   clearWorldPopData,
+  scopeToShapefile,
+  toggleScopeToShapefile,
 }) => {
   const [selectedYear, setSelectedYear] = useState(2020);
   const [selectedDataType, setSelectedDataType] = useState('total');
@@ -113,6 +115,26 @@ const WorldPopDrawer = ({
                 </div>
               </div>
 
+              {/* Geographic scope toggle */}
+              <div style={{ marginBottom: '12px', padding: '10px', background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '6px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={scopeToShapefile}
+                    onChange={toggleScopeToShapefile}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <div style={{ fontSize: '12px', color: '#92400E' }}>
+                    <div style={{ fontWeight: 600 }}>Limit to shapefile area</div>
+                    <div style={{ fontSize: '11px', marginTop: '2px', opacity: 0.8 }}>
+                      {scopeToShapefile
+                        ? 'Showing population only within uploaded boundaries'
+                        : 'Showing global population (including neighboring regions)'}
+                    </div>
+                  </div>
+                </label>
+              </div>
+
               <button
                 onClick={handleFetch}
                 disabled={isLoading}
@@ -180,7 +202,10 @@ const WorldPopDrawer = ({
                   <input
                     type="checkbox"
                     checked={showWorldPopLayer}
-                    onChange={toggleWorldPopLayer}
+                    onChange={() => {
+                      console.log('[WorldPopDrawer] Checkbox clicked, current:', showWorldPopLayer, 'calling toggle');
+                      toggleWorldPopLayer();
+                    }}
                     style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                   />
                   <span style={{ fontSize: '13px', color: '#374151' }}>Show population density heatmap</span>

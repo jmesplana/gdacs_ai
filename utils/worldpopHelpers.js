@@ -27,17 +27,21 @@ export const AGE_GROUPS = [
 export const WORLDPOP_TILE_LAYERS = {
   population1km: {
     id: 'worldpop_pop_1km',
-    name: 'Population (1km)',
-    url: 'https://worldpop.arcgis.com/arcgis/rest/services/WorldPop_Total_Population_1km/ImageServer/tile/{z}/{y}/{x}',
-    attribution: '&copy; <a href="https://www.worldpop.org">WorldPop</a>',
-    opacity: 0.7,
+    name: 'Population Density (1km)',
+    // WorldPop Population Density via ArcGIS ImageServer
+    // This shows actual population density at 1km resolution (2020 data)
+    url: 'https://worldpop.arcgis.com/arcgis/rest/services/WorldPop_Population_Density_1km/ImageServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; <a href="https://www.worldpop.org">WorldPop</a> / <a href="https://www.esri.com">Esri</a>',
+    opacity: 0.65,
   },
   density100m: {
     id: 'worldpop_density_100m',
-    name: 'Pop. Density (100m)',
+    name: 'Population Density (100m)',
+    // WorldPop Population Density at 100m resolution (2020 data)
+    // Higher resolution - shows more detailed population distribution
     url: 'https://worldpop.arcgis.com/arcgis/rest/services/WorldPop_Population_Density_100m/ImageServer/tile/{z}/{y}/{x}',
-    attribution: '&copy; <a href="https://www.worldpop.org">WorldPop</a>',
-    opacity: 0.7,
+    attribution: '&copy; <a href="https://www.worldpop.org">WorldPop</a> / <a href="https://www.esri.com">Esri</a>',
+    opacity: 0.65,
   },
 };
 
@@ -131,6 +135,43 @@ export function formatWorldPopForAI(worldPopData, districts, year) {
   }
 
   return text;
+}
+
+/**
+ * Calculate geographic bounds from an array of districts.
+ * Returns { west, south, east, north } for scoping WorldPop tiles.
+ */
+export function calculateBounds(districts) {
+  if (!districts || districts.length === 0) return null;
+
+  let west = Infinity;
+  let east = -Infinity;
+  let south = Infinity;
+  let north = -Infinity;
+
+  for (const district of districts) {
+    const geometry = district.geometry;
+    if (!geometry || !geometry.coordinates) continue;
+
+    // Handle both Polygon and MultiPolygon
+    const coordArrays = geometry.type === 'MultiPolygon'
+      ? geometry.coordinates.flat(1)
+      : geometry.coordinates;
+
+    for (const ring of coordArrays) {
+      for (const [lng, lat] of ring) {
+        if (lng < west) west = lng;
+        if (lng > east) east = lng;
+        if (lat < south) south = lat;
+        if (lat > north) north = lat;
+      }
+    }
+  }
+
+  // Return null if no valid coordinates found
+  if (!isFinite(west)) return null;
+
+  return { west, south, east, north };
 }
 
 /**
