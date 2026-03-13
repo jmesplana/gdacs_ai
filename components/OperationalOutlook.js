@@ -12,6 +12,8 @@ const OperationalOutlook = ({
   acledData = [],
   districts = [],
   selectedDistrict = null, // If provided, analyze only this district/admin level
+  worldPopData = {},
+  worldPopYear = null,
   onClose
 }) => {
   const [loading, setLoading] = useState(true);
@@ -150,7 +152,9 @@ const OperationalOutlook = ({
           acledData: filteredAcledData, // Filtered to analysis area bounds
           districts: analysisDistricts, // Either single district or all districts
           predictions: predictionsData,
-          selectedDistrict: selectedDistrict ? selectedDistrict.name : null // Signal to API if this is admin-level analysis
+          selectedDistrict: selectedDistrict ? selectedDistrict.name : null, // Signal to API if this is admin-level analysis
+          worldPopData: worldPopData || {},
+          worldPopYear: worldPopYear || null
         })
       });
 

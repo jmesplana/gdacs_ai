@@ -36,7 +36,8 @@ import {
   UnifiedDrawer,
   ColumnSelectionModal,
   RecommendationsDrawer,
-  ChatDrawer
+  ChatDrawer,
+  WorldPopDrawer
 } from './MapComponent/components/drawers';
 
 import {
@@ -53,7 +54,8 @@ import {
   useFileUpload,
   useMapControls,
   useAIAnalysis,
-  usePlayback
+  usePlayback,
+  useWorldPop
 } from './MapComponent/hooks';
 
 // Import utils
@@ -65,6 +67,7 @@ import {
 } from './MapComponent/utils';
 
 import buildWeatherContext from '../utils/weatherContextBuilder';
+import { WORLDPOP_TILE_LAYERS } from '../utils/worldpopHelpers';
 import { useToast } from './Toast';
 
 // Import constants
@@ -266,7 +269,8 @@ const MapComponent = ({
   districtLabelField = null,
   onDistrictLabelFieldChange,
   onDistrictClick,
-  onDistrictOutlookClick
+  onDistrictOutlookClick,
+  onWorldPopDataChange
 }) => {
   // Map refs - keep these in main component
   const mapRef = useRef(null);
@@ -377,6 +381,28 @@ const MapComponent = ({
     jumpToDate,
     filterByPlaybackDate
   } = usePlayback(filteredDisasters, acledData);
+
+  // WorldPop hook
+  const {
+    worldPopData,
+    isLoading: worldPopLoading,
+    error: worldPopError,
+    lastFetchParams: worldPopLastFetch,
+    showWorldPopLayer,
+    activeLayerType: worldPopLayerType,
+    setActiveLayerType: setWorldPopLayerType,
+    toggleWorldPopLayer,
+    fetchWorldPopData,
+    clearWorldPopData,
+  } = useWorldPop();
+  const [showWorldPopDrawer, setShowWorldPopDrawer] = useState(false);
+
+  // Lift worldPopData to parent when it changes
+  useEffect(() => {
+    if (onWorldPopDataChange) {
+      onWorldPopDataChange(worldPopData, worldPopLastFetch);
+    }
+  }, [worldPopData, worldPopLastFetch]);
 
   // Recommendations drawer state
   const [showRecommendationsDrawer, setShowRecommendationsDrawer] = useState(false);
@@ -1123,6 +1149,20 @@ const MapComponent = ({
           />
         )}
 
+        {/* WorldPop population density overlay */}
+        {showWorldPopLayer && (() => {
+          const layer = Object.values(WORLDPOP_TILE_LAYERS).find(l => l.id === worldPopLayerType)
+            || WORLDPOP_TILE_LAYERS.population1km;
+          return (
+            <TileLayer
+              key={layer.id}
+              url={layer.url}
+              attribution={layer.attribution}
+              opacity={layer.opacity}
+            />
+          );
+        })()}
+
         {/* Map access component for capturing map instance */}
         <MapAccess onMapReady={(map) => {
           setMapInstance(map);
@@ -1728,6 +1768,23 @@ const MapComponent = ({
         }}
       />
 
+      {/* WorldPop Population Drawer */}
+      <WorldPopDrawer
+        isOpen={showWorldPopDrawer}
+        onClose={() => setShowWorldPopDrawer(false)}
+        districts={districts}
+        worldPopData={worldPopData}
+        isLoading={worldPopLoading}
+        error={worldPopError}
+        lastFetchParams={worldPopLastFetch}
+        showWorldPopLayer={showWorldPopLayer}
+        activeLayerType={worldPopLayerType}
+        setActiveLayerType={setWorldPopLayerType}
+        toggleWorldPopLayer={toggleWorldPopLayer}
+        fetchWorldPopData={fetchWorldPopData}
+        clearWorldPopData={clearWorldPopData}
+      />
+
       {/* Campaign Dashboard */}
       <CampaignDashboard
         facilities={facilities}
@@ -1748,12 +1805,59 @@ const MapComponent = ({
             };
           });
         })()} // Pass enriched districts with risk data
+        worldPopData={worldPopData}
+        worldPopYear={worldPopLastFetch?.year}
         isOpen={showCampaignDashboard}
         onClose={() => setShowCampaignDashboard(false)}
         operationType={operationType}
       />
 
       {/* Campaign Dashboard button moved to hamburger menu for cleaner UI */}
+
+      {/* WorldPop Population Button - visible when districts are loaded */}
+      {districts && districts.length > 0 && (
+        <button
+          onClick={() => setShowWorldPopDrawer(true)}
+          title="Population Data (WorldPop)"
+          style={{
+            position: 'absolute',
+            bottom: '116px',
+            right: '20px',
+            zIndex: 1000,
+            backgroundColor: Object.keys(worldPopData).length > 0 ? '#059669' : 'var(--aidstack-navy, #1B3A5C)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '50%',
+            width: '56px',
+            height: '56px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
+            transition: 'all 0.3s ease',
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 600,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.08)';
+            e.currentTarget.style.boxShadow = '0 5px 16px rgba(0,0,0,0.35)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 3px 10px rgba(0,0,0,0.25)';
+          }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          <span style={{ fontSize: '9px', marginTop: '2px', fontWeight: 700 }}>POP</span>
+        </button>
+      )}
 
       {/* AI Chat Button - Positioned at bottom-right of map */}
       <button

@@ -1,4 +1,5 @@
 export { default as FilterDrawer } from './FilterDrawer';
+export { default as WorldPopDrawer } from './WorldPopDrawer';
 export { default as UnifiedDrawer } from './UnifiedDrawer';
 export { default as ColumnSelectionModal } from './ColumnSelectionModal';
 export { default as RecommendationsDrawer } from './RecommendationsDrawer';

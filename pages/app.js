@@ -82,6 +82,10 @@ export default function Home() {
   const [selectedDistrictForForecast, setSelectedDistrictForForecast] = useState(null); // For district-specific forecast
   const [selectedDistrictForOutlook, setSelectedDistrictForOutlook] = useState(null); // For district-specific operational outlook
 
+  // WorldPop population data (lifted from MapComponent)
+  const [worldPopData, setWorldPopData] = useState({});
+  const [worldPopLastFetch, setWorldPopLastFetch] = useState(null);
+
   // Toast notifications
   const { toasts, addToast, dismissToast } = useToast();
 
@@ -1769,6 +1773,10 @@ export default function Home() {
             setSelectedDistrictForOutlook(district);
             setShowOperationalOutlook(true);
           }}
+          onWorldPopDataChange={(data, fetchParams) => {
+            setWorldPopData(data);
+            setWorldPopLastFetch(fetchParams);
+          }}
         />
 
         {selectedFacility && (
@@ -1788,6 +1796,8 @@ export default function Home() {
             districts={districts}
             acledData={acledData}
             selectedDistrict={selectedDistrictForForecast}
+            worldPopData={worldPopData}
+            worldPopYear={worldPopLastFetch?.year}
             onClose={() => {
               setShowPredictions(false);
               setSelectedDistrictForForecast(null); // Clear selected district when closing
@@ -1803,6 +1813,8 @@ export default function Home() {
             acledData={acledData}
             districts={districts}
             selectedDistrict={selectedDistrictForOutlook}
+            worldPopData={worldPopData}
+            worldPopYear={worldPopLastFetch?.year}
             onClose={() => {
               setShowOperationalOutlook(false);
               setSelectedDistrictForOutlook(null); // Clear selected district when closing

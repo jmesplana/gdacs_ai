@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@changey/react-leaflet-markercluster": "^4.0.0-rc1",
+    "@google/earthengine": "^1.7.17",
     "@turf/helpers": "^7.3.4",
     "@turf/simplify": "^7.3.4",
     "@types/dompurify": "^3.0.5",

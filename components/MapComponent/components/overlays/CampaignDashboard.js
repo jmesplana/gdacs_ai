@@ -15,6 +15,8 @@ const CampaignDashboard = ({
   acledData = [],
   acledEnabled = false,
   districts = [], // NEW: District boundaries from shapefile
+  worldPopData = {},
+  worldPopYear = null,
   isOpen,
   onClose,
   operationType = 'malaria_control'
@@ -54,7 +56,9 @@ const CampaignDashboard = ({
           districts,
           facilities,
           impactedFacilities,
-          disasters
+          disasters,
+          worldPopData: worldPopData || {},
+          worldPopYear: worldPopYear || null
         })
       });
 

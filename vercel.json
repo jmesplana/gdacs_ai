@@ -4,6 +4,10 @@
     "pages/api/process-shapefile.js": {
       "maxDuration": 60,
       "memory": 3008
+    },
+    "pages/api/worldpop-stats.js": {
+      "maxDuration": 120,
+      "memory": 1024
     }
   }
 }

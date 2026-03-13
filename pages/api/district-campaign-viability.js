@@ -15,7 +15,7 @@ async function handler(req, res) {
   }
 
   try {
-    const { districts, facilities, impactedFacilities, disasters } = req.body;
+    const { districts, facilities, impactedFacilities, disasters, worldPopData = {}, worldPopYear = null } = req.body;
 
     if (!districts || districts.length === 0) {
       return res.status(400).json({ error: 'Missing districts data' });
@@ -54,6 +54,16 @@ async function handler(req, res) {
       const riskScore = district.riskScore || 0;
       const eventCount = district.eventCount || 0;
 
+      // Use WorldPop population if available, fall back to shapefile property
+      const wpData = worldPopData[String(district.id)];
+      const population = wpData?.total
+        || district.properties?.population
+        || district.properties?.POP
+        || district.population
+        || null;
+
+      const ageGroups = wpData?.ageGroups || null;
+
       return {
         district: district.name,
         country: district.country,
@@ -66,7 +76,10 @@ async function handler(req, res) {
           : 0,
         riskLevel: riskLevel,
         riskScore: riskScore,
-        eventCount: eventCount
+        eventCount: eventCount,
+        population: population,
+        ageGroups: ageGroups,
+        populationSource: wpData ? `WorldPop Global 2 (${worldPopYear || 'unknown year'})` : 'shapefile'
       };
     });
 

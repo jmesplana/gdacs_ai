@@ -1,4 +1,5 @@
 import { withRateLimit } from '../../lib/rateLimit';
+import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
 /**
  * Operational Outlook API
  * Generates forward-looking humanitarian analysis based on current situation
@@ -28,6 +29,8 @@ async function handler(req, res) {
     districts = [],
     predictions = null, // Optional: predictions from disaster-forecast, outbreak-prediction, supply-chain-forecast
     selectedDistrict = null, // Optional: name of single admin level being analyzed
+    worldPopData = {},
+    worldPopYear = null,
   } = req.body;
 
   if (!openai) {
@@ -63,7 +66,12 @@ async function handler(req, res) {
     }
 
     // Build context from available data
-    const context = buildAnalysisContext(facilities, disasters, acledData, districts, predictions, webSearchResults, country, selectedDistrict);
+    let context = buildAnalysisContext(facilities, disasters, acledData, districts, predictions, webSearchResults, country, selectedDistrict);
+
+    // Append WorldPop population data if available
+    if (worldPopData && Object.keys(worldPopData).length > 0) {
+      context += formatWorldPopForAI(worldPopData, districts, worldPopYear || 'unknown');
+    }
 
     console.log('Generating operational outlook with context:', {
       facilities: facilities.length,
