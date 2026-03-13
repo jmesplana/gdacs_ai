@@ -25,20 +25,38 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Get weather forecast
-    const baseUrl = process.env.APP_BASE_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-    const weatherResponse = await fetch(`${baseUrl}/api/weather-forecast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ latitude, longitude, days }),
+    // Fetch weather directly from Open-Meteo — avoids unreliable internal self-calls on Vercel
+    const params = new URLSearchParams({
+      latitude: parseFloat(latitude),
+      longitude: parseFloat(longitude),
+      daily: [
+        'temperature_2m_max',
+        'temperature_2m_min',
+        'precipitation_sum',
+        'precipitation_probability_max',
+        'windspeed_10m_max',
+        'relative_humidity_2m_mean',
+      ].join(','),
+      forecast_days: Math.min(parseInt(days) || 7, PREDICTION_CONFIG.weatherAPI.maxForecastDays),
+      timezone: 'auto',
     });
 
+    const weatherResponse = await fetch(
+      `${PREDICTION_CONFIG.weatherAPI.baseURL}/forecast?${params}`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+
     if (!weatherResponse.ok) {
-      throw new Error('Failed to fetch weather data');
+      throw new Error(`Weather API error: ${weatherResponse.status}`);
     }
 
-    const weatherData = await weatherResponse.json();
+    const raw = await weatherResponse.json();
+    const weatherData = {
+      latitude: raw.latitude,
+      longitude: raw.longitude,
+      timezone: raw.timezone,
+      daily: raw.daily,
+    };
 
     // Analyze different disaster risks
     const predictions = {

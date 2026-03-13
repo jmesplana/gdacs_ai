@@ -39,14 +39,17 @@ export default async function handler(req, res) {
 
   try {
     // Get weather forecast
-    const baseUrl = process.env.APP_BASE_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-    const weatherResponse = await fetch(`${baseUrl}/api/weather-forecast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ latitude, longitude, days: 14 }),
+    const weatherParams = new URLSearchParams({
+      latitude: parseFloat(latitude),
+      longitude: parseFloat(longitude),
+      daily: ['temperature_2m_max','temperature_2m_min','precipitation_sum','precipitation_probability_max','windspeed_10m_max','relative_humidity_2m_mean'].join(','),
+      forecast_days: 14,
+      timezone: 'auto',
     });
-
+    const weatherResponse = await fetch(
+      `${PREDICTION_CONFIG.weatherAPI.baseURL}/forecast?${weatherParams}`,
+      { signal: AbortSignal.timeout(10000) }
+    );
     const weatherData = weatherResponse.ok ? await weatherResponse.json() : null;
 
     // Calculate risk factors for each disease

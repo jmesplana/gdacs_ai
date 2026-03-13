@@ -35,7 +35,8 @@ export default async function handler(req, res) {
     // Add security assessment if location data available
     if (facility.country || facility.region || facility.district) {
       try {
-        const securityResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/security-assessment`, {
+        const _baseUrl = process.env.APP_BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+        const securityResponse = await fetch(`${_baseUrl}/api/security-assessment`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

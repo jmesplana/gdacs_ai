@@ -55,7 +55,15 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
 
       // Check file sizes
       const totalSize = shpFile.byteLength + dbfFile.byteLength + (prjFile?.byteLength || 0);
-      console.log(`Total file size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
+      const totalSizeMB = totalSize / 1024 / 1024;
+      console.log(`Total file size: ${totalSizeMB.toFixed(2)} MB`);
+
+      // Adaptive simplification tolerance: larger files get more aggressive simplification
+      const simplifyTolerance = totalSizeMB > 20 ? 0.008
+        : totalSizeMB > 10 ? 0.004
+        : totalSizeMB > 5  ? 0.002
+        : 0.001;
+      console.log(`Using simplification tolerance: ${simplifyTolerance} (file size: ${totalSizeMB.toFixed(1)}MB)`);
 
       // Process shapefile CLIENT-SIDE (no server upload!)
       setUploadProgress({ step: 'Parsing shapefile...', progress: 40 });
@@ -64,7 +72,7 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
       // Open shapefile using the shapefile library (works in browser!)
       const source = await shapefile.open(shpFile, dbfFile);
 
-      let features = []; // Changed from const to let so we can reassign after reprojection
+      let features = [];
       let result = await source.read();
       let featureCount = 0;
 
@@ -73,12 +81,13 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
           features.push(result.value);
           featureCount++;
 
-          // Update progress periodically
-          if (featureCount % 100 === 0) {
+          // Yield to browser every 50 features to prevent main thread freeze
+          if (featureCount % 50 === 0) {
             setUploadProgress({
               step: `Parsing features... (${featureCount})`,
-              progress: 40 + (featureCount / 1000) * 20 // Estimate
+              progress: 40 + Math.min((featureCount / 2000) * 20, 20)
             });
+            await new Promise(resolve => setTimeout(resolve, 0));
           }
         }
         result = await source.read();
@@ -122,18 +131,22 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
       // Reproject features if needed
       if (sourceProjection) {
         console.log('🔄 Reprojecting coordinates to WGS84...');
-        features = features.map(feat => {
+        const reprojected = [];
+        for (let i = 0; i < features.length; i++) {
+          const feat = features[i];
           try {
-            const reprojectedGeometry = reprojectGeometry(feat.geometry, sourceProjection);
-            return {
-              ...feat,
-              geometry: reprojectedGeometry
-            };
+            reprojected.push({ ...feat, geometry: reprojectGeometry(feat.geometry, sourceProjection) });
           } catch (e) {
             console.error('Error reprojecting feature:', e);
-            return feat; // Return original if reprojection fails
+            reprojected.push(feat);
           }
-        });
+          // Yield every 50 features
+          if (i % 50 === 0) {
+            setUploadProgress({ step: `Reprojecting... (${i}/${features.length})`, progress: 60 });
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+        }
+        features = reprojected;
         console.log('✅ Reprojection complete');
       }
 
@@ -146,7 +159,9 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
       console.log('Available fields:', availableFields);
 
       // Process districts locally
-      const districts = features.map((feat, idx) => {
+      const districts = [];
+      for (let idx = 0; idx < features.length; idx++) {
+        const feat = features[idx];
         const props = feat.properties || {};
         let geometry = feat.geometry;
 
@@ -162,43 +177,32 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
 
         // Convert LineString to Polygon by closing the ring
         if (geometry && geometry.type === 'LineString') {
-          console.log(`Converting LineString to Polygon for ${districtName}`);
           const coords = geometry.coordinates;
-          // Check if first and last points are the same (closed ring)
           const first = coords[0];
           const last = coords[coords.length - 1];
           const isClosed = first[0] === last[0] && first[1] === last[1];
-
-          // If not closed, close it
-          const ring = isClosed ? coords : [...coords, first];
-
-          geometry = {
-            type: 'Polygon',
-            coordinates: [ring]
-          };
+          geometry = { type: 'Polygon', coordinates: [isClosed ? coords : [...coords, first]] };
         }
 
         // Convert MultiLineString to MultiPolygon
         if (geometry && geometry.type === 'MultiLineString') {
-          console.log(`Converting MultiLineString to MultiPolygon for ${districtName}`);
           geometry = {
             type: 'MultiPolygon',
             coordinates: geometry.coordinates.map(lineCoords => {
               const first = lineCoords[0];
               const last = lineCoords[lineCoords.length - 1];
               const isClosed = first[0] === last[0] && first[1] === last[1];
-              const ring = isClosed ? lineCoords : [...lineCoords, first];
-              return [ring];
+              return [isClosed ? lineCoords : [...lineCoords, first]];
             })
           };
         }
 
-        // Simplify geometry to reduce size (tolerance = 0.001 degrees ~ 100m)
+        // Simplify geometry using adaptive tolerance
         let simplifiedGeometry = geometry;
         if (geometry && (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon')) {
           try {
             const turfFeature = feature(geometry);
-            const simplified = simplify(turfFeature, { tolerance: 0.001, highQuality: false });
+            const simplified = simplify(turfFeature, { tolerance: simplifyTolerance, highQuality: false });
             simplifiedGeometry = simplified.geometry;
           } catch (e) {
             console.warn(`Could not simplify geometry for ${districtName}:`, e);
@@ -211,7 +215,7 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
           bounds = calculateBounds(simplifiedGeometry);
         }
 
-        return {
+        districts.push({
           id: idx,
           name: districtName,
           country,
@@ -220,8 +224,17 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
           geometry: simplifiedGeometry,
           bounds,
           properties: props
-        };
-      });
+        });
+
+        // Yield every 20 features during the heavy simplification step
+        if (idx % 20 === 0) {
+          setUploadProgress({
+            step: `Simplifying geometries... (${idx}/${features.length})`,
+            progress: 70 + Math.min((idx / features.length) * 20, 20)
+          });
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
 
       console.log(`✅ Processed ${districts.length} administrative boundaries locally`);
       setUploadProgress({ step: 'Finalizing...', progress: 90 });
@@ -307,15 +320,15 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
 
     if (coords.length === 0) return null;
 
-    const lons = coords.map(c => c[0]);
-    const lats = coords.map(c => c[1]);
+    let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    for (const c of coords) {
+      if (c[0] < minLng) minLng = c[0];
+      if (c[0] > maxLng) maxLng = c[0];
+      if (c[1] < minLat) minLat = c[1];
+      if (c[1] > maxLat) maxLat = c[1];
+    }
 
-    return {
-      minLng: Math.min(...lons),
-      maxLng: Math.max(...lons),
-      minLat: Math.min(...lats),
-      maxLat: Math.max(...lats)
-    };
+    return { minLng, maxLng, minLat, maxLat };
   }
 
   const handleFieldSelection = (fieldName) => {
