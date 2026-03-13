@@ -44,7 +44,9 @@ const tools = [
 
 // Web search configuration for Chat Completions API
 // Note: For gpt-4o-search-preview, use web_search_options parameter instead of tools array
-const webSearchOptions = {};
+const webSearchOptions = {
+  search_context_size: "high"
+};
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -114,8 +116,15 @@ export default async function handler(req, res) {
 - You need to verify or supplement information about ongoing disasters
 - Users request information about recent disease outbreaks, conflict events, or humanitarian situations
 - You need current best practices, recent WHO/CDC guidelines, or latest operational guidance
-- Any information that may have changed since your training data cutoff (January 2025)
+- Any information that may have changed since your training data cutoff
 - The web search is performed automatically by the model when needed
+
+**🗓️ SEARCH RECENCY RULES — STRICTLY FOLLOW THESE**:
+- Today is ${currentDate}. Always include the current year (${new Date().getFullYear()}) in your search queries to surface recent results (e.g., "Pakistan security situation ${new Date().getFullYear()}", "floods Pakistan ${new Date().getFullYear()}").
+- When you find search results, CHECK THE DATE of each source. If a source is from before 2024, treat it as historical background only — do NOT present it as current information.
+- If your search only returns results older than 12 months, explicitly tell the user: "I could only find information from [date] — this may be outdated. Please verify with current sources."
+- NEVER present 2021, 2022, or 2023 data as if it describes the current situation without clearly stating the year it's from.
+- For security situations, disease outbreaks, and conflict data: always search for the most recent 3-6 months of information.
 
 **🌤️ WEATHER FORECAST DATA**: You have access to weather forecast data in your context when facilities or districts are loaded:
 - Regional weather forecasts cover the operational area (center point of all facilities)
