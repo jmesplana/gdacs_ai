@@ -731,8 +731,8 @@ function buildContextSummary(context) {
     }
 
     // Add detailed district breakdown if districts are available
-    if (context.districts && context.districts.length > 0) {
-      const formattedData = formatWorldPopForAI(context.worldPopData, context.districts, context.worldPopYear || 'unknown');
+    if (context.districtsForWorldPop && context.districtsForWorldPop.length > 0) {
+      const formattedData = formatWorldPopForAI(context.worldPopData, context.districtsForWorldPop, context.worldPopYear || 'unknown');
       summary.push(formattedData);
     }
 

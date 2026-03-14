@@ -1782,7 +1782,16 @@ const MapComponent = ({
           acledData: getFilteredAcledData().slice(0, 30), // Reduced ACLED to 30 for performance
           acledEnabled: acledEnabled,
           acledConfig: acledConfig,
-          weatherForecast: weatherContext // Add weather context for chatbot
+          weatherForecast: weatherContext, // Add weather context for chatbot
+          worldPopData: worldPopData, // Add WorldPop population data
+          worldPopYear: worldPopLastFetch?.year || null, // Add WorldPop year
+          // Send simplified districts array (just name and id) for WorldPop context formatting
+          districtsForWorldPop: districts && districts.length > 0 ? districts.map(d => ({
+            id: d.id,
+            name: d.name,
+            country: d.country,
+            region: d.region
+          })) : null
         }}
       />
 
