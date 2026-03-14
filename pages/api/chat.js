@@ -1,5 +1,6 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
+import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
 
 export const config = {
   api: {
@@ -112,13 +113,20 @@ async function handler(req, res) {
 
 **📅 CURRENT DATE & TIME**: Today is ${currentDate} (${currentDateTime}). Always use this date when discussing "today", "recent", or "current" events. You also have access to the 'get_current_date' function if you need to verify the current date during the conversation.
 
-**🌐 WEB SEARCH CAPABILITY**: You have access to real-time web search through OpenAI's native web_search tool. Use this when:
-- Users ask about recent events, current statistics, or up-to-date information
-- You need to verify or supplement information about ongoing disasters
-- Users request information about recent disease outbreaks, conflict events, or humanitarian situations
-- You need current best practices, recent WHO/CDC guidelines, or latest operational guidance
-- Any information that may have changed since your training data cutoff
-- The web search is performed automatically by the model when needed
+**🌐 WEB SEARCH CAPABILITY**: You have access to real-time web search through OpenAI's native web_search tool.
+
+⚡ **CRITICAL RULE - DATA PRIORITY**:
+1. ALWAYS use data loaded in your context FIRST (facilities, disasters, ACLED, WorldPop population, weather)
+2. ONLY use web search for information NOT available in your context
+3. When WorldPop population data is loaded, NEVER search the web for population statistics
+4. When facilities/districts are loaded, NEVER search for facility lists or location data
+
+Use web search ONLY for:
+- Recent news and events not in the disaster feed
+- Current WHO/CDC guidelines and best practices
+- Humanitarian situation updates beyond what's in the context
+- Information that may have changed since your training data cutoff
+- Verification of non-quantitative information (policies, guidelines, etc.)
 
 **🗓️ SEARCH RECENCY RULES — STRICTLY FOLLOW THESE**:
 - Today is ${currentDate}. Always include the current year (${new Date().getFullYear()}) in your search queries to surface recent results (e.g., "Pakistan security situation ${new Date().getFullYear()}", "floods Pakistan ${new Date().getFullYear()}").
@@ -675,6 +683,62 @@ function buildContextSummary(context) {
     }
 
     summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  }
+
+  // WorldPop population data
+  if (context.worldPopData && Object.keys(context.worldPopData).length > 0) {
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`WORLDPOP POPULATION DATA (${context.worldPopYear || 'Year Unknown'})`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+
+    // Calculate totals
+    const totalPop = Object.values(context.worldPopData).reduce((sum, d) => sum + (d.total || 0), 0);
+    const under5 = Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.under5 || 0), 0);
+    const age5_14 = Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.age5_14 || 0), 0);
+    const age15_49 = Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.age15_49 || 0), 0);
+    const age50_59 = Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.age50_59 || 0), 0);
+    const over60 = Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.age60plus || 0), 0);
+    const female = Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.female || 0), 0);
+    const male = Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.male || 0), 0);
+
+    summary.push(`\n📊 POPULATION OVERVIEW:`);
+    summary.push(`   Total Population: ${totalPop.toLocaleString()}`);
+    summary.push(`   Data Source: WorldPop ${context.worldPopYear || 'data'} via Google Earth Engine`);
+    summary.push(`   Coverage: ${Object.keys(context.worldPopData).length} district(s)`);
+
+    // Check if we have age breakdown data
+    const hasAgeBreakdown = under5 > 0 || age5_14 > 0 || age15_49 > 0;
+
+    if (hasAgeBreakdown) {
+      summary.push(`\n   📈 AGE GROUP BREAKDOWN:`);
+      summary.push(`   • Under 5: ${under5.toLocaleString()} (${Math.round((under5/totalPop)*100)}%)`);
+      summary.push(`   • Age 5-14: ${age5_14.toLocaleString()} (${Math.round((age5_14/totalPop)*100)}%)`);
+      summary.push(`   • Age 15-49: ${age15_49.toLocaleString()} (${Math.round((age15_49/totalPop)*100)}%)`);
+      summary.push(`   • Age 50-59: ${age50_59.toLocaleString()} (${Math.round((age50_59/totalPop)*100)}%)`);
+      summary.push(`   • Age 60+: ${over60.toLocaleString()} (${Math.round((over60/totalPop)*100)}%)`);
+
+      if (female > 0 || male > 0) {
+        summary.push(`\n   👥 GENDER BREAKDOWN:`);
+        summary.push(`   • Female: ${female.toLocaleString()} (${Math.round((female/totalPop)*100)}%)`);
+        summary.push(`   • Male: ${male.toLocaleString()} (${Math.round((male/totalPop)*100)}%)`);
+      }
+
+      const vulnerable = under5 + over60;
+      summary.push(`\n   ⚠️ VULNERABLE POPULATIONS:`);
+      summary.push(`   • Total Vulnerable (Under 5 + Over 60): ${vulnerable.toLocaleString()} (${Math.round((vulnerable/totalPop)*100)}%)`);
+      summary.push(`   • Children Under 5: ${under5.toLocaleString()}`);
+      summary.push(`   • Elderly 60+: ${over60.toLocaleString()}`);
+    }
+
+    // Add detailed district breakdown if districts are available
+    if (context.districts && context.districts.length > 0) {
+      const formattedData = formatWorldPopForAI(context.worldPopData, context.districts, context.worldPopYear || 'unknown');
+      summary.push(formattedData);
+    }
+
+    summary.push(`\n⚡ IMPORTANT: This population data is LOADED IN YOUR CONTEXT. Always use this data when answering population-related questions.`);
+    summary.push(`   DO NOT search the web for population statistics when this data is available.`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   }
 
   // Disaster information

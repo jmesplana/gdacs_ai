@@ -1,5 +1,6 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
+import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
 
 export const config = {
   api: {
@@ -15,7 +16,7 @@ async function handler(req, res) {
   }
 
   try {
-    const { facility, impacts, useAI } = req.body;
+    const { facility, impacts, useAI, worldPopData = {}, worldPopYear = null, districts = [] } = req.body;
 
     if (!facility) {
       return res.status(400).json({ error: 'Missing facility data' });
@@ -37,7 +38,15 @@ async function handler(req, res) {
     if (useAI) {
       try {
         console.log(`Generating ${hasImpacts ? 'response' : 'preparedness'} recommendations...`);
-        const recommendations = await generateAIRecommendations(facility, impacts || [], situationSummary, hasImpacts);
+        const recommendations = await generateAIRecommendations(
+          facility,
+          impacts || [],
+          situationSummary,
+          hasImpacts,
+          worldPopData,
+          worldPopYear,
+          districts
+        );
         res.status(200).json({ recommendations, isAIGenerated: true });
         return;
       } catch (aiError) {
@@ -47,7 +56,14 @@ async function handler(req, res) {
 
     // Try fallback with simplified prompt
     try {
-      const recommendations = await generateFallbackRecommendations(facility, impacts || [], hasImpacts);
+      const recommendations = await generateFallbackRecommendations(
+        facility,
+        impacts || [],
+        hasImpacts,
+        worldPopData,
+        worldPopYear,
+        districts
+      );
       res.status(200).json({ recommendations, isAIGenerated: true });
       return;
     } catch (_) {}
@@ -60,11 +76,32 @@ async function handler(req, res) {
 }
 
 // Generate AI-powered recommendations
-async function generateAIRecommendations(facility, impacts, situationSummary, hasImpacts) {
+async function generateAIRecommendations(facility, impacts, situationSummary, hasImpacts, worldPopData, worldPopYear, districts) {
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
+
+    // Build population context if available
+    let populationContext = '';
+    if (worldPopData && Object.keys(worldPopData).length > 0) {
+      const totalPop = Object.values(worldPopData).reduce((sum, d) => sum + (d.total || 0), 0);
+      const under5 = Object.values(worldPopData).reduce((sum, d) => sum + (d.ageGroups?.under5 || 0), 0);
+      const over60 = Object.values(worldPopData).reduce((sum, d) => sum + (d.ageGroups?.age60plus || 0), 0);
+      const vulnerable = under5 + over60;
+      const vulnPct = Math.round((vulnerable / totalPop) * 100);
+
+      populationContext = `\n\nPOPULATION CONTEXT (WorldPop ${worldPopYear || 'data'}):
+Total Population: ${totalPop.toLocaleString()}
+Vulnerable Groups (Under 5 + Over 60): ${vulnerable.toLocaleString()} (${vulnPct}%)
+- Under 5: ${under5.toLocaleString()}
+- Over 60: ${over60.toLocaleString()}`;
+
+      // Add detailed district data
+      if (districts && districts.length > 0) {
+        populationContext += formatWorldPopForAI(worldPopData, districts, worldPopYear || 'unknown');
+      }
+    }
 
     // Different prompts for response vs preparedness
     const prompt = hasImpacts ? `
@@ -75,16 +112,17 @@ FACILITY DATA:
 ${JSON.stringify(facility, null, 2)}
 
 DISASTER IMPACT ASSESSMENT:
-${situationSummary}
+${situationSummary}${populationContext}
 
 Provide recommendations organized in these categories:
-1. Immediate Safety Measures
-2. Resource Mobilization
+1. Immediate Safety Measures (prioritize vulnerable populations if data available)
+2. Resource Mobilization (scale to population size)
 3. Evacuation Considerations
 4. Communication Protocols
 5. Medium-term Mitigation Strategies
 
-Your response should be a JSON object with these categories as keys and arrays of specific recommendations as values.` : `
+Your response should be a JSON object with these categories as keys and arrays of specific recommendations as values.
+${populationContext ? 'IMPORTANT: Scale your resource and staffing recommendations to the actual population size and demographics provided.' : ''}` : `
 You are a disaster preparedness and risk management expert. Based on the following information about
 a facility, provide detailed preparedness and risk mitigation recommendations.
 
@@ -92,7 +130,7 @@ FACILITY DATA:
 ${JSON.stringify(facility, null, 2)}
 
 SITUATION:
-${situationSummary}
+${situationSummary}${populationContext}
 
 Provide preparedness recommendations organized in these categories:
 1. Risk Assessment and Planning
@@ -182,7 +220,7 @@ function createSituationSummary(facility, impacts) {
 }
 
 // Generate recommendations using a simplified AI call (fallback)
-async function generateFallbackRecommendations(facility, impacts, hasImpacts) {
+async function generateFallbackRecommendations(facility, impacts, hasImpacts, worldPopData, worldPopYear, districts) {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
@@ -191,10 +229,17 @@ async function generateFallbackRecommendations(facility, impacts, hasImpacts) {
     ? createSituationSummary(facility, impacts)
     : `Facility '${facility.name || 'Unnamed facility'}' at coordinates ${facility.latitude}, ${facility.longitude} is currently not impacted by any active disasters.`;
 
+  // Build population context if available
+  let populationContext = '';
+  if (worldPopData && Object.keys(worldPopData).length > 0) {
+    const totalPop = Object.values(worldPopData).reduce((sum, d) => sum + (d.total || 0), 0);
+    populationContext = `\n\nPopulation served: ${totalPop.toLocaleString()} (WorldPop ${worldPopYear || 'data'})`;
+  }
+
   const prompt = hasImpacts ? `
   As a disaster management expert, provide recommendations for this facility impacted by disasters:
 
-  ${situationSummary}
+  ${situationSummary}${populationContext}
 
   Provide recommendations in these categories:
   1. Immediate Safety Measures

@@ -5,6 +5,7 @@ import { withRateLimit } from '../../lib/rateLimit';
  */
 
 import { calculateEpidemicRisk, predictCases, PREDICTION_CONFIG } from '../../config/predictionConfig';
+import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
 import OpenAI from 'openai';
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
@@ -29,9 +30,29 @@ async function handler(req, res) {
     washFacilitiesDamaged = 0,
     healthFacilitiesDamaged = 0,
     displacedPopulation = 0,
+    worldPopData = {},
+    worldPopYear = null,
+    districts = [],
   } = req.body;
 
-  const populationEstimate = Math.max(1, parseInt(req.body.populationEstimate) || 10000);
+  // Use WorldPop data if available, otherwise fall back to manual estimate
+  let populationEstimate;
+  let populationSource = 'estimate';
+  let vulnerablePopulation = null;
+
+  if (worldPopData && Object.keys(worldPopData).length > 0) {
+    // Calculate total population from WorldPop data
+    populationEstimate = Object.values(worldPopData).reduce((sum, d) => sum + (d.total || 0), 0);
+    populationSource = `WorldPop ${worldPopYear || 'data'}`;
+
+    // Calculate vulnerable population (under 5 + over 60)
+    const under5 = Object.values(worldPopData).reduce((sum, d) => sum + (d.ageGroups?.under5 || 0), 0);
+    const over60 = Object.values(worldPopData).reduce((sum, d) => sum + (d.ageGroups?.age60plus || 0), 0);
+    vulnerablePopulation = { under5, over60, total: under5 + over60 };
+  } else {
+    populationEstimate = Math.max(1, parseInt(req.body.populationEstimate) || 10000);
+  }
+
   const forecastDays = Math.min(Math.max(1, parseInt(req.body.forecastDays) || 30), 90);
 
   if (!latitude || !longitude) {
@@ -109,12 +130,22 @@ async function handler(req, res) {
     // Generate AI-enhanced analysis if OpenAI available
     let aiAnalysis = null;
     if (openai && sortedPredictions.length > 0) {
-      aiAnalysis = await generateAIAnalysis(sortedPredictions, disasters, populationEstimate);
+      aiAnalysis = await generateAIAnalysis(
+        sortedPredictions,
+        disasters,
+        populationEstimate,
+        vulnerablePopulation,
+        worldPopData,
+        worldPopYear,
+        districts
+      );
     }
 
     return res.status(200).json({
       location: { latitude: parseFloat(latitude), longitude: parseFloat(longitude) },
       population: populationEstimate,
+      populationSource,
+      vulnerablePopulation,
       forecastPeriod: forecastDays,
       timestamp: new Date().toISOString(),
       predictions: Object.fromEntries(sortedPredictions),
@@ -192,7 +223,7 @@ function calculateDiseaseRiskFactors(
 /**
  * Generate AI-enhanced outbreak analysis
  */
-async function generateAIAnalysis(predictions, disasters, population) {
+async function generateAIAnalysis(predictions, disasters, population, vulnerablePopulation, worldPopData, worldPopYear, districts) {
   if (!openai) return null;
 
   try {
@@ -204,17 +235,31 @@ async function generateAIAnalysis(predictions, disasters, population) {
       ? disasters.map(d => `${d.eventType} (${d.alertLevel || 'Unknown'} alert)`).join(', ')
       : 'No active disasters';
 
+    // Build population context with WorldPop data if available
+    let populationContext = `Population: ${population.toLocaleString()}`;
+    if (vulnerablePopulation) {
+      const vulnPct = Math.round((vulnerablePopulation.total / population) * 100);
+      populationContext += `\nVulnerable Groups: ${vulnerablePopulation.total.toLocaleString()} (${vulnPct}%) - Under 5: ${vulnerablePopulation.under5.toLocaleString()}, Over 60: ${vulnerablePopulation.over60.toLocaleString()}`;
+    }
+
+    // Add detailed WorldPop data if available
+    let worldPopContext = '';
+    if (worldPopData && Object.keys(worldPopData).length > 0 && districts) {
+      worldPopContext = formatWorldPopForAI(worldPopData, districts, worldPopYear || 'unknown');
+    }
+
     const prompt = `As a public health epidemiologist, provide a brief outbreak risk assessment:
 
-Population: ${population.toLocaleString()}
+${populationContext}
 Current Disasters: ${disasterContext}
 
 Predicted Disease Risks:
 ${topDiseases}
+${worldPopContext}
 
 Provide:
-1. Primary concerns (2-3 sentences)
-2. Immediate actions (3-4 bullet points)
+1. Primary concerns (2-3 sentences, emphasize vulnerable populations if data available)
+2. Immediate actions (3-4 bullet points, prioritize high-risk age groups)
 3. Monitoring priorities
 
 Keep response concise and actionable for field coordinators.`;

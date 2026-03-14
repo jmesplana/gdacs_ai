@@ -2,6 +2,7 @@ import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
 import { getDistance } from 'geolib';
 import { getOperationType, calculateOperationSpecificScore } from '../../config/operationTypes';
+import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
 
 export const config = {
   api: {
@@ -21,7 +22,17 @@ async function handler(req, res) {
   }
 
   try {
-    const { facility, impacts, disasters, acledData, acledEnabled, operationType = 'general' } = req.body;
+    const {
+      facility,
+      impacts,
+      disasters,
+      acledData,
+      acledEnabled,
+      operationType = 'general',
+      worldPopData = {},
+      worldPopYear = null,
+      districts = []
+    } = req.body;
 
     if (!facility) {
       return res.status(400).json({ error: 'Missing facility data' });
@@ -89,17 +100,20 @@ async function handler(req, res) {
           assessment,
           impacts,
           disasters,
-          opConfig
+          opConfig,
+          worldPopData,
+          worldPopYear,
+          districts
         );
         assessment.aiRecommendations = aiRecommendations;
         assessment.isAIGenerated = true;
       } catch (aiError) {
         console.error('Error generating AI recommendations:', aiError);
-        assessment.aiRecommendations = generateBasicRecommendations(assessment, opConfig);
+        assessment.aiRecommendations = generateBasicRecommendations(assessment, opConfig, worldPopData, worldPopYear, districts);
         assessment.isAIGenerated = false;
       }
     } else {
-      assessment.aiRecommendations = generateBasicRecommendations(assessment, opConfig);
+      assessment.aiRecommendations = generateBasicRecommendations(assessment, opConfig, worldPopData, worldPopYear, districts);
       assessment.isAIGenerated = false;
     }
 
@@ -381,7 +395,7 @@ function getDisasterName(code) {
 /**
  * Generate AI-powered recommendations using OpenAI
  */
-async function generateAIRecommendations(facility, assessment, impacts, disasters, opConfig) {
+async function generateAIRecommendations(facility, assessment, impacts, disasters, opConfig, worldPopData, worldPopYear, districts) {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
@@ -397,13 +411,35 @@ async function generateAIRecommendations(facility, assessment, impacts, disaster
   const suppliesContext = opConfig.supplies.slice(0, 10).join(', ');
   const digitalToolsContext = opConfig.digitalTools?.join(', ') || 'Standard monitoring tools';
 
+  // Calculate population context if available
+  let populationContext = '';
+  if (worldPopData && Object.keys(worldPopData).length > 0) {
+    const totalPop = Object.values(worldPopData).reduce((sum, d) => sum + (d.total || 0), 0);
+    const under5 = Object.values(worldPopData).reduce((sum, d) => sum + (d.ageGroups?.under5 || 0), 0);
+    const age15_49 = Object.values(worldPopData).reduce((sum, d) => sum + (d.ageGroups?.age15_49 || 0), 0);
+    const over60 = Object.values(worldPopData).reduce((sum, d) => sum + (d.ageGroups?.age60plus || 0), 0);
+
+    populationContext = `\n\nPOPULATION DATA (WorldPop ${worldPopYear || 'data'}):
+Total Population: ${totalPop.toLocaleString()}
+- Under 5: ${under5.toLocaleString()} (${Math.round((under5/totalPop)*100)}%)
+- Age 15-49: ${age15_49.toLocaleString()} (${Math.round((age15_49/totalPop)*100)}%)
+- Over 60: ${over60.toLocaleString()} (${Math.round((over60/totalPop)*100)}%)
+
+Target Coverage (${(opConfig.coverageTarget * 100).toFixed(0)}%): ${Math.round(totalPop * opConfig.coverageTarget).toLocaleString()} people`;
+
+    // Add detailed district breakdown if available
+    if (districts && districts.length > 0) {
+      populationContext += formatWorldPopForAI(worldPopData, districts, worldPopYear || 'unknown');
+    }
+  }
+
   const prompt = `You are a humanitarian operations expert specializing in ${opConfig.name} in disaster-affected areas. You follow ${opConfig.assessmentMethod} methodology and international humanitarian standards.
 
 OPERATION TYPE: ${opConfig.name}
 FACILITY: ${facility.name}
 VIABILITY SCORE: ${assessment.viabilityScore}/100
 DECISION: ${assessment.decision}
-COVERAGE TARGET: ${(opConfig.coverageTarget * 100).toFixed(0)}%
+COVERAGE TARGET: ${(opConfig.coverageTarget * 100).toFixed(0)}%${populationContext}
 
 IDENTIFIED RISKS:
 ${assessment.risks.map(r => `- ${r.severity}: ${r.factor} - ${r.detail}`).join('\n')}
@@ -519,11 +555,20 @@ function getOperationSpecificGuidance(opConfig) {
 /**
  * Generate basic recommendations without AI
  */
-function generateBasicRecommendations(assessment, opConfig) {
+function generateBasicRecommendations(assessment, opConfig, worldPopData, worldPopYear, districts) {
   let recommendations = `## ${opConfig.name} Viability Assessment\n\n`;
   recommendations += `**Decision**: ${assessment.decision}\n`;
   recommendations += `**Viability Score**: ${assessment.viabilityScore}/100\n`;
   recommendations += `**Coverage Target**: ${(opConfig.coverageTarget * 100).toFixed(0)}%\n\n`;
+
+  // Add population context if available
+  if (worldPopData && Object.keys(worldPopData).length > 0) {
+    const totalPop = Object.values(worldPopData).reduce((sum, d) => sum + (d.total || 0), 0);
+    const targetPop = Math.round(totalPop * opConfig.coverageTarget);
+    recommendations += `### Population Coverage\n`;
+    recommendations += `- Total Population: ${totalPop.toLocaleString()} (WorldPop ${worldPopYear || 'data'})\n`;
+    recommendations += `- Target Coverage: ${targetPop.toLocaleString()} people\n\n`;
+  }
 
   recommendations += `### Timeline\n`;
   recommendations += `- ${assessment.timeline.recommendation}\n`;
