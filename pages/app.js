@@ -1223,9 +1223,12 @@ export default function Home() {
     <ErrorBoundary>
     <div className="container">
       <Head>
-        <title>Aidstack Disasters - Real-time Disaster Intelligence</title>
-        <meta name="description" content="Intelligence for impact workers: Monitor global disasters and assess facility impacts in real-time" />
+        <title>Aidstack Disasters - Real-time Disaster Intelligence Platform</title>
+        <meta name="description" content="Intelligence for impact workers: Monitor global disasters, assess facility impacts, predict disease outbreaks, and optimize humanitarian operations with AI-powered real-time analysis" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="robots" content="noindex" />
         <link rel="icon" href="/favicon.ico" />
+        <link rel="canonical" href="https://disasters.aidstack.ai/app" />
       </Head>
 
       {showOnboarding && <OnboardingModal onClose={handleCloseOnboarding} />}

@@ -15,9 +15,27 @@ const STEPS = [
     cta: null,
   },
   {
+    icon: '👥',
+    title: 'Add WorldPop population data',
+    description: 'Toggle WorldPop integration to overlay high-resolution population statistics with age-sex breakdowns. Identify vulnerable populations (under-5, over-60) in disaster-affected areas.',
+    cta: null,
+  },
+  {
+    icon: '🎯',
+    title: 'Assess campaign viability',
+    description: 'Get GO/CAUTION/DELAY/NOGO decisions for each facility or district. Batch-assess 1000+ facilities at once to prioritize safe operations and identify high-risk areas.',
+    cta: null,
+  },
+  {
+    icon: '🔮',
+    title: 'Monitor risks & early warnings',
+    description: 'Get disease outbreak risk indicators (Cholera, Malaria, Measles) based on weather and disaster conditions. Monitor 14-day hazard forecasts and supply chain disruption warnings.',
+    cta: null,
+  },
+  {
     icon: '🤖',
-    title: 'Analyze and generate reports',
-    description: 'Click any facility marker for AI recommendations. Use the chatbot to ask questions about your operational area. Generate a full Situation Report in one click from the Reports tab.',
+    title: 'Chat, analyze & export reports',
+    description: 'Click any facility marker for AI recommendations. Use the chatbot with real-time web search to ask questions. Generate Situation Reports and export decision briefs as HTML/PDF.',
     cta: null,
   },
 ];

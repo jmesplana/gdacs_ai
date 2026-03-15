@@ -1,0 +1,13 @@
+# Robots.txt for Aidstack Disasters
+# https://disasters.aidstack.ai
+
+User-agent: *
+Allow: /
+Allow: /landing
+Allow: /app
+
+# Disallow API routes from crawling
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://disasters.aidstack.ai/sitemap.xml
