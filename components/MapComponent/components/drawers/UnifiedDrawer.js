@@ -33,6 +33,7 @@ const UnifiedDrawer = ({
   analysis,
   analysisLoading,
   onViewRecommendations,
+  osmData,
 
   // Sitrep drawer props
   sitrep,
@@ -42,6 +43,16 @@ const UnifiedDrawer = ({
   layerSettings,
   onLayerToggle,
   onLayerConfigChange,
+  onOSMRefresh,
+  onOSMToggle,
+  onOSMLayerToggle,
+  onOSMDistrictSelect,
+  osmStats,
+  osmLoading,
+  osmLayerVisibility,
+  onLoadOSM, // New: (selectedDistricts, selectedCategories) => void
+  onToggleOSMLayerVisibility,
+  onClearOSMCategory,
 
   // Additional props
   onTabChange,
@@ -317,6 +328,7 @@ const UnifiedDrawer = ({
                   acledEnabled={acledEnabled}
                   operationType={operationType}
                   onViewRecommendations={onViewRecommendations}
+                  osmData={osmData}
                 />
               ) : (
                 <div style={{
@@ -370,6 +382,14 @@ const UnifiedDrawer = ({
                 settings={layerSettings}
                 onToggle={onLayerToggle}
                 onConfigChange={onLayerConfigChange}
+                districts={districts}
+                osmData={osmData}
+                osmStats={osmStats}
+                osmLoading={osmLoading}
+                osmLayerVisibility={osmLayerVisibility}
+                onLoadOSM={onLoadOSM}
+                onToggleOSMLayerVisibility={onToggleOSMLayerVisibility}
+                onClearOSMCategory={onClearOSMCategory}
               />
             </div>
           )}

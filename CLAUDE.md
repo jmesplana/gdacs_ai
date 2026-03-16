@@ -41,11 +41,11 @@ Optional environment variables:
 
 **Component hierarchy**:
 - `components/MapComponent.js` (~10,300 LOC including subcomponents) — the core map interface
-  - `components/MapComponent/hooks/` — Custom hooks: `useAIAnalysis`, `useDrawing`, `useFileUpload`, `useMapControls`, `useMapFilters`, `usePlayback`, `useWorldPop`
+  - `components/MapComponent/hooks/` — Custom hooks: `useAIAnalysis`, `useDrawing`, `useFileUpload`, `useMapControls`, `useMapFilters`, `usePlayback`, `useWorldPop`, `useOSMInfrastructure`
   - `components/MapComponent/components/drawers/` — Side panels: `ChatDrawer`, `FacilityDrawer`, `FilterDrawer`, `MapLayersDrawer`, `RecommendationsDrawer`, `SitrepDrawer`, `UnifiedDrawer`, `WorldPopDrawer`
   - `components/MapComponent/components/overlays/` — Map overlays: `FloatingActionButtons`, `HamburgerMenu`, `MapLegend`, `TimelineScrubber`, `CampaignDashboard`
-  - `components/MapComponent/components/` — Map layers: `AcledMarkers`, `DisasterMarkers`, `DrawingLayer`, `HeatmapLayer`, `TimelineVisualization`
-  - `components/MapComponent/utils/` — Geospatial helpers: `disasterHelpers`, `fileHelpers`, `mapHelpers`
+  - `components/MapComponent/components/` — Map layers: `AcledMarkers`, `DisasterMarkers`, `DrawingLayer`, `HeatmapLayer`, `TimelineVisualization`, `OSMInfrastructureLayer`
+  - `components/MapComponent/utils/` — Geospatial helpers: `disasterHelpers`, `fileHelpers`, `mapHelpers`, `osmHelpers`
 - Other major components: `PredictionDashboard.js`, `OperationalOutlook.js`, `LandingPage.js`, `ShapefileUploader.js`, `SitrepGenerator.js`
 
 **State management**: Local `useState` throughout — no Redux/Zustand. `pages/app.js` owns top-level state and passes down via props.
@@ -61,10 +61,17 @@ Key routes:
 - `pages/api/worldpop-stats.js` — Fetches WorldPop population data via Google Earth Engine (120s timeout, 1GB memory via `vercel.json`)
 - `pages/api/gdacs.js` — Proxies/parses GDACS RSS feed
 - `pages/api/operational-outlook.js` — Forward-looking analysis with DuckDuckGo scraping
+- `pages/api/osm-infrastructure.js` — Fetches OpenStreetMap infrastructure data via Overpass API (hospitals, schools, roads, water, power, etc.)
 
 Other AI endpoints (all rate-limited): `analysis.js`, `campaign-viability.js`, `campaign-viability-batch.js`, `disaster-forecast.js`, `district-campaign-viability.js`, `operation-viability.js`, `outbreak-prediction.js`, `recommendations.js`, `security-assessment.js`, `sitrep.js`, `supply-chain-forecast.js`, `weather-forecast.js`
 
 The `APP_BASE_URL` env var is used for internal API-to-API calls (avoid hardcoding `localhost`).
+
+**Library utilities**:
+- `lib/rateLimit.js` — Redis-backed rate limiting with in-memory fallback
+- `lib/osmCache.js` — Redis-backed OSM data caching (24h TTL) with in-memory fallback (50 entry LRU cache)
+- `lib/osmHelpers.js` — Server-side OSM utilities: Overpass API query builder, GeoJSON conversion, infrastructure categorization, boundary subdivision for large areas
+- `lib/aiContextBuilders.js` — Reusable AI context builders for GPT-4o: OSM context, proximity calculations, disaster impact analysis
 
 ### Data Flow
 
@@ -80,6 +87,19 @@ User triggers analysis → API route → OpenAI GPT-4o → response rendered
 
 GDACS disasters are auto-fetched on load via `/api/gdacs` (proxied RSS → parsed XML).
 
+**OSM Infrastructure Integration** (New):
+```
+User uploads district shapefile
+        ↓
+useOSMInfrastructure hook auto-detects boundary
+        ↓
+POST /api/osm-infrastructure → Overpass API query
+        ↓
+Result cached (Redis 24h + localStorage) → rendered on map
+        ↓
+OSM context passed to AI endpoints → enhanced recommendations
+```
+
 ### Configuration
 
 - `config/operationTypes.js` — Defines operation type categories and their analysis templates
@@ -91,6 +111,12 @@ GDACS disasters are auto-fetched on load via `/api/gdacs` (proxied RSS → parse
 
 - `/brand-aidstack` — Apply Aidstack branding to components and pages using official brand guidelines
 
+## Recent Architecture Changes
+
+See `OSM_INTEGRATION_PROGRESS.md` and `APP_HUB_ARCHITECTURE.md` for detailed documentation on:
+- **OSM Infrastructure Integration**: OpenStreetMap data integration for infrastructure context (hospitals, schools, roads, water, power, etc.)
+- **App Hub Architecture** (Proposed): Modular plugin system for specialized workflows (microplanning, supply chain, vaccination campaigns)
+
 ## Known Issues & Production Gaps
 
 From `PRODUCTION_ROADMAP.md`:
@@ -99,6 +125,7 @@ From `PRODUCTION_ROADMAP.md`:
 - `pages/api/operational-outlook.js` has no timeout on external HTTP calls — potential hanging
 - Mobile layout is broken (hardcoded 600px min-width)
 - No automated tests exist
+- OSM integration UI wiring incomplete (backend ready, frontend integration in progress)
 
 ## Development Notes
 
@@ -106,3 +133,5 @@ From `PRODUCTION_ROADMAP.md`:
 - **Large state in app.js**: The main `pages/app.js` contains 80+ `useState` hooks. Consider using context or state management library for major refactors
 - **No TypeScript**: This is a JavaScript-only codebase. Do not add TypeScript files or types
 - **Rate limiting**: Gracefully degrades if Redis is unavailable — app continues to function without rate limiting
+- **OSM Integration**: OSM infrastructure data is fetched automatically when districts are uploaded. Large boundaries (>10,000 km²) are automatically subdivided. Uses multi-tier caching: Redis (24h) → in-memory LRU (50 entries) → localStorage (24h)
+- **AI Context Building**: When adding OSM or WorldPop context to AI endpoints, use the reusable context builders in `lib/aiContextBuilders.js` to maintain consistency across endpoints

@@ -1,6 +1,7 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
 import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
+import { buildOSMContext } from '../../lib/aiContextBuilders';
 
 export const config = {
   api: {
@@ -16,7 +17,7 @@ async function handler(req, res) {
   }
 
   try {
-    const { facility, impacts, useAI, worldPopData = {}, worldPopYear = null, districts = [] } = req.body;
+    const { facility, impacts, useAI, worldPopData = {}, worldPopYear = null, districts = [], osmData = null } = req.body;
 
     if (!facility) {
       return res.status(400).json({ error: 'Missing facility data' });
@@ -45,7 +46,8 @@ async function handler(req, res) {
           hasImpacts,
           worldPopData,
           worldPopYear,
-          districts
+          districts,
+          osmData
         );
         res.status(200).json({ recommendations, isAIGenerated: true });
         return;
@@ -62,7 +64,8 @@ async function handler(req, res) {
         hasImpacts,
         worldPopData,
         worldPopYear,
-        districts
+        districts,
+        osmData
       );
       res.status(200).json({ recommendations, isAIGenerated: true });
       return;
@@ -76,7 +79,7 @@ async function handler(req, res) {
 }
 
 // Generate AI-powered recommendations
-async function generateAIRecommendations(facility, impacts, situationSummary, hasImpacts, worldPopData, worldPopYear, districts) {
+async function generateAIRecommendations(facility, impacts, situationSummary, hasImpacts, worldPopData, worldPopYear, districts, osmData) {
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -103,6 +106,12 @@ Vulnerable Groups (Under 5 + Over 60): ${vulnerable.toLocaleString()} (${vulnPct
       }
     }
 
+    // Build OSM infrastructure context if available
+    let osmContext = '';
+    if (osmData) {
+      osmContext = buildOSMContext(facility, osmData, impacts);
+    }
+
     // Different prompts for response vs preparedness
     const prompt = hasImpacts ? `
 You are a disaster management and emergency response expert. Based on the following information about
@@ -112,7 +121,7 @@ FACILITY DATA:
 ${JSON.stringify(facility, null, 2)}
 
 DISASTER IMPACT ASSESSMENT:
-${situationSummary}${populationContext}
+${situationSummary}${populationContext}${osmContext}
 
 Provide recommendations organized in these categories:
 1. Immediate Safety Measures (prioritize vulnerable populations if data available)
@@ -130,7 +139,7 @@ FACILITY DATA:
 ${JSON.stringify(facility, null, 2)}
 
 SITUATION:
-${situationSummary}${populationContext}
+${situationSummary}${populationContext}${osmContext}
 
 Provide preparedness recommendations organized in these categories:
 1. Risk Assessment and Planning
@@ -220,7 +229,7 @@ function createSituationSummary(facility, impacts) {
 }
 
 // Generate recommendations using a simplified AI call (fallback)
-async function generateFallbackRecommendations(facility, impacts, hasImpacts, worldPopData, worldPopYear, districts) {
+async function generateFallbackRecommendations(facility, impacts, hasImpacts, worldPopData, worldPopYear, districts, osmData) {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
@@ -236,10 +245,16 @@ async function generateFallbackRecommendations(facility, impacts, hasImpacts, wo
     populationContext = `\n\nPopulation served: ${totalPop.toLocaleString()} (WorldPop ${worldPopYear || 'data'})`;
   }
 
+  // Build OSM infrastructure context if available
+  let osmContext = '';
+  if (osmData) {
+    osmContext = buildOSMContext(facility, osmData, impacts);
+  }
+
   const prompt = hasImpacts ? `
   As a disaster management expert, provide recommendations for this facility impacted by disasters:
 
-  ${situationSummary}${populationContext}
+  ${situationSummary}${populationContext}${osmContext}
 
   Provide recommendations in these categories:
   1. Immediate Safety Measures
@@ -253,7 +268,7 @@ async function generateFallbackRecommendations(facility, impacts, hasImpacts, wo
   ` : `
   As a disaster preparedness expert, provide preparedness recommendations for this facility:
 
-  ${situationSummary}
+  ${situationSummary}${osmContext}
 
   Provide recommendations in these categories:
   1. Risk Assessment and Planning

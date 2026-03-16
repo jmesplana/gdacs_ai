@@ -260,10 +260,23 @@ export default function Home() {
       setFetchError(null);
 
       const response = await fetch('/api/gdacs');
-      if (!response.ok) throw new Error(`GDACS API responded with status: ${response.status}`);
+      if (!response.ok) {
+        console.warn(`GDACS API unavailable (status ${response.status}). Continuing without disaster data.`);
+        setDisasters([]);
+        setFilteredDisasters([]);
+        setDataSource('GDACS temporarily unavailable');
+        setFetchError('GDACS servers are temporarily unavailable. App functionality continues without disaster data.');
+        return;
+      }
 
       const data = await response.json();
-      if (!data || !Array.isArray(data)) throw new Error('Invalid data format received from GDACS API');
+      if (!data || !Array.isArray(data)) {
+        console.warn('Invalid GDACS data format. Continuing without disaster data.');
+        setDisasters([]);
+        setFilteredDisasters([]);
+        setDataSource('GDACS data unavailable');
+        return;
+      }
 
       // Filter to events with valid coordinates
       const processedData = data

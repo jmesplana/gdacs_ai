@@ -30,6 +30,7 @@ import {
   TimelineVisualization,
   AcledMarkers
 } from './MapComponent/components';
+import OSMInfrastructureLayer from './MapComponent/components/OSMInfrastructureLayer';
 
 import {
   FilterDrawer,
@@ -57,6 +58,7 @@ import {
   usePlayback,
   useWorldPop
 } from './MapComponent/hooks';
+import { useOSMInfrastructure } from './MapComponent/hooks/useOSMInfrastructure';
 
 // Import utils
 import {
@@ -407,6 +409,66 @@ const MapComponent = ({
     }
   }, [worldPopData, worldPopLastFetch]);
 
+  // OSM Infrastructure hook
+  const {
+    osmData,
+    osmLoading,
+    osmError,
+    osmStats,
+    osmTimestamp,
+    osmBoundary,
+    osmLayers,
+    osmLayerVisibility,
+    showOSMLayer,
+    fetchOSMInfrastructure,
+    refreshOSM,
+    clearOSM,
+    toggleLayer,
+    toggleLayerVisibility,
+    toggleAllOSM,
+  } = useOSMInfrastructure();
+  const [showOSMDrawer, setShowOSMDrawer] = useState(false);
+
+  // Auto-fetch OSM data when districts loaded
+  useEffect(() => {
+    if (districts && districts.length > 0 && !osmData && !osmLoading && !osmError) {
+      // Calculate boundary from districts
+      const allCoords = [];
+      districts.forEach(district => {
+        if (district.geometry && district.geometry.coordinates) {
+          const coords = district.geometry.type === 'Polygon'
+            ? district.geometry.coordinates[0]
+            : district.geometry.coordinates[0][0];
+          allCoords.push(...coords);
+        }
+      });
+
+      if (allCoords.length > 0) {
+        // Create bounding polygon
+        const lons = allCoords.map(c => c[0]);
+        const lats = allCoords.map(c => c[1]);
+        const minLon = Math.min(...lons);
+        const maxLon = Math.max(...lons);
+        const minLat = Math.min(...lats);
+        const maxLat = Math.max(...lats);
+
+        const boundary = {
+          type: 'Polygon',
+          coordinates: [[
+            [minLon, minLat],
+            [maxLon, minLat],
+            [maxLon, maxLat],
+            [minLon, maxLat],
+            [minLon, minLat]
+          ]]
+        };
+
+        console.log('Auto-fetching OSM infrastructure for districts...');
+        fetchOSMInfrastructure(boundary);
+      }
+    }
+  }, [districts, osmData, osmLoading, osmError, fetchOSMInfrastructure]);
+
   // Recommendations drawer state
   const [showRecommendationsDrawer, setShowRecommendationsDrawer] = useState(false);
   const [recommendations, setRecommendations] = useState(null);
@@ -684,7 +746,8 @@ const MapComponent = ({
         body: JSON.stringify({
           facility,
           impacts: facilityImpacts,
-          useAI: true
+          useAI: true,
+          osmData: osmData
         })
       });
 
@@ -979,6 +1042,7 @@ const MapComponent = ({
         analysisLoading={analysisLoading}
         operationType={operationType}
         onViewRecommendations={handleGenerateRecommendations}
+        osmData={osmData}
 
         // Label control
         showLabels={showLabels}
@@ -993,7 +1057,13 @@ const MapComponent = ({
         // Layers tab props
         layerSettings={{
           currentMapLayer,
-          showRoads
+          showRoads,
+          osmData,
+          osmStats,
+          osmLoading,
+          osmError,
+          osmLayerVisibility,
+          showOSMLayer
         }}
         onLayerToggle={(setting, value) => {
           if (setting === 'currentMapLayer') setCurrentMapLayer(value);
@@ -1002,6 +1072,105 @@ const MapComponent = ({
         onLayerConfigChange={(config) => {
           if (config.currentMapLayer) setCurrentMapLayer(config.currentMapLayer);
           if (config.showRoads !== undefined) setShowRoads(config.showRoads);
+        }}
+        onOSMRefresh={refreshOSM}
+        onOSMToggle={toggleAllOSM}
+        onOSMLayerToggle={toggleLayerVisibility}
+        osmStats={osmStats}
+        osmLoading={osmLoading}
+        osmLayerVisibility={osmLayerVisibility}
+        onLoadOSM={(selectedDistricts, selectedCategories) => {
+          console.log('🚀 onLoadOSM called!', {
+            districtsCount: selectedDistricts?.length,
+            categoriesCount: selectedCategories?.length,
+            districts: selectedDistricts,
+            categories: selectedCategories
+          });
+
+          // Clear old cached data first to prevent stale data from showing
+          clearOSM();
+
+          // Calculate combined boundary from selected districts
+          const allCoords = [];
+          selectedDistricts.forEach(district => {
+            if (district.geometry && district.geometry.coordinates) {
+              const coords = district.geometry.type === 'Polygon'
+                ? district.geometry.coordinates[0]
+                : district.geometry.coordinates[0][0];
+              allCoords.push(...coords);
+            }
+          });
+
+          console.log('📍 Collected coordinates from districts:', allCoords.length);
+
+          if (allCoords.length > 0) {
+            const lons = allCoords.map(c => c[0]);
+            const lats = allCoords.map(c => c[1]);
+            const minLon = Math.min(...lons);
+            const maxLon = Math.max(...lons);
+            const minLat = Math.min(...lats);
+            const maxLat = Math.max(...lats);
+
+            const boundary = {
+              type: 'Polygon',
+              coordinates: [[
+                [minLon, minLat],
+                [maxLon, minLat],
+                [maxLon, maxLat],
+                [minLon, maxLat],
+                [minLon, minLat]
+              ]]
+            };
+
+            console.log(`✅ Loading OSM: ${selectedCategories.length} categories for ${selectedDistricts.length} district(s)...`);
+            console.log('✅ Selected categories:', selectedCategories);
+            console.log('✅ Boundary:', boundary);
+
+            // Fetch OSM data for selected categories only
+            fetchOSMInfrastructure(boundary, selectedCategories);
+          } else {
+            console.error('❌ No coordinates collected from districts!');
+          }
+        }}
+        onToggleOSMLayerVisibility={toggleLayerVisibility}
+        onClearOSMCategory={(category) => {
+          console.log(`Clear OSM category: ${category}`);
+          // TODO: Implement category clearing in hook
+        }}
+        onOSMDistrictSelect={(selectedDistricts) => {
+          // Old callback - keeping for backward compatibility
+          const allCoords = [];
+          selectedDistricts.forEach(district => {
+            if (district.geometry && district.geometry.coordinates) {
+              const coords = district.geometry.type === 'Polygon'
+                ? district.geometry.coordinates[0]
+                : district.geometry.coordinates[0][0];
+              allCoords.push(...coords);
+            }
+          });
+
+          if (allCoords.length > 0) {
+            const lons = allCoords.map(c => c[0]);
+            const lats = allCoords.map(c => c[1]);
+            const minLon = Math.min(...lons);
+            const maxLon = Math.max(...lons);
+            const minLat = Math.min(...lats);
+            const maxLat = Math.max(...lats);
+
+            const boundary = {
+              type: 'Polygon',
+              coordinates: [[
+                [minLon, minLat],
+                [maxLon, minLat],
+                [maxLon, maxLat],
+                [minLon, maxLat],
+                [minLon, minLat]
+              ]]
+            };
+
+            console.log(`Loading OSM for ${selectedDistricts.length} selected district(s)...`);
+            fetchOSMInfrastructure(boundary);
+          }
         }}
       />
 
@@ -1516,6 +1685,13 @@ const MapComponent = ({
           acledConfig={acledConfig}
         />
 
+        {/* OSM Infrastructure layer */}
+        <OSMInfrastructureLayer
+          osmData={osmData}
+          layerVisibility={osmLayerVisibility}
+          showOSMLayer={showOSMLayer}
+        />
+
         {/* Drawing layer */}
         <DrawingLayer
           enabled={drawingEnabled}
@@ -1791,7 +1967,9 @@ const MapComponent = ({
             name: d.name,
             country: d.country,
             region: d.region
-          })) : null
+          })) : null,
+          // OpenStreetMap Infrastructure data
+          osmData: osmData
         }}
       />
 

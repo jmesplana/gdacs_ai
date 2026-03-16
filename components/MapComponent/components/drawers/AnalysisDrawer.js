@@ -16,7 +16,8 @@ const AnalysisDrawer = ({
   onRefresh,
   acledData = [],
   acledEnabled = false,
-  operationType = 'general'
+  operationType = 'general',
+  osmData = null
 }) => {
   const { addToast } = useToast();
   const [progressMsg, setProgressMsg] = useState('');
@@ -68,7 +69,8 @@ const AnalysisDrawer = ({
           disasters: disasters,
           acledData: acledEnabled ? acledData : null,
           acledEnabled,
-          operationType
+          operationType,
+          osmData: osmData
         }),
       });
 

@@ -2,6 +2,7 @@ import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
 import { getDistance } from 'geolib';
 import { getOperationType } from '../../config/operationTypes';
+import { calculateOSMProximity } from '../../lib/aiContextBuilders';
 
 export const config = {
   api: {
@@ -17,7 +18,7 @@ async function handler(req, res) {
   }
 
   try {
-    const { facility, impacts, disasters, acledData, acledEnabled, operationType = 'general' } = req.body;
+    const { facility, impacts, disasters, acledData, acledEnabled, operationType = 'general', osmData = null } = req.body;
 
     if (!facility) {
       return res.status(400).json({ error: 'Missing facility data' });
@@ -33,7 +34,7 @@ async function handler(req, res) {
     const opConfig = getOperationType(operationType);
 
     // Calculate viability score and identify risks
-    const assessment = calculateViability(facility, impacts || [], disasters || [], opConfig);
+    const assessment = calculateViability(facility, impacts || [], disasters || [], opConfig, osmData);
 
     // Add security assessment if location data available
     if (facility.country || facility.region || facility.district) {
@@ -116,7 +117,7 @@ async function handler(req, res) {
 /**
  * Calculate operation viability score based on multiple factors
  */
-function calculateViability(facility, impacts, disasters, opConfig) {
+function calculateViability(facility, impacts, disasters, opConfig, osmData = null) {
   let viabilityScore = 100;
   const risks = [];
   const mitigationStrategies = [];
@@ -206,7 +207,7 @@ function calculateViability(facility, impacts, disasters, opConfig) {
   }
 
   // Factor 3: Access and Infrastructure
-  const accessRisk = assessAccessRisk(facility, impacts, disasters);
+  const accessRisk = assessAccessRisk(facility, impacts, disasters, osmData);
   if (accessRisk.risk > 0) {
     viabilityScore -= accessRisk.score;
     risks.push(accessRisk.riskData);
@@ -386,8 +387,14 @@ function assessColdChainRisk(facility, impacts, disasters) {
 /**
  * Assess access and infrastructure risks
  */
-function assessAccessRisk(facility, impacts, disasters) {
-  // Check for road blockage risks
+function assessAccessRisk(facility, impacts, disasters, osmData = null) {
+  // Analyze OSM infrastructure if available
+  let osmInfrastructure = null;
+  if (osmData) {
+    osmInfrastructure = calculateOSMProximity(facility, osmData);
+  }
+
+  // Check for road blockage risks from disasters
   const hasAccessRisk = impacts.some(impact => {
     const type = impact.disaster?.eventType?.toUpperCase();
     const distance = impact.distance || 0;
@@ -395,21 +402,80 @@ function assessAccessRisk(facility, impacts, disasters) {
     return ['FL', 'EQ', 'TC'].includes(type) && distance < 30;
   });
 
+  // Enhanced assessment with OSM data
   if (hasAccessRisk) {
+    let detail = 'Roads may be impassable due to flooding, debris, or structural damage';
+    let strategy = 'Scout alternative routes. Use 4x4 vehicles or motorcycles. Consider postponing until roads cleared. Deploy mobile teams if facility unreachable.';
+    let severity = 'HIGH';
+    let score = 30;
+
+    // Add OSM infrastructure context if available
+    if (osmInfrastructure) {
+      const roads = osmInfrastructure.proximity.road;
+      const bridges = osmInfrastructure.proximity.bridge;
+      const airports = osmInfrastructure.proximity.airport;
+
+      // Check road proximity - nearby roads increase risk if disaster present
+      if (roads && roads.within5km > 0) {
+        detail += ` (${roads.within5km} roads within 5km may be affected)`;
+      } else if (roads && roads.within10km === 0) {
+        // No roads nearby - even higher risk as no alternative routes
+        severity = 'CRITICAL';
+        score = 40;
+        detail += ' (WARNING: No major roads found within 10km - extremely limited access)';
+        strategy = 'CRITICAL: Facility is in remote area with no road access. Consider helicopter evacuation or postpone campaign until access confirmed. Pre-position supplies if possible.';
+      }
+
+      // Check for bridge risks
+      if (bridges && bridges.within5km > 0) {
+        detail += ` ${bridges.within5km} bridge(s) within 5km at risk of damage`;
+        score += 5;
+      }
+
+      // Check airport proximity for emergency access
+      if (airports && airports.within25km > 0) {
+        strategy += ` Airport within 25km provides emergency evacuation option.`;
+      }
+    }
+
     return {
       risk: 1,
-      score: 30,
+      score: score,
       riskData: {
         factor: 'Access Constraints',
-        severity: 'HIGH',
-        detail: 'Roads may be impassable due to flooding, debris, or structural damage',
+        severity: severity,
+        detail: detail,
         icon: '🚧'
       },
       mitigation: {
         risk: 'Access Constraints',
-        strategy: 'Scout alternative routes. Use 4x4 vehicles or motorcycles. Consider postponing until roads cleared. Deploy mobile teams if facility unreachable.'
+        strategy: strategy
       }
     };
+  }
+
+  // Even without disaster impact, check if area is remote (no OSM data shows poor infrastructure)
+  if (osmInfrastructure) {
+    const roads = osmInfrastructure.proximity.road;
+    const airports = osmInfrastructure.proximity.airport;
+
+    if (roads && roads.within10km === 0) {
+      // Remote area with limited access
+      return {
+        risk: 1,
+        score: 15,
+        riskData: {
+          factor: 'Remote Location',
+          severity: 'MEDIUM',
+          detail: 'No major roads within 10km - facility is in remote area with limited access',
+          icon: '🗺️'
+        },
+        mitigation: {
+          risk: 'Remote Location',
+          strategy: `Plan for extended travel time. Use 4x4 vehicles or motorcycles. Pre-position supplies.${airports && airports.within25km > 0 ? ' Airport within 25km available for emergency access.' : ''}`
+        }
+      };
+    }
   }
 
   return { risk: 0, score: 0 };

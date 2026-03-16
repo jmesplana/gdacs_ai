@@ -1,12 +1,256 @@
 import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet-polylinedecorator';
 import { getDisasterInfo, getAlertColor } from '../utils/disasterHelpers';
 
 // Component to add disaster markers directly to the map
 const DisasterMarkers = ({ disasters, showImpactZones }) => {
   const map = useMap();
   const clusterGroupRef = useRef(null);
+  const geometryCacheRef = useRef(new Map()); // Cache for fetched geometries: key = eventid_episodeid, value = {geojson, timestamp, failed}
+  const geometryLayersRef = useRef(new Map()); // Track geometry layers for cleanup
+
+  // Helper function to fetch geometry from API
+  const fetchGeometry = async (disaster) => {
+    const cacheKey = `${disaster.eventId}_${disaster.episodeId}`;
+
+    // Check in-memory cache first
+    const cached = geometryCacheRef.current.get(cacheKey);
+    if (cached) {
+      // Return cached data if it's less than 1 hour old
+      const oneHour = 60 * 60 * 1000;
+      if (Date.now() - cached.timestamp < oneHour) {
+        return cached.failed ? null : cached.geojson;
+      }
+    }
+
+    // Check localStorage cache
+    try {
+      const localStorageKey = `gdacs_geometry_${cacheKey}`;
+      const localCached = localStorage.getItem(localStorageKey);
+      if (localCached) {
+        const parsed = JSON.parse(localCached);
+        const oneHour = 60 * 60 * 1000;
+        if (Date.now() - parsed.timestamp < oneHour) {
+          console.log(`Using localStorage cache for ${cacheKey}`);
+          // Store in memory cache for faster access
+          geometryCacheRef.current.set(cacheKey, parsed);
+          return parsed.failed ? null : parsed.geojson;
+        }
+      }
+    } catch (error) {
+      console.log('Error reading from localStorage:', error.message);
+    }
+
+    // Parse eventtype, eventid, episodeid from geometryUrl
+    const urlParams = new URLSearchParams(disaster.geometryUrl.split('?')[1]);
+    const eventtype = urlParams.get('eventtype');
+    const eventid = urlParams.get('eventid');
+    const episodeid = urlParams.get('episodeid') || '1';
+
+    try {
+      console.log(`Fetching geometry for ${eventtype} event ${eventid}, episode ${episodeid}`);
+
+      const response = await fetch(
+        `/api/gdacs-geometry?eventtype=${eventtype}&eventid=${eventid}&episodeid=${episodeid}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const geojson = await response.json();
+
+      if (!geojson.features || geojson.features.length === 0) {
+        console.log(`No geometry features found for ${eventtype} event ${eventid}`);
+        geometryCacheRef.current.set(cacheKey, { failed: true, timestamp: Date.now() });
+        return null;
+      }
+
+      console.log(`Successfully fetched ${geojson.features.length} geometry features for ${eventtype} event ${eventid}`);
+
+      // Cache the result in memory
+      const cacheData = { geojson, timestamp: Date.now() };
+      geometryCacheRef.current.set(cacheKey, cacheData);
+
+      // Also cache in localStorage
+      try {
+        const localStorageKey = `gdacs_geometry_${cacheKey}`;
+        localStorage.setItem(localStorageKey, JSON.stringify(cacheData));
+      } catch (error) {
+        console.log('Error saving to localStorage:', error.message);
+      }
+
+      return geojson;
+    } catch (error) {
+      console.error(`Failed to fetch geometry for ${eventtype} event ${eventid}:`, error.message);
+
+      // Cache the failure to avoid repeated requests
+      const failureData = { failed: true, timestamp: Date.now() };
+      geometryCacheRef.current.set(cacheKey, failureData);
+
+      // Also cache failure in localStorage
+      try {
+        const localStorageKey = `gdacs_geometry_${cacheKey}`;
+        localStorage.setItem(localStorageKey, JSON.stringify(failureData));
+      } catch (error) {
+        console.log('Error saving failure to localStorage:', error.message);
+      }
+
+      return null;
+    }
+  };
+
+  // Helper function to render geometry features on the map
+  const renderGeometry = (geojson, disaster, alertColor, markers) => {
+    if (!geojson || !geojson.features) return;
+
+    const cacheKey = `${disaster.eventId}_${disaster.episodeId}`;
+    const layerGroup = L.layerGroup();
+
+    geojson.features.forEach((feature, idx) => {
+      const geom = feature.geometry;
+      const props = feature.properties || {};
+
+      if (!geom || !geom.coordinates) return;
+
+      try {
+        switch (geom.type) {
+          case 'Point': {
+            // Point geometries (e.g., cyclone positions)
+            const [lng, lat] = geom.coordinates;
+
+            // Determine if this is a forecast vs observed position
+            const isForecast = props.Class === 'FORECAST' || props.class === 'FORECAST';
+            const pointColor = isForecast ? '#FFD700' : alertColor; // Gold for forecast, alert color for observed
+
+            // Create a circle marker for track positions
+            const circleMarker = L.circleMarker([lat, lng], {
+              radius: 5,
+              color: pointColor,
+              fillColor: pointColor,
+              fillOpacity: isForecast ? 0.6 : 0.8,
+              weight: 2,
+              opacity: 0.8,
+              zIndexOffset: -1500,
+              pane: 'shadowPane'
+            });
+
+            // Add popup with timestamp if available
+            if (props.Date || props.date) {
+              circleMarker.bindPopup(`
+                <div style="font-size: 12px;">
+                  <strong>${isForecast ? 'Forecast' : 'Observed'} Position</strong><br/>
+                  Date: ${props.Date || props.date}
+                  ${props.MaxWind ? `<br/>Max Wind: ${props.MaxWind} kt` : ''}
+                </div>
+              `);
+            }
+
+            layerGroup.addLayer(circleMarker);
+            break;
+          }
+
+          case 'LineString': {
+            // LineString geometries (e.g., cyclone track paths)
+            const coords = geom.coordinates.map(([lng, lat]) => [lat, lng]);
+
+            const isForecast = props.Class === 'FORECAST' || props.class === 'FORECAST';
+            const lineColor = isForecast ? '#FFD700' : alertColor;
+
+            const polyline = L.polyline(coords, {
+              color: lineColor,
+              weight: isForecast ? 2 : 3,
+              opacity: isForecast ? 0.6 : 0.8,
+              dashArray: isForecast ? '5, 10' : null, // Dashed for forecast
+              zIndexOffset: -1500,
+              pane: 'shadowPane'
+            });
+
+            // Add arrows to show direction of movement
+            if (!isForecast && coords.length > 1 && L.polylineDecorator) {
+              try {
+                const decorator = L.polylineDecorator(polyline, {
+                  patterns: [
+                    {
+                      offset: '50%',
+                      repeat: 100,
+                      symbol: L.Symbol.arrowHead({
+                        pixelSize: 12,
+                        polygon: false,
+                        pathOptions: {
+                          color: lineColor,
+                          weight: 2,
+                          opacity: 0.8
+                        }
+                      })
+                    }
+                  ]
+                });
+                layerGroup.addLayer(decorator);
+              } catch (error) {
+                console.log('Polyline decorator not available:', error.message);
+              }
+            }
+
+            layerGroup.addLayer(polyline);
+            break;
+          }
+
+          case 'Polygon': {
+            // Polygon geometries (e.g., affected areas, shakemaps)
+            const coords = geom.coordinates[0].map(([lng, lat]) => [lat, lng]);
+
+            const polygon = L.polygon(coords, {
+              color: alertColor,
+              fillColor: alertColor,
+              fillOpacity: 0.15,
+              weight: 2,
+              opacity: 0.6,
+              interactive: false,
+              zIndexOffset: -1800,
+              pane: 'shadowPane'
+            });
+
+            layerGroup.addLayer(polygon);
+            break;
+          }
+
+          case 'MultiPolygon': {
+            // MultiPolygon geometries (e.g., multiple affected areas)
+            const polygons = geom.coordinates.map(poly =>
+              poly[0].map(([lng, lat]) => [lat, lng])
+            );
+
+            const multiPolygon = L.polygon(polygons, {
+              color: alertColor,
+              fillColor: alertColor,
+              fillOpacity: 0.15,
+              weight: 2,
+              opacity: 0.6,
+              interactive: false,
+              zIndexOffset: -1800,
+              pane: 'shadowPane'
+            });
+
+            layerGroup.addLayer(multiPolygon);
+            break;
+          }
+
+          default:
+            console.log(`Unsupported geometry type: ${geom.type}`);
+        }
+      } catch (error) {
+        console.error(`Error rendering geometry feature ${idx}:`, error);
+      }
+    });
+
+    // Add the layer group to the map and track it for cleanup
+    layerGroup.addTo(map);
+    geometryLayersRef.current.set(cacheKey, layerGroup);
+    markers.push(layerGroup);
+  };
 
   useEffect(() => {
     // Create markers for each disaster directly with Leaflet
@@ -201,7 +445,30 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
             }
           }
 
-          // Check if we have polygon data available
+          // First, try to fetch and render GDACS geometry data (tracks, shakemaps, etc.)
+          if (showImpactZones && disaster.geometryUrl) {
+            const cacheKey = `${disaster.eventId}_${disaster.episodeId}`;
+            const cached = geometryCacheRef.current.get(cacheKey);
+
+            if (cached && !cached.failed) {
+              // Render cached geometry immediately
+              renderGeometry(cached.geojson, disaster, alertColor, markers);
+            } else if (!cached) {
+              // Fetch geometry asynchronously
+              fetchGeometry(disaster).then(geojson => {
+                if (geojson) {
+                  // Re-render to show the newly fetched geometry
+                  renderGeometry(geojson, disaster, alertColor, markers);
+                  // Note: We don't force update here to avoid re-rendering the entire component
+                  // The geometry will appear on next natural re-render or when impact zones toggle
+                }
+              });
+            }
+            // If geometry exists or is being fetched, don't render fallback circle yet
+            // Fall through to polygon check below as additional overlay
+          }
+
+          // Check if we have polygon data available (from CAP format)
           if (disaster.polygon && Array.isArray(disaster.polygon) && disaster.polygon.length > 2) {
             // Rendering polygon using CAP format data
 
@@ -367,6 +634,14 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
           map.removeLayer(marker);
         }
       });
+
+      // Clean up geometry layers
+      geometryLayersRef.current.forEach((layerGroup) => {
+        if (map.hasLayer(layerGroup)) {
+          map.removeLayer(layerGroup);
+        }
+      });
+      geometryLayersRef.current.clear();
 
       // Clean up cluster group if it exists
       if (clusterGroupRef.current && map.hasLayer(clusterGroupRef.current)) {

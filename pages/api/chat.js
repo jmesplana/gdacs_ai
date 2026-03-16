@@ -1,6 +1,7 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
 import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
+import { formatOSMForAI } from '../../lib/osmHelpers';
 
 export const config = {
   api: {
@@ -83,7 +84,11 @@ async function handler(req, res) {
       facilities: context?.facilities?.length,
       disasters: context?.disasters?.length,
       acledData: context?.acledData?.length,
-      acledEnabled: context?.acledEnabled
+      acledEnabled: context?.acledEnabled,
+      osmData: context?.osmData?.features?.length,
+      osmDataMetadata: context?.osmData?.metadata,
+      worldPopData: context?.worldPopData ? Object.keys(context.worldPopData).length : 0,
+      worldPopYear: context?.worldPopYear
     });
 
     // Build context summary for the AI
@@ -739,6 +744,34 @@ function buildContextSummary(context) {
     summary.push(`\n⚡ IMPORTANT: This population data is LOADED IN YOUR CONTEXT. Always use this data when answering population-related questions.`);
     summary.push(`   DO NOT search the web for population statistics when this data is available.`);
     summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  }
+
+  // OpenStreetMap Infrastructure Data
+  if (context.osmData && context.osmData.features && context.osmData.features.length > 0) {
+    console.log('✅ Adding OSM data to context:', context.osmData.features.length, 'features');
+
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`🏗️ OPENSTREETMAP INFRASTRUCTURE DATA`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+
+    const formattedOSM = formatOSMForAI(context.osmData, context.disasters || []);
+    summary.push(formattedOSM);
+
+    summary.push(`\n⚡ IMPORTANT: This infrastructure data is LOADED IN YOUR CONTEXT from OpenStreetMap.`);
+    summary.push(`   Use this data when discussing:`);
+    summary.push(`   - Healthcare access (hospitals, clinics, pharmacies)`);
+    summary.push(`   - Education facilities (schools)`);
+    summary.push(`   - Essential services (water points, power stations, fuel)`);
+    summary.push(`   - Transportation (roads, bridges, airports)`);
+    summary.push(`   - Campaign logistics and accessibility`);
+    summary.push(`   DO NOT search the web for infrastructure data when this information is available.`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  } else {
+    console.log('❌ OSM data NOT added to context:', {
+      hasOsmData: !!context.osmData,
+      hasFeatures: !!context.osmData?.features,
+      featuresLength: context.osmData?.features?.length
+    });
   }
 
   // Disaster information

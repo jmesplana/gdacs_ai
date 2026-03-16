@@ -1,4 +1,5 @@
 import React from 'react';
+import OSMInfrastructureSelector from './OSMInfrastructureSelector';
 
 const MapLayersDrawer = ({
   isOpen,
@@ -11,8 +12,25 @@ const MapLayersDrawer = ({
   settings,
   onToggle,
   onConfigChange,
-  embedded = false // New prop for when embedded in UnifiedDrawer
+  embedded = false, // New prop for when embedded in UnifiedDrawer
+  // OSM Infrastructure props
+  districts,
+  osmData,
+  osmStats,
+  osmLoading,
+  osmLayerVisibility,
+  onLoadOSM, // (selectedDistricts, selectedCategories) => void
+  onToggleOSMLayerVisibility,
+  onClearOSMCategory
 }) => {
+  console.log('🗺️ MapLayersDrawer render:', {
+    isOpen,
+    embedded,
+    hasDistricts: !!districts?.length,
+    districtsCount: districts?.length,
+    osmLoading,
+    hasOnLoadOSM: !!onLoadOSM
+  });
   // Use either direct props or settings object
   const activeMapLayer = currentMapLayer || settings?.currentMapLayer || 'street';
   const activeShowRoads = showRoads !== undefined ? showRoads : (settings?.showRoads || false);
@@ -90,6 +108,20 @@ const MapLayersDrawer = ({
             />
             <span>Show Road Network</span>
           </label>
+        </div>
+
+        {/* OSM Infrastructure Section */}
+        <div style={{borderTop: '1px solid #eee', margin: '15px 0', paddingTop: '15px'}}>
+          <OSMInfrastructureSelector
+            districts={districts}
+            osmData={osmData}
+            osmStats={osmStats}
+            osmLoading={osmLoading}
+            osmLayerVisibility={osmLayerVisibility}
+            onLoadOSM={onLoadOSM}
+            onToggleLayerVisibility={onToggleOSMLayerVisibility}
+            onClearCategory={onClearOSMCategory}
+          />
         </div>
       </div>
     </div>
