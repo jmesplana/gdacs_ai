@@ -14,6 +14,7 @@ const OperationalOutlook = ({
   selectedDistrict = null, // If provided, analyze only this district/admin level
   worldPopData = {},
   worldPopYear = null,
+  osmData = null,
   onClose
 }) => {
   const [loading, setLoading] = useState(true);
@@ -154,7 +155,8 @@ const OperationalOutlook = ({
           predictions: predictionsData,
           selectedDistrict: selectedDistrict ? selectedDistrict.name : null, // Signal to API if this is admin-level analysis
           worldPopData: worldPopData || {},
-          worldPopYear: worldPopYear || null
+          worldPopYear: worldPopYear || null,
+          osmData: osmData || null // Include OSM infrastructure data
         })
       });
 

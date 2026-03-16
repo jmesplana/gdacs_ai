@@ -1,4 +1,6 @@
 import { withRateLimit } from '../../lib/rateLimit';
+import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
+import { formatOSMForAI } from '../../lib/osmHelpers';
 // Sitrep generation with OpenAI
 import OpenAI from 'openai';
 
@@ -16,8 +18,18 @@ async function handler(req, res) {
   }
 
   try {
-    const { impactedFacilities, disasters, dateFilter, statistics } = req.body;
-    
+    const {
+      impactedFacilities,
+      disasters,
+      dateFilter,
+      statistics,
+      acledData = [],
+      osmData = null,
+      worldPopData = {},
+      worldPopYear = null,
+      districts = []
+    } = req.body;
+
     if (!impactedFacilities || !disasters) {
       return res.status(400).json({ error: 'Missing impacted facilities or disasters data' });
     }
@@ -42,7 +54,18 @@ async function handler(req, res) {
     // Try primary AI sitrep
     try {
       console.log('Generating AI situation report using OpenAI...');
-      const aiSitrep = await generateAISitrep(impactedFacilities, disasters, situationOverview, dateFilterText, statistics);
+      const aiSitrep = await generateAISitrep(
+        impactedFacilities,
+        disasters,
+        situationOverview,
+        dateFilterText,
+        statistics,
+        acledData,
+        osmData,
+        worldPopData,
+        worldPopYear,
+        districts
+      );
       console.log('Successfully generated AI sitrep');
       res.status(200).json({ sitrep: aiSitrep });
       return;
@@ -65,24 +88,71 @@ async function handler(req, res) {
 }
 
 // Generate situation report using OpenAI
-async function generateAISitrep(impactedFacilities, disasters, situationOverview, dateFilterText, statistics) {
+async function generateAISitrep(impactedFacilities, disasters, situationOverview, dateFilterText, statistics, acledData = [], osmData = null, worldPopData = {}, worldPopYear = null, districts = []) {
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
-    
+
     // Get current date and time
     const date = new Date().toISOString().split('T')[0];
     const time = new Date().toTimeString().split(' ')[0];
-    
+
+    // Build enhanced context
+    let enhancedContext = situationOverview;
+
+    // Add ACLED security context
+    if (acledData && acledData.length > 0) {
+      enhancedContext += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      enhancedContext += `SECURITY CONTEXT - ACLED CONFLICT DATA (${acledData.length} events)\n`;
+      enhancedContext += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+
+      // Group by event type
+      const byType = acledData.reduce((acc, event) => {
+        const type = event.event_type || 'Unknown';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {});
+
+      enhancedContext += 'Security incidents by type:\n';
+      Object.entries(byType)
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([type, count]) => {
+          enhancedContext += `- ${type}: ${count} events\n`;
+        });
+
+      // Most recent events
+      const recentEvents = acledData
+        .sort((a, b) => new Date(b.event_date) - new Date(a.event_date))
+        .slice(0, 5);
+
+      enhancedContext += '\nRecent security incidents:\n';
+      recentEvents.forEach(event => {
+        enhancedContext += `- ${event.event_date}: ${event.event_type} in ${event.admin2 || event.admin1 || event.country}\n`;
+        if (event.notes) enhancedContext += `  Note: ${event.notes.substring(0, 100)}...\n`;
+      });
+    }
+
+    // Add OSM infrastructure context
+    if (osmData && osmData.features && osmData.features.length > 0) {
+      enhancedContext += '\n\n' + formatOSMForAI(osmData, disasters);
+      enhancedContext += '\n**NOTE**: Use this infrastructure data to assess operational capacity and identify critical infrastructure at risk.\n';
+    }
+
+    // Add WorldPop population context
+    if (worldPopData && Object.keys(worldPopData).length > 0) {
+      enhancedContext += '\n\n' + formatWorldPopForAI(worldPopData, districts, worldPopYear || 'unknown');
+      enhancedContext += '\n**NOTE**: Use this population data to estimate affected populations and prioritize response.\n';
+    }
+
     // Create prompt for GPT
     const prompt = `
 You are a disaster management professional tasked with creating a concise Situation Report (SitRep).
-Based on the information below, create a formal SitRep that would be suitable for sharing with 
+Based on the information below, create a formal SitRep that would be suitable for sharing with
 organizational leadership, emergency response teams, and other stakeholders.
 
 SITUATION OVERVIEW (disasters from the ${dateFilterText}):
-${situationOverview}
+${enhancedContext}
 
 IMPORTANT: This report must ONLY include disasters and impacted facilities from the current filtered selection 
 (${dateFilterText}). Do not reference any facilities or disasters not included in the data above.

@@ -52,7 +52,7 @@ export default function Home() {
   });
   const [activeTab, setActiveTab] = useState('map');
   const [dataSource, setDataSource] = useState('');
-  const [dateFilter, setDateFilter] = useState('72h'); // default to 72 hours
+  const [dateFilter, setDateFilter] = useState('30d'); // default to 30 days
   const [fetchError, setFetchError] = useState(null);
   const [showHelp, setShowHelp] = useState(false); // Help panel visibility
   const [showChatDrawer, setShowChatDrawer] = useState(false); // Chat drawer visibility
@@ -85,6 +85,9 @@ export default function Home() {
   // WorldPop population data (lifted from MapComponent)
   const [worldPopData, setWorldPopData] = useState({});
   const [worldPopLastFetch, setWorldPopLastFetch] = useState(null);
+
+  // OSM infrastructure data (lifted from MapComponent)
+  const [osmData, setOsmData] = useState(null);
 
   // Toast notifications
   const { toasts, addToast, dismissToast } = useToast();
@@ -638,7 +641,9 @@ export default function Home() {
         body: JSON.stringify({
           facilities: facilitiesCsv,
           disasters: disastersToAssess,
-          acledEvents: acledToAssess // May be empty array, API will handle it
+          acledEvents: acledToAssess, // May be empty array, API will handle it
+          worldPopData: worldPopData || {},
+          districts: districtRawData || []
         }),
       });
       
@@ -718,7 +723,12 @@ export default function Home() {
           impactedFacilities: impactedFacilities,
           disasters: filteredDisasters.length > 0 ? filteredDisasters : disasters,
           dateFilter: dateFilter,
-          statistics: impactStatistics
+          statistics: impactStatistics,
+          acledData: acledEnabled ? acledData : [],
+          osmData: osmData || null,
+          worldPopData: worldPopData || {},
+          worldPopYear: worldPopLastFetch?.year || null,
+          districts: districtRawData || []
         }),
       });
 
@@ -1793,6 +1803,9 @@ export default function Home() {
             setWorldPopData(data);
             setWorldPopLastFetch(fetchParams);
           }}
+          onOSMDataChange={(data) => {
+            setOsmData(data);
+          }}
         />
 
         {selectedFacility && (
@@ -1831,6 +1844,7 @@ export default function Home() {
             selectedDistrict={selectedDistrictForOutlook}
             worldPopData={worldPopData}
             worldPopYear={worldPopLastFetch?.year}
+            osmData={osmData}
             onClose={() => {
               setShowOperationalOutlook(false);
               setSelectedDistrictForOutlook(null); // Clear selected district when closing

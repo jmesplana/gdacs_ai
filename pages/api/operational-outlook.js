@@ -1,5 +1,6 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
+import { formatOSMForAI } from '../../lib/osmHelpers';
 /**
  * Operational Outlook API
  * Generates forward-looking humanitarian analysis based on current situation
@@ -17,6 +18,56 @@ export const config = {
   },
 };
 
+/**
+ * Smart extraction of country/region from shapefile properties
+ * Handles multiple naming conventions (GADM, custom, etc.)
+ */
+function extractLocationFromDistrict(district) {
+  const props = district.properties || district || {};
+
+  // Try multiple field name patterns for country (admin level 0)
+  const countryFields = [
+    'NAME_0', 'ADM0_EN', 'COUNTRY', 'Country', 'country',
+    'admin0Name', 'ADM0_NAME', 'ADMIN0', 'name_0'
+  ];
+
+  // Try multiple field name patterns for region (admin level 1)
+  const regionFields = [
+    'NAME_1', 'ADM1_EN', 'REGION', 'Region', 'region',
+    'admin1Name', 'ADM1_NAME', 'ADMIN1', 'name_1'
+  ];
+
+  let country = null;
+  let region = null;
+
+  // Find first non-null country field
+  for (const field of countryFields) {
+    if (props[field]) {
+      country = props[field];
+      break;
+    }
+  }
+
+  // Find first non-null region field
+  for (const field of regionFields) {
+    if (props[field]) {
+      region = props[field];
+      break;
+    }
+  }
+
+  // If still no country, try to extract from district name or other fields
+  if (!country && props.name) {
+    // Some shapefiles might have "District, Country" format
+    const parts = props.name.split(',');
+    if (parts.length > 1) {
+      country = parts[parts.length - 1].trim();
+    }
+  }
+
+  return { country, region, allProps: props };
+}
+
 async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -31,6 +82,7 @@ async function handler(req, res) {
     selectedDistrict = null, // Optional: name of single admin level being analyzed
     worldPopData = {},
     worldPopYear = null,
+    osmData = null, // Optional: OpenStreetMap infrastructure data
   } = req.body;
 
   if (!openai) {
@@ -41,15 +93,27 @@ async function handler(req, res) {
   }
 
   try {
-    // Extract country/region from shapefile for web search
+    // Debug: Log what we received
+    console.log('📥 Operational Outlook API received:', {
+      facilities: facilities?.length || 0,
+      disasters: disasters?.length || 0,
+      acledData: acledData?.length || 0,
+      districts: districts?.length || 0,
+      osmData: osmData?.features?.length || 0,
+      worldPopData: Object.keys(worldPopData || {}).length,
+      selectedDistrict: selectedDistrict
+    });
+
+    // Extract country/region from shapefile for web search using smart extraction
     let country = null;
     let region = null;
     if (districts && districts.length > 0) {
-      const firstDistrict = districts[0].properties || {};
-      country = firstDistrict.ADM0_EN || firstDistrict.COUNTRY || firstDistrict.Country ||
-                firstDistrict.admin0Name || firstDistrict.country || null;
-      region = firstDistrict.ADM1_EN || firstDistrict.REGION || firstDistrict.Region ||
-               firstDistrict.admin1Name || firstDistrict.region || null;
+      const locationInfo = extractLocationFromDistrict(districts[0]);
+      country = locationInfo.country;
+      region = locationInfo.region;
+
+      console.log('📍 First district properties:', locationInfo.allProps);
+      console.log('🌍 Extracted location:', { country, region });
     }
 
     // Perform web search for recent humanitarian events if we have a country
@@ -73,6 +137,16 @@ async function handler(req, res) {
       context += formatWorldPopForAI(worldPopData, districts, worldPopYear || 'unknown');
     }
 
+    // Append OSM infrastructure data if available
+    if (osmData && osmData.features && osmData.features.length > 0) {
+      context += '\n\n' + formatOSMForAI(osmData, disasters);
+      context += '\n\n**INFRASTRUCTURE ANALYSIS GUIDANCE:**\n';
+      context += '- Assess infrastructure resilience and vulnerabilities\n';
+      context += '- Identify critical infrastructure gaps in high-risk areas\n';
+      context += '- Recommend infrastructure protection and redundancy measures\n';
+      context += '- Consider logistical implications of infrastructure damage\n';
+    }
+
     console.log('Generating operational outlook with context:', {
       facilities: facilities.length,
       disasters: disasters.length,
@@ -81,6 +155,8 @@ async function handler(req, res) {
       hasPredictions: !!predictions,
       country: country,
       hasWebSearch: !!webSearchResults,
+      hasOSMData: !!(osmData && osmData.features && osmData.features.length > 0),
+      osmFeatures: osmData?.features?.length || 0,
       analysisLevel: selectedDistrict ? 'admin' : 'country',
       selectedAdmin: selectedDistrict
     });
@@ -196,12 +272,10 @@ function buildAnalysisContext(facilities, disasters, acledData, districts, predi
       districtFeatures = districts.features;
     }
 
-    // Extract country/region from first district
-    const firstDistrict = districtFeatures[0]?.properties || {};
-    const country = firstDistrict.ADM0_EN || firstDistrict.COUNTRY || firstDistrict.Country ||
-                    firstDistrict.admin0Name || firstDistrict.country || 'Unknown';
-    const region = firstDistrict.ADM1_EN || firstDistrict.REGION || firstDistrict.Region ||
-                   firstDistrict.admin1Name || firstDistrict.region || null;
+    // Extract country/region from first district using smart extraction
+    const locationInfo = extractLocationFromDistrict(districtFeatures[0]);
+    const country = locationInfo.country || 'Unknown';
+    const region = locationInfo.region;
 
     context += `- Country: ${country}\n`;
     if (region && region !== country) {
@@ -210,7 +284,7 @@ function buildAnalysisContext(facilities, disasters, acledData, districts, predi
     context += `- Total admin levels: ${districtFeatures.length}\n`;
 
     // Debug: Log first district to understand structure
-    console.log('First admin level sample:', JSON.stringify(firstDistrict, null, 2).substring(0, 500));
+    console.log('First admin level sample:', JSON.stringify(locationInfo.allProps, null, 2).substring(0, 500));
 
     // Calculate admin level risks based on ACLED events (same logic as MapComponent)
     const enrichedDistricts = calculateDistrictRisks(districtFeatures, acledData);

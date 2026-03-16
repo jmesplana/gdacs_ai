@@ -1,6 +1,7 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import Papa from 'papaparse';
 import { getDistance, isPointInPolygon, getAreaOfPolygon } from 'geolib';
+const turf = require('@turf/turf');
 
 export const config = {
   api: {
@@ -16,7 +17,13 @@ async function handler(req, res) {
   }
 
   try {
-    const { facilities, disasters, acledEvents = [] } = req.body;
+    const {
+      facilities,
+      disasters,
+      acledEvents = [],
+      worldPopData = {},
+      districts = []
+    } = req.body;
 
     if (!facilities) {
       return res.status(400).json({ error: 'Missing facilities data' });
@@ -63,7 +70,7 @@ async function handler(req, res) {
     }
     
     // Assess impact with both GDACS disasters and ACLED events
-    const assessmentResult = assessImpact(facilityData, disasters || [], acledEvents || []);
+    const assessmentResult = assessImpact(facilityData, disasters || [], acledEvents || [], worldPopData, districts);
 
     res.status(200).json({
       impactedFacilities: assessmentResult.impactedFacilities,
@@ -75,11 +82,40 @@ async function handler(req, res) {
   }
 }
 
-function assessImpact(facilities, disasters, acledEvents) {
+function assessImpact(facilities, disasters, acledEvents, worldPopData = {}, districts = []) {
   console.time('Impact assessment total');
   const impacted = [];
   const disasterStats = {};
   const overlappingDisasters = {};
+
+  // Helper: Find which district a facility belongs to
+  const findFacilityDistrict = (facility) => {
+    if (!districts || districts.length === 0) return null;
+
+    const facilityPoint = turf.point([facility.longitude, facility.latitude]);
+
+    for (const district of districts) {
+      try {
+        // Handle both FeatureCollection and array of features
+        const districtFeature = district.type === 'Feature' ? district :
+                               district.geometry ? { type: 'Feature', geometry: district.geometry } : null;
+
+        if (!districtFeature) continue;
+
+        if (turf.booleanPointInPolygon(facilityPoint, districtFeature)) {
+          const props = district.properties || {};
+          return {
+            name: props.ADM2_EN || props.NAME || props.name || props.district || 'Unknown',
+            population: props.population || props.POP || null
+          };
+        }
+      } catch (err) {
+        // Skip invalid district geometries
+        continue;
+      }
+    }
+    return null;
+  };
 
   // Combine GDACS disasters and ACLED events into a single threat array
   // ACLED events need to be converted to disaster-like format for processing
@@ -224,8 +260,22 @@ function assessImpact(facilities, disasters, acledEvents) {
     
     // If facility has impacts, add to the impacted list
     if (facilityImpacts.length > 0) {
+      // Enrich facility with district and population data
+      const districtInfo = findFacilityDistrict(facility);
+      const enrichedFacility = { ...facility };
+
+      if (districtInfo) {
+        enrichedFacility.district = districtInfo.name;
+        enrichedFacility.districtPopulation = districtInfo.population;
+      }
+
+      // Add WorldPop population data if available
+      if (districtInfo && worldPopData[districtInfo.name]) {
+        enrichedFacility.populationData = worldPopData[districtInfo.name];
+      }
+
       impacted.push({
-        facility: facility,
+        facility: enrichedFacility,
         impacts: facilityImpacts
       });
     }
@@ -234,13 +284,39 @@ function assessImpact(facilities, disasters, acledEvents) {
 
   // Compile statistics
   console.time('Compile statistics');
+
+  // Calculate affected population
+  let totalAffectedPopulation = 0;
+  const affectedDistricts = new Set();
+
+  impacted.forEach(item => {
+    if (item.facility.districtPopulation) {
+      affectedDistricts.add(item.facility.district);
+    }
+  });
+
+  // Sum population from unique affected districts
+  affectedDistricts.forEach(districtName => {
+    const districtData = districts.find(d => {
+      const props = d.properties || {};
+      const name = props.ADM2_EN || props.NAME || props.name || props.district;
+      return name === districtName;
+    });
+    if (districtData && districtData.properties) {
+      const pop = districtData.properties.population || districtData.properties.POP || 0;
+      totalAffectedPopulation += pop;
+    }
+  });
+
   const statistics = {
     totalDisasters: disasters.length,
     totalFacilities: facilities.length,
     impactedFacilityCount: impacted.length,
     percentageImpacted: facilities.length ? Math.round((impacted.length / facilities.length) * 100) : 0,
     disasterStats: Object.values(disasterStats).filter(stat => stat.affectedFacilities > 0),
-    overlappingImpacts: Object.values(overlappingDisasters)
+    overlappingImpacts: Object.values(overlappingDisasters),
+    affectedDistricts: affectedDistricts.size,
+    estimatedAffectedPopulation: totalAffectedPopulation > 0 ? totalAffectedPopulation : null
   };
   console.timeEnd('Compile statistics');
   console.timeEnd('Impact assessment total');

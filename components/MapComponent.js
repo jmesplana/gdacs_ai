@@ -272,7 +272,8 @@ const MapComponent = ({
   onDistrictLabelFieldChange,
   onDistrictClick,
   onDistrictOutlookClick,
-  onWorldPopDataChange
+  onWorldPopDataChange,
+  onOSMDataChange
 }) => {
   // Map refs - keep these in main component
   const mapRef = useRef(null);
@@ -428,6 +429,13 @@ const MapComponent = ({
     toggleAllOSM,
   } = useOSMInfrastructure();
   const [showOSMDrawer, setShowOSMDrawer] = useState(false);
+
+  // Lift osmData to parent when it changes
+  useEffect(() => {
+    if (onOSMDataChange) {
+      onOSMDataChange(osmData);
+    }
+  }, [osmData, onOSMDataChange]);
 
   // Auto-fetch OSM data when districts loaded
   useEffect(() => {

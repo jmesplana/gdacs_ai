@@ -140,6 +140,10 @@ export function useOSMInfrastructure() {
       console.log('✅ Fetching OSM infrastructure for boundary:', cleanBoundary);
       console.log('✅ Categories to fetch:', layersToFetch);
 
+      // Add timeout to fetch request (60 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+
       const response = await fetch('/api/osm-infrastructure', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,8 +155,11 @@ export function useOSMInfrastructure() {
             includeMetadata: true,
             ...options
           }
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       console.log('📡 Response status:', response.status);
 
@@ -190,14 +197,21 @@ export function useOSMInfrastructure() {
         return null;
       }
     } catch (err) {
-      const errorMsg = 'Failed to fetch OSM infrastructure data';
+      let errorMsg = 'Failed to fetch OSM infrastructure data';
+
+      if (err.name === 'AbortError') {
+        errorMsg = 'Request timeout - OSM data fetch took too long (>60s)';
+        console.error('⏱️ OSM fetch timeout');
+      } else {
+        console.error('❌ OSM fetch error:', err);
+        console.error('❌ Error details:', {
+          message: err.message,
+          stack: err.stack,
+          name: err.name
+        });
+      }
+
       setOsmError(errorMsg);
-      console.error('❌ OSM fetch error:', err);
-      console.error('❌ Error details:', {
-        message: err.message,
-        stack: err.stack,
-        name: err.name
-      });
       return null;
     } finally {
       console.log('🏁 Fetch completed, setting loading to false');

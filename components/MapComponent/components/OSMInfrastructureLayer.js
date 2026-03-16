@@ -7,18 +7,22 @@
 import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { getOSMIcon, getOSMColor } from '../utils/osmHelpers';
 
 const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer }) => {
   const map = useMap();
   const clusterGroupRef = useRef(null);
+  const lineLayerGroupRef = useRef(null); // For LineString/Polygon features
 
   useEffect(() => {
     if (!osmData || !osmData.features || !showOSMLayer) {
-      // Clear markers if no data or layer hidden
+      // Clear all layers if no data or layer hidden
       if (clusterGroupRef.current) {
         map.removeLayer(clusterGroupRef.current);
         clusterGroupRef.current = null;
+      }
+      if (lineLayerGroupRef.current) {
+        map.removeLayer(lineLayerGroupRef.current);
+        lineLayerGroupRef.current = null;
       }
       return;
     }
@@ -78,9 +82,94 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer }) => {
 
     console.log(`Filtered to ${visibleFeatures.length} visible features`);
 
-    // Add markers
+    // Create line layer group for non-Point geometries
+    if (!lineLayerGroupRef.current) {
+      lineLayerGroupRef.current = L.layerGroup();
+      map.addLayer(lineLayerGroupRef.current);
+    } else {
+      lineLayerGroupRef.current.clearLayers();
+    }
+
+    // Count features by geometry type for debugging
+    let pointCount = 0;
+    let lineCount = 0;
+    let polygonCount = 0;
+
+    // Add features based on geometry type
     visibleFeatures.forEach((feature, index) => {
-      if (feature.geometry.type === 'Point') {
+      const { name, category, tags, color, icon } = feature.properties;
+      const geometryType = feature.geometry.type;
+
+      // Build popup content (shared for all geometry types)
+      const popupContent = `
+        <div style="max-width: 280px; font-family: 'Inter', sans-serif;">
+          <h3 style="
+            margin: 0 0 10px 0;
+            color: ${color};
+            font-size: 16px;
+            font-weight: 600;
+            border-bottom: 2px solid ${color};
+            padding-bottom: 6px;
+          ">
+            ${name}
+          </h3>
+          <div style="margin-bottom: 8px;">
+            <span style="
+              display: inline-block;
+              background: ${color};
+              color: white;
+              padding: 2px 8px;
+              border-radius: 4px;
+              font-size: 11px;
+              font-weight: 600;
+              text-transform: uppercase;
+            ">${category}</span>
+          </div>
+          ${tags.operator ? `
+            <div style="margin-bottom: 6px;">
+              <strong style="color: #64748b;">Operator:</strong> ${tags.operator}
+            </div>
+          ` : ''}
+          ${tags.capacity || tags.beds ? `
+            <div style="margin-bottom: 6px;">
+              <strong style="color: #64748b;">Capacity:</strong> ${tags.capacity || tags.beds} ${tags.beds ? 'beds' : ''}
+            </div>
+          ` : ''}
+          ${tags.emergency === 'yes' ? `
+            <div style="margin-bottom: 6px; color: #dc2626; font-weight: 600;">
+              ⚡ Emergency Services Available
+            </div>
+          ` : ''}
+          ${tags.amenity ? `
+            <div style="margin-bottom: 6px;">
+              <strong style="color: #64748b;">Type:</strong> ${tags.amenity}
+            </div>
+          ` : ''}
+          ${tags.highway ? `
+            <div style="margin-bottom: 6px;">
+              <strong style="color: #64748b;">Road Type:</strong> ${tags.highway}
+            </div>
+          ` : ''}
+          <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e2e8f0;">
+            <a
+              href="https://www.openstreetmap.org/${feature.properties.osmType}/${feature.properties.osmId}"
+              target="_blank"
+              rel="noopener noreferrer"
+              style="
+                color: #2563eb;
+                text-decoration: none;
+                font-size: 12px;
+                font-weight: 500;
+              "
+            >
+              📍 View on OpenStreetMap →
+            </a>
+          </div>
+        </div>
+      `;
+
+      if (geometryType === 'Point') {
+        pointCount++;
         const [lng, lat] = feature.geometry.coordinates;
 
         // Skip invalid coordinates
@@ -89,7 +178,22 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer }) => {
           return;
         }
 
-        const { name, category, tags, color, icon } = feature.properties;
+        // Get emoji/Unicode icon for category
+        const getIconSymbol = (cat) => {
+          const symbols = {
+            hospital: '🏥',
+            clinic: '⚕️',
+            school: '🏫',
+            road: '🛣️',
+            bridge: '🌉',
+            water: '💧',
+            power: '⚡',
+            fuel: '⛽',
+            pharmacy: '💊',
+            airport: '✈️',
+          };
+          return symbols[cat] || '📍';
+        };
 
         // Create custom icon
         const iconHtml = `
@@ -104,9 +208,9 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer }) => {
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            font-size: 16px;
           ">
-            <i class="fas ${getOSMIcon(category)}" style="font-size: 14px;"></i>
+            ${getIconSymbol(category)}
           </div>
         `;
 
@@ -124,81 +228,60 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer }) => {
           zIndexOffset: -500, // Below facilities but above disasters
         });
 
-        // Build popup content
-        const popupContent = `
-          <div style="max-width: 280px; font-family: 'Inter', sans-serif;">
-            <h3 style="
-              margin: 0 0 10px 0;
-              color: ${color};
-              font-size: 16px;
-              font-weight: 600;
-              border-bottom: 2px solid ${color};
-              padding-bottom: 6px;
-            ">
-              ${name}
-            </h3>
-            <div style="margin-bottom: 8px;">
-              <span style="
-                display: inline-block;
-                background: ${color};
-                color: white;
-                padding: 2px 8px;
-                border-radius: 4px;
-                font-size: 11px;
-                font-weight: 600;
-                text-transform: uppercase;
-              ">${category}</span>
-            </div>
-            ${tags.operator ? `
-              <div style="margin-bottom: 6px;">
-                <strong style="color: #64748b;">Operator:</strong> ${tags.operator}
-              </div>
-            ` : ''}
-            ${tags.capacity || tags.beds ? `
-              <div style="margin-bottom: 6px;">
-                <strong style="color: #64748b;">Capacity:</strong> ${tags.capacity || tags.beds} ${tags.beds ? 'beds' : ''}
-              </div>
-            ` : ''}
-            ${tags.emergency === 'yes' ? `
-              <div style="margin-bottom: 6px; color: #dc2626; font-weight: 600;">
-                ⚡ Emergency Services Available
-              </div>
-            ` : ''}
-            ${tags.amenity ? `
-              <div style="margin-bottom: 6px;">
-                <strong style="color: #64748b;">Type:</strong> ${tags.amenity}
-              </div>
-            ` : ''}
-            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e2e8f0;">
-              <a
-                href="https://www.openstreetmap.org/${feature.properties.osmType}/${feature.properties.osmId}"
-                target="_blank"
-                rel="noopener noreferrer"
-                style="
-                  color: #2563eb;
-                  text-decoration: none;
-                  font-size: 12px;
-                  font-weight: 500;
-                "
-              >
-                📍 View on OpenStreetMap →
-              </a>
-            </div>
-          </div>
-        `;
-
         marker.bindPopup(popupContent);
 
         // Add to cluster group
         clusterGroupRef.current.addLayer(marker);
+
+      } else if (geometryType === 'LineString') {
+        lineCount++;
+        const coords = feature.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+
+        // Create polyline
+        const polyline = L.polyline(coords, {
+          color: color,
+          weight: 4,
+          opacity: 0.8,
+          className: `osm-line osm-${category}`
+        });
+
+        polyline.bindPopup(popupContent);
+
+        // Add to line layer group
+        lineLayerGroupRef.current.addLayer(polyline);
+
+      } else if (geometryType === 'Polygon') {
+        polygonCount++;
+        const coords = feature.geometry.coordinates[0].map(coord => [coord[1], coord[0]]);
+
+        // Create polygon with subtle styling (building outlines)
+        const polygon = L.polygon(coords, {
+          color: color,
+          fillColor: color,
+          fillOpacity: 0.1,  // Very subtle fill
+          weight: 1.5,       // Thinner border
+          opacity: 0.4,      // More transparent border
+          className: `osm-polygon osm-${category}`
+        });
+
+        polygon.bindPopup(popupContent);
+
+        // Add to line layer group
+        lineLayerGroupRef.current.addLayer(polygon);
       }
     });
+
+    console.log(`Rendered ${pointCount} points, ${lineCount} lines, ${polygonCount} polygons`);
 
     // Cleanup function
     return () => {
       if (clusterGroupRef.current) {
         map.removeLayer(clusterGroupRef.current);
         clusterGroupRef.current = null;
+      }
+      if (lineLayerGroupRef.current) {
+        map.removeLayer(lineLayerGroupRef.current);
+        lineLayerGroupRef.current = null;
       }
     };
   }, [osmData, layerVisibility, showOSMLayer, map]);
