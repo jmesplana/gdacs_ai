@@ -295,10 +295,14 @@ export default function Home() {
       setFilteredDisasters(processedData);
       setDataSource(`Live GDACS data (${processedData.length} events)`);
 
-      // Set last updated from most recent event date
-      const sorted = [...processedData].sort((a, b) =>
-        (b.pubDate ? new Date(b.pubDate) : 0) - (a.pubDate ? new Date(a.pubDate) : 0));
-      setLastUpdated(sorted[0]?.pubDate ? new Date(sorted[0].pubDate) : new Date());
+      // Set last updated from most recent event modification date (when GDACS last updated any event)
+      const sorted = [...processedData].sort((a, b) => {
+        const dateA = b.lastModified || b.pubDate;
+        const dateB = a.lastModified || a.pubDate;
+        return (dateA ? new Date(dateA) : 0) - (dateB ? new Date(dateB) : 0);
+      });
+      const mostRecentDate = sorted[0]?.lastModified || sorted[0]?.pubDate;
+      setLastUpdated(mostRecentDate ? new Date(mostRecentDate) : new Date());
 
     } catch (error) {
       console.error('Error fetching disaster data:', error);
@@ -347,10 +351,13 @@ export default function Home() {
     }
     
     const filtered = disasters.filter(disaster => {
-      if (!disaster.pubDate) return true; // Include if no date
-      
+      // Use lastModified for filtering - this ensures ongoing events stay visible
+      // even if they started months ago (e.g., droughts from November)
+      const dateToFilter = disaster.lastModified || disaster.pubDate;
+      if (!dateToFilter) return true; // Include if no date
+
       try {
-        const disasterDate = new Date(disaster.pubDate);
+        const disasterDate = new Date(dateToFilter);
         return disasterDate >= cutoffDate;
       } catch (e) {
         console.log('Date parsing failed for disaster:', disaster.title);
