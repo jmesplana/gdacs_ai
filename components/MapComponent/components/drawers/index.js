@@ -3,6 +3,7 @@ export { default as WorldPopDrawer } from './WorldPopDrawer';
 export { default as UnifiedDrawer } from './UnifiedDrawer';
 export { default as ColumnSelectionModal } from './ColumnSelectionModal';
 export { default as RecommendationsDrawer } from './RecommendationsDrawer';
+export { default as LogisticsDrawer } from './LogisticsDrawer';
 
 // Legacy exports (kept for backward compatibility)
 export { default as FacilityDrawer } from './FacilityDrawer';

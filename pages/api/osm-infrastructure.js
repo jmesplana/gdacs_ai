@@ -124,6 +124,16 @@ module.exports = async function handler(req, res) {
       throw new Error('All OSM queries failed');
     }
 
+    // Log partial success
+    if (errors.length > 0) {
+      console.log(`⚠️ Partial success: ${allFeatures.length} features from ${subdivisions.length - errors.length}/${subdivisions.length} subdivisions`);
+    }
+
+    // Check if we got any features
+    if (allFeatures.length === 0) {
+      throw new Error('No OSM features retrieved');
+    }
+
     // Deduplicate features (same OSM ID might appear in multiple subdivisions)
     const deduped = deduplicateFeatures(allFeatures);
 

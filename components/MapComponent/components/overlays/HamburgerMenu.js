@@ -7,6 +7,7 @@ const HamburgerMenu = ({
   onControlPanelClick,
   onFilterClick,
   onCampaignDashboardClick,
+  onLogisticsClick,
   onHelpClick,
   drawingEnabled,
   onDrawClick,
@@ -18,7 +19,9 @@ const HamburgerMenu = ({
   operationType,
   onOperationTypeChange,
   playbackEnabled,
-  onPlaybackClick
+  onPlaybackClick,
+  logisticsEnabled = false,
+  hasDistricts = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showDrawingTools, setShowDrawingTools] = useState(false);
@@ -227,6 +230,47 @@ const HamburgerMenu = ({
                 <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
               </svg>
               {opConfig.name} Dashboard
+            </button>
+
+            {/* Logistics Assessment */}
+            <button
+              onClick={() => handleMenuClick(onLogisticsClick)}
+              disabled={!hasDistricts}
+              style={{
+                width: '100%',
+                padding: '16px 20px',
+                backgroundColor: logisticsEnabled ? 'rgba(102, 126, 234, 0.1)' : 'white',
+                border: 'none',
+                borderBottom: '1px solid #f0f0f0',
+                cursor: hasDistricts ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                alignItems: 'center',
+                fontSize: '15px',
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontWeight: 600,
+                color: !hasDistricts ? '#999' : logisticsEnabled ? '#667eea' : 'var(--aidstack-navy)',
+                transition: 'background-color 0.2s ease',
+                opacity: hasDistricts ? 1 : 0.5
+              }}
+              onMouseEnter={(e) => {
+                if (hasDistricts) {
+                  e.currentTarget.style.backgroundColor = logisticsEnabled ? 'rgba(102, 126, 234, 0.15)' : '#f8f9fa';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (hasDistricts) {
+                  e.currentTarget.style.backgroundColor = logisticsEnabled ? 'rgba(102, 126, 234, 0.1)' : 'white';
+                }
+              }}
+              title={!hasDistricts ? 'Upload a district shapefile to enable logistics assessment' : 'Analyze logistics accessibility'}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '12px', color: hasDistricts ? '#667eea' : '#999' }}>
+                <rect x="1" y="3" width="15" height="13"></rect>
+                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                <circle cx="18.5" cy="18.5" r="2.5"></circle>
+              </svg>
+              Logistics Assessment
             </button>
 
             {/* Playback Mode */}

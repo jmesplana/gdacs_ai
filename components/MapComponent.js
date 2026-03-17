@@ -31,6 +31,7 @@ import {
   AcledMarkers
 } from './MapComponent/components';
 import OSMInfrastructureLayer from './MapComponent/components/OSMInfrastructureLayer';
+import LogisticsOverlaysLayer from './MapComponent/components/LogisticsOverlaysLayer';
 
 import {
   FilterDrawer,
@@ -38,7 +39,8 @@ import {
   ColumnSelectionModal,
   RecommendationsDrawer,
   ChatDrawer,
-  WorldPopDrawer
+  WorldPopDrawer,
+  LogisticsDrawer
 } from './MapComponent/components/drawers';
 
 import {
@@ -59,6 +61,7 @@ import {
   useWorldPop
 } from './MapComponent/hooks';
 import { useOSMInfrastructure } from './MapComponent/hooks/useOSMInfrastructure';
+import { useLogisticsAssessment } from './MapComponent/hooks/useLogisticsAssessment';
 
 // Import utils
 import {
@@ -476,6 +479,21 @@ const MapComponent = ({
       }
     }
   }, [districts, osmData, osmLoading, osmError, fetchOSMInfrastructure]);
+
+  // Logistics Assessment hook
+  const {
+    logisticsData,
+    logisticsLoading,
+    logisticsError,
+    showLogisticsLayer,
+    logisticsLayerVisibility,
+    assessLogistics,
+    clearLogistics,
+    toggleLogisticsLayerVisibility,
+    toggleAllLogistics,
+    retryAssessment
+  } = useLogisticsAssessment();
+  const [showLogisticsDrawer, setShowLogisticsDrawer] = useState(false);
 
   // Recommendations drawer state
   const [showRecommendationsDrawer, setShowRecommendationsDrawer] = useState(false);
@@ -914,6 +932,105 @@ const MapComponent = ({
     }
   };
 
+  // Handle logistics assessment
+  const handleLogisticsAssessment = async () => {
+    // Only require OSM data - disasters are optional (baseline assessment)
+    if (!osmData) {
+      addToast('Please upload a district shapefile to enable logistics assessment', 'warning');
+      return;
+    }
+
+    const hasDisasters = filteredDisasters && filteredDisasters.length > 0;
+    console.log('🚚 Starting logistics assessment...', hasDisasters ? 'with disasters' : 'baseline mode');
+
+    // Calculate bounding box from districts or OSM metadata
+    let bounds = osmData.metadata?.boundingBox;
+
+    // If no metadata bounds, calculate from districts
+    if (!bounds && districts && districts.length > 0) {
+      let minLat = Infinity, maxLat = -Infinity;
+      let minLon = Infinity, maxLon = -Infinity;
+
+      districts.forEach(district => {
+        if (district.geometry && district.geometry.coordinates) {
+          const coords = district.geometry.type === 'Polygon'
+            ? district.geometry.coordinates[0]
+            : district.geometry.coordinates.flat(2);
+
+          coords.forEach(coord => {
+            const [lon, lat] = coord;
+            minLat = Math.min(minLat, lat);
+            maxLat = Math.max(maxLat, lat);
+            minLon = Math.min(minLon, lon);
+            maxLon = Math.max(maxLon, lon);
+          });
+        }
+      });
+
+      if (minLat !== Infinity) {
+        bounds = { north: maxLat, south: minLat, east: maxLon, west: minLon };
+        console.log('📦 Calculated bounds from districts:', bounds);
+      }
+    }
+
+    // Filter disasters to only those near the region (within 200km)
+    // This prevents AI from analyzing irrelevant disasters from other regions
+    const nearbyDisasters = !hasDisasters ? [] : filteredDisasters.filter(disaster => {
+      if (!disaster.lat || !disaster.lon) return false; // Skip disasters without coordinates
+      if (!bounds) return true; // If we still can't determine bounds, include all
+
+      const disasterLat = parseFloat(disaster.lat);
+      const disasterLon = parseFloat(disaster.lon);
+
+      // Simple bounding box check with 200km buffer (~2 degrees)
+      const buffer = 2;
+      const isNearby = (
+        disasterLat >= bounds.south - buffer &&
+        disasterLat <= bounds.north + buffer &&
+        disasterLon >= bounds.west - buffer &&
+        disasterLon <= bounds.east + buffer
+      );
+
+      if (!isNearby) {
+        console.log(`🚫 Filtered out disaster: ${disaster.title || disaster.eventName} at [${disasterLat}, ${disasterLon}]`);
+      }
+
+      return isNearby;
+    });
+
+    console.log(`📍 Filtered disasters from ${hasDisasters ? filteredDisasters.length : 0} to ${nearbyDisasters.length} within region`);
+
+    // Allow assessment even without disasters - shows baseline logistics status
+    if (nearbyDisasters.length === 0) {
+      console.log('⚠️ No disasters found near region - will show baseline logistics assessment');
+      addToast('No active disasters near this region. Showing baseline logistics status.', 'info');
+      // Continue with empty disasters array to show baseline assessment
+    }
+
+    // Open the drawer immediately to show loading state
+    setShowLogisticsDrawer(true);
+
+    // Perform assessment with nearby disasters only
+    const result = await assessLogistics(
+      osmData,
+      nearbyDisasters,
+      facilities,
+      acledData,
+      {} // Options - can be extended for route analysis
+    );
+
+    if (result) {
+      addToast('Logistics assessment completed successfully', 'success');
+    } else if (logisticsError) {
+      addToast(`Logistics assessment failed: ${logisticsError}`, 'error');
+    }
+  };
+
+  // Handle logistics drawer toggle
+  const handleLogisticsDrawerToggle = () => {
+    setShowLogisticsDrawer(prev => !prev);
+  };
+
   // Handle fullscreen toggle
   const handleFullscreenToggle = () => {
     if (mapContainerRef.current) {
@@ -951,11 +1068,12 @@ const MapComponent = ({
     >
       <style>{customStyles}</style>
 
-      {/* Hamburger Menu - Contains all controls: Control Panel, Filter, Campaign Dashboard, Draw, Help */}
+      {/* Hamburger Menu - Contains all controls: Control Panel, Filter, Campaign Dashboard, Logistics, Draw, Help */}
       <HamburgerMenu
         onControlPanelClick={toggleUnifiedDrawer}
         onFilterClick={toggleFilterDrawer}
         onCampaignDashboardClick={() => setShowCampaignDashboard(true)}
+        onLogisticsClick={handleLogisticsAssessment}
         onHelpClick={() => setShowHelp(!showHelp)}
         drawingEnabled={drawingEnabled}
         onDrawClick={toggleDrawing}
@@ -968,6 +1086,8 @@ const MapComponent = ({
         onOperationTypeChange={onOperationTypeChange}
         playbackEnabled={playbackEnabled}
         onPlaybackClick={togglePlayback}
+        logisticsEnabled={showLogisticsDrawer}
+        hasDistricts={districts && districts.length > 0}
       />
 
       {/* Filter Drawer */}
@@ -1700,6 +1820,16 @@ const MapComponent = ({
           showOSMLayer={showOSMLayer}
         />
 
+        {/* Logistics Overlays Layer */}
+        <LogisticsOverlaysLayer
+          data={logisticsData}
+          visible={showLogisticsLayer}
+          showRoads={logisticsLayerVisibility.roads}
+          showBridges={logisticsLayerVisibility.bridges}
+          showFuel={logisticsLayerVisibility.fuel}
+          showAirports={logisticsLayerVisibility.airports}
+        />
+
         {/* Drawing layer */}
         <DrawingLayer
           enabled={drawingEnabled}
@@ -1998,6 +2128,16 @@ const MapComponent = ({
         clearWorldPopData={clearWorldPopData}
         scopeToShapefile={scopeToShapefile}
         toggleScopeToShapefile={toggleScopeToShapefile}
+      />
+
+      {/* Logistics Assessment Drawer */}
+      <LogisticsDrawer
+        isOpen={showLogisticsDrawer}
+        onClose={() => setShowLogisticsDrawer(false)}
+        data={logisticsData}
+        loading={logisticsLoading}
+        error={logisticsError}
+        onRetry={() => handleLogisticsAssessment()}
       />
 
       {/* Campaign Dashboard */}

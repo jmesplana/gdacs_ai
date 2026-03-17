@@ -7,11 +7,82 @@ const FloatingActionButtons = ({
   setDrawingColor,
   onUndoDrawing,
   onClearDrawings,
-  drawingsCount
+  drawingsCount,
+  onLogisticsClick,
+  hasDistricts = false,
+  logisticsLoading = false
 }) => {
   return (
     <>
-      {/* Single Draw button - other controls moved to hamburger menu */}
+      {/* Logistics Assessment FAB - appears when districts are loaded */}
+      {hasDistricts && onLogisticsClick && (
+        <button
+          type="button"
+          onClick={onLogisticsClick}
+          disabled={logisticsLoading}
+          title="Assess Logistics Accessibility"
+          style={{
+            position: 'absolute',
+            bottom: '20px',
+            right: drawingEnabled ? '220px' : '140px', // Position to left of draw button
+            zIndex: 1500,
+            backgroundColor: '#667eea',
+            color: 'white',
+            border: '2px solid #667eea',
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontWeight: 600,
+            fontSize: '15px',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            cursor: logisticsLoading ? 'not-allowed' : 'pointer',
+            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            transition: 'all 0.3s ease',
+            opacity: logisticsLoading ? 0.7 : 1
+          }}
+          onMouseEnter={(e) => {
+            if (!logisticsLoading) {
+              e.currentTarget.style.backgroundColor = '#5568d3';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!logisticsLoading) {
+              e.currentTarget.style.backgroundColor = '#667eea';
+              e.currentTarget.style.transform = 'scale(1)';
+            }
+          }}
+        >
+          {logisticsLoading ? (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px', animation: 'spin 1s linear infinite'}}>
+                <line x1="12" y1="2" x2="12" y2="6"></line>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                <line x1="2" y1="12" x2="6" y2="12"></line>
+                <line x1="18" y1="12" x2="22" y2="12"></line>
+                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+              </svg>
+              Analyzing...
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+                <rect x="1" y="3" width="15" height="13"></rect>
+                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                <circle cx="18.5" cy="18.5" r="2.5"></circle>
+              </svg>
+              Logistics
+            </>
+          )}
+        </button>
+      )}
+
+      {/* Draw button */}
       <button
         type="button"
         className="drawer-toggle drawer-toggle-draw"
@@ -56,6 +127,12 @@ const FloatingActionButtons = ({
         </svg>
         {drawingEnabled ? 'Hide Drawing' : 'Draw'}
       </button>
+
+      <style jsx>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
 
       {/* Color Picker - appears above draw button when drawing enabled */}
       {drawingEnabled && (
