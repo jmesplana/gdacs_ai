@@ -8,6 +8,19 @@
 import { useState, useEffect } from 'react';
 import { useToast } from './Toast';
 
+const experimentalTabs = new Set(['disaster', 'outbreak', 'supply']);
+
+const experimentalBadgeStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '3px 8px',
+  borderRadius: '999px',
+  fontSize: '11px',
+  fontWeight: 700,
+  letterSpacing: '0.03em',
+  textTransform: 'uppercase',
+};
+
 const PredictionDashboard = ({
   facilities,
   disasters,
@@ -451,14 +464,24 @@ const PredictionDashboard = ({
               <line x1="12" y1="22.08" x2="12" y2="12"></line>
             </svg>
             <div>
-              <h2 style={{
-                margin: 0,
-                fontSize: '24px',
-                fontWeight: 700,
-                fontFamily: "'Space Grotesk', sans-serif",
-              }}>
-                Predictive Forecast
-              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h2 style={{
+                  margin: 0,
+                  fontSize: '24px',
+                  fontWeight: 700,
+                  fontFamily: "'Space Grotesk', sans-serif",
+                }}>
+                  Predictive Forecast
+                </h2>
+                <span style={{
+                  ...experimentalBadgeStyle,
+                  background: 'rgba(255, 255, 255, 0.16)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  color: '#FFD7C7',
+                }}>
+                  Experimental
+                </span>
+              </div>
               <p style={{
                 margin: '4px 0 0 0',
                 fontSize: '13px',
@@ -489,6 +512,18 @@ const PredictionDashboard = ({
           >
             ×
           </button>
+        </div>
+
+        <div style={{
+          padding: '12px 24px',
+          background: '#FFF7ED',
+          borderBottom: '1px solid #FED7AA',
+          color: '#9A3412',
+          fontSize: '13px',
+          lineHeight: 1.5,
+          fontFamily: "'Inter', sans-serif",
+        }}>
+          Forecast outputs are experimental and directional. Validate with field reporting, official forecasts, and sector review before making operational decisions.
         </div>
 
         {/* Metadata Summary Bar (if available) */}
@@ -584,6 +619,16 @@ const PredictionDashboard = ({
             >
               {tab.icon}
               {tab.label}
+              {experimentalTabs.has(tab.id) && (
+                <span style={{
+                  ...experimentalBadgeStyle,
+                  background: activeTab === tab.id ? '#FFF7ED' : '#F1F5F9',
+                  color: '#C2410C',
+                  border: '1px solid #FED7AA',
+                }}>
+                  Experimental
+                </span>
+              )}
               {tab.count > 0 && (
                 <span style={{
                   background: 'var(--aidstack-orange)',

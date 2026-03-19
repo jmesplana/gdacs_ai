@@ -6,6 +6,17 @@
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
 
+const experimentalBadgeStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '4px 9px',
+  borderRadius: '999px',
+  fontSize: '11px',
+  fontWeight: 700,
+  letterSpacing: '0.03em',
+  textTransform: 'uppercase',
+};
+
 const OperationalOutlook = ({
   facilities = [],
   disasters = [],
@@ -338,7 +349,7 @@ const OperationalOutlook = ({
           alignItems: 'center',
           justifyContent: 'space-between'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <polyline points="12 6 12 12 16 14"></polyline>
@@ -352,6 +363,14 @@ const OperationalOutlook = ({
             }}>
               {selectedDistrict ? `${selectedDistrict.name} - Operational Outlook` : 'Operational Outlook'}
             </h2>
+            <span style={{
+              ...experimentalBadgeStyle,
+              background: '#FFF7ED',
+              border: '1px solid #FED7AA',
+              color: '#C2410C',
+            }}>
+              Experimental
+            </span>
           </div>
 
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -397,6 +416,18 @@ const OperationalOutlook = ({
               Close
             </button>
           </div>
+        </div>
+
+        <div style={{
+          padding: '12px 24px',
+          background: '#FFF7ED',
+          borderBottom: '1px solid #FED7AA',
+          color: '#9A3412',
+          fontSize: '13px',
+          lineHeight: 1.5,
+          fontFamily: "'Inter', sans-serif",
+        }}>
+          This outlook is experimental and intended as a planning aid. Confirm key assumptions with current field data, official advisories, and operational judgment.
         </div>
 
         {/* Content */}
