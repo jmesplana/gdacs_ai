@@ -1,5 +1,6 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
+import { getOperationType } from '../../config/operationTypes';
 
 export const config = {
   api: {
@@ -15,13 +16,22 @@ async function handler(req, res) {
   }
 
   try {
-    const { districts, facilities, impactedFacilities, disasters, worldPopData = {}, worldPopYear = null } = req.body;
+    const {
+      districts,
+      facilities,
+      impactedFacilities,
+      disasters,
+      worldPopData = {},
+      worldPopYear = null,
+      operationType = 'general'
+    } = req.body;
 
     if (!districts || districts.length === 0) {
       return res.status(400).json({ error: 'Missing districts data' });
     }
 
     console.log(`District-level campaign assessment: ${districts.length} districts, ${facilities?.length || 0} facilities`);
+    const opConfig = getOperationType(operationType);
 
     const startTime = Date.now();
 
@@ -63,6 +73,7 @@ async function handler(req, res) {
         || null;
 
       const ageGroups = wpData?.ageGroups || null;
+      const disasterTypes = summarizeDisasterTypes(disastersInDistrict);
 
       return {
         district: district.name,
@@ -79,7 +90,8 @@ async function handler(req, res) {
         eventCount: eventCount,
         population: population,
         ageGroups: ageGroups,
-        populationSource: wpData ? `WorldPop Global 2 (${worldPopYear || 'unknown year'})` : 'shapefile'
+        populationSource: wpData ? `WorldPop Global 2 (${worldPopYear || 'unknown year'})` : 'shapefile',
+        disasterTypes
       };
     });
 
@@ -118,18 +130,24 @@ async function handler(req, res) {
     if (process.env.OPENAI_API_KEY) {
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-      const prompt = `District-level campaign viability assessment for top ${districtsToAssess.length} districts (sorted by ACLED conflict risk, then disaster count).
+      const prompt = `District-level ${opConfig.name} viability assessment for top ${districtsToAssess.length} districts (sorted by ACLED conflict risk, then disaster count).
+
+OPERATION CONTEXT:
+- Program: ${opConfig.name}
+- Description: ${opConfig.description}
+- Key operational concerns: ${Object.values(opConfig.riskFactors || {}).map(risk => risk.label).slice(0, 4).join(', ')}
 
 DISTRICTS:
 ${districtsToAssess.map((d, idx) =>
-  `${idx + 1}|${d.district}|ACLED: ${d.riskLevel} (${d.eventCount} events)|${d.disasterCount} disasters|${d.totalFacilities} facilities${d.totalFacilities > 0 ? `|${d.impactedFacilities} impacted (${d.impactRate}%)` : ''}`
+  `${idx + 1}|${d.district}|ACLED: ${d.riskLevel} (${d.eventCount} events)|${d.disasterCount} disasters${formatDisasterTypesForPrompt(d.disasterTypes)}|${d.totalFacilities} facilities${d.totalFacilities > 0 ? `|${d.impactedFacilities} impacted (${d.impactRate}%)` : ''}`
 ).join('\n')}
 
 Assess each district for campaign feasibility. Consider:
 - ACLED conflict risk: very-high/high = major security concern, medium = moderate risk, low/none = safe
 - Disaster count (higher = more risk to operations)
 - Impact rate on facilities if present (>30% = higher risk)
-- District-wide operational viability for campaigns
+- District-wide operational viability for ${opConfig.name.toLowerCase()}
+- Escalate districts where disaster types are especially disruptive for this program
 
 Decision criteria:
 - NO-GO: very-high ACLED risk OR 5+ disasters
@@ -165,60 +183,15 @@ Format: ID|GO/CAUTION/DELAY/NOGO|reason (max 30 words)`;
 
       // Map assessments back to top districts
       const assessedResults = districtsToAssess.map((district, idx) => {
-        // Fallback decision logic if AI doesn't provide assessment
-        let fallbackDecision = 'GO';
-        let fallbackReason = '';
-
-        // ACLED risk assessment (highest priority)
-        if (district.riskLevel === 'very-high') {
-          fallbackDecision = 'NO-GO';
-          fallbackReason = `Very high conflict risk (${district.eventCount} events)`;
-        } else if (district.riskLevel === 'high') {
-          fallbackDecision = 'DELAY';
-          fallbackReason = `High conflict risk (${district.eventCount} events)`;
-        } else if (district.riskLevel === 'medium') {
-          fallbackDecision = 'CAUTION';
-          fallbackReason = `Medium conflict risk (${district.eventCount} events)`;
-        } else if (district.riskLevel === 'low') {
-          fallbackDecision = 'CAUTION';
-          fallbackReason = `Low conflict risk (${district.eventCount} events)`;
-        }
-
-        // Disaster assessment (can escalate the decision)
-        if (district.disasterCount >= 5) {
-          fallbackDecision = 'NO-GO';
-          fallbackReason += (fallbackReason ? ', ' : '') + `${district.disasterCount} disasters`;
-        } else if (district.disasterCount >= 3) {
-          if (fallbackDecision === 'GO' || fallbackDecision === 'CAUTION') fallbackDecision = 'DELAY';
-          fallbackReason += (fallbackReason ? ', ' : '') + `${district.disasterCount} disasters`;
-        } else if (district.disasterCount >= 1) {
-          if (fallbackDecision === 'GO') fallbackDecision = 'CAUTION';
-          fallbackReason += (fallbackReason ? ', ' : '') + `${district.disasterCount} disaster${district.disasterCount > 1 ? 's' : ''}`;
-        }
-
-        // Facility impact assessment (can escalate the decision)
-        if (district.totalFacilities > 0) {
-          if (district.impactRate > 50) {
-            if (fallbackDecision === 'GO' || fallbackDecision === 'CAUTION') fallbackDecision = 'DELAY';
-            fallbackReason += (fallbackReason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
-          } else if (district.impactRate > 20) {
-            if (fallbackDecision === 'GO') fallbackDecision = 'CAUTION';
-            fallbackReason += (fallbackReason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
-          }
-        }
-
-        if (!fallbackReason) fallbackReason = 'No active threats detected';
+        const fallbackAssessment = buildDistrictAssessment(district, opConfig);
 
         const assessment = assessments[idx + 1] || {
-          decision: fallbackDecision,
-          reason: fallbackReason
+          decision: fallbackAssessment.decision,
+          reason: fallbackAssessment.reason
         };
 
         // Calculate viability score (0-100)
-        let score = 100;
-        score -= district.impactRate; // Reduce by facility impact percentage
-        score -= district.disasterCount * 15; // -15 per disaster
-        score -= district.riskScore; // Reduce by ACLED risk score (0-100+)
+        let score = fallbackAssessment.score;
         if (assessment.decision === 'NO-GO') score = 0;
         else if (assessment.decision === 'DELAY') score = Math.min(score, 40);
         else if (assessment.decision === 'CAUTION') score = Math.min(score, 70);
@@ -234,62 +207,21 @@ Format: ID|GO/CAUTION/DELAY/NOGO|reason (max 30 words)`;
           viabilityScore: Math.max(0, score),
           reason: assessment.reason,
           disasterCount: district.disasterCount,
+          disasterTypes: district.disasterTypes,
           riskLevel: district.riskLevel,
           riskScore: district.riskScore,
-          eventCount: district.eventCount
+          eventCount: district.eventCount,
+          keyDrivers: fallbackAssessment.keyDrivers
         };
       });
 
       // Add remaining districts with basic assessment (no AI)
       const remainingResults = remainingDistricts.map(district => {
-        let decision = 'GO';
-        let reason = '';
-
-        // ACLED risk assessment (highest priority)
-        if (district.riskLevel === 'very-high') {
-          decision = 'NO-GO';
-          reason = `Very high conflict risk (${district.eventCount} events)`;
-        } else if (district.riskLevel === 'high') {
-          decision = 'DELAY';
-          reason = `High conflict risk (${district.eventCount} events)`;
-        } else if (district.riskLevel === 'medium') {
-          decision = 'CAUTION';
-          reason = `Medium conflict risk (${district.eventCount} events)`;
-        } else if (district.riskLevel === 'low') {
-          decision = 'CAUTION';
-          reason = `Low conflict risk (${district.eventCount} events)`;
-        }
-
-        // Disaster assessment
-        if (district.disasterCount >= 5) {
-          decision = 'NO-GO';
-          reason += (reason ? ', ' : '') + `${district.disasterCount} disasters`;
-        } else if (district.disasterCount >= 3) {
-          if (decision === 'GO' || decision === 'CAUTION') decision = 'DELAY';
-          reason += (reason ? ', ' : '') + `${district.disasterCount} disasters`;
-        } else if (district.disasterCount >= 1) {
-          if (decision === 'GO') decision = 'CAUTION';
-          reason += (reason ? ', ' : '') + `${district.disasterCount} disaster${district.disasterCount > 1 ? 's' : ''}`;
-        }
-
-        // Facility impact assessment
-        if (district.totalFacilities > 0) {
-          if (district.impactRate > 50) {
-            if (decision === 'GO' || decision === 'CAUTION') decision = 'DELAY';
-            reason += (reason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
-          } else if (district.impactRate > 20) {
-            if (decision === 'GO') decision = 'CAUTION';
-            reason += (reason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
-          }
-        }
-
-        if (!reason) reason = 'No active threats';
-        reason += ' (auto-assessed)';
-
-        let score = 100 - district.impactRate - (district.disasterCount * 15) - district.riskScore;
-        if (decision === 'NO-GO') score = 0;
-        else if (decision === 'DELAY') score = Math.min(score, 40);
-        else if (decision === 'CAUTION') score = Math.min(score, 70);
+        const assessment = buildDistrictAssessment(district, opConfig);
+        const score = assessment.decision === 'NO-GO' ? 0
+          : assessment.decision === 'DELAY' ? Math.min(assessment.score, 40)
+          : assessment.decision === 'CAUTION' ? Math.min(assessment.score, 70)
+          : assessment.score;
 
         return {
           district: district.district,
@@ -298,13 +230,15 @@ Format: ID|GO/CAUTION/DELAY/NOGO|reason (max 30 words)`;
           totalFacilities: district.totalFacilities,
           impactedFacilities: district.impactedFacilities,
           impactRate: district.impactRate,
-          decision: decision,
+          decision: assessment.decision,
           viabilityScore: Math.max(0, score),
-          reason: reason,
+          reason: `${assessment.reason} (auto-assessed)`,
           disasterCount: district.disasterCount,
+          disasterTypes: district.disasterTypes,
           riskLevel: district.riskLevel,
           riskScore: district.riskScore,
-          eventCount: district.eventCount
+          eventCount: district.eventCount,
+          keyDrivers: assessment.keyDrivers
         };
       });
 
@@ -332,53 +266,11 @@ Format: ID|GO/CAUTION/DELAY/NOGO|reason (max 30 words)`;
     } else {
       // Fallback without AI
       const results = relevantDistricts.map(district => {
-        let decision = 'GO';
-        let reason = '';
-
-        // ACLED risk assessment (highest priority)
-        if (district.riskLevel === 'very-high') {
-          decision = 'NO-GO';
-          reason = `Very high conflict risk (${district.eventCount} events)`;
-        } else if (district.riskLevel === 'high') {
-          decision = 'DELAY';
-          reason = `High conflict risk (${district.eventCount} events)`;
-        } else if (district.riskLevel === 'medium') {
-          decision = 'CAUTION';
-          reason = `Medium conflict risk (${district.eventCount} events)`;
-        } else if (district.riskLevel === 'low') {
-          decision = 'CAUTION';
-          reason = `Low conflict risk (${district.eventCount} events)`;
-        }
-
-        // Disaster assessment
-        if (district.disasterCount >= 5) {
-          decision = 'NO-GO';
-          reason += (reason ? ', ' : '') + `${district.disasterCount} disasters`;
-        } else if (district.disasterCount >= 3) {
-          if (decision === 'GO' || decision === 'CAUTION') decision = 'DELAY';
-          reason += (reason ? ', ' : '') + `${district.disasterCount} disasters`;
-        } else if (district.disasterCount >= 1) {
-          if (decision === 'GO') decision = 'CAUTION';
-          reason += (reason ? ', ' : '') + `${district.disasterCount} disaster${district.disasterCount > 1 ? 's' : ''}`;
-        }
-
-        // Facility impact assessment
-        if (district.totalFacilities > 0) {
-          if (district.impactRate > 50) {
-            if (decision === 'GO' || decision === 'CAUTION') decision = 'DELAY';
-            reason += (reason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
-          } else if (district.impactRate > 20) {
-            if (decision === 'GO') decision = 'CAUTION';
-            reason += (reason ? ', ' : '') + `${district.impactRate}% facilities impacted`;
-          }
-        }
-
-        if (!reason) reason = 'No active threats';
-
-        let score = 100 - district.impactRate - (district.disasterCount * 15) - district.riskScore;
-        if (decision === 'NO-GO') score = 0;
-        else if (decision === 'DELAY') score = Math.min(score, 40);
-        else if (decision === 'CAUTION') score = Math.min(score, 70);
+        const assessment = buildDistrictAssessment(district, opConfig);
+        const score = assessment.decision === 'NO-GO' ? 0
+          : assessment.decision === 'DELAY' ? Math.min(assessment.score, 40)
+          : assessment.decision === 'CAUTION' ? Math.min(assessment.score, 70)
+          : assessment.score;
 
         return {
           district: district.district,
@@ -387,13 +279,15 @@ Format: ID|GO/CAUTION/DELAY/NOGO|reason (max 30 words)`;
           totalFacilities: district.totalFacilities,
           impactedFacilities: district.impactedFacilities,
           impactRate: district.impactRate,
-          decision: decision,
+          decision: assessment.decision,
           viabilityScore: Math.max(0, score),
-          reason: reason,
+          reason: assessment.reason,
           disasterCount: district.disasterCount,
+          disasterTypes: district.disasterTypes,
           riskLevel: district.riskLevel,
           riskScore: district.riskScore,
-          eventCount: district.eventCount
+          eventCount: district.eventCount,
+          keyDrivers: assessment.keyDrivers
         };
       });
 
@@ -416,12 +310,168 @@ Format: ID|GO/CAUTION/DELAY/NOGO|reason (max 30 words)`;
   }
 }
 
-// Simple point-in-bounding-box check (can be enhanced with actual point-in-polygon later)
 function isPointInDistrict(lat, lng, district) {
+  const point = [lng, lat];
+  const geometry = district?.geometry || district?.properties?.geometry;
+
+  if (geometry?.type === 'Polygon') {
+    return geometry.coordinates?.some(ring => pointInRing(point, ring));
+  }
+
+  if (geometry?.type === 'MultiPolygon') {
+    return geometry.coordinates?.some(polygon =>
+      polygon?.some(ring => pointInRing(point, ring))
+    );
+  }
+
   if (!district.bounds) return false;
 
   const { minLat, maxLat, minLng, maxLng } = district.bounds;
   return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
+}
+
+function pointInRing(point, ring = []) {
+  let inside = false;
+  const [x, y] = point;
+
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+
+    const intersects = ((yi > y) !== (yj > y))
+      && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+
+    if (intersects) inside = !inside;
+  }
+
+  return inside;
+}
+
+function summarizeDisasterTypes(disasters = []) {
+  const counts = {};
+
+  disasters.forEach(disaster => {
+    const type = getDisasterTypeCode(disaster);
+    if (!type) return;
+    counts[type] = (counts[type] || 0) + 1;
+  });
+
+  return counts;
+}
+
+function getDisasterTypeCode(disaster) {
+  return disaster?.eventType?.toUpperCase()
+    || disaster?.eventtype?.toUpperCase()
+    || disaster?.gdacs_eventtype?.toUpperCase()
+    || disaster?.properties?.eventType?.toUpperCase()
+    || null;
+}
+
+function formatDisasterTypesForPrompt(disasterTypes = {}) {
+  const entries = Object.entries(disasterTypes);
+  if (entries.length === 0) return '';
+  return `|types: ${entries.map(([type, count]) => `${type}(${count})`).join(', ')}`;
+}
+
+function buildDistrictAssessment(district, opConfig) {
+  let decision = 'GO';
+  const reasons = [];
+  const keyDrivers = [];
+  let score = 100 - district.impactRate - (district.disasterCount * 15) - district.riskScore;
+
+  if (district.riskLevel === 'very-high') {
+    decision = 'NO-GO';
+    reasons.push(`Very high conflict risk (${district.eventCount} events)`);
+    keyDrivers.push(`ACLED risk: very high (${district.eventCount} events)`);
+  } else if (district.riskLevel === 'high') {
+    decision = 'DELAY';
+    reasons.push(`High conflict risk (${district.eventCount} events)`);
+    keyDrivers.push(`ACLED risk: high (${district.eventCount} events)`);
+  } else if (district.riskLevel === 'medium') {
+    decision = 'CAUTION';
+    reasons.push(`Medium conflict risk (${district.eventCount} events)`);
+    keyDrivers.push(`ACLED risk: medium (${district.eventCount} events)`);
+  } else if (district.riskLevel === 'low') {
+    decision = 'CAUTION';
+    reasons.push(`Low conflict risk (${district.eventCount} events)`);
+    keyDrivers.push(`ACLED risk: low (${district.eventCount} events)`);
+  }
+
+  if (district.disasterCount >= 5) {
+    decision = 'NO-GO';
+    reasons.push(`${district.disasterCount} disasters`);
+    keyDrivers.push(`${district.disasterCount} active disasters`);
+  } else if (district.disasterCount >= 3) {
+    if (decision === 'GO' || decision === 'CAUTION') decision = 'DELAY';
+    reasons.push(`${district.disasterCount} disasters`);
+    keyDrivers.push(`${district.disasterCount} active disasters`);
+  } else if (district.disasterCount >= 1) {
+    if (decision === 'GO') decision = 'CAUTION';
+    reasons.push(`${district.disasterCount} disaster${district.disasterCount > 1 ? 's' : ''}`);
+    keyDrivers.push(`${district.disasterCount} active disaster${district.disasterCount > 1 ? 's' : ''}`);
+  }
+
+  const operationDisasterImpact = getStrongestOperationDisasterImpact(district.disasterTypes, opConfig);
+  if (operationDisasterImpact) {
+    if (operationDisasterImpact.severity === 'CRITICAL') {
+      decision = decision === 'NO-GO' ? 'NO-GO' : 'DELAY';
+      score -= 20;
+    } else if (operationDisasterImpact.severity === 'HIGH' && decision === 'GO') {
+      decision = 'CAUTION';
+      score -= 10;
+    }
+
+    keyDrivers.push(`${operationDisasterImpact.type} is ${operationDisasterImpact.severity.toLowerCase()} for ${opConfig.name.toLowerCase()}`);
+    reasons.push(operationDisasterImpact.reason);
+  }
+
+  if (district.totalFacilities > 0) {
+    if (district.impactRate > 50) {
+      if (decision === 'GO' || decision === 'CAUTION') decision = 'DELAY';
+      reasons.push(`${district.impactRate}% facilities impacted`);
+      keyDrivers.push(`${district.impactRate}% of facilities impacted`);
+    } else if (district.impactRate > 20) {
+      if (decision === 'GO') decision = 'CAUTION';
+      reasons.push(`${district.impactRate}% facilities impacted`);
+      keyDrivers.push(`${district.impactRate}% of facilities impacted`);
+    }
+  }
+
+  if (keyDrivers.length === 0) {
+    keyDrivers.push('No major active operational threats detected');
+  }
+
+  return {
+    decision,
+    reason: reasons.length > 0 ? reasons.join(', ') : 'No active threats detected',
+    keyDrivers: keyDrivers.slice(0, 3),
+    score: Math.max(0, score)
+  };
+}
+
+function getStrongestOperationDisasterImpact(disasterTypes = {}, opConfig) {
+  const severityRank = {
+    CRITICAL: 3,
+    HIGH: 2,
+    MEDIUM: 1
+  };
+
+  let strongest = null;
+
+  Object.keys(disasterTypes).forEach(type => {
+    const impact = opConfig?.disasterImpacts?.[type] || opConfig?.disasterImpacts?.ALL;
+    if (!impact) return;
+
+    if (!strongest || severityRank[impact.severity] > severityRank[strongest.severity]) {
+      strongest = {
+        type,
+        severity: impact.severity,
+        reason: impact.reason
+      };
+    }
+  });
+
+  return strongest;
 }
 
 export default withRateLimit(handler);

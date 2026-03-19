@@ -108,12 +108,14 @@ export default function Home() {
   };
 
   // Operation type state (for multi-use humanitarian operations)
-  const [operationType, setOperationType] = useState('malaria_control'); // Default to malaria control for backward compatibility
+  const [operationType, setOperationType] = useState('');
 
   // Persist operation type to localStorage
   useEffect(() => {
     if (operationType) {
       localStorage.setItem('gdacs_operation_type', operationType);
+    } else {
+      localStorage.removeItem('gdacs_operation_type');
     }
   }, [operationType]);
 

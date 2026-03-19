@@ -8,6 +8,7 @@ import { OPERATION_TYPES, getAllOperationTypes } from '../config/operationTypes'
 const OperationTypeSelector = ({ selectedType, onTypeChange, compact = false }) => {
   const [showDetails, setShowDetails] = useState(false);
   const operationTypes = getAllOperationTypes();
+  const hasSelection = Boolean(selectedType);
   const selectedConfig = OPERATION_TYPES[Object.keys(OPERATION_TYPES).find(
     key => OPERATION_TYPES[key].id === selectedType
   )] || OPERATION_TYPES.GENERAL;
@@ -27,7 +28,7 @@ const OperationTypeSelector = ({ selectedType, onTypeChange, compact = false }) 
           Operation Type
         </label>
         <select
-          value={selectedType}
+          value={selectedType || ''}
           onChange={(e) => onTypeChange(e.target.value)}
           style={{
             width: '100%',
@@ -44,6 +45,7 @@ const OperationTypeSelector = ({ selectedType, onTypeChange, compact = false }) 
           onFocus={(e) => e.target.style.borderColor = '#2196F3'}
           onBlur={(e) => e.target.style.borderColor = '#ddd'}
         >
+          <option value="">Select operation type</option>
           {operationTypes.map(type => (
             <option key={type.id} value={type.id}>
               {type.icon} {type.name}
@@ -52,11 +54,11 @@ const OperationTypeSelector = ({ selectedType, onTypeChange, compact = false }) 
         </select>
         <div style={{
           fontSize: '11px',
-          color: '#999',
+          color: hasSelection ? '#999' : '#b45309',
           marginTop: '4px',
           fontFamily: 'Inter, sans-serif'
         }}>
-          {selectedConfig.description}
+          {hasSelection ? selectedConfig.description : 'Choose the program context that should drive dashboards and assessments.'}
         </div>
       </div>
     );

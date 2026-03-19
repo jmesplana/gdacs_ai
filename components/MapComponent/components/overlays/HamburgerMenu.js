@@ -25,6 +25,7 @@ const HamburgerMenu = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showDrawingTools, setShowDrawingTools] = useState(false);
+  const hasOperationType = Boolean(operationType);
 
   // Get operation config for dynamic labels
   const opConfig = getOperationType(operationType);
@@ -119,26 +120,29 @@ const HamburgerMenu = ({
           >
             {/* Operation Type Selector */}
             <div style={{
-              padding: '16px 20px',
-              backgroundColor: '#f8f9fa',
+              padding: '12px 16px',
+              backgroundColor: '#fbfbfc',
               borderBottom: '1px solid #f0f0f0'
             }}>
               <div style={{
                 marginBottom: '8px',
-                fontSize: '12px',
+                fontSize: '11px',
                 fontWeight: 600,
-                color: 'var(--aidstack-navy)',
+                color: '#6b7280',
                 textTransform: 'uppercase',
                 fontFamily: "'Inter', sans-serif",
                 display: 'flex',
-                alignItems: 'center'
+                alignItems: 'center',
+                letterSpacing: '0.04em'
               }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', color: 'var(--aidstack-teal)' }}>
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                  <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                </svg>
-                Operation Type
+                <span style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', color: 'var(--aidstack-teal)' }}>
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                  </svg>
+                  Operation Type
+                </span>
               </div>
               <OperationTypeSelector
                 selectedType={operationType}
@@ -206,30 +210,39 @@ const HamburgerMenu = ({
             {/* Operation Dashboard */}
             <button
               onClick={() => handleMenuClick(onCampaignDashboardClick)}
+              disabled={!hasOperationType}
               style={{
                 width: '100%',
                 padding: '16px 20px',
                 backgroundColor: 'white',
                 border: 'none',
                 borderBottom: '1px solid #f0f0f0',
-                cursor: 'pointer',
+                cursor: hasOperationType ? 'pointer' : 'not-allowed',
                 display: 'flex',
                 alignItems: 'center',
                 fontSize: '15px',
                 fontFamily: "'Space Grotesk', sans-serif",
                 fontWeight: 600,
-                color: 'var(--aidstack-navy)',
-                transition: 'background-color 0.2s ease'
+                color: hasOperationType ? 'var(--aidstack-navy)' : '#999',
+                transition: 'background-color 0.2s ease',
+                opacity: hasOperationType ? 1 : 0.6
               }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+              onMouseEnter={(e) => {
+                if (hasOperationType) e.currentTarget.style.backgroundColor = '#f8f9fa';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'white';
+              }}
+              title={hasOperationType ? `${opConfig.name} dashboard` : 'Select an operation type first'}
             >
-              <span style={{ fontSize: '18px', marginRight: '8px' }}>{opConfig.icon}</span>
+              {hasOperationType && (
+                <span style={{ fontSize: '18px', marginRight: '8px' }}>{opConfig.icon}</span>
+              )}
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '12px', color: 'var(--aidstack-teal)' }}>
                 <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
                 <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
               </svg>
-              {opConfig.name} Dashboard
+              {hasOperationType ? `${opConfig.name} Dashboard` : 'Operation Dashboard'}
             </button>
 
             {/* Logistics Assessment */}

@@ -266,7 +266,7 @@ const MapComponent = ({
   onClearAcledCache,
   onToggleAcled,
   onAcledConfigChange,
-  operationType = 'malaria_control',
+  operationType = '',
   onOperationTypeChange,
   districts = [],
   onDistrictsLoaded,

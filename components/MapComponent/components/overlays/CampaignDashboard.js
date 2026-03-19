@@ -2,6 +2,16 @@ import { useState, useEffect } from 'react';
 import { getOperationType } from '../../../../config/operationTypes';
 import { useToast } from '../../../Toast';
 
+const metricPillStyle = {
+  fontSize: '11px',
+  fontWeight: 600,
+  color: '#475569',
+  backgroundColor: '#f1f5f9',
+  border: '1px solid #dbe3ee',
+  borderRadius: '999px',
+  padding: '4px 8px'
+};
+
 /**
  * Operation Readiness Dashboard
  * Shows system-level overview of operation viability
@@ -27,10 +37,12 @@ const CampaignDashboard = ({
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [assessmentMode, setAssessmentMode] = useState('district'); // 'district' or 'facility'
+  const [expandedDecisions, setExpandedDecisions] = useState({});
 
   // Calculate dashboard statistics
   useEffect(() => {
     if (isOpen) {
+      setExpandedDecisions({});
       // Determine assessment mode
       if (districts && districts.length > 0) {
         setAssessmentMode('district');
@@ -40,7 +52,7 @@ const CampaignDashboard = ({
         calculateFacilityDashboard();
       }
     }
-  }, [isOpen, districts, facilities, disasters, impactedFacilities, acledData, acledEnabled]);
+  }, [isOpen, districts, facilities, disasters, impactedFacilities, acledData, acledEnabled, operationType]);
 
   // District-level campaign assessment (recommended)
   const calculateDistrictDashboard = async () => {
@@ -57,6 +69,7 @@ const CampaignDashboard = ({
           facilities,
           impactedFacilities,
           disasters,
+          operationType,
           worldPopData: worldPopData || {},
           worldPopYear: worldPopYear || null
         })
@@ -322,6 +335,63 @@ const CampaignDashboard = ({
 
   if (!isOpen) return null;
 
+  const renderDistrictPreview = (item, color) => {
+    const topDrivers = item.keyDrivers?.length ? item.keyDrivers : [item.reason];
+
+    return (
+      <div
+        key={item.district}
+        style={{
+          backgroundColor: 'white',
+          border: `1px solid ${color}30`,
+          borderRadius: '8px',
+          padding: '10px 12px',
+          marginTop: '8px'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{
+              fontWeight: 700,
+              color: 'var(--aidstack-navy)',
+              fontSize: '13px',
+              marginBottom: '4px'
+            }}>
+              {item.district}
+            </div>
+            <div style={{
+              fontSize: '12px',
+              color: '#4b5563',
+              lineHeight: '1.5'
+            }}>
+              {topDrivers.join(' • ')}
+            </div>
+          </div>
+          <div style={{
+            fontSize: '12px',
+            fontWeight: 700,
+            color,
+            whiteSpace: 'nowrap'
+          }}>
+            {item.viabilityScore}/100
+          </div>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '6px',
+          marginTop: '8px'
+        }}>
+          <span style={metricPillStyle}>{item.riskLevel === 'none' ? 'ACLED: none' : `ACLED: ${item.riskLevel} (${item.eventCount})`}</span>
+          <span style={metricPillStyle}>{item.disasterCount} disaster{item.disasterCount === 1 ? '' : 's'}</span>
+          <span style={metricPillStyle}>{item.totalFacilities} facilities</span>
+          {item.totalFacilities > 0 && <span style={metricPillStyle}>{item.impactedFacilities} impacted</span>}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <div
@@ -477,7 +547,38 @@ const CampaignDashboard = ({
                   {dashboardData.mode === 'district' ? 'District Status Breakdown' : 'Facility Status Breakdown'}
                 </h4>
 
+                {dashboardData.mode === 'district' && (
+                  <div style={{
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #dbe3ee',
+                    borderRadius: '10px',
+                    padding: '14px',
+                    marginBottom: '14px'
+                  }}>
+                    <div style={{
+                      fontSize: '14px',
+                      fontWeight: 700,
+                      color: 'var(--aidstack-navy)',
+                      marginBottom: '6px'
+                    }}>
+                      Analysis Basis
+                    </div>
+                    <div style={{
+                      fontSize: '13px',
+                      color: '#4b5563',
+                      lineHeight: '1.6'
+                    }}>
+                      District decisions combine ACLED security risk, active GDACS disasters, facility impact inside each district, and operation-specific disaster sensitivity for {opConfig.name.toLowerCase()}.
+                    </div>
+                  </div>
+                )}
+
                 {Object.entries(dashboardData.byDecision).map(([decision, items]) => {
+                  const previewLimit = 5;
+                  const showAllItems = Boolean(expandedDecisions[decision]);
+                  const visibleItems = dashboardData.mode === 'district' && showAllItems
+                    ? items
+                    : items.slice(0, previewLimit);
                   const color =
                     decision === 'GO' ? '#4CAF50' :
                     decision === 'CAUTION' ? '#FF9800' :
@@ -517,12 +618,40 @@ const CampaignDashboard = ({
                         </div>
                       </div>
                       {items.length > 0 && (
-                        <div style={{ fontSize: '12px', marginTop: '8px', color: '#666' }}>
-                          {items.length <= 5
-                            ? items.map(item => dashboardData.mode === 'district' ? item.district : item.facility.name).join(', ')
-                            : `${items.slice(0, 5).map(item => dashboardData.mode === 'district' ? item.district : item.facility.name).join(', ')} and ${items.length - 5} more...`
-                          }
-                        </div>
+                        dashboardData.mode === 'district' ? (
+                          <div>
+                            {visibleItems.map(item => renderDistrictPreview(item, color))}
+                            {items.length > previewLimit && (
+                              <button
+                                onClick={() => setExpandedDecisions(prev => ({
+                                  ...prev,
+                                  [decision]: !prev[decision]
+                                }))}
+                                style={{
+                                  marginTop: '10px',
+                                  border: 'none',
+                                  background: 'transparent',
+                                  color,
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  padding: 0
+                                }}
+                              >
+                                {showAllItems
+                                  ? 'Show fewer districts'
+                                  : `Show ${items.length - previewLimit} more district${items.length - previewLimit === 1 ? '' : 's'}`}
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '12px', marginTop: '8px', color: '#666' }}>
+                            {items.length <= 5
+                              ? items.map(item => item.facility.name).join(', ')
+                              : `${items.slice(0, 5).map(item => item.facility.name).join(', ')} and ${items.length - 5} more...`
+                            }
+                          </div>
+                        )
                       )}
                     </div>
                   );
