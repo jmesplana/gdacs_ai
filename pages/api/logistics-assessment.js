@@ -6,6 +6,8 @@ import {
   analyzeAirAccess,
   findAlternativeRoutes,
   calculateAccessScore,
+  calculateSecurityScore,
+  calculateAccessScoreWithSecurity,
   getLogisticsRating,
 } from '../../lib/logisticsHelpers';
 
@@ -73,11 +75,18 @@ async function handler(req, res) {
     if (disasters.length > 0) {
       console.log('🌪️ Disasters received:');
       disasters.forEach(d => {
-        console.log(`  - ${d.title || d.eventName} (${d.eventtype || d.type}) at [${d.lat}, ${d.lon}]`);
+        console.log(`  - ${d.title || d.eventName} (${d.eventType || d.eventtype || d.type}) at [${d.latitude ?? d.lat}, ${d.longitude ?? d.lon}]`);
       });
     } else {
       console.log('⚠️ No disasters in request - baseline assessment mode');
     }
+
+    const requestedLayers = osmData.metadata?.requestedLayers || [];
+    const assessmentCoverage = {
+      roads: requestedLayers.includes('roads') || requestedLayers.includes('bridges'),
+      fuel: requestedLayers.includes('fuel'),
+      air: requestedLayers.includes('airports')
+    };
 
     // Perform core logistics analysis
     const roadNetworkRaw = analyzeRoadNetwork(osmData, disasters, options);
@@ -115,7 +124,8 @@ async function handler(req, res) {
         blockageProbability: r.blockageProbability,
         highway: r.road.properties?.tags?.highway,
         name: r.road.properties?.name || r.road.properties?.tags?.name
-      })) || []
+      })) || [],
+      assessmentStatus: assessmentCoverage.roads ? 'ASSESSED' : 'NOT_LOADED'
     };
 
     // Transform fuel access data
@@ -130,6 +140,8 @@ async function handler(req, res) {
       atRiskPercentage: fuelAccessRaw.totalStations > 0
         ? Math.round((fuelAccessRaw.atRiskStations?.length || 0) / fuelAccessRaw.totalStations * 100)
         : 0
+      ,
+      assessmentStatus: assessmentCoverage.fuel ? 'ASSESSED' : 'NOT_LOADED'
     };
 
     // Transform air access data
@@ -144,6 +156,8 @@ async function handler(req, res) {
       atRiskPercentage: airAccessRaw.totalAirports > 0
         ? Math.round((airAccessRaw.atRiskAirports?.length || 0) / airAccessRaw.totalAirports * 100)
         : 0
+      ,
+      assessmentStatus: assessmentCoverage.air ? 'ASSESSED' : 'NOT_LOADED'
     };
 
     // Calculate alternative routes if origin and destination provided
@@ -159,12 +173,19 @@ async function handler(req, res) {
     }
 
     // Calculate overall access score
-    const accessScoreResult = calculateAccessScore(roadNetworkRaw, fuelAccessRaw, airAccessRaw);
+    const securityAnalysis = calculateSecurityScore(acledEvents);
+    const accessScoreResult = calculateAccessScoreWithSecurity(
+      roadNetworkRaw,
+      fuelAccessRaw,
+      airAccessRaw,
+      securityAnalysis,
+      assessmentCoverage
+    );
     const accessScore = accessScoreResult.score;
     const rating = getLogisticsRating(accessScore);
 
     // Generate summary
-    const summary = generateLogisticsSummary(accessScore, rating, roadNetwork, fuelAccess, airAccess);
+    const summary = generateLogisticsSummary(accessScore, rating, roadNetwork, fuelAccess, airAccess, securityAnalysis);
 
     // Generate AI recommendations (with timeout and error handling)
     let recommendations = null;
@@ -203,6 +224,7 @@ async function handler(req, res) {
     const dataQuality = {
       osmCoverage: osmData.features.length > 100 ? 'good' : osmData.features.length > 20 ? 'fair' : 'limited',
       disasterData: disasters.length > 0 ? 'complete' : 'none',
+      securityData: acledEvents.length > 0 ? 'available' : 'none',
       weatherData: weatherData ? 'available' : 'unavailable',
     };
 
@@ -218,6 +240,7 @@ async function handler(req, res) {
         roadNetwork,
         fuelAccess,
         airAccess,
+        securityAnalysis,
         alternativeRoutes,
 
         recommendations,
@@ -245,7 +268,7 @@ async function handler(req, res) {
  * Generate summary text for logistics assessment
  * (Different from generateSummary which is used by other features)
  */
-function generateLogisticsSummary(accessScore, rating, roadNetwork, fuelAccess, airAccess) {
+function generateLogisticsSummary(accessScore, rating, roadNetwork, fuelAccess, airAccess, securityAnalysis) {
   const summaries = [];
 
   // Overall assessment
@@ -263,7 +286,9 @@ function generateLogisticsSummary(accessScore, rating, roadNetwork, fuelAccess, 
 
   // Road network
   const roadPassable = roadNetwork.passablePercentage || 0;
-  if (roadPassable < 30) {
+  if (roadNetwork.assessmentStatus === 'NOT_LOADED') {
+    summaries.push('Road network was not assessed because road or bridge layers were not loaded.');
+  } else if (roadPassable < 30) {
     summaries.push(`Most roads are blocked or at risk (${100 - roadPassable}% affected).`);
   } else if (roadPassable < 60) {
     summaries.push(`Significant road blockages present (${100 - roadPassable}% affected).`);
@@ -275,7 +300,9 @@ function generateLogisticsSummary(accessScore, rating, roadNetwork, fuelAccess, 
 
   // Fuel access
   const fuelOperational = fuelAccess.operationalPercentage || 0;
-  if (fuelAccess.totalStations === 0) {
+  if (fuelAccess.assessmentStatus === 'NOT_LOADED') {
+    summaries.push('Fuel access was not assessed because the fuel infrastructure layer was not loaded.');
+  } else if (fuelAccess.totalStations === 0) {
     summaries.push('No fuel stations identified in the area.');
   } else if (fuelOperational < 30) {
     summaries.push(`Critical fuel shortage - most stations at risk (${fuelAccess.atRiskCount}/${fuelAccess.totalStations}).`);
@@ -287,12 +314,22 @@ function generateLogisticsSummary(accessScore, rating, roadNetwork, fuelAccess, 
 
   // Air access
   const airOperational = airAccess.operationalPercentage || 0;
-  if (airAccess.totalAirports === 0) {
+  if (airAccess.assessmentStatus === 'NOT_LOADED') {
+    summaries.push('Air access was not assessed because the airport layer was not loaded.');
+  } else if (airAccess.totalAirports === 0) {
     summaries.push('No airports or airfields identified.');
   } else if (airOperational < 50) {
     summaries.push(`Limited air access - most airports at risk (${airAccess.atRiskCount}/${airAccess.totalAirports}).`);
   } else {
     summaries.push(`Air access available via ${airAccess.operationalCount} operational airport(s).`);
+  }
+
+  if (securityAnalysis && securityAnalysis.incidentCount > 0) {
+    if (securityAnalysis.level === 'CRITICAL' || securityAnalysis.level === 'HIGH') {
+      summaries.push(`Security conditions are ${securityAnalysis.level.toLowerCase()} with ${securityAnalysis.incidentCount} recent ACLED incidents affecting logistics reliability.`);
+    } else {
+      summaries.push(`Security conditions are being monitored (${securityAnalysis.incidentCount} recent ACLED incidents).`);
+    }
   }
 
   return summaries.join(' ');
@@ -421,8 +458,8 @@ async function generateAIRecommendations(
     disasters.slice(0, 5).forEach((disaster, idx) => {
       context += `${idx + 1}. ${disaster.eventName || disaster.title} (${disaster.eventType})\n`;
       context += `   Alert: ${disaster.alertLevel || 'Unknown'}\n`;
-      if (disaster.lat && disaster.lon) {
-        context += `   Location: ${disaster.lat}, ${disaster.lon}\n`;
+      if ((disaster.latitude ?? disaster.lat) && (disaster.longitude ?? disaster.lon)) {
+        context += `   Location: ${disaster.latitude ?? disaster.lat}, ${disaster.longitude ?? disaster.lon}\n`;
       }
     });
     if (disasters.length > 5) {

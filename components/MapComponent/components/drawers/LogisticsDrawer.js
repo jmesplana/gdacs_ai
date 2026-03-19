@@ -13,6 +13,7 @@ const LogisticsDrawer = ({
     roadNetwork: true,
     fuelAccess: true,
     airAccess: true,
+    security: true,
     recommendations: true,
     alternativeRoutes: false
   });
@@ -61,6 +62,14 @@ const LogisticsDrawer = ({
                 expanded={expandedSections.airAccess}
                 onToggle={() => toggleSection('airAccess')}
               />
+
+              {data.securityAnalysis && (
+                <SecuritySection
+                  data={data.securityAnalysis}
+                  expanded={expandedSections.security}
+                  onToggle={() => toggleSection('security')}
+                />
+              )}
 
               <RecommendationsSection
                 data={data.recommendations}
@@ -146,6 +155,10 @@ const EmptyState = () => (
 const RoadNetworkSection = ({ data, expanded, onToggle }) => (
   <CollapsibleSection title="Road Network" expanded={expanded} onToggle={onToggle}>
     <div className={styles.sectionContent}>
+      {data.assessmentStatus === 'NOT_LOADED' ? (
+        <p className={styles.summaryText}>Not assessed. Load `roads` or `bridges` in OpenStreetMap Infrastructure first.</p>
+      ) : (
+        <>
       <StatRow label="Total Roads" value={data.totalRoads} />
       <StatRow label="Major Routes" value={data.majorRoutes} />
       <StatRow label="Passable Roads" value={`${data.passableCount} (${data.passablePercentage}%)`} />
@@ -188,6 +201,8 @@ const RoadNetworkSection = ({ data, expanded, onToggle }) => (
           </ul>
         </>
       )}
+        </>
+      )}
     </div>
   </CollapsibleSection>
 );
@@ -196,6 +211,10 @@ const RoadNetworkSection = ({ data, expanded, onToggle }) => (
 const FuelAccessSection = ({ data, expanded, onToggle }) => (
   <CollapsibleSection title="Fuel Access" expanded={expanded} onToggle={onToggle}>
     <div className={styles.sectionContent}>
+      {data.assessmentStatus === 'NOT_LOADED' ? (
+        <p className={styles.summaryText}>Not assessed. Load the `fuel` infrastructure layer to evaluate fuel access.</p>
+      ) : (
+        <>
       <StatRow label="Fuel Stations" value={data.totalStations} />
       <StatRow label="Operational" value={`${data.operationalCount} (${data.operationalPercentage}%)`} />
       <StatRow label="At Risk" value={`${data.atRiskCount} (${data.atRiskPercentage}%)`} />
@@ -237,6 +256,8 @@ const FuelAccessSection = ({ data, expanded, onToggle }) => (
           </ul>
         </>
       )}
+        </>
+      )}
     </div>
   </CollapsibleSection>
 );
@@ -245,6 +266,10 @@ const FuelAccessSection = ({ data, expanded, onToggle }) => (
 const AirAccessSection = ({ data, expanded, onToggle }) => (
   <CollapsibleSection title="Air Access" expanded={expanded} onToggle={onToggle}>
     <div className={styles.sectionContent}>
+      {data.assessmentStatus === 'NOT_LOADED' ? (
+        <p className={styles.summaryText}>Not assessed. Load the `airports` infrastructure layer to evaluate air access.</p>
+      ) : (
+        <>
       <StatRow label="Airports/Airfields" value={data.totalAirports} />
       <StatRow label="Operational" value={`${data.operationalCount} (${data.operationalPercentage}%)`} />
       <StatRow label="At Risk" value={`${data.atRiskCount} (${data.atRiskPercentage}%)`} />
@@ -284,6 +309,20 @@ const AirAccessSection = ({ data, expanded, onToggle }) => (
           </ul>
         </>
       )}
+        </>
+      )}
+    </div>
+  </CollapsibleSection>
+);
+
+const SecuritySection = ({ data, expanded, onToggle }) => (
+  <CollapsibleSection title="Security Context" expanded={expanded} onToggle={onToggle}>
+    <div className={styles.sectionContent}>
+      <StatRow label="Security Level" value={data.level} />
+      <StatRow label="Recent Incidents" value={data.incidentCount} />
+      <StatRow label="Reported Fatalities" value={data.fatalities} />
+      <StatRow label="Security Score" value={`${data.score} / 10`} />
+      <p className={styles.summaryText}>{data.description}</p>
     </div>
   </CollapsibleSection>
 );
@@ -346,6 +385,7 @@ const MetadataSection = ({ data }) => {
     const parts = [];
     if (quality.osmCoverage) parts.push(`OSM: ${quality.osmCoverage}`);
     if (quality.disasterData) parts.push(`Disasters: ${quality.disasterData}`);
+    if (quality.securityData) parts.push(`Security: ${quality.securityData}`);
     if (quality.weatherData) parts.push(`Weather: ${quality.weatherData}`);
 
     return parts.join(', ') || 'N/A';

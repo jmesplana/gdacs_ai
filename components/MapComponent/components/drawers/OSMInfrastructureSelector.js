@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 /**
  * OSM Infrastructure Selector Component
@@ -18,6 +18,7 @@ const INFRASTRUCTURE_CATEGORIES = [
   { id: 'pharmacies', name: 'Pharmacies', icon: '💊', priority: 'secondary' },
   { id: 'airports', name: 'Airports', icon: '✈️', priority: 'critical' },
   { id: 'roads', name: 'Major Roads', icon: '🛣️', priority: 'secondary' },
+  { id: 'fuel', name: 'Fuel Stations', icon: '⛽', priority: 'secondary' },
   { id: 'bridges', name: 'Bridges', icon: '🌉', priority: 'secondary' }
 ];
 
@@ -33,6 +34,15 @@ export default function OSMInfrastructureSelector({
 }) {
   const [selectedDistricts, setSelectedDistricts] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
+  const [activeRequest, setActiveRequest] = useState(null);
+
+  useEffect(() => {
+    if (!osmLoading && activeRequest) {
+      setSelectedDistricts([]);
+      setSelectedCategories([]);
+      setActiveRequest(null);
+    }
+  }, [osmLoading, activeRequest]);
 
   // No districts uploaded yet
   if (!districts || districts.length === 0) {
@@ -76,16 +86,19 @@ export default function OSMInfrastructureSelector({
     console.log('📦 Districts to load:', districtsToLoad.map(d => d.name || 'Unnamed'));
     console.log('📦 Categories to load:', selectedCategories);
 
+    setActiveRequest({
+      districtCount: selectedDistricts.length,
+      categoryCount: selectedCategories.length,
+      categoryNames: selectedCategories
+        .map(categoryId => INFRASTRUCTURE_CATEGORIES.find(category => category.id === categoryId)?.name || categoryId)
+    });
+
     if (onLoadOSM) {
       console.log('✅ Calling onLoadOSM callback...');
       onLoadOSM(districtsToLoad, selectedCategories);
     } else {
       console.error('❌ onLoadOSM callback is not defined!');
     }
-
-    // Clear selections after loading
-    setSelectedDistricts([]);
-    setSelectedCategories([]);
   };
 
   // Get loaded categories
@@ -107,8 +120,32 @@ export default function OSMInfrastructureSelector({
     <div style={{ padding: '0' }}>
       <h4 style={{ marginTop: 0, marginBottom: '16px', fontSize: '14px', color: '#333' }}>
         OpenStreetMap Infrastructure
-        {osmLoading && <span style={{ color: '#f59e0b', marginLeft: '8px', fontSize: '12px' }}>⏳ Loading...</span>}
       </h4>
+
+      {osmLoading && (
+        <div style={{
+          marginBottom: '16px',
+          padding: '14px',
+          borderRadius: '8px',
+          border: '1px solid #f59e0b',
+          backgroundColor: '#fffbeb',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)'
+        }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#92400e', marginBottom: '4px' }}>
+            Loading OpenStreetMap infrastructure...
+          </div>
+          <div style={{ fontSize: '12px', color: '#78350f', lineHeight: 1.5 }}>
+            {activeRequest
+              ? `Fetching ${activeRequest.categoryCount} infrastructure ${activeRequest.categoryCount === 1 ? 'type' : 'types'} for ${activeRequest.districtCount} ${activeRequest.districtCount === 1 ? 'district' : 'districts'}.`
+              : 'Fetching the selected infrastructure layers for the selected districts.'}
+          </div>
+          {activeRequest?.categoryNames?.length > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '11px', color: '#92400e' }}>
+              {activeRequest.categoryNames.join(', ')}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Step 1: Select Districts */}
       <div style={{
@@ -118,8 +155,21 @@ export default function OSMInfrastructureSelector({
         borderRadius: '6px',
         border: '1px solid #e5e7eb'
       }}>
-        <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#333' }}>
-          Step 1: Select Districts
+        <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#333', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          <span>Step 1: Select Districts</span>
+          {osmLoading && (
+            <span style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              color: '#92400e',
+              backgroundColor: '#fef3c7',
+              border: '1px solid #f59e0b',
+              borderRadius: '999px',
+              padding: '4px 8px'
+            }}>
+              Loading in progress
+            </span>
+          )}
         </div>
         <div style={{ fontSize: '11px', color: '#666', marginBottom: '10px' }}>
           Choose which admin areas to load ({sortedDistricts.length} available):
@@ -381,7 +431,9 @@ export default function OSMInfrastructureSelector({
         }}
       >
         {osmLoading ? (
-          'Loading Infrastructure Data...'
+          activeRequest
+            ? `Loading ${activeRequest.categoryCount} ${activeRequest.categoryCount === 1 ? 'Type' : 'Types'} for ${activeRequest.districtCount} ${activeRequest.districtCount === 1 ? 'District' : 'Districts'}...`
+            : 'Loading Infrastructure Data...'
         ) : selectedDistricts.length === 0 ? (
           'Select Districts to Continue'
         ) : selectedCategories.length === 0 ? (

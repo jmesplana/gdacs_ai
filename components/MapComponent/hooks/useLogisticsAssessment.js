@@ -27,13 +27,14 @@ export function useLogisticsAssessment() {
    * @param {Object} options - Optional origin/destination for route analysis
    */
   const assessLogistics = useCallback(async (osmData, disasters, facilities = [], acledEvents = [], options = {}) => {
-    console.log('🚚 assessLogistics called with:', {
-      hasOsmData: !!osmData,
-      disastersCount: disasters?.length || 0,
-      facilitiesCount: facilities?.length || 0,
-      acledEventsCount: acledEvents?.length || 0,
-      options
-    });
+      console.log('🚚 assessLogistics called with:', {
+        hasOsmData: !!osmData,
+        disastersCount: disasters?.length || 0,
+        facilitiesCount: facilities?.length || 0,
+        acledEventsCount: acledEvents?.length || 0,
+        hasWeatherData: !!options.weatherData,
+        options
+      });
 
     // Validate required inputs - MUST have OSM data (disasters are optional for baseline assessment)
     if (!osmData || !osmData.features || osmData.features.length === 0) {
@@ -68,6 +69,7 @@ export function useLogisticsAssessment() {
           disasters,
           facilities,
           acledEvents,
+          weatherData: options.weatherData || null,
           options
         }),
         signal: controller.signal

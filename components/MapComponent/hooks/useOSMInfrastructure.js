@@ -16,8 +16,10 @@ export function useOSMInfrastructure() {
     'hospitals',
     'schools',
     'roads',
+    'bridges',
     'water',
     'power',
+    'fuel',
     'pharmacies',
     'airports'
   ]);

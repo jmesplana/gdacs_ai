@@ -440,46 +440,6 @@ const MapComponent = ({
     }
   }, [osmData, onOSMDataChange]);
 
-  // Auto-fetch OSM data when districts loaded
-  useEffect(() => {
-    if (districts && districts.length > 0 && !osmData && !osmLoading && !osmError) {
-      // Calculate boundary from districts
-      const allCoords = [];
-      districts.forEach(district => {
-        if (district.geometry && district.geometry.coordinates) {
-          const coords = district.geometry.type === 'Polygon'
-            ? district.geometry.coordinates[0]
-            : district.geometry.coordinates[0][0];
-          allCoords.push(...coords);
-        }
-      });
-
-      if (allCoords.length > 0) {
-        // Create bounding polygon
-        const lons = allCoords.map(c => c[0]);
-        const lats = allCoords.map(c => c[1]);
-        const minLon = Math.min(...lons);
-        const maxLon = Math.max(...lons);
-        const minLat = Math.min(...lats);
-        const maxLat = Math.max(...lats);
-
-        const boundary = {
-          type: 'Polygon',
-          coordinates: [[
-            [minLon, minLat],
-            [maxLon, minLat],
-            [maxLon, maxLat],
-            [minLon, maxLat],
-            [minLon, minLat]
-          ]]
-        };
-
-        console.log('Auto-fetching OSM infrastructure for districts...');
-        fetchOSMInfrastructure(boundary);
-      }
-    }
-  }, [districts, osmData, osmLoading, osmError, fetchOSMInfrastructure]);
-
   // Logistics Assessment hook
   const {
     logisticsData,
@@ -941,8 +901,32 @@ const MapComponent = ({
     const hasDisasters = filteredDisasters && filteredDisasters.length > 0;
     console.log('🚚 Starting logistics assessment...', hasDisasters ? 'with disasters' : 'baseline mode');
 
+    let logisticsWeatherData = weatherContext?.regional?.rawData || null;
+
+    if (!logisticsWeatherData && facilities && facilities.length > 0) {
+      try {
+        const weather = await buildWeatherContext(facilities, null);
+        if (weather?.regional?.rawData) {
+          logisticsWeatherData = weather.regional.rawData;
+          setWeatherContext(prev => prev || weather);
+        }
+      } catch (error) {
+        console.warn('Could not fetch weather context for logistics assessment:', error);
+      }
+    }
+
     // Calculate bounding box from districts or OSM metadata
     let bounds = osmData.metadata?.boundingBox;
+
+    // OSM metadata boundingBox is [minLon, minLat, maxLon, maxLat].
+    if (Array.isArray(bounds) && bounds.length === 4) {
+      bounds = {
+        west: bounds[0],
+        south: bounds[1],
+        east: bounds[2],
+        north: bounds[3]
+      };
+    }
 
     // If no metadata bounds, calculate from districts
     if (!bounds && districts && districts.length > 0) {
@@ -971,14 +955,30 @@ const MapComponent = ({
       }
     }
 
+    const nearbyAcledEvents = getFilteredAcledData().filter(event => {
+      const eventLat = parseFloat(event.latitude);
+      const eventLon = parseFloat(event.longitude);
+
+      if (isNaN(eventLat) || isNaN(eventLon)) return false;
+      if (!bounds) return true;
+
+      const buffer = 2;
+      return (
+        eventLat >= bounds.south - buffer &&
+        eventLat <= bounds.north + buffer &&
+        eventLon >= bounds.west - buffer &&
+        eventLon <= bounds.east + buffer
+      );
+    });
+
     // Filter disasters to only those near the region (within 200km)
     // This prevents AI from analyzing irrelevant disasters from other regions
     const nearbyDisasters = !hasDisasters ? [] : filteredDisasters.filter(disaster => {
-      if (!disaster.lat || !disaster.lon) return false; // Skip disasters without coordinates
-      if (!bounds) return true; // If we still can't determine bounds, include all
+      const disasterLat = parseFloat(disaster.latitude ?? disaster.lat);
+      const disasterLon = parseFloat(disaster.longitude ?? disaster.lon);
 
-      const disasterLat = parseFloat(disaster.lat);
-      const disasterLon = parseFloat(disaster.lon);
+      if (isNaN(disasterLat) || isNaN(disasterLon)) return false; // Skip disasters without coordinates
+      if (!bounds) return true; // If we still can't determine bounds, include all
 
       // Simple bounding box check with 200km buffer (~2 degrees)
       const buffer = 2;
@@ -1013,8 +1013,8 @@ const MapComponent = ({
       osmData,
       nearbyDisasters,
       facilities,
-      acledData,
-      {} // Options - can be extended for route analysis
+      nearbyAcledEvents,
+      { weatherData: logisticsWeatherData } // Options - can be extended for route analysis
     );
 
     if (result) {
@@ -1067,26 +1067,28 @@ const MapComponent = ({
       <style>{customStyles}</style>
 
       {/* Hamburger Menu - Contains all controls: Control Panel, Filter, Campaign Dashboard, Logistics, Draw, Help */}
-      <HamburgerMenu
-        onControlPanelClick={toggleUnifiedDrawer}
-        onFilterClick={toggleFilterDrawer}
-        onCampaignDashboardClick={() => setShowCampaignDashboard(true)}
-        onLogisticsClick={handleLogisticsAssessment}
-        onHelpClick={() => setShowHelp(!showHelp)}
-        drawingEnabled={drawingEnabled}
-        onDrawClick={toggleDrawing}
-        drawingColor={drawingColor}
-        setDrawingColor={setDrawingColor}
-        onUndoDrawing={undoLastDrawing}
-        onClearDrawings={clearAllDrawings}
-        drawingsCount={drawings.length}
-        operationType={operationType}
-        onOperationTypeChange={onOperationTypeChange}
-        playbackEnabled={playbackEnabled}
-        onPlaybackClick={togglePlayback}
-        logisticsEnabled={showLogisticsDrawer}
-        hasDistricts={districts && districts.length > 0}
-      />
+      {!showLogisticsDrawer && (
+        <HamburgerMenu
+          onControlPanelClick={toggleUnifiedDrawer}
+          onFilterClick={toggleFilterDrawer}
+          onCampaignDashboardClick={() => setShowCampaignDashboard(true)}
+          onLogisticsClick={handleLogisticsAssessment}
+          onHelpClick={() => setShowHelp(!showHelp)}
+          drawingEnabled={drawingEnabled}
+          onDrawClick={toggleDrawing}
+          drawingColor={drawingColor}
+          setDrawingColor={setDrawingColor}
+          onUndoDrawing={undoLastDrawing}
+          onClearDrawings={clearAllDrawings}
+          drawingsCount={drawings.length}
+          operationType={operationType}
+          onOperationTypeChange={onOperationTypeChange}
+          playbackEnabled={playbackEnabled}
+          onPlaybackClick={togglePlayback}
+          logisticsEnabled={showLogisticsDrawer}
+          hasDistricts={districts && districts.length > 0}
+        />
+      )}
 
       {/* Filter Drawer */}
       <FilterDrawer
@@ -2168,7 +2170,7 @@ const MapComponent = ({
       {/* Campaign Dashboard button moved to hamburger menu for cleaner UI */}
 
       {/* WorldPop Population Button - visible when districts are loaded */}
-      {districts && districts.length > 0 && (
+      {!showLogisticsDrawer && districts && districts.length > 0 && (
         <button
           onClick={() => setShowWorldPopDrawer(true)}
           title="Population Data (WorldPop)"
@@ -2213,6 +2215,7 @@ const MapComponent = ({
       )}
 
       {/* AI Chat Button - Positioned at bottom-right of map */}
+      {!showLogisticsDrawer && (
       <button
         onClick={() => setShowChatDrawer(true)}
         title="Ask AI Assistant"
@@ -2251,6 +2254,7 @@ const MapComponent = ({
         </svg>
         <span style={{fontSize: '11px', marginTop: '2px', fontWeight: 700}}>AI</span>
       </button>
+      )}
 
       {/* Timeline Scrubber - Bottom playback controls */}
       <TimelineScrubber

@@ -151,6 +151,7 @@ module.exports = async function handler(req, res) {
         queryTime: Date.now() - startTime,
         totalFeatures: categorized.length,
         byLayer: countByLayer(categorized),
+        requestedLayers: layers,
         boundingBox: calculateBoundingBox(boundary),
         querySubdivisions: subdivisions.length,
         cached: false,
