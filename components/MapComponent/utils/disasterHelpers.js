@@ -90,6 +90,31 @@ export const getDisasterTypeName = (eventType) => {
   return getDisasterInfo(eventType).name;
 };
 
+export const getDisasterTimelineDate = (disaster) => {
+  if (!disaster) return null;
+
+  const candidates = [
+    disaster.lastModified,
+    disaster.pubDate,
+    disaster.fromDate,
+    disaster.fromdate,
+    disaster.pubdate,
+    disaster.toDate,
+    disaster.todate,
+    disaster.date
+  ];
+
+  for (const value of candidates) {
+    if (!value) continue;
+    const parsed = new Date(value);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  return null;
+};
+
 export const getAlertColor = (alertLevel) => {
   if (!alertLevel) return '#1A365D'; // Aidstack navy
 

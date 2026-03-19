@@ -5,6 +5,7 @@ import Papa from 'papaparse';
 import { ToastContainer, useToast } from '../components/Toast';
 import OnboardingModal from '../components/OnboardingModal';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { getDisasterTimelineDate } from '../components/MapComponent/utils/disasterHelpers';
 
 // Import components with dynamic loading (no SSR) for Leaflet compatibility
 const MapComponent = dynamic(() => import('../components/MapComponent'), {
@@ -351,18 +352,9 @@ export default function Home() {
     }
     
     const filtered = disasters.filter(disaster => {
-      // Use lastModified for filtering - this ensures ongoing events stay visible
-      // even if they started months ago (e.g., droughts from November)
-      const dateToFilter = disaster.lastModified || disaster.pubDate;
-      if (!dateToFilter) return true; // Include if no date
-
-      try {
-        const disasterDate = new Date(dateToFilter);
-        return disasterDate >= cutoffDate;
-      } catch (e) {
-        console.log('Date parsing failed for disaster:', disaster.title);
-        return true; // Include if date parsing fails
-      }
+      const disasterDate = getDisasterTimelineDate(disaster);
+      if (!disasterDate) return true;
+      return disasterDate >= cutoffDate;
     });
     
     console.log(`Filtered disasters from ${disasters.length} to ${filtered.length}`);
@@ -370,7 +362,7 @@ export default function Home() {
       title: d.title,
       lat: d.latitude,
       lng: d.longitude,
-      date: d.pubDate
+      date: getDisasterTimelineDate(d)?.toISOString() || null
     })));
     
     setFilteredDisasters(filtered);

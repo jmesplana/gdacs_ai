@@ -870,9 +870,7 @@ const MapComponent = ({
 
   // Initialize timeline with all disasters
   useEffect(() => {
-    if (disasters && disasters.length > 0) {
-      setTimelineFilteredDisasters(disasters);
-    }
+    setTimelineFilteredDisasters(disasters || []);
   }, [disasters, setTimelineFilteredDisasters]);
 
   // Handle fullscreen change events from the browser
@@ -1365,7 +1363,7 @@ const MapComponent = ({
       {showTimeline && (
         <TimelineVisualization
           disasters={disasters}
-          onDateChange={handleTimelineChange}
+          onTimeChange={handleTimelineChange}
         />
       )}
 

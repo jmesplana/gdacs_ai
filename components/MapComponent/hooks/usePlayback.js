@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { getDisasterTimelineDate } from '../utils/disasterHelpers';
 
 /**
  * Hook for managing timeline playback functionality
@@ -26,31 +27,15 @@ const usePlayback = (disasters = [], acledData = []) => {
       console.log('Playback: Available keys:', Object.keys(disasters[0]));
     }
 
-    // Get dates from disasters - try multiple date fields
+    // Get dates from disasters using the same date precedence as the top-level filter.
     disasters?.forEach((disaster, idx) => {
-      let dateStr = null;
+      const date = getDisasterTimelineDate(disaster);
 
-      // Try different date field names (GDACS uses 'pubDate' with capital D)
-      if (disaster.pubDate) {
-        dateStr = disaster.pubDate;
-      } else if (disaster.fromdate) {
-        dateStr = disaster.fromdate;
-      } else if (disaster.pubdate) {
-        dateStr = disaster.pubdate;
-      } else if (disaster.todate) {
-        dateStr = disaster.todate;
-      } else if (disaster.date) {
-        dateStr = disaster.date;
-      }
-
-      if (dateStr) {
-        const date = new Date(dateStr);
-        if (!isNaN(date.getTime())) {
-          allDates.push(date);
-          if (idx === 0) console.log('Playback: Successfully parsed date:', dateStr, '→', date);
-        } else {
-          if (idx === 0) console.log('Playback: Invalid disaster date format:', dateStr);
-        }
+      if (date) {
+        allDates.push(date);
+        if (idx === 0) console.log('Playback: Successfully parsed disaster timeline date:', date.toISOString());
+      } else if (idx === 0) {
+        console.log('Playback: No valid disaster timeline date found for first item');
       }
     });
 
@@ -185,17 +170,12 @@ const usePlayback = (disasters = [], acledData = []) => {
     const filtered = items?.filter(item => {
       let itemDate = null;
 
-      // Handle different date field names (GDACS uses pubDate with capital D)
-      if (item.pubDate) {
-        itemDate = new Date(item.pubDate);
-      } else if (item[dateField]) {
+      if (item[dateField]) {
         itemDate = new Date(item[dateField]);
       } else if (item.event_date) {
         itemDate = new Date(item.event_date);
-      } else if (item.fromdate) {
-        itemDate = new Date(item.fromdate);
-      } else if (item.pubdate) {
-        itemDate = new Date(item.pubdate);
+      } else {
+        itemDate = getDisasterTimelineDate(item);
       }
 
       if (!itemDate || isNaN(itemDate.getTime())) {

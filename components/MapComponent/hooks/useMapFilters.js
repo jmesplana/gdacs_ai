@@ -1,9 +1,10 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { CAP_FILTERS } from '../constants/mapConstants';
 import {
   getNormalizedSeverity,
   getNormalizedCertainty,
-  getNormalizedUrgency
+  getNormalizedUrgency,
+  getDisasterTimelineDate
 } from '../utils/disasterHelpers';
 
 /**
@@ -49,7 +50,12 @@ export const useMapFilters = (disasters = []) => {
   });
 
   // Timeline filter
-  const [timelineFilteredDisasters, setTimelineFilteredDisasters] = useState(disasters);
+  const [timelineFilteredDisasters, setTimelineFilteredDisasters] = useState(null);
+
+  // Keep internal timeline state aligned with the disaster list provided by the parent.
+  useEffect(() => {
+    setTimelineFilteredDisasters(disasters);
+  }, [disasters]);
 
   // Toggle functions
   const toggleDisasterType = useCallback((type) => {
@@ -85,8 +91,8 @@ export const useMapFilters = (disasters = []) => {
     if (!disasters || disasters.length === 0) return;
 
     const filtered = disasters.filter(disaster => {
-      if (!disaster.pubDate) return false;
-      const disasterDate = new Date(disaster.pubDate);
+      const disasterDate = getDisasterTimelineDate(disaster);
+      if (!disasterDate) return false;
       return disasterDate <= date;
     });
 
@@ -95,9 +101,7 @@ export const useMapFilters = (disasters = []) => {
 
   // Filter disasters based on all active filters
   const filteredDisasters = useMemo(() => {
-    const disastersToFilter = timelineFilteredDisasters.length > 0
-      ? timelineFilteredDisasters
-      : disasters;
+    const disastersToFilter = timelineFilteredDisasters ?? disasters;
 
     return disastersToFilter.filter(disaster => {
       // Filter by disaster type

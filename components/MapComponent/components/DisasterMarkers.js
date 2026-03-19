@@ -253,6 +253,8 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
   };
 
   useEffect(() => {
+    let isActive = true;
+
     // Create markers for each disaster directly with Leaflet
     const markers = [];
 
@@ -456,7 +458,7 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
             } else if (!cached) {
               // Fetch geometry asynchronously
               fetchGeometry(disaster).then(geojson => {
-                if (geojson) {
+                if (isActive && geojson) {
                   // Re-render to show the newly fetched geometry
                   renderGeometry(geojson, disaster, alertColor, markers);
                   // Note: We don't force update here to avoid re-rendering the entire component
@@ -628,6 +630,8 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
 
     // Cleanup function to remove markers when component unmounts
     return () => {
+      isActive = false;
+
       // Clean up individual markers
       markers.forEach(marker => {
         if (map.hasLayer(marker)) {
