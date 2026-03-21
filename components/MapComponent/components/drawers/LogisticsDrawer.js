@@ -9,7 +9,9 @@ const provenanceBadgeStyle = {
   borderRadius: '999px',
   fontSize: '11px',
   fontWeight: 700,
-  fontFamily: "'Inter', sans-serif"
+  fontFamily: "'Inter', sans-serif",
+  border: '1px solid rgba(255, 255, 255, 0.18)',
+  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.12)'
 };
 
 const ProvenanceBadge = ({ label, tone = '#475569', background = '#f1f5f9' }) => (
@@ -137,26 +139,26 @@ const SummaryCard = ({ data }) => {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
         <ProvenanceBadge
           label="Observed: OSM infrastructure"
-          tone="#166534"
-          background="rgba(34, 197, 94, 0.12)"
+          tone="#14532d"
+          background="rgba(255, 255, 255, 0.92)"
         />
         {data.securityAnalysis && (
           <ProvenanceBadge
             label="Observed: ACLED security context"
             tone="#9a3412"
-            background="rgba(249, 115, 22, 0.12)"
+            background="rgba(255, 247, 237, 0.95)"
           />
         )}
         <ProvenanceBadge
           label="Derived: access score + rating"
-          tone="#7c2d12"
-          background="rgba(245, 158, 11, 0.14)"
+          tone="#1e293b"
+          background="rgba(241, 245, 249, 0.95)"
         />
         {data.recommendations?.aiGenerated && (
           <ProvenanceBadge
             label="AI: recommendations"
             tone="#1B3A5C"
-            background="rgba(27, 58, 92, 0.12)"
+            background="rgba(255, 255, 255, 0.92)"
           />
         )}
       </div>
@@ -402,7 +404,9 @@ const SecuritySection = ({ data, expanded, onToggle }) => (
 const RecommendationsSection = ({ data, expanded, onToggle }) => (
   <CollapsibleSection title="AI Recommendations" expanded={expanded} onToggle={onToggle}>
     <div className={styles.sectionContent}>
-      {Object.entries(data).map(([category, items]) => (
+      {Object.entries(data)
+        .filter(([, items]) => Array.isArray(items))
+        .map(([category, items]) => (
         <div key={category} className={styles.recommendationCategory}>
           <h4 className={styles.categoryTitle}>{category}</h4>
           <ul className={styles.recommendationList}>
