@@ -3,123 +3,273 @@ import { parseString } from 'xml2js';
 import { promisify } from 'util';
 
 const parseXML = promisify(parseString);
+const GDACS_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (compatible; GDACSFacilitiesApp/1.0)',
+};
+
+const TEXT_VALUE_KEYS = ['_', '#text'];
+const CAP_ALERT_KEY = 'cap:alert';
+const CAP_INFO_KEY = 'cap:info';
+const GEO_POINT_KEY = 'geo:Point';
+const GEO_LAT_KEY = 'geo:lat';
+const GEO_LON_KEY = 'geo:long';
+
+function normalizeId(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const stringValue = String(value).trim();
+  return stringValue || null;
+}
+
+function extractText(field) {
+  if (!field || !field[0]) return '';
+  const value = field[0];
+  if (typeof value === 'string') return value.trim();
+  for (const key of TEXT_VALUE_KEYS) {
+    if (typeof value[key] === 'string') {
+      return value[key].trim();
+    }
+  }
+  return '';
+}
+
+function extractCapValue(node, key) {
+  if (!node) return '';
+  return extractText(node[key]);
+}
+
+function extractCapParameters(capInfo) {
+  if (!capInfo || !capInfo['cap:parameter']) return {};
+
+  return capInfo['cap:parameter'].reduce((acc, parameter) => {
+    const name = extractCapValue(parameter, 'cap:valueName').toLowerCase();
+    const value = extractCapValue(parameter, 'cap:value');
+    if (name) {
+      acc[name] = value;
+    }
+    return acc;
+  }, {});
+}
+
+function extractCoordinates(item) {
+  const pointText = extractText(item[GEO_POINT_KEY]);
+  if (pointText) {
+    const [lat, lon] = pointText.split(/\s+/).map(Number);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      return { latitude: lat, longitude: lon };
+    }
+  }
+
+  const geoPoint = item[GEO_POINT_KEY]?.[0];
+  if (geoPoint && typeof geoPoint === 'object') {
+    const nestedLat = parseFloat(extractText(geoPoint[GEO_LAT_KEY]));
+    const nestedLon = parseFloat(extractText(geoPoint[GEO_LON_KEY]));
+    if (Number.isFinite(nestedLat) && Number.isFinite(nestedLon)) {
+      return { latitude: nestedLat, longitude: nestedLon };
+    }
+  }
+
+  const lat = parseFloat(extractText(item[GEO_LAT_KEY]));
+  const lon = parseFloat(extractText(item[GEO_LON_KEY]));
+  if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    return { latitude: lat, longitude: lon };
+  }
+
+  return { latitude: null, longitude: null };
+}
+
+function extractBoundingBox(item) {
+  const boxText = extractText(item['georss:box']);
+  if (!boxText) return null;
+
+  const coords = boxText.split(/\s+/).map(Number);
+  if (coords.length !== 4 || coords.some(coord => !Number.isFinite(coord))) {
+    return null;
+  }
+
+  return {
+    minLat: coords[0],
+    minLon: coords[1],
+    maxLat: coords[2],
+    maxLon: coords[3]
+  };
+}
+
+function extractEventIds(item, capAlert) {
+  let eventId = null;
+  let episodeId = null;
+  const capIdentifier = extractCapValue(capAlert, 'cap:identifier');
+  const structuredCandidates = [
+    extractText(item.link),
+    extractText(item.guid),
+    capIdentifier,
+    extractCapValue(capAlert, 'cap:incidents'),
+    extractText(item['cap:event'])
+  ].filter(Boolean);
+
+  for (const candidate of structuredCandidates) {
+    const eventIdMatch = candidate.match(/eventid=(\d+)/i);
+    if (!eventId && eventIdMatch) {
+      eventId = parseInt(eventIdMatch[1], 10);
+    }
+
+    const episodeMatch = candidate.match(/episodeid=(\d+)/i);
+    if (!episodeId && episodeMatch) {
+      episodeId = parseInt(episodeMatch[1], 10);
+    }
+
+    if (eventId && episodeId) {
+      break;
+    }
+  }
+
+  if (!eventId) {
+    const incidentText = extractCapValue(capAlert, 'cap:incidents') || extractText(item['cap:event']);
+    const fallbackMatch = incidentText.match(/\b(\d{6,})\b/);
+    if (fallbackMatch) {
+      eventId = parseInt(fallbackMatch[1], 10);
+    }
+  }
+
+  if (!episodeId && capIdentifier) {
+    const identifierMatch = capIdentifier.match(/GDACS_[A-Z]+_(\d+)_(\d+)/i);
+    if (identifierMatch) {
+      eventId = eventId || parseInt(identifierMatch[1], 10);
+      episodeId = parseInt(identifierMatch[2], 10);
+    }
+  }
+
+  return { eventId, episodeId };
+}
+
+function normalizeCapEventType(rawValue, fallbackText = '') {
+  const source = `${rawValue} ${fallbackText}`.toLowerCase();
+
+  if (source.includes('earthquake')) return 'EQ';
+  if (source.includes('tropical cyclone') || source.includes('cyclone') || source.includes('storm')) return 'TC';
+  if (source.includes('flood')) return 'FL';
+  if (source.includes('volcano') || source.includes('eruption')) return 'VO';
+  if (source.includes('wildfire') || source.includes('forest fire') || source.includes('fire')) return 'WF';
+  if (source.includes('drought')) return 'DR';
+  if (source.includes('tsunami')) return 'TS';
+
+  return rawValue || '';
+}
+
+function parsePrimaryFeedItems(xmlData, sourceLabel) {
+  const root = xmlData.rss?.channel?.[0];
+  const items = root?.item || [];
+
+  return items.map(item => {
+    const capAlert = item[CAP_ALERT_KEY]?.[0] || null;
+    const capInfo = capAlert?.[CAP_INFO_KEY]?.[0] || null;
+    const capParameters = extractCapParameters(capInfo);
+    const coords = extractCoordinates(item);
+    const { eventId: parsedEventId, episodeId: parsedEpisodeId } = extractEventIds(item, capAlert);
+
+    const title = extractText(item.title);
+    const description = extractText(item.description);
+    const capSent = extractCapValue(capAlert, 'cap:sent');
+    const capStatus = extractCapValue(capAlert, 'cap:status');
+    const capMsgType = extractCapValue(capAlert, 'cap:msgType');
+    const capScope = extractCapValue(capAlert, 'cap:scope');
+    const capIdentifier = extractCapValue(capAlert, 'cap:identifier');
+    const capIncidents = extractCapValue(capAlert, 'cap:incidents');
+    const capEvent = extractCapValue(capInfo, 'cap:event');
+    const capUrgency = extractCapValue(capInfo, 'cap:urgency');
+    const capCertainty = extractCapValue(capInfo, 'cap:certainty');
+    const capSeverity = extractCapValue(capInfo, 'cap:severity');
+    const capHeadline = extractCapValue(capInfo, 'cap:headline');
+    const capAreaDesc = extractCapValue(capInfo, 'cap:areaDesc');
+    const eventId = parsedEventId || (capParameters.eventid ? parseInt(capParameters.eventid, 10) : null);
+    const episodeId = parsedEpisodeId || (capParameters.currentepisodeid ? parseInt(capParameters.currentepisodeid, 10) : null);
+
+    const eventType = normalizeCapEventType(
+      extractText(item['gdacs:eventtype']) || capParameters.eventtype || capEvent,
+      `${title} ${description}`
+    );
+
+    return {
+      source: sourceLabel,
+      eventId,
+      episodeId,
+      title: title || capHeadline || capEvent,
+      description,
+      pubDate: capParameters.fromdate || extractText(item.pubDate) || capSent,
+      lastModified: capParameters.datemodified || capSent || extractText(item.pubDate),
+      link: extractText(item.link),
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      bbox: extractBoundingBox(item),
+      alertLevel: extractText(item['gdacs:alertlevel']) || capParameters.alertlevel || '',
+      eventType,
+      severity: extractText(item['gdacs:severity']) || capParameters.severity || capSeverity || '',
+      population: extractText(item['gdacs:population']) || capParameters.population || '',
+      vulnerability: extractText(item['gdacs:vulnerability']) || capParameters.vulnerability || '',
+      country: extractText(item['gdacs:country']) || capParameters.country || capAreaDesc || '',
+      iso3: extractText(item['gdacs:iso3']) || capParameters.iso3 || '',
+      icon: extractText(item['gdacs:icon']) || '',
+      certainty: capCertainty,
+      urgency: capUrgency,
+      capLink: capParameters.link || extractText(item['cap:event']) || null,
+      capIdentifier,
+      capStatus,
+      capMsgType,
+      capScope,
+      capIncidents,
+      capParameters,
+      eventName: capParameters.eventname || ''
+    };
+  });
+}
 
 export default async function handler(req, res) {
   try {
-    console.log("Fetching GDACS data from both RSS feed and JSON API...");
+    console.log("Fetching GDACS data from CAP feed and JSON API...");
 
-    // Fetch both sources in parallel for better performance
-    const [rssResponse, jsonResponse] = await Promise.allSettled([
-      // RSS feed - fast, up-to-date alerts
-      axios.get('https://www.gdacs.org/xml/rss.xml', {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; GDACSFacilitiesApp/1.0)',
-        },
+    const [capResponse, jsonResponse] = await Promise.allSettled([
+      axios.get('https://www.gdacs.org/xml/gdacs_cap.xml', {
+        headers: GDACS_HEADERS,
         timeout: 15000
       }),
-      // JSON API - detailed geometry data (shakemaps, storm paths, polygons)
       axios.get('https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH', {
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (compatible; GDACSFacilitiesApp/1.0)',
+          ...GDACS_HEADERS,
         },
         timeout: 15000
       })
     ]);
 
-    // Parse RSS feed if successful
-    let rssEvents = [];
-    if (rssResponse.status === 'fulfilled') {
+    let primaryEvents = [];
+    let primarySource = 'cap';
+
+    if (capResponse.status === 'fulfilled') {
       try {
-        const rssXML = await parseXML(rssResponse.value.data);
-        const items = rssXML.rss?.channel?.[0]?.item || [];
-
-        console.log(`Successfully fetched ${items.length} events from RSS feed`);
-
-        rssEvents = items.map(item => {
-          // Extract coordinates from georss:point (lat lon format)
-          let latitude = null;
-          let longitude = null;
-          if (item['georss:point'] && item['georss:point'][0]) {
-            const coords = item['georss:point'][0].split(' ');
-            latitude = parseFloat(coords[0]);
-            longitude = parseFloat(coords[1]);
-          }
-
-          // Extract bounding box from georss:box
-          let bbox = null;
-          if (item['georss:box'] && item['georss:box'][0]) {
-            const coords = item['georss:box'][0].split(' ').map(parseFloat);
-            bbox = {
-              minLat: coords[0],
-              minLon: coords[1],
-              maxLat: coords[2],
-              maxLon: coords[3]
-            };
-          }
-
-          // Extract event ID from link or guid
-          let eventId = null;
-          const link = item.link?.[0] || '';
-          const eventIdMatch = link.match(/eventid=(\d+)/);
-          if (eventIdMatch) {
-            eventId = parseInt(eventIdMatch[1]);
-          }
-
-          // Helper function to extract text from XML fields (handles both text and nested objects)
-          const extractText = (field) => {
-            if (!field || !field[0]) return '';
-            return typeof field[0] === 'string' ? field[0] : (field[0]['_'] || field[0]['#text'] || '');
-          };
-
-          // Extract GDACS fields - try different namespace variations
-          const alertLevel = extractText(item['gdacs:alertlevel']) ||
-                            extractText(item.alertlevel) || '';
-          const eventType = extractText(item['gdacs:eventtype']) ||
-                           extractText(item.eventtype) || '';
-          const severity = extractText(item['gdacs:severity']) ||
-                          extractText(item.severity) || '';
-          const population = extractText(item['gdacs:population']) ||
-                            extractText(item.population) || '';
-          const vulnerability = extractText(item['gdacs:vulnerability']) ||
-                               extractText(item.vulnerability) || '';
-          const country = extractText(item['gdacs:country']) ||
-                         extractText(item.country) || '';
-          const iso3 = extractText(item['gdacs:iso3']) ||
-                      extractText(item.iso3) || '';
-          const icon = extractText(item['gdacs:icon']) ||
-                      extractText(item.icon) || '';
-
-          return {
-            source: 'rss',
-            eventId: eventId,
-            title: item.title?.[0] || '',
-            description: item.description?.[0] || '',
-            pubDate: item.pubDate?.[0] || '',
-            link: link,
-            latitude: latitude,
-            longitude: longitude,
-            bbox: bbox,
-            alertLevel: alertLevel,
-            eventType: eventType,
-            severity: severity,
-            population: population,
-            vulnerability: vulnerability,
-            country: country,
-            iso3: iso3,
-            icon: icon,
-            // CAP (Common Alerting Protocol) link for additional details
-            capLink: item['cap:event']?.[0] || null
-          };
-        });
+        const capXML = await parseXML(capResponse.value.data);
+        primaryEvents = parsePrimaryFeedItems(capXML, 'cap');
+        console.log(`Successfully fetched ${primaryEvents.length} events from CAP feed`);
       } catch (parseError) {
-        console.error("Error parsing RSS feed:", parseError.message);
+        console.error("Error parsing CAP feed:", parseError.message);
       }
     } else {
-      console.warn("RSS feed fetch failed:", rssResponse.reason?.message);
+      console.warn("CAP feed fetch failed:", capResponse.reason?.message);
     }
 
-    // Parse JSON API if successful
+    if (primaryEvents.length === 0) {
+      primarySource = 'rss_fallback';
+      try {
+        const rssResponse = await axios.get('https://www.gdacs.org/xml/rss.xml', {
+          headers: GDACS_HEADERS,
+          timeout: 15000
+        });
+        const rssXML = await parseXML(rssResponse.data);
+        primaryEvents = parsePrimaryFeedItems(rssXML, 'rss');
+        console.log(`Fell back to RSS feed with ${primaryEvents.length} events`);
+      } catch (rssError) {
+        console.warn("RSS fallback fetch failed:", rssError.message);
+      }
+    }
+
     let jsonEventsMap = new Map();
     if (jsonResponse.status === 'fulfilled' && jsonResponse.value.data?.features) {
       const features = jsonResponse.value.data.features;
@@ -129,6 +279,7 @@ export default async function handler(req, res) {
       features.forEach(feature => {
         const props = feature.properties;
         const coords = feature.geometry.coordinates; // [longitude, latitude]
+        const normalizedEventId = normalizeId(props.eventid);
 
         const enrichmentData = {
           source: 'json_api',
@@ -160,26 +311,24 @@ export default async function handler(req, res) {
           icon: props.icon || ''
         };
 
-        jsonEventsMap.set(props.eventid, enrichmentData);
+        if (normalizedEventId) {
+          jsonEventsMap.set(normalizedEventId, enrichmentData);
+        }
       });
     } else {
       console.warn("JSON API fetch failed:", jsonResponse.reason?.message);
     }
 
-    // Merge RSS events with JSON API enrichment data
-    const mergedEvents = rssEvents.map(rssEvent => {
-      const jsonData = jsonEventsMap.get(rssEvent.eventId);
+    const mergedEvents = primaryEvents.map(primaryEvent => {
+      const jsonData = jsonEventsMap.get(normalizeId(primaryEvent.eventId));
 
       if (jsonData) {
-        // RSS event with JSON API enrichment (best case)
         return {
-          ...rssEvent,
-          // Add geometry URLs from JSON API (shakemaps, storm paths, polygons)
+          ...primaryEvent,
           geometryUrl: jsonData.geometryUrl,
           detailsUrl: jsonData.detailsUrl,
           reportUrl: jsonData.reportUrl,
-          // Add other useful JSON API fields
-          episodeId: jsonData.episodeId,
+          episodeId: primaryEvent.episodeId || jsonData.episodeId,
           eventName: jsonData.eventName,
           glide: jsonData.glide,
           affectedCountries: jsonData.affectedCountries,
@@ -189,35 +338,33 @@ export default async function handler(req, res) {
           toDate: jsonData.toDate,
           lastModified: jsonData.lastModified,
           severityData: jsonData.severityData,
-          // Mark as enriched
           enriched: true,
-          dataSources: ['rss', 'json_api']
+          dataSources: [primaryEvent.source, 'json_api']
         };
       } else {
-        // RSS-only event (geometry data not yet available)
         return {
-          ...rssEvent,
+          ...primaryEvent,
           enriched: false,
-          dataSources: ['rss']
+          dataSources: [primaryEvent.source]
         };
       }
     });
 
-    // Add any JSON API events that weren't in RSS (rare, but possible)
-    jsonEventsMap.forEach((jsonData, eventId) => {
-      const existsInRSS = rssEvents.some(e => e.eventId === eventId);
-      if (!existsInRSS) {
-        mergedEvents.push({
-          ...jsonData,
-          // Transform to match RSS structure
-          pubDate: jsonData.fromDate,
-          link: jsonData.reportUrl || '',
-          webUrl: jsonData.reportUrl || '',
-          enriched: true,
-          dataSources: ['json_api']
-        });
-      }
-    });
+    if (primarySource !== 'cap') {
+      jsonEventsMap.forEach((jsonData, eventId) => {
+        const existsInPrimary = primaryEvents.some(e => normalizeId(e.eventId) === eventId);
+        if (!existsInPrimary) {
+          mergedEvents.push({
+            ...jsonData,
+            pubDate: jsonData.fromDate,
+            link: jsonData.reportUrl || '',
+            webUrl: jsonData.reportUrl || '',
+            enriched: true,
+            dataSources: ['json_api']
+          });
+        }
+      });
+    }
 
     // Transform to final output format matching existing schema
     const processedDisasters = mergedEvents.map(event => ({
@@ -251,19 +398,29 @@ export default async function handler(req, res) {
       // Metadata about data sources
       enriched: event.enriched,
       dataSources: event.dataSources,
-      // Legacy fields for backward compatibility
-      certainty: '',
-      urgency: '',
+      certainty: event.certainty || '',
+      urgency: event.urgency || '',
       polygon: [],
       // Bounding box from RSS
       bbox: event.bbox || null,
       capLink: event.capLink || null,
       population: event.population || '',
-      vulnerability: event.vulnerability || ''
+      vulnerability: event.vulnerability || '',
+      capIdentifier: event.capIdentifier || '',
+      capStatus: event.capStatus || '',
+      capMsgType: event.capMsgType || '',
+      capScope: event.capScope || '',
+      capIncidents: event.capIncidents || '',
+      primarySource
     }));
 
-    console.log(`Processed ${processedDisasters.length} disasters (${rssEvents.length} from RSS, ${jsonEventsMap.size} from JSON API)`);
+    const eventsWithCoordinates = processedDisasters.filter(event =>
+      Number.isFinite(event.latitude) && Number.isFinite(event.longitude)
+    ).length;
+
+    console.log(`Processed ${processedDisasters.length} disasters (${primaryEvents.length} from ${primarySource}, ${jsonEventsMap.size} from JSON API)`);
     console.log(`Enriched events: ${processedDisasters.filter(e => e.enriched).length}/${processedDisasters.length}`);
+    console.log(`Events with coordinates: ${eventsWithCoordinates}/${processedDisasters.length}`);
 
     // Return the merged disaster data
     res.status(200).json(processedDisasters);
