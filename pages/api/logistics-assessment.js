@@ -12,6 +12,18 @@ import {
 } from '../../lib/logisticsHelpers';
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const CREDIBLE_NEWS_DOMAINS = [
+  'reuters.com',
+  'apnews.com',
+  'bbc.com',
+  'aljazeera.com',
+  'france24.com',
+  'npr.org',
+  'theguardian.com',
+  'nytimes.com',
+  'washingtonpost.com',
+  'cnn.com'
+];
 
 export const config = {
   api: {
@@ -69,6 +81,7 @@ async function handler(req, res) {
       hasWeatherData: !!weatherData,
       hasOrigin: !!(options.origin),
       hasDestination: !!(options.destination),
+      locationContext: options.locationContext || null,
     });
 
     // Log disaster details for debugging
@@ -219,6 +232,16 @@ async function handler(req, res) {
     const securityAnalysis = acledEvents.length > 0
       ? calculateSecurityScore(acledEvents)
       : null;
+
+    let breakingDevelopments = [];
+    if (options.locationContext?.country || options.locationContext?.region) {
+      try {
+        breakingDevelopments = await fetchBreakingDevelopments(options.locationContext);
+      } catch (newsError) {
+        console.warn('Breaking developments fetch failed:', newsError.message);
+      }
+    }
+
     const accessScoreResult = calculateAccessScoreWithSecurity(
       roadNetworkRaw,
       fuelAccessRaw,
@@ -246,6 +269,7 @@ async function handler(req, res) {
             disasters,
             acledEvents,
             weatherData,
+            breakingDevelopments,
             accessScore,
             rating
           ),
@@ -254,8 +278,8 @@ async function handler(req, res) {
           )
         ]);
         recommendations = {
-          ...recommendations,
-          aiGenerated: true
+      ...recommendations,
+      aiGenerated: true
         };
       } catch (aiError) {
         console.warn('AI recommendations failed:', aiError.message);
@@ -275,6 +299,7 @@ async function handler(req, res) {
       disasterData: disasters.length > 0 ? 'complete' : 'none',
       securityData: acledEvents.length > 0 ? 'available' : 'none',
       weatherData: weatherData ? 'available' : 'unavailable',
+      newsData: breakingDevelopments.length > 0 ? 'available' : 'unavailable',
     };
     const confidence = calculateLogisticsConfidence({
       assessmentCoverage,
@@ -298,6 +323,7 @@ async function handler(req, res) {
         airAccess,
         securityAnalysis,
         alternativeRoutes,
+        breakingDevelopments,
 
         recommendations,
 
@@ -449,6 +475,7 @@ async function generateAIRecommendations(
   disasters,
   acledEvents,
   weatherData,
+  breakingDevelopments,
   accessScore,
   rating
 ) {
@@ -556,6 +583,21 @@ async function generateAIRecommendations(
     context += `\n`;
   }
 
+  if (breakingDevelopments.length > 0) {
+    context += `## Credible Media Reporting\n`;
+    breakingDevelopments.forEach((item, idx) => {
+      context += `${idx + 1}. ${item.title}\n`;
+      context += `   Source: ${item.source}\n`;
+      if (item.publishedAt) {
+        context += `   Published: ${item.publishedAt}\n`;
+      }
+      if (item.snippet) {
+        context += `   Summary: ${item.snippet}\n`;
+      }
+    });
+    context += `\n`;
+  }
+
   const prompt = `You are a **Humanitarian Logistics Expert** providing actionable recommendations for humanitarian operations.
 
 Based on the logistics assessment data below, provide specific, practical recommendations for humanitarian response operations.
@@ -592,6 +634,7 @@ Provide recommendations in the following categories:
 - Consider the access rating (${rating}) when prioritizing recommendations
 - Address both ground and air logistics
 - Account for disaster and security risks mentioned in the context
+- Treat "Credible Media Reporting" as supplementary context for recent disruptions, not as a replacement for the observed infrastructure data
 - **CRITICAL: Only reference disasters that are explicitly listed in the "Active Disasters in the Region" section above. Do NOT mention any other disasters or make assumptions about disasters not in the context.**
 - If no disasters are listed in the context, focus recommendations on baseline logistics preparedness and infrastructure resilience
 
@@ -616,6 +659,124 @@ Format your response as a JSON object with these categories as keys and arrays o
 
   const recommendationsJSON = response.choices[0].message.content.trim();
   return JSON.parse(recommendationsJSON);
+}
+
+async function fetchBreakingDevelopments(locationContext) {
+  const query = buildBreakingDevelopmentsQuery(locationContext);
+  if (!query) {
+    return [];
+  }
+
+  const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+  const response = await fetch(searchUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Search failed: ${response.status}`);
+  }
+
+  const html = await response.text();
+  const results = parseDuckDuckGoResults(html)
+    .filter(result => isCredibleNewsUrl(result.url))
+    .slice(0, 5);
+
+  console.log(`📰 Breaking developments: ${results.length} credible results for "${query}"`);
+  return results;
+}
+
+function buildBreakingDevelopmentsQuery(locationContext) {
+  const locationParts = [
+    locationContext.region,
+    locationContext.country
+  ].filter(Boolean);
+
+  if (locationParts.length === 0) {
+    return null;
+  }
+
+  return `${locationParts.join(' ')} (road access OR fuel supply OR airport OR port OR strike OR flooding OR conflict OR humanitarian logistics)`;
+}
+
+function parseDuckDuckGoResults(html) {
+  const results = [];
+  const resultRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/g;
+  const snippetRegex = /<a[^>]*class="result__snippet"[^>]*>(.*?)<\/a>/g;
+  const snippets = [];
+
+  let match;
+  while ((match = snippetRegex.exec(html)) !== null) {
+    snippets.push(stripHtml(match[1]));
+  }
+
+  let index = 0;
+  while ((match = resultRegex.exec(html)) !== null && results.length < 10) {
+    const url = normalizeSearchResultUrl(match[1]);
+    if (!url) {
+      continue;
+    }
+
+    results.push({
+      title: stripHtml(match[2]),
+      url,
+      snippet: snippets[index] || '',
+      source: getSourceLabel(url),
+      domain: getHostname(url),
+      publishedAt: null
+    });
+    index++;
+  }
+
+  return results;
+}
+
+function normalizeSearchResultUrl(rawUrl) {
+  try {
+    const decoded = decodeURIComponent(rawUrl);
+    if (decoded.startsWith('//')) {
+      return `https:${decoded}`;
+    }
+
+    if (decoded.startsWith('/l/?')) {
+      const wrappedUrl = new URL(`https://duckduckgo.com${decoded}`).searchParams.get('uddg');
+      return wrappedUrl || null;
+    }
+
+    if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
+      return decoded;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function isCredibleNewsUrl(url) {
+  const hostname = getHostname(url);
+  return CREDIBLE_NEWS_DOMAINS.some(domain => hostname === domain || hostname.endsWith(`.${domain}`));
+}
+
+function getHostname(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
+function getSourceLabel(url) {
+  const hostname = getHostname(url);
+  return hostname
+    .split('.')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('.');
+}
+
+function stripHtml(value) {
+  return value.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
 }
 
 /**

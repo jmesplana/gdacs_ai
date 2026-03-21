@@ -244,6 +244,48 @@ const customStyles = `
   }
 `;
 
+function extractLocationFromDistrict(district) {
+  const props = district?.properties || district || {};
+  const countryFields = [
+    'NAME_0', 'ADM0_EN', 'COUNTRY', 'Country', 'country',
+    'admin0Name', 'ADM0_NAME', 'ADMIN0', 'name_0'
+  ];
+  const regionFields = [
+    'NAME_1', 'ADM1_EN', 'REGION', 'Region', 'region',
+    'admin1Name', 'ADM1_NAME', 'ADMIN1', 'name_1'
+  ];
+
+  let country = district?.country || null;
+  let region = district?.region || null;
+
+  if (!country) {
+    for (const field of countryFields) {
+      if (props[field]) {
+        country = props[field];
+        break;
+      }
+    }
+  }
+
+  if (!region) {
+    for (const field of regionFields) {
+      if (props[field]) {
+        region = props[field];
+        break;
+      }
+    }
+  }
+
+  if (!country && props.name) {
+    const parts = props.name.split(',');
+    if (parts.length > 1) {
+      country = parts[parts.length - 1].trim();
+    }
+  }
+
+  return { country, region };
+}
+
 const STATUS_PILL_STYLES = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -1136,13 +1178,20 @@ const MapComponent = ({
     // Open the drawer immediately to show loading state
     setShowLogisticsDrawer(true);
 
+    const locationContext = districts && districts.length > 0
+      ? extractLocationFromDistrict(districts[0])
+      : null;
+
     // Perform assessment with nearby disasters only
     const result = await assessLogistics(
       osmData,
       nearbyDisasters,
       facilities,
       nearbyAcledEvents,
-      { weatherData: logisticsWeatherData } // Options - can be extended for route analysis
+      {
+        weatherData: logisticsWeatherData,
+        locationContext
+      }
     );
 
     if (result) {

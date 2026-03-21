@@ -113,10 +113,14 @@ export default function Home() {
 
   // Persist operation type to localStorage
   useEffect(() => {
-    if (operationType) {
-      localStorage.setItem('gdacs_operation_type', operationType);
-    } else {
-      localStorage.removeItem('gdacs_operation_type');
+    try {
+      if (typeof operationType === 'string' && operationType) {
+        localStorage.setItem('gdacs_operation_type', operationType);
+      } else {
+        localStorage.removeItem('gdacs_operation_type');
+      }
+    } catch (error) {
+      console.warn('Unable to persist operation type to localStorage:', error);
     }
   }, [operationType]);
 

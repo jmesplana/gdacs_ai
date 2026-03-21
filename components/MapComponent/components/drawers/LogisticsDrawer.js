@@ -41,6 +41,7 @@ const LogisticsDrawer = ({
     fuelAccess: true,
     airAccess: true,
     security: true,
+    breakingDevelopments: true,
     recommendations: true,
     alternativeRoutes: false
   });
@@ -97,6 +98,12 @@ const LogisticsDrawer = ({
                   onToggle={() => toggleSection('security')}
                 />
               )}
+
+              <BreakingDevelopmentsSection
+                data={data.breakingDevelopments}
+                expanded={expandedSections.breakingDevelopments}
+                onToggle={() => toggleSection('breakingDevelopments')}
+              />
 
               <RecommendationsSection
                 data={data.recommendations}
@@ -400,6 +407,50 @@ const SecuritySection = ({ data, expanded, onToggle }) => (
   </CollapsibleSection>
 );
 
+const BreakingDevelopmentsSection = ({ data = [], expanded, onToggle }) => (
+  <CollapsibleSection title="Breaking Developments" expanded={expanded} onToggle={onToggle}>
+    <div className={styles.sectionContent}>
+      {data.length === 0 ? (
+        <p className={styles.summaryTextNeutral}>
+          No recent logistics-relevant items were found from the approved news outlet list.
+        </p>
+      ) : (
+        <div className={styles.newsList}>
+          {data.map((item, idx) => (
+            <article key={`${item.url}-${idx}`} className={styles.newsCard}>
+              <div className={styles.newsMetaRow}>
+                <span className={styles.newsSource}>{item.source}</span>
+                {item.publishedAt && (
+                  <span className={styles.newsDate}>{item.publishedAt}</span>
+                )}
+              </div>
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.newsTitle}
+              >
+                {item.title}
+              </a>
+              {item.snippet && (
+                <p className={styles.newsSnippet}>{item.snippet}</p>
+              )}
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.newsLink}
+              >
+                Open source
+              </a>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  </CollapsibleSection>
+);
+
 // Recommendations Section
 const renderRecommendationItem = (item) => {
   if (typeof item === 'string') {
@@ -492,6 +543,7 @@ const MetadataSection = ({ data }) => {
     if (quality.disasterData) parts.push(`Disasters: ${quality.disasterData}`);
     if (quality.securityData) parts.push(`Security: ${quality.securityData}`);
     if (quality.weatherData) parts.push(`Weather: ${quality.weatherData}`);
+    if (quality.newsData) parts.push(`News: ${quality.newsData}`);
 
     return parts.join(', ') || 'N/A';
   };
