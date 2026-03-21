@@ -319,52 +319,71 @@ export default async function handler(req, res) {
       console.warn("JSON API fetch failed:", jsonResponse.reason?.message);
     }
 
-    const mergedEvents = primaryEvents.map(primaryEvent => {
-      const jsonData = jsonEventsMap.get(normalizeId(primaryEvent.eventId));
+    const capEventsMap = new Map(
+      primaryEvents
+        .map(event => [normalizeId(event.eventId), event])
+        .filter(([eventId]) => Boolean(eventId))
+    );
 
-      if (jsonData) {
-        return {
+    const mergedEvents = [];
+
+    // Prefer JSON API events as the primary map source because they carry geometry URLs
+    // needed for cyclone tracks, shakemaps, and other impact-zone overlays.
+    jsonEventsMap.forEach((jsonData, eventId) => {
+      const primaryEvent = capEventsMap.get(eventId);
+
+      if (primaryEvent) {
+        mergedEvents.push({
+          ...jsonData,
           ...primaryEvent,
+          latitude: Number.isFinite(primaryEvent.latitude) ? primaryEvent.latitude : jsonData.latitude,
+          longitude: Number.isFinite(primaryEvent.longitude) ? primaryEvent.longitude : jsonData.longitude,
+          eventId: primaryEvent.eventId || jsonData.eventId,
+          episodeId: primaryEvent.episodeId || jsonData.episodeId,
+          title: primaryEvent.title || jsonData.title,
+          description: primaryEvent.description || jsonData.description,
+          pubDate: primaryEvent.pubDate || jsonData.fromDate,
+          lastModified: jsonData.lastModified || primaryEvent.lastModified || primaryEvent.pubDate,
+          link: primaryEvent.link || jsonData.reportUrl || '',
+          webUrl: primaryEvent.link || jsonData.reportUrl || '',
           geometryUrl: jsonData.geometryUrl,
           detailsUrl: jsonData.detailsUrl,
           reportUrl: jsonData.reportUrl,
-          episodeId: primaryEvent.episodeId || jsonData.episodeId,
-          eventName: jsonData.eventName,
-          glide: jsonData.glide,
+          eventName: jsonData.eventName || primaryEvent.eventName || '',
+          glide: jsonData.glide || '',
           affectedCountries: jsonData.affectedCountries,
           alertScore: jsonData.alertScore,
           isCurrent: jsonData.isCurrent,
           fromDate: jsonData.fromDate,
           toDate: jsonData.toDate,
-          lastModified: jsonData.lastModified,
           severityData: jsonData.severityData,
           enriched: true,
           dataSources: [primaryEvent.source, 'json_api']
-        };
+        });
       } else {
-        return {
-          ...primaryEvent,
-          enriched: false,
-          dataSources: [primaryEvent.source]
-        };
+        mergedEvents.push({
+          ...jsonData,
+          pubDate: jsonData.fromDate,
+          link: jsonData.reportUrl || '',
+          webUrl: jsonData.reportUrl || '',
+          enriched: true,
+          dataSources: ['json_api']
+        });
       }
     });
 
-    if (primarySource !== 'cap') {
-      jsonEventsMap.forEach((jsonData, eventId) => {
-        const existsInPrimary = primaryEvents.some(e => normalizeId(e.eventId) === eventId);
-        if (!existsInPrimary) {
-          mergedEvents.push({
-            ...jsonData,
-            pubDate: jsonData.fromDate,
-            link: jsonData.reportUrl || '',
-            webUrl: jsonData.reportUrl || '',
-            enriched: true,
-            dataSources: ['json_api']
-          });
-        }
-      });
-    }
+    primaryEvents.forEach(primaryEvent => {
+      const eventId = normalizeId(primaryEvent.eventId);
+      const existsInMerged = eventId && jsonEventsMap.has(eventId);
+
+      if (!existsInMerged) {
+        mergedEvents.push({
+          ...primaryEvent,
+          enriched: false,
+          dataSources: [primaryEvent.source]
+        });
+      }
+    });
 
     // Transform to final output format matching existing schema
     const processedDisasters = mergedEvents.map(event => ({
@@ -421,6 +440,7 @@ export default async function handler(req, res) {
     console.log(`Processed ${processedDisasters.length} disasters (${primaryEvents.length} from ${primarySource}, ${jsonEventsMap.size} from JSON API)`);
     console.log(`Enriched events: ${processedDisasters.filter(e => e.enriched).length}/${processedDisasters.length}`);
     console.log(`Events with coordinates: ${eventsWithCoordinates}/${processedDisasters.length}`);
+    console.log(`Events with geometry URL: ${processedDisasters.filter(e => Boolean(e.geometryUrl)).length}/${processedDisasters.length}`);
 
     // Return the merged disaster data
     res.status(200).json(processedDisasters);
