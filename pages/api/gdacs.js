@@ -155,6 +155,18 @@ function normalizeCapEventType(rawValue, fallbackText = '') {
   return rawValue || '';
 }
 
+function buildGdacsReportUrl(eventType, eventId, episodeId) {
+  if (!eventType || !eventId || !episodeId) return '';
+
+  const params = new URLSearchParams({
+    eventtype: String(eventType),
+    eventid: String(eventId),
+    episodeid: String(episodeId)
+  });
+
+  return `https://www.gdacs.org/report.aspx?${params.toString()}`;
+}
+
 function parsePrimaryFeedItems(xmlData, sourceLabel) {
   const root = xmlData.rss?.channel?.[0];
   const items = root?.item || [];
@@ -344,8 +356,8 @@ export default async function handler(req, res) {
           description: primaryEvent.description || jsonData.description,
           pubDate: primaryEvent.pubDate || jsonData.fromDate,
           lastModified: jsonData.lastModified || primaryEvent.lastModified || primaryEvent.pubDate,
-          link: primaryEvent.link || jsonData.reportUrl || '',
-          webUrl: primaryEvent.link || jsonData.reportUrl || '',
+          link: jsonData.reportUrl || primaryEvent.link || '',
+          webUrl: jsonData.reportUrl || primaryEvent.link || '',
           geometryUrl: jsonData.geometryUrl,
           detailsUrl: jsonData.detailsUrl,
           reportUrl: jsonData.reportUrl,
@@ -387,12 +399,13 @@ export default async function handler(req, res) {
 
     // Transform to final output format matching existing schema
     const processedDisasters = mergedEvents.map(event => ({
+      reportPageUrl: buildGdacsReportUrl(event.eventType, event.eventId, event.episodeId),
       title: event.title,
       description: event.description,
       pubDate: event.pubDate,
       lastModified: event.lastModified || event.pubDate,
-      link: event.link || event.reportUrl || '',
-      webUrl: event.link || event.reportUrl || '',
+      link: buildGdacsReportUrl(event.eventType, event.eventId, event.episodeId) || event.reportUrl || event.webUrl || event.link || '',
+      webUrl: buildGdacsReportUrl(event.eventType, event.eventId, event.episodeId) || event.reportUrl || event.webUrl || event.link || '',
       latitude: event.latitude,
       longitude: event.longitude,
       alertLevel: event.alertLevel,
