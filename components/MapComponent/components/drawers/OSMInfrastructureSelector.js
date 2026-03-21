@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 /**
  * OSM Infrastructure Selector Component
@@ -35,14 +35,56 @@ export default function OSMInfrastructureSelector({
   const [selectedDistricts, setSelectedDistricts] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [activeRequest, setActiveRequest] = useState(null);
+  const [requestStartedAt, setRequestStartedAt] = useState(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [lastCompletedLoad, setLastCompletedLoad] = useState(null);
 
   useEffect(() => {
     if (!osmLoading && activeRequest) {
+      const loadedBreakdown = activeRequest.categoryIds.map(categoryId => {
+        const category = INFRASTRUCTURE_CATEGORIES.find(item => item.id === categoryId);
+        const featureCount = osmStats?.byLayer?.[categoryId] || 0;
+        return {
+          id: categoryId,
+          name: category?.name || categoryId,
+          featureCount
+        };
+      });
+
+      setLastCompletedLoad({
+        districtCount: activeRequest.districtCount,
+        categoryCount: activeRequest.categoryCount,
+        elapsedSeconds,
+        loadedBreakdown,
+        totalFeatures: loadedBreakdown.reduce((sum, item) => sum + item.featureCount, 0),
+        completedAt: new Date().toISOString()
+      });
+
       setSelectedDistricts([]);
       setSelectedCategories([]);
       setActiveRequest(null);
+      setRequestStartedAt(null);
+      setElapsedSeconds(0);
     }
-  }, [osmLoading, activeRequest]);
+  }, [osmLoading, activeRequest, osmStats, elapsedSeconds]);
+
+  useEffect(() => {
+    if (!osmLoading || !requestStartedAt) return undefined;
+
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.max(1, Math.floor((Date.now() - requestStartedAt) / 1000)));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [osmLoading, requestStartedAt]);
+
+  const estimatedTimeLabel = useMemo(() => {
+    if (!activeRequest) return 'Usually 10-60 seconds depending on district size and selected layers.';
+    if (activeRequest.districtCount >= 10 || activeRequest.categoryCount >= 5) {
+      return 'This is a larger OSM request. Wait time can reach 30-60 seconds.';
+    }
+    return 'Most OSM requests complete in around 10-30 seconds.';
+  }, [activeRequest]);
 
   // No districts uploaded yet
   if (!districts || districts.length === 0) {
@@ -89,9 +131,13 @@ export default function OSMInfrastructureSelector({
     setActiveRequest({
       districtCount: selectedDistricts.length,
       categoryCount: selectedCategories.length,
+      categoryIds: selectedCategories,
       categoryNames: selectedCategories
         .map(categoryId => INFRASTRUCTURE_CATEGORIES.find(category => category.id === categoryId)?.name || categoryId)
     });
+    setLastCompletedLoad(null);
+    setRequestStartedAt(Date.now());
+    setElapsedSeconds(0);
 
     if (onLoadOSM) {
       console.log('✅ Calling onLoadOSM callback...');
@@ -125,25 +171,84 @@ export default function OSMInfrastructureSelector({
       {osmLoading && (
         <div style={{
           marginBottom: '16px',
-          padding: '14px',
-          borderRadius: '8px',
-          border: '1px solid #f59e0b',
-          backgroundColor: '#fffbeb',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)'
+          padding: '16px',
+          borderRadius: '10px',
+          border: '1px solid rgba(255, 107, 53, 0.28)',
+          background: 'linear-gradient(135deg, rgba(255, 247, 237, 0.98) 0%, rgba(255, 237, 213, 0.98) 100%)',
+          boxShadow: '0 8px 20px rgba(15, 23, 42, 0.08)'
         }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#92400e', marginBottom: '4px' }}>
-            Loading OpenStreetMap infrastructure...
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: '#9a3412' }}>
+              Loading OpenStreetMap infrastructure
+            </div>
+            <div style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              color: '#1B3A5C',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              border: '1px solid rgba(26, 54, 93, 0.12)',
+              borderRadius: '999px',
+              padding: '5px 10px'
+            }}>
+              {elapsedSeconds > 0 ? `${elapsedSeconds}s elapsed` : 'Starting request...'}
+            </div>
           </div>
-          <div style={{ fontSize: '12px', color: '#78350f', lineHeight: 1.5 }}>
+          <div style={{ fontSize: '13px', color: '#7c2d12', lineHeight: 1.55 }}>
             {activeRequest
               ? `Fetching ${activeRequest.categoryCount} infrastructure ${activeRequest.categoryCount === 1 ? 'type' : 'types'} for ${activeRequest.districtCount} ${activeRequest.districtCount === 1 ? 'district' : 'districts'}.`
               : 'Fetching the selected infrastructure layers for the selected districts.'}
           </div>
           {activeRequest?.categoryNames?.length > 0 && (
-            <div style={{ marginTop: '8px', fontSize: '11px', color: '#92400e' }}>
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#9a3412', fontWeight: 600 }}>
               {activeRequest.categoryNames.join(', ')}
             </div>
           )}
+          <div style={{ marginTop: '10px', fontSize: '12px', color: '#7c2d12' }}>
+            {estimatedTimeLabel}
+          </div>
+          <div style={{
+            marginTop: '12px',
+            height: '8px',
+            borderRadius: '999px',
+            overflow: 'hidden',
+            backgroundColor: 'rgba(255,255,255,0.7)',
+            border: '1px solid rgba(255, 107, 53, 0.14)'
+          }}>
+            <div style={{
+              width: '35%',
+              height: '100%',
+              borderRadius: '999px',
+              background: 'linear-gradient(90deg, var(--aidstack-orange) 0%, #ff9a5f 100%)',
+              animation: 'osm-loading-slide 1.4s ease-in-out infinite'
+            }} />
+          </div>
+        </div>
+      )}
+
+      {!osmLoading && lastCompletedLoad && (
+        <div style={{
+          marginBottom: '16px',
+          padding: '16px',
+          borderRadius: '10px',
+          border: '1px solid rgba(16, 185, 129, 0.22)',
+          background: 'linear-gradient(135deg, rgba(236, 253, 245, 0.98) 0%, rgba(209, 250, 229, 0.98) 100%)',
+          boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)'
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: '#065f46', marginBottom: '6px' }}>
+            OSM infrastructure loaded
+          </div>
+          <div style={{ fontSize: '13px', color: '#065f46', lineHeight: 1.55 }}>
+            Loaded {lastCompletedLoad.totalFeatures.toLocaleString()} features across {lastCompletedLoad.categoryCount} {lastCompletedLoad.categoryCount === 1 ? 'category' : 'categories'} for {lastCompletedLoad.districtCount} {lastCompletedLoad.districtCount === 1 ? 'district' : 'districts'}.
+          </div>
+          <div style={{ marginTop: '8px', fontSize: '12px', color: '#047857' }}>
+            Completed in {Math.max(lastCompletedLoad.elapsedSeconds, 1)}s
+          </div>
+          <div style={{ marginTop: '8px', fontSize: '11px', color: '#047857' }}>
+            {lastCompletedLoad.loadedBreakdown
+              .filter(item => item.featureCount > 0)
+              .map(item => `${item.name}: ${item.featureCount}`)
+              .join(' | ') || 'Data loaded. Use the controls below to show or hide layers.'}
+          </div>
         </div>
       )}
 
@@ -529,6 +634,14 @@ export default function OSMInfrastructureSelector({
           })}
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes osm-loading-slide {
+          0% { transform: translateX(-100%); opacity: 0.5; }
+          50% { transform: translateX(120%); opacity: 1; }
+          100% { transform: translateX(260%); opacity: 0.5; }
+        }
+      `}</style>
     </div>
   );
 }

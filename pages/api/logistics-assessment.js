@@ -82,10 +82,19 @@ async function handler(req, res) {
     }
 
     const requestedLayers = osmData.metadata?.requestedLayers || [];
+    const loadedLayerCounts = osmData.metadata?.byLayer || {};
     const assessmentCoverage = {
-      roads: requestedLayers.includes('roads') || requestedLayers.includes('bridges'),
-      fuel: requestedLayers.includes('fuel'),
-      air: requestedLayers.includes('airports')
+      roads:
+        requestedLayers.includes('roads') ||
+        requestedLayers.includes('bridges') ||
+        (loadedLayerCounts.roads || 0) > 0 ||
+        (loadedLayerCounts.bridges || 0) > 0,
+      fuel:
+        requestedLayers.includes('fuel') ||
+        (loadedLayerCounts.fuel || 0) > 0,
+      air:
+        requestedLayers.includes('airports') ||
+        (loadedLayerCounts.airports || 0) > 0
     };
 
     // Perform core logistics analysis
@@ -131,14 +140,14 @@ async function handler(req, res) {
     // Transform fuel access data
     const fuelAccess = {
       ...fuelAccessRaw,
-      totalStations: fuelAccessRaw.totalStations || 0,
-      operationalCount: fuelAccessRaw.operationalStations?.length || 0,
-      operationalPercentage: fuelAccessRaw.totalStations > 0
-        ? Math.round((fuelAccessRaw.operationalStations?.length || 0) / fuelAccessRaw.totalStations * 100)
+      totalStations: fuelAccessRaw.totalFuelStations || 0,
+      operationalCount: fuelAccessRaw.accessibleStations || 0,
+      operationalPercentage: fuelAccessRaw.totalFuelStations > 0
+        ? Math.round((fuelAccessRaw.accessibleStations || 0) / fuelAccessRaw.totalFuelStations * 100)
         : 0,
-      atRiskCount: fuelAccessRaw.atRiskStations?.length || 0,
-      atRiskPercentage: fuelAccessRaw.totalStations > 0
-        ? Math.round((fuelAccessRaw.atRiskStations?.length || 0) / fuelAccessRaw.totalStations * 100)
+      atRiskCount: fuelAccessRaw.compromisedStations || 0,
+      atRiskPercentage: fuelAccessRaw.totalFuelStations > 0
+        ? Math.round((fuelAccessRaw.compromisedStations || 0) / fuelAccessRaw.totalFuelStations * 100)
         : 0
       ,
       assessmentStatus: assessmentCoverage.fuel ? 'ASSESSED' : 'NOT_LOADED'
@@ -148,13 +157,13 @@ async function handler(req, res) {
     const airAccess = {
       ...airAccessRaw,
       totalAirports: airAccessRaw.totalAirports || 0,
-      operationalCount: airAccessRaw.operationalAirports?.length || 0,
+      operationalCount: airAccessRaw.operationalAirports || 0,
       operationalPercentage: airAccessRaw.totalAirports > 0
-        ? Math.round((airAccessRaw.operationalAirports?.length || 0) / airAccessRaw.totalAirports * 100)
+        ? Math.round((airAccessRaw.operationalAirports || 0) / airAccessRaw.totalAirports * 100)
         : 0,
-      atRiskCount: airAccessRaw.atRiskAirports?.length || 0,
+      atRiskCount: airAccessRaw.compromisedAirports || 0,
       atRiskPercentage: airAccessRaw.totalAirports > 0
-        ? Math.round((airAccessRaw.atRiskAirports?.length || 0) / airAccessRaw.totalAirports * 100)
+        ? Math.round((airAccessRaw.compromisedAirports || 0) / airAccessRaw.totalAirports * 100)
         : 0
       ,
       assessmentStatus: assessmentCoverage.air ? 'ASSESSED' : 'NOT_LOADED'
@@ -173,7 +182,9 @@ async function handler(req, res) {
     }
 
     // Calculate overall access score
-    const securityAnalysis = calculateSecurityScore(acledEvents);
+    const securityAnalysis = acledEvents.length > 0
+      ? calculateSecurityScore(acledEvents)
+      : null;
     const accessScoreResult = calculateAccessScoreWithSecurity(
       roadNetworkRaw,
       fuelAccessRaw,

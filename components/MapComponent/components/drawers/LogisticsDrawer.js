@@ -401,6 +401,36 @@ const SecuritySection = ({ data, expanded, onToggle }) => (
 );
 
 // Recommendations Section
+const renderRecommendationItem = (item) => {
+  if (typeof item === 'string') {
+    return item;
+  }
+
+  if (item && typeof item === 'object') {
+    const action = typeof item.action === 'string' ? item.action : null;
+    const details = typeof item.details === 'string' ? item.details : null;
+
+    if (action && details) {
+      return (
+        <>
+          <strong>{action}</strong>
+          <div style={{ marginTop: '4px', color: '#475569' }}>{details}</div>
+        </>
+      );
+    }
+
+    if (action) {
+      return action;
+    }
+
+    if (details) {
+      return details;
+    }
+  }
+
+  return JSON.stringify(item);
+};
+
 const RecommendationsSection = ({ data, expanded, onToggle }) => (
   <CollapsibleSection title="AI Recommendations" expanded={expanded} onToggle={onToggle}>
     <div className={styles.sectionContent}>
@@ -411,7 +441,7 @@ const RecommendationsSection = ({ data, expanded, onToggle }) => (
           <h4 className={styles.categoryTitle}>{category}</h4>
           <ul className={styles.recommendationList}>
             {items.map((item, idx) => (
-              <li key={idx}>{item}</li>
+              <li key={idx}>{renderRecommendationItem(item)}</li>
             ))}
           </ul>
         </div>

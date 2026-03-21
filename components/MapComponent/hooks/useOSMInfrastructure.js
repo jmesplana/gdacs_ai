@@ -5,6 +5,57 @@
 
 import { useState, useCallback, useEffect } from 'react';
 
+function areBoundariesEqual(boundaryA, boundaryB) {
+  if (!boundaryA || !boundaryB) return false;
+
+  try {
+    return JSON.stringify(boundaryA) === JSON.stringify(boundaryB);
+  } catch (_) {
+    return false;
+  }
+}
+
+function mergeOsmData(existingData, incomingData) {
+  if (!existingData) return incomingData;
+  if (!incomingData) return existingData;
+
+  const combinedFeatures = [...(existingData.features || [])];
+  const seenKeys = new Set(
+    combinedFeatures.map(feature => `${feature.properties?.category || 'unknown'}:${feature.properties?.id || feature.properties?.osm_id || feature.id || JSON.stringify(feature.geometry)}`)
+  );
+
+  (incomingData.features || []).forEach(feature => {
+    const featureKey = `${feature.properties?.category || 'unknown'}:${feature.properties?.id || feature.properties?.osm_id || feature.id || JSON.stringify(feature.geometry)}`;
+    if (!seenKeys.has(featureKey)) {
+      seenKeys.add(featureKey);
+      combinedFeatures.push(feature);
+    }
+  });
+
+  const existingLayers = existingData.metadata?.byLayer || {};
+  const incomingLayers = incomingData.metadata?.byLayer || {};
+  const existingRequestedLayers = existingData.metadata?.requestedLayers || [];
+  const incomingRequestedLayers = incomingData.metadata?.requestedLayers || [];
+
+  return {
+    ...incomingData,
+    features: combinedFeatures,
+    metadata: {
+      ...(existingData.metadata || {}),
+      ...(incomingData.metadata || {}),
+      totalFeatures: combinedFeatures.length,
+      byLayer: {
+        ...existingLayers,
+        ...incomingLayers
+      },
+      requestedLayers: Array.from(new Set([
+        ...existingRequestedLayers,
+        ...incomingRequestedLayers
+      ]))
+    }
+  };
+}
+
 export function useOSMInfrastructure() {
   const [osmData, setOsmData] = useState(null);
   const [osmLoading, setOsmLoading] = useState(false);
@@ -186,13 +237,24 @@ export function useOSMInfrastructure() {
           tags: f.properties.tags
         })));
 
-        setOsmData(result.data);
-        setOsmStats(result.data.metadata.byLayer);
-        setOsmTimestamp(result.data.metadata.timestamp);
+        const shouldMergeWithExisting =
+          selectedCategories &&
+          Array.isArray(selectedCategories) &&
+          selectedCategories.length > 0 &&
+          osmData &&
+          areBoundariesEqual(osmBoundary, cleanBoundary);
+
+        const nextData = shouldMergeWithExisting
+          ? mergeOsmData(osmData, result.data)
+          : result.data;
+
+        setOsmData(nextData);
+        setOsmStats(nextData.metadata.byLayer);
+        setOsmTimestamp(nextData.metadata.timestamp);
         setOsmBoundary(cleanBoundary); // Use sanitized boundary
 
         console.log('💾 OSM state updated');
-        return result.data;
+        return nextData;
       } else {
         setOsmError(result.error?.message || 'Unknown error');
         console.error('❌ OSM fetch error:', result.error);
@@ -219,7 +281,7 @@ export function useOSMInfrastructure() {
       console.log('🏁 Fetch completed, setting loading to false');
       setOsmLoading(false);
     }
-  }, [osmLayers]);
+  }, [osmLayers, osmData, osmBoundary]);
 
   // Refresh with current boundary
   const refreshOSM = useCallback((forceRefresh = false) => {

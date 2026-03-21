@@ -1360,9 +1360,6 @@ const MapComponent = ({
             categories: selectedCategories
           });
 
-          // Clear old cached data first to prevent stale data from showing
-          clearOSM();
-
           // Calculate combined boundary from selected districts
           const allCoords = [];
           selectedDistricts.forEach(district => {
@@ -1399,7 +1396,8 @@ const MapComponent = ({
             console.log('✅ Selected categories:', selectedCategories);
             console.log('✅ Boundary:', boundary);
 
-            // Fetch OSM data for selected categories only
+            // Keep previously loaded categories for the same boundary and only
+            // replace data when the selected geography changes.
             fetchOSMInfrastructure(boundary, selectedCategories);
           } else {
             console.error('❌ No coordinates collected from districts!');
