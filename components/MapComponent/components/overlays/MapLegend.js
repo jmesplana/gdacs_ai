@@ -12,7 +12,8 @@ const MapLegend = ({
   hasAcledData = false,
   hasDistricts = false,
   showDistricts,
-  setShowDistricts
+  setShowDistricts,
+  gdacsDiagnostics = null
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   return (
@@ -415,6 +416,50 @@ const MapLegend = ({
             </div>
             <span style={{ fontSize: '12px', color: '#666' }}>No impact detected</span>
           </div>
+
+          {gdacsDiagnostics && (
+            <>
+              <div style={{
+                marginTop: '15px',
+                marginBottom: '10px',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                color: '#424242',
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: '#f5f5f5',
+                padding: '6px 10px',
+                borderRadius: '4px'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M12 16v-4"></path>
+                  <path d="M12 8h.01"></path>
+                </svg>
+                GDACS SOURCE DIAGNOSTICS
+              </div>
+
+              <div style={{
+                backgroundColor: '#f8fafc',
+                border: '1px solid #dbe3ee',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                fontSize: '12px',
+                color: '#475569',
+                lineHeight: '1.7'
+              }}>
+                <div><strong>Fetched:</strong> {gdacsDiagnostics.fetchedTotal} events</div>
+                <div><strong>After filter:</strong> {gdacsDiagnostics.filteredTotal} events ({gdacsDiagnostics.dateFilter})</div>
+                <div><strong>{gdacsDiagnostics.primarySourceLabel || 'Primary feed'} only:</strong> {gdacsDiagnostics.primaryOnly}</div>
+                <div><strong>JSON only:</strong> {gdacsDiagnostics.jsonOnly}</div>
+                <div><strong>{gdacsDiagnostics.primarySourceLabel || 'Primary feed'} + JSON enriched:</strong> {gdacsDiagnostics.enriched}</div>
+                <div><strong>With geometry URL:</strong> {gdacsDiagnostics.withGeometryUrl}</div>
+                <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b' }}>
+                  If GDACS website totals differ, compare this with `/api/gdacs` first.
+                </div>
+              </div>
+            </>
+          )}
 
           <div style={{
             display: 'flex',

@@ -4,11 +4,13 @@ import L from 'leaflet';
 import 'leaflet-polylinedecorator';
 import { getDisasterInfo, getAlertColor } from '../utils/disasterHelpers';
 
+const geometryCacheStore = new Map(); // Cache fetched geometries across component remounts
+const recentGeometryFailures = new Map(); // Track failed requests to avoid immediate retries
+
 // Component to add disaster markers directly to the map
 const DisasterMarkers = ({ disasters, showImpactZones }) => {
   const map = useMap();
   const clusterGroupRef = useRef(null);
-  const geometryCacheRef = useRef(new Map()); // Cache for fetched geometries: key = eventid_episodeid, value = {geojson, timestamp, failed}
   const geometryLayersRef = useRef(new Map()); // Track geometry layers for cleanup
 
   // Helper function to fetch geometry from API
@@ -16,13 +18,18 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
     const cacheKey = `${disaster.eventId}_${disaster.episodeId}`;
 
     // Check in-memory cache first
-    const cached = geometryCacheRef.current.get(cacheKey);
+    const cached = geometryCacheStore.get(cacheKey);
     if (cached) {
       // Return cached data if it's less than 1 hour old
       const oneHour = 60 * 60 * 1000;
       if (Date.now() - cached.timestamp < oneHour) {
         return cached.failed ? null : cached.geojson;
       }
+    }
+
+    const recentFailure = recentGeometryFailures.get(cacheKey);
+    if (recentFailure && (Date.now() - recentFailure) < (30 * 60 * 1000)) {
+      return null;
     }
 
     // Check localStorage cache
@@ -35,7 +42,7 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
         if (Date.now() - parsed.timestamp < oneHour) {
           console.log(`Using localStorage cache for ${cacheKey}`);
           // Store in memory cache for faster access
-          geometryCacheRef.current.set(cacheKey, parsed);
+          geometryCacheStore.set(cacheKey, parsed);
           return parsed.failed ? null : parsed.geojson;
         }
       }
@@ -64,7 +71,8 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
 
       if (!geojson.features || geojson.features.length === 0) {
         console.log(`No geometry features found for ${eventtype} event ${eventid}`);
-        geometryCacheRef.current.set(cacheKey, { failed: true, timestamp: Date.now() });
+        geometryCacheStore.set(cacheKey, { failed: true, timestamp: Date.now() });
+        recentGeometryFailures.set(cacheKey, Date.now());
         return null;
       }
 
@@ -72,7 +80,8 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
 
       // Cache the result in memory
       const cacheData = { geojson, timestamp: Date.now() };
-      geometryCacheRef.current.set(cacheKey, cacheData);
+      geometryCacheStore.set(cacheKey, cacheData);
+      recentGeometryFailures.delete(cacheKey);
 
       // Also cache in localStorage
       try {
@@ -88,7 +97,8 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
 
       // Cache the failure to avoid repeated requests
       const failureData = { failed: true, timestamp: Date.now() };
-      geometryCacheRef.current.set(cacheKey, failureData);
+      geometryCacheStore.set(cacheKey, failureData);
+      recentGeometryFailures.set(cacheKey, Date.now());
 
       // Also cache failure in localStorage
       try {
@@ -265,15 +275,18 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
       const disastersWithPolygons = disasters.filter(d => d.polygon && d.polygon.length > 2);
       console.log(`Found ${disastersWithPolygons.length} disasters with polygon data out of ${disasters.length} total`);
 
-      // Create cluster group if it doesn't exist
-      if (!clusterGroupRef.current) {
-        clusterGroupRef.current = L.markerClusterGroup({
-          chunkedLoading: true,
-          spiderfyOnMaxZoom: true,
-          showCoverageOnHover: true,
-          zoomToBoundsOnClick: true,
-          maxClusterRadius: 50,
-          iconCreateFunction: (cluster) => {
+      // Always rebuild the cluster group from scratch on disaster-list changes
+      if (clusterGroupRef.current && map.hasLayer(clusterGroupRef.current)) {
+        map.removeLayer(clusterGroupRef.current);
+      }
+
+      clusterGroupRef.current = L.markerClusterGroup({
+        chunkedLoading: false,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: true,
+        zoomToBoundsOnClick: true,
+        maxClusterRadius: 50,
+        iconCreateFunction: (cluster) => {
             // Custom icon for disaster clusters
             const childCount = cluster.getChildCount();
 
@@ -306,8 +319,8 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
             const fontSize = size === 'small' ? '13px' : size === 'medium' ? '15px' : '18px';
 
             // Create the cluster icon with warning symbol and count
-            return L.divIcon({
-              html: `<div style="
+          return L.divIcon({
+            html: `<div style="
                 background: ${bgColor};
                 width: ${dimension};
                 height: ${dimension};
@@ -329,16 +342,12 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
                 </svg>
                 <span style="font-size: ${fontSize}; line-height: 1;">${childCount}</span>
               </div>`,
-              className: 'disaster-cluster',
-              iconSize: L.point(parseInt(dimension), parseInt(dimension))
-            });
-          }
-        });
-        map.addLayer(clusterGroupRef.current);
-      } else {
-        // Clear previous markers from the cluster group
-        clusterGroupRef.current.clearLayers();
-      }
+            className: 'disaster-cluster',
+            iconSize: L.point(parseInt(dimension), parseInt(dimension))
+          });
+        }
+      });
+      map.addLayer(clusterGroupRef.current);
 
       disasters.forEach((disaster, index) => {
         if (disaster.latitude && disaster.longitude) {
@@ -450,7 +459,7 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
           // First, try to fetch and render GDACS geometry data (tracks, shakemaps, etc.)
           if (showImpactZones && disaster.geometryUrl) {
             const cacheKey = `${disaster.eventId}_${disaster.episodeId}`;
-            const cached = geometryCacheRef.current.get(cacheKey);
+            const cached = geometryCacheStore.get(cacheKey);
 
             if (cached && !cached.failed) {
               // Render cached geometry immediately

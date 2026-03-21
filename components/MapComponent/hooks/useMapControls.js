@@ -8,7 +8,7 @@ import { isFullscreenActive } from '../utils/mapHelpers';
 export const useMapControls = () => {
   // Visualization toggles
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [showImpactZones, setShowImpactZones] = useState(true);
+  const [showImpactZones, setShowImpactZones] = useState(false);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);

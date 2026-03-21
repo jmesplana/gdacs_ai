@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
 import { MapContainer, TileLayer, CircleMarker, Marker as ReactLeafletMarker, Popup, Tooltip, GeoJSON } from 'react-leaflet';
@@ -368,6 +368,7 @@ const ContextStatusBar = ({
 
 const MapComponent = ({
   disasters,
+  gdacsDiagnostics = null,
   facilities,
   impactedFacilities,
   impactStatistics,
@@ -1166,6 +1167,10 @@ const MapComponent = ({
   // Get current map layer configuration
   const currentLayer = MAP_LAYERS[currentMapLayer.toUpperCase()] || MAP_LAYERS.STREET;
   const filteredAcledCount = acledEnabled ? getFilteredAcledData().length : 0;
+  const visibleDisasters = useMemo(
+    () => (playbackEnabled ? filterByPlaybackDate(filteredDisasters, 'pubDate') : filteredDisasters),
+    [playbackEnabled, filterByPlaybackDate, filteredDisasters]
+  );
 
   // Check if any drawer is open
   const isAnyDrawerOpen = filterDrawerOpen || unifiedDrawerOpen || showChatDrawer;
@@ -1491,6 +1496,7 @@ const MapComponent = ({
           hasDistricts={districts && districts.length > 0}
           showDistricts={showDistricts}
           setShowDistricts={setShowDistricts}
+          gdacsDiagnostics={gdacsDiagnostics}
         />
       )}
 
@@ -1504,7 +1510,7 @@ const MapComponent = ({
       {/* Timeline Visualization */}
       {showTimeline && (
         <TimelineVisualization
-          disasters={disasters}
+          disasters={filteredDisasters}
           onTimeChange={handleTimelineChange}
         />
       )}
@@ -1938,11 +1944,12 @@ const MapComponent = ({
         })()}
 
         {/* Heatmap layer */}
-        {showHeatmap && <HeatmapLayer disasters={playbackEnabled ? filterByPlaybackDate(filteredDisasters, 'pubDate') : filteredDisasters} />}
+        {showHeatmap && <HeatmapLayer disasters={visibleDisasters} />}
 
         {/* Disaster markers */}
         <DisasterMarkers
-          disasters={playbackEnabled ? filterByPlaybackDate(filteredDisasters, 'pubDate') : filteredDisasters}
+          key={`disaster-markers-${visibleDisasters.length}-${visibleDisasters[0]?.eventId || 'none'}-${visibleDisasters[visibleDisasters.length - 1]?.eventId || 'none'}`}
+          disasters={visibleDisasters}
           showImpactZones={showImpactZones}
         />
 
@@ -2151,7 +2158,7 @@ const MapComponent = ({
           hasDistricts: districts && districts.length > 0,
           districts: districts && districts.length > 0 ? (() => {
             // Calculate risk levels for all districts
-            const districtRisks = calculateDistrictRisks(districts, filteredDisasters, getFilteredAcledData());
+            const districtRisks = calculateDistrictRisks(districts, visibleDisasters, getFilteredAcledData());
 
             // Count districts by risk level
             const riskCounts = {
@@ -2283,13 +2290,13 @@ const MapComponent = ({
       {/* Campaign Dashboard */}
       <CampaignDashboard
         facilities={facilities}
-        disasters={disasters}
+        disasters={visibleDisasters}
         impactedFacilities={impactedFacilities}
         acledData={getFilteredAcledData()} // Use filtered ACLED data
         acledEnabled={acledEnabled}
         districts={(() => {
           // Enrich districts with risk data before passing to dashboard
-          const districtRisks = calculateDistrictRisks(districts, filteredDisasters, getFilteredAcledData());
+          const districtRisks = calculateDistrictRisks(districts, visibleDisasters, getFilteredAcledData());
           return districts.map(district => {
             const risk = districtRisks[district.id] || { level: 'none', score: 0, eventCount: 0 };
             return {
@@ -2410,8 +2417,8 @@ const MapComponent = ({
         onClose={togglePlayback}
       />
 
-      {/* Empty state overlay — shown when no data is loaded and onboarding is complete */}
-      {facilities.length === 0 && disasters.length === 0 && !loading && (() => {
+      {/* Loading / empty state overlay */}
+      {facilities.length === 0 && disasters.length === 0 && (() => {
         try { return !!localStorage.getItem('gdacs_onboarding_done'); } catch (_) { return false; }
       })() && (
         <div style={{
@@ -2431,36 +2438,48 @@ const MapComponent = ({
             boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
             maxWidth: '320px'
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '12px' }}>🗺️</div>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>
+              {loading ? '⏳' : '🗺️'}
+            </div>
             <div style={{
               fontSize: '18px',
               fontWeight: 700,
               color: 'var(--aidstack-navy)',
               fontFamily: "'Space Grotesk', sans-serif",
               marginBottom: '8px'
-            }}>No data loaded yet</div>
+            }}>
+              {loading ? 'Loading live GDACS data' : 'No data loaded yet'}
+            </div>
             <div style={{
               fontSize: '13px',
               color: '#666',
               fontFamily: "'Inter', sans-serif",
               marginBottom: '20px',
               lineHeight: '1.5'
-            }}>Upload facility data or load live disasters to get started</div>
+            }}>
+              {loading
+                ? 'Fetching the latest disaster events from GDACS.'
+                : 'Upload facility data or load live disasters to get started'}
+            </div>
             <button
-              onClick={() => openUnifiedDrawer('facilities')}
+              onClick={() => {
+                if (!loading) {
+                  openUnifiedDrawer('facilities');
+                }
+              }}
               style={{
-                backgroundColor: 'var(--aidstack-orange)',
+                backgroundColor: loading ? '#cbd5e1' : 'var(--aidstack-orange)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
                 padding: '10px 24px',
                 fontSize: '14px',
                 fontWeight: 600,
-                cursor: 'pointer',
+                cursor: loading ? 'default' : 'pointer',
                 fontFamily: "'Inter', sans-serif"
               }}
             >
-              Get Started
+              {loading ? 'Loading…' : 'Get Started'}
             </button>
           </div>
         </div>

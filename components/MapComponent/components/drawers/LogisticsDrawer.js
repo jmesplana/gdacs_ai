@@ -18,6 +18,14 @@ const ProvenanceBadge = ({ label, tone = '#475569', background = '#f1f5f9' }) =>
   </span>
 );
 
+const confidenceCardStyle = {
+  marginBottom: '16px',
+  padding: '12px 14px',
+  borderRadius: '10px',
+  border: '1px solid #e2e8f0',
+  backgroundColor: '#f8fafc'
+};
+
 const LogisticsDrawer = ({
   isOpen,
   onClose,
@@ -161,6 +169,26 @@ const SummaryCard = ({ data }) => {
           {data.rating}
         </div>
       </div>
+      {data.metadata?.confidence && (
+        <div style={confidenceCardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+              Confidence: {data.metadata.confidence.level}
+            </div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>
+              {data.metadata.confidence.availableCount}/{data.metadata.confidence.totalCount} signals
+            </div>
+          </div>
+          <div style={{ fontSize: '12px', color: '#475569', lineHeight: 1.5 }}>
+            {data.metadata.confidence.summary}
+          </div>
+          {data.metadata.confidence.missingSignals?.length > 0 && (
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
+              Missing: {data.metadata.confidence.missingSignals.join(', ')}
+            </div>
+          )}
+        </div>
+      )}
       <p className={styles.summaryText}>{data.summary}</p>
     </div>
   );

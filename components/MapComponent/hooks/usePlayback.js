@@ -16,10 +16,23 @@ const usePlayback = (disasters = [], acledData = []) => {
 
   // Calculate date range from disasters and ACLED data
   useEffect(() => {
+    const disasterCount = disasters?.length || 0;
+    const acledCount = acledData?.length || 0;
+
     const allDates = [];
 
-    console.log('Playback: Processing disasters:', disasters?.length || 0);
-    console.log('Playback: Processing ACLED:', acledData?.length || 0);
+    console.log('Playback: Processing disasters:', disasterCount);
+    console.log('Playback: Processing ACLED:', acledCount);
+
+    // Initial app load often mounts playback before async data arrives.
+    // Treat that as a neutral empty state rather than a warning condition.
+    if (disasterCount === 0 && acledCount === 0) {
+      setDateRange({ minDate: null, maxDate: null });
+      if (!playbackEnabled) {
+        setCurrentDate(null);
+      }
+      return;
+    }
 
     // Log first disaster to see what fields are available
     if (disasters && disasters.length > 0) {
@@ -83,9 +96,9 @@ const usePlayback = (disasters = [], acledData = []) => {
         setCurrentDate(minDate.toISOString().split('T')[0]);
       }
     } else {
-      console.warn('Playback: No valid dates found in data!');
+      console.warn('Playback: No valid dates found in non-empty data set!');
     }
-  }, [disasters, acledData, currentDate]); // Added currentDate to dependencies, but with conditional check inside
+  }, [disasters, acledData, currentDate, playbackEnabled]); // Added currentDate to dependencies, but with conditional check inside
 
   // Auto-advance playback
   useEffect(() => {

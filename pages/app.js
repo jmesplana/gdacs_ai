@@ -37,6 +37,7 @@ const OperationalOutlook = dynamic(() => import('../components/OperationalOutloo
 export default function Home() {
   const [disasters, setDisasters] = useState([]);
   const [filteredDisasters, setFilteredDisasters] = useState([]);
+  const [gdacsDiagnostics, setGdacsDiagnostics] = useState(null);
   const [facilities, setFacilities] = useState([]);
   const [impactedFacilities, setImpactedFacilities] = useState([]);
   const [impactStatistics, setImpactStatistics] = useState(null);
@@ -53,7 +54,7 @@ export default function Home() {
   });
   const [activeTab, setActiveTab] = useState('map');
   const [dataSource, setDataSource] = useState('');
-  const [dateFilter, setDateFilter] = useState('30d'); // default to 30 days
+  const [dateFilter, setDateFilter] = useState('all'); // default to all fetched GDACS events
   const [fetchError, setFetchError] = useState(null);
   const [showHelp, setShowHelp] = useState(false); // Help panel visibility
   const [showChatDrawer, setShowChatDrawer] = useState(false); // Chat drawer visibility
@@ -256,7 +257,6 @@ export default function Home() {
   // Initialize with disaster data on mount
   useEffect(() => {
     fetchDisasterData();
-    setDateFilter('72h');
   }, []);
 
   // Fetch GDACS disaster data
@@ -294,9 +294,21 @@ export default function Home() {
           longitude: typeof d.longitude === 'string' ? parseFloat(d.longitude) : d.longitude,
         }));
 
+      const initiallyFilteredDisasters = filterDisastersByDate(dateFilter, processedData, false);
+
       setDisasters(processedData);
-      setFilteredDisasters(processedData);
+      setFilteredDisasters(initiallyFilteredDisasters);
       setDataSource(`Live GDACS data (${processedData.length} events)`);
+      const primarySourceLabel = processedData[0]?.primarySource === 'rss_fallback' ? 'RSS fallback' : 'CAP/RSS feed';
+      setGdacsDiagnostics({
+        fetchedTotal: processedData.length,
+        primarySourceLabel,
+        primaryOnly: processedData.filter(event => event.dataSources?.length === 1 && event.dataSources.includes(processedData[0]?.primarySource === 'rss_fallback' ? 'rss' : 'cap')).length,
+        jsonOnly: processedData.filter(event => event.dataSources?.length === 1 && event.dataSources.includes('json_api')).length,
+        enriched: processedData.filter(event => event.enriched).length,
+        withGeometryUrl: processedData.filter(event => Boolean(event.geometryUrl)).length,
+        lastFetchAt: new Date().toISOString()
+      });
 
       // Set last updated from most recent event modification date (when GDACS last updated any event)
       const sorted = [...processedData].sort((a, b) => {
@@ -317,17 +329,20 @@ export default function Home() {
   };
 
   // Filter disasters based on the selected date range
-  const filterDisastersByDate = (filter) => {
-    if (!disasters || disasters.length === 0) {
-      setFilteredDisasters([]);
-      return;
+  const filterDisastersByDate = (filter, sourceDisasters = disasters, updateState = true) => {
+    if (!sourceDisasters || sourceDisasters.length === 0) {
+      if (updateState) {
+        setFilteredDisasters([]);
+      }
+      return [];
     }
-    
-    // For testing, let's use all disasters to avoid filtering issues
+
     if (filter === 'all') {
       console.log('Setting all disasters without filtering');
-      setFilteredDisasters(disasters);
-      return;
+      if (updateState) {
+        setFilteredDisasters(sourceDisasters);
+      }
+      return sourceDisasters;
     }
     
     const now = new Date();
@@ -353,21 +368,25 @@ export default function Home() {
         cutoffDate = new Date(now.getTime() - 48 * 60 * 60 * 1000); // Default to 48h
     }
     
-    const filtered = disasters.filter(disaster => {
+    const filtered = sourceDisasters.filter(disaster => {
       const disasterDate = getDisasterTimelineDate(disaster);
       if (!disasterDate) return true;
       return disasterDate >= cutoffDate;
     });
     
-    console.log(`Filtered disasters from ${disasters.length} to ${filtered.length}`);
+    console.log(`Filtered disasters from ${sourceDisasters.length} to ${filtered.length}`);
     console.log('First few filtered disasters:', filtered.slice(0, 3).map(d => ({
       title: d.title,
       lat: d.latitude,
       lng: d.longitude,
       date: getDisasterTimelineDate(d)?.toISOString() || null
     })));
-    
-    setFilteredDisasters(filtered);
+
+    if (updateState) {
+      setFilteredDisasters(filtered);
+    }
+
+    return filtered;
   };
 
   // Handle clearing cached facility data
@@ -1760,6 +1779,11 @@ export default function Home() {
 
         <MapComponent
           disasters={filteredDisasters}
+          gdacsDiagnostics={gdacsDiagnostics ? {
+            ...gdacsDiagnostics,
+            filteredTotal: filteredDisasters.length,
+            dateFilter
+          } : null}
           facilities={facilities}
           impactedFacilities={impactedFacilities}
           impactStatistics={impactStatistics}

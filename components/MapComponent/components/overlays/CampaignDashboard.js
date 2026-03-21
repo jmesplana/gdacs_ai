@@ -12,6 +12,31 @@ const metricPillStyle = {
   padding: '4px 8px'
 };
 
+const computeDashboardConfidence = ({ districts, facilities, disasters, acledEnabled, acledData, worldPopData, mode }) => {
+  const signals = [
+    { label: 'District boundaries', available: districts.length > 0 },
+    { label: 'Disaster data', available: disasters.length > 0 },
+    { label: 'Security context', available: acledEnabled && acledData.length > 0 },
+    { label: 'Population data', available: Object.keys(worldPopData || {}).length > 0 },
+    { label: mode === 'district' ? 'Facility context' : 'Facility list', available: facilities.length > 0 }
+  ];
+
+  const availableCount = signals.filter(signal => signal.available).length;
+  const totalCount = signals.length;
+  const ratio = totalCount > 0 ? availableCount / totalCount : 0;
+
+  let level = 'Low';
+  if (ratio >= 0.8) level = 'High';
+  else if (ratio >= 0.5) level = 'Medium';
+
+  return {
+    level,
+    availableCount,
+    totalCount,
+    missingSignals: signals.filter(signal => !signal.available).map(signal => signal.label)
+  };
+};
+
 /**
  * Operation Readiness Dashboard
  * Shows system-level overview of operation viability
@@ -335,6 +360,16 @@ const CampaignDashboard = ({
 
   if (!isOpen) return null;
 
+  const dashboardConfidence = computeDashboardConfidence({
+    districts,
+    facilities,
+    disasters,
+    acledEnabled,
+    acledData,
+    worldPopData,
+    mode: assessmentMode
+  });
+
   const renderDistrictPreview = (item, color) => {
     const topDrivers = item.keyDrivers?.length ? item.keyDrivers : [item.reason];
 
@@ -570,6 +605,26 @@ const CampaignDashboard = ({
                     }}>
                       District decisions combine ACLED security risk, active GDACS disasters, facility impact inside each district, and operation-specific disaster sensitivity for {opConfig.name.toLowerCase()}.
                     </div>
+                    <div style={{
+                      marginTop: '10px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '8px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                        Confidence: {dashboardConfidence.level}
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>
+                        {dashboardConfidence.availableCount}/{dashboardConfidence.totalCount} signals
+                      </div>
+                    </div>
+                    {dashboardConfidence.missingSignals.length > 0 && (
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
+                        Missing: {dashboardConfidence.missingSignals.join(', ')}
+                      </div>
+                    )}
                   </div>
                 )}
 

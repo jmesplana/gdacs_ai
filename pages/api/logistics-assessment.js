@@ -208,6 +208,10 @@ async function handler(req, res) {
             setTimeout(() => reject(new Error('AI recommendation timeout')), 30000)
           )
         ]);
+        recommendations = {
+          ...recommendations,
+          aiGenerated: true
+        };
       } catch (aiError) {
         console.warn('AI recommendations failed:', aiError.message);
         // Continue without AI recommendations - analysis is still valuable
@@ -227,6 +231,13 @@ async function handler(req, res) {
       securityData: acledEvents.length > 0 ? 'available' : 'none',
       weatherData: weatherData ? 'available' : 'unavailable',
     };
+    const confidence = calculateLogisticsConfidence({
+      assessmentCoverage,
+      disasters,
+      acledEvents,
+      weatherData,
+      osmFeatureCount: osmData.features.length
+    });
 
     console.log(`✅ Logistics assessment completed in ${analysisTime}ms`);
 
@@ -249,6 +260,7 @@ async function handler(req, res) {
           timestamp: new Date().toISOString(),
           analysisTime,
           dataQuality,
+          confidence,
         },
       },
     });
@@ -566,6 +578,7 @@ Format your response as a JSON object with these categories as keys and arrays o
  */
 function generateFallbackRecommendations(rating, roadNetwork, fuelAccess, airAccess) {
   const recommendations = {
+    aiGenerated: false,
     'Immediate Actions': [],
     'Short-term Planning': [],
     'Operational Risks': [],
@@ -619,6 +632,58 @@ function generateFallbackRecommendations(rating, roadNetwork, fuelAccess, airAcc
   }
 
   return recommendations;
+}
+
+function calculateLogisticsConfidence({ assessmentCoverage, disasters, acledEvents, weatherData, osmFeatureCount }) {
+  const signals = [
+    {
+      label: 'Road network',
+      available: assessmentCoverage.roads && osmFeatureCount > 0
+    },
+    {
+      label: 'Fuel access',
+      available: assessmentCoverage.fuel
+    },
+    {
+      label: 'Air access',
+      available: assessmentCoverage.air
+    },
+    {
+      label: 'Disaster context',
+      available: disasters.length > 0
+    },
+    {
+      label: 'Security context',
+      available: acledEvents.length > 0
+    },
+    {
+      label: 'Weather context',
+      available: Boolean(weatherData)
+    }
+  ];
+
+  const availableCount = signals.filter(signal => signal.available).length;
+  const totalCount = signals.length;
+  const ratio = totalCount > 0 ? availableCount / totalCount : 0;
+
+  let level = 'Low';
+  if (ratio >= 0.8) level = 'High';
+  else if (ratio >= 0.5) level = 'Medium';
+
+  return {
+    level,
+    coverageRatio: ratio,
+    availableCount,
+    totalCount,
+    availableSignals: signals.filter(signal => signal.available).map(signal => signal.label),
+    missingSignals: signals.filter(signal => !signal.available).map(signal => signal.label),
+    summary:
+      level === 'High'
+        ? 'Assessment uses a broad operational picture across infrastructure, disruption, and security signals.'
+        : level === 'Medium'
+          ? 'Assessment uses core infrastructure inputs, but some supporting signals are missing.'
+          : 'Assessment is based on partial coverage and should be treated as directional only.'
+  };
 }
 
 export default withRateLimit(handler);
