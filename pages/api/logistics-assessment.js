@@ -150,6 +150,22 @@ async function handler(req, res) {
         ? Math.round((fuelAccessRaw.compromisedStations || 0) / fuelAccessRaw.totalFuelStations * 100)
         : 0
       ,
+      operationalStations: (fuelAccessRaw.stationList || [])
+        .filter(station => station.accessible)
+        .map(station => ({
+          name: station.station?.properties?.name || station.station?.properties?.tags?.name || 'Unnamed fuel station',
+          coordinates: station.coordinates,
+          distanceToDisaster: station.distance || 0,
+          disruptionProbability: station.disruptionProbability || 0
+        })),
+      atRiskStations: (fuelAccessRaw.stationList || [])
+        .filter(station => !station.accessible)
+        .map(station => ({
+          name: station.station?.properties?.name || station.station?.properties?.tags?.name || 'Unnamed fuel station',
+          coordinates: station.coordinates,
+          distanceToDisaster: station.distance || 0,
+          impactProbability: station.disruptionProbability || 0
+        })),
       assessmentStatus: assessmentCoverage.fuel ? 'ASSESSED' : 'NOT_LOADED'
     };
 
@@ -166,6 +182,24 @@ async function handler(req, res) {
         ? Math.round((airAccessRaw.compromisedAirports || 0) / airAccessRaw.totalAirports * 100)
         : 0
       ,
+      operationalAirports: (airAccessRaw.facilityList || [])
+        .filter(facility => facility.operational)
+        .map(facility => ({
+          name: facility.facility?.properties?.name || facility.facility?.properties?.tags?.name || 'Unnamed facility',
+          type: facility.facilityType || facility.facility?.properties?.tags?.aeroway || 'airport',
+          coordinates: facility.coordinates,
+          distanceToDisaster: facility.distance || 0,
+          riskScore: facility.riskScore || 0
+        })),
+      atRiskAirports: (airAccessRaw.facilityList || [])
+        .filter(facility => !facility.operational)
+        .map(facility => ({
+          name: facility.facility?.properties?.name || facility.facility?.properties?.tags?.name || 'Unnamed facility',
+          type: facility.facilityType || facility.facility?.properties?.tags?.aeroway || 'airport',
+          coordinates: facility.coordinates,
+          distanceToDisaster: facility.distance || 0,
+          impactProbability: facility.riskScore || 0
+        })),
       assessmentStatus: assessmentCoverage.air ? 'ASSESSED' : 'NOT_LOADED'
     };
 
