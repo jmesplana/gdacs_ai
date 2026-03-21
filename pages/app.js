@@ -1274,7 +1274,7 @@ export default function Home() {
         <meta name="description" content="Intelligence for impact workers: Monitor global disasters, assess facility impacts, predict disease outbreaks, and optimize humanitarian operations with AI-powered real-time analysis" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="robots" content="noindex" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" type="image/svg+xml" href="/images/gdacs/warning.svg" />
         <link rel="canonical" href="https://disasters.aidstack.ai/app" />
       </Head>
 
@@ -1614,6 +1614,46 @@ export default function Home() {
             <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '10px' }}>
               The Disaster Impact Assessment Tool helps organizations monitor their global facilities and assess potential impacts from current natural disasters. It combines real-time disaster data with your facility locations to identify risks and provide AI-powered recommendations.
             </p>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '12px' }}>
+              <button
+                onClick={() => {
+                  setShowHelp(false);
+                  setShowOnboarding(true);
+                }}
+                style={{
+                  background: 'var(--aidstack-orange)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '10px 14px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                Replay quick start
+              </button>
+              <a
+                href="/landing"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: '#F8FAFC',
+                  color: 'var(--aidstack-navy)',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '6px',
+                  padding: '10px 14px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                Open landing page
+              </a>
+            </div>
           </div>
           
           {/* Problems Solved section */}

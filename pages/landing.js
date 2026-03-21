@@ -4,9 +4,8 @@ import LandingPage from '../components/LandingPage';
 export default function Landing() {
   const siteUrl = 'https://disasters.aidstack.ai';
   const title = 'Aidstack Disasters - AI-Powered Humanitarian Intelligence Platform';
-  const description = 'Real-time disaster monitoring, AI-powered impact assessments, and predictive analytics for humanitarian operations. Integrate GDACS disasters, ACLED conflict data, WorldPop demographics, and forecast disease outbreaks with GPT-4 powered insights.';
-  const keywords = 'humanitarian technology, disaster response, GDACS, ACLED, WorldPop, AI humanitarian aid, disaster monitoring, crisis response, outbreak prediction, campaign viability, emergency response platform, humanitarian operations, conflict mapping, population data, GPT-4 humanitarian analysis';
-  const ogImage = `${siteUrl}/og-image.png`; // You'll need to create this image
+  const description = 'Real-time disaster monitoring, AI-powered impact assessments, and predictive analytics for humanitarian operations. Integrate GDACS disasters, ACLED conflict data, WorldPop demographics, and disease-risk indicators in one operational workspace.';
+  const keywords = 'humanitarian technology, disaster response, GDACS, ACLED, WorldPop, AI humanitarian aid, disaster monitoring, crisis response, outbreak prediction, campaign viability, emergency response platform, humanitarian operations, conflict mapping, population data';
 
   return (
     <>
@@ -30,9 +29,6 @@ export default function Landing() {
         <meta property="og:url" content={`${siteUrl}/landing`} />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
-        <meta property="og:image" content={ogImage} />
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
         <meta property="og:site_name" content="Aidstack Disasters" />
         <meta property="og:locale" content="en_US" />
 
@@ -41,19 +37,14 @@ export default function Landing() {
         <meta property="twitter:url" content={`${siteUrl}/landing`} />
         <meta property="twitter:title" content={title} />
         <meta property="twitter:description" content={description} />
-        <meta property="twitter:image" content={ogImage} />
         <meta name="twitter:creator" content="@aidstack" />
 
         {/* Additional Meta Tags */}
         <meta name="theme-color" content="#1A365D" />
         <meta name="msapplication-TileColor" content="#1A365D" />
-        <meta name="msapplication-TileImage" content="/mstile-144x144.png" />
 
         {/* Favicon */}
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+        <link rel="icon" type="image/svg+xml" href="/images/gdacs/warning.svg" />
 
         {/* Structured Data - Schema.org JSON-LD */}
         <script
@@ -72,16 +63,10 @@ export default function Landing() {
               },
               description: description,
               url: siteUrl,
-              screenshot: ogImage,
               author: {
                 '@type': 'Organization',
                 name: 'Aidstack',
                 url: 'https://aidstack.ai'
-              },
-              aggregateRating: {
-                '@type': 'AggregateRating',
-                ratingValue: '4.8',
-                ratingCount: '127'
               },
               featureList: [
                 'Real-time GDACS disaster monitoring',
@@ -93,7 +78,7 @@ export default function Landing() {
                 'Supply chain forecasting',
                 'Batch facility assessment',
                 'Interactive geospatial mapping',
-                'GPT-4 powered recommendations'
+                'AI-powered recommendations'
               ]
             })
           }}
@@ -108,15 +93,9 @@ export default function Landing() {
               '@type': 'Organization',
               name: 'Aidstack',
               url: 'https://aidstack.ai',
-              logo: `${siteUrl}/logo.png`,
               sameAs: [
                 'https://github.com/jmesplana/gdacs_ai'
-              ],
-              contactPoint: {
-                '@type': 'ContactPoint',
-                contactType: 'Customer Support',
-                email: 'support@aidstack.ai'
-              }
+              ]
             })
           }}
         />

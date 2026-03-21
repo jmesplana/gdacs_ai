@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const STEPS = [
   {
@@ -11,7 +11,7 @@ const STEPS = [
   {
     icon: '🗺️',
     title: 'Review live disaster & security data',
-    description: 'GDACS disaster alerts load automatically. Optionally upload an admin boundary shapefile (.zip) to see district-level risk, and upload ACLED security event data for conflict overlays.',
+    description: 'GDACS disaster alerts load automatically. For ACLED, download a CSV export using your ACLED account, then upload it into the app to enable conflict overlays and country filtering. You can also upload an admin boundary shapefile (.zip) for district-level risk views.',
     cta: null,
   },
   {
@@ -44,6 +44,17 @@ export default function OnboardingModal({ onClose }) {
   const [step, setStep] = useState(0);
   const current = STEPS[step];
 
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const handleCta = () => {
     if (current.ctaAction === 'template') {
       const csv = [
@@ -57,8 +68,10 @@ export default function OnboardingModal({ onClose }) {
       const a = document.createElement('a');
       a.href = url;
       a.download = 'facility_template.csv';
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
   };
 
@@ -68,7 +81,9 @@ export default function OnboardingModal({ onClose }) {
       background: 'rgba(15,23,42,0.65)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: "'Inter', sans-serif",
-    }}>
+    }}
+    onClick={onClose}
+    >
       <div style={{
         background: 'white',
         borderRadius: '12px',
@@ -76,7 +91,9 @@ export default function OnboardingModal({ onClose }) {
         maxWidth: '460px',
         width: '90vw',
         boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-      }}>
+      }}
+      onClick={(event) => event.stopPropagation()}
+      >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
           <div>
@@ -192,6 +209,22 @@ export default function OnboardingModal({ onClose }) {
         </div>
 
         <div style={{ marginTop: '14px', textAlign: 'center' }}>
+          <a
+            href="/landing"
+            style={{
+              display: 'inline-block',
+              marginBottom: '10px',
+              fontSize: '13px',
+              color: '#1A365D',
+              textDecoration: 'none',
+              fontWeight: 600,
+            }}
+          >
+            View full landing guide
+          </a>
+        </div>
+
+        <div style={{ textAlign: 'center' }}>
           <button
             onClick={onClose}
             style={{

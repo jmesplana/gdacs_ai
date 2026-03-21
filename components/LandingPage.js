@@ -3,6 +3,20 @@ import { useState } from 'react';
 
 const LandingPage = () => {
   const [openFaq, setOpenFaq] = useState(null);
+  const experimentalBadgeStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    marginLeft: '10px',
+    padding: '4px 8px',
+    borderRadius: '999px',
+    background: '#FEF3C7',
+    color: '#92400E',
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    verticalAlign: 'middle'
+  };
 
   const toggleFaq = (index) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -35,6 +49,53 @@ const LandingPage = () => {
           0%, 100% { transform: translate(-50%, -50%) scale(1); }
           50% { transform: translate(-50%, -50%) scale(1.08); }
         }
+
+        @media (max-width: 1024px) {
+          .landing-header-inner {
+            gap: 16px;
+          }
+
+          .hero-grid {
+            grid-template-columns: 1fr !important;
+            gap: 40px !important;
+          }
+
+          .hero-title {
+            font-size: 44px !important;
+          }
+
+          .hero-preview {
+            transform: none !important;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .landing-header-inner {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+
+          .hero-section {
+            padding: 40px 16px 56px !important;
+          }
+
+          .hero-title {
+            font-size: 34px !important;
+          }
+
+          .hero-copy {
+            text-align: left;
+          }
+
+          .hero-stats {
+            grid-template-columns: 1fr !important;
+            max-width: none !important;
+          }
+
+          .hero-preview {
+            padding: 14px !important;
+          }
+        }
       `}</style>
       {/* Navigation Header */}
       <header style={{
@@ -46,7 +107,7 @@ const LandingPage = () => {
         zIndex: 1000,
         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
       }}>
-        <div style={{
+        <div className="landing-header-inner" style={{
           maxWidth: '1200px',
           margin: '0 auto',
           padding: '0 20px',
@@ -55,7 +116,7 @@ const LandingPage = () => {
           alignItems: 'center'
         }}>
           {/* Logo */}
-          <Link href="/">
+          <Link href="/landing">
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -119,7 +180,7 @@ const LandingPage = () => {
       </header>
 
       {/* Hero Section */}
-      <section style={{
+      <section className="hero-section" style={{
         background: 'linear-gradient(135deg, #1A365D 0%, #2D5A7B 100%)',
         padding: '60px 20px 80px',
         position: 'relative',
@@ -134,7 +195,7 @@ const LandingPage = () => {
           backgroundSize: '40px 40px'
         }}></div>
 
-        <div style={{
+        <div className="hero-grid" style={{
           maxWidth: '1200px',
           margin: '0 auto',
           position: 'relative',
@@ -144,7 +205,7 @@ const LandingPage = () => {
           gap: '60px',
           alignItems: 'center'
         }}>
-          <div style={{ textAlign: 'left' }}>
+          <div className="hero-copy" style={{ textAlign: 'left' }}>
             {/* Trust Badge */}
             <div style={{
               display: 'inline-flex',
@@ -174,7 +235,7 @@ const LandingPage = () => {
               </span>
             </div>
 
-            <h1 style={{
+            <h1 className="hero-title" style={{
               fontFamily: "'Space Grotesk', sans-serif",
               fontWeight: 700,
               fontSize: '56px',
@@ -203,6 +264,35 @@ const LandingPage = () => {
             }}>
               Plan ahead with AI-powered scenario analysis, weather forecasts, and temporal playback. Monitor disasters, assess risks, and anticipate what's coming next—all in one platform.
             </p>
+            <div style={{
+              display: 'inline-flex',
+              flexWrap: 'wrap',
+              gap: '8px',
+              alignItems: 'center',
+              marginBottom: '24px',
+              padding: '10px 14px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.16)',
+              borderRadius: '12px',
+              color: 'rgba(255, 255, 255, 0.92)',
+              fontSize: '13px',
+              lineHeight: '1.5',
+              maxWidth: '560px'
+            }}>
+              <span style={{
+                padding: '3px 8px',
+                borderRadius: '999px',
+                background: '#FEF3C7',
+                color: '#92400E',
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase'
+              }}>
+                Experimental
+              </span>
+              <span>Forward-looking AI forecasts and early-warning features are still being validated and should be used as planning support, not as sole decision authority.</span>
+            </div>
             <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '40px' }}>
               <Link href="/app">
                 <button style={{
@@ -259,7 +349,7 @@ const LandingPage = () => {
             </div>
 
             {/* Quick stats/use cases */}
-            <div style={{
+            <div className="hero-stats" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
               gap: '20px',
@@ -304,7 +394,7 @@ const LandingPage = () => {
           </div>
 
           {/* App Preview - Right Side */}
-          <div style={{
+          <div className="hero-preview" style={{
             background: 'rgba(255, 255, 255, 0.95)',
             borderRadius: '20px',
             padding: '20px',
@@ -922,7 +1012,7 @@ const LandingPage = () => {
               }}>
                 <li>Live GDACS disaster data</li>
                 <li>CAP XML polygon impact zones</li>
-                <li>ACLED conflict event tracking</li>
+                <li>ACLED CSV upload support</li>
                 <li>Automatic updates every refresh</li>
               </ul>
             </div>
@@ -1000,6 +1090,7 @@ const LandingPage = () => {
                 marginBottom: '12px'
               }}>
                 AI-Powered Foresight
+                <span style={experimentalBadgeStyle}>Experimental</span>
               </h3>
               <ul style={{
                 color: '#475569',
@@ -1094,6 +1185,7 @@ const LandingPage = () => {
               },
               {
                 title: 'Disease Outbreak Risk Analysis',
+                experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
                 description: 'Early warning indicators for epidemic risk based on weather and disaster conditions',
                 features: [
@@ -1105,6 +1197,7 @@ const LandingPage = () => {
               },
               {
                 title: 'Campaign Viability Assessment',
+                experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
                 description: 'GO/CAUTION/DELAY/NOGO decisions for campaign planning',
                 features: [
@@ -1116,6 +1209,7 @@ const LandingPage = () => {
               },
               {
                 title: 'Supply Chain Forecasting',
+                experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>,
                 description: '7-14 day ahead supply chain disruption predictions',
                 features: [
@@ -1128,12 +1222,13 @@ const LandingPage = () => {
               {
                 title: 'Advanced Security Analysis',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
-                description: 'ACLED-powered security risk scoring with proximity zones',
+                description: 'Security risk scoring from uploaded ACLED CSV exports with proximity zones',
                 features: [
+                  'Upload ACLED CSV files downloaded from your ACLED account',
+                  'Filter uploaded events by country in-app',
                   'Security zones (0-10km, 10-25km, 25-50km, 50-100km)',
                   'CRITICAL/HIGH/MEDIUM/LOW classifications',
-                  'Incident aggregation by zone',
-                  'No-go area identification'
+                  'Incident aggregation by zone'
                 ]
               },
               {
@@ -1160,6 +1255,7 @@ const LandingPage = () => {
               },
               {
                 title: 'AI Chatbot with Web Search',
+                experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><circle cx="9" cy="10" r="1"/><circle cx="15" cy="10" r="1"/></svg>,
                 description: 'Context-aware AI assistant with real-time information',
                 features: [
@@ -1171,6 +1267,7 @@ const LandingPage = () => {
               },
               {
                 title: 'Disaster Risk Monitoring',
+                experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
                 description: '14-day weather-based risk indicators for emerging hazards',
                 features: [
@@ -1246,6 +1343,9 @@ const LandingPage = () => {
                   marginBottom: '12px'
                 }}>
                   {feature.title}
+                  {feature.experimental && (
+                    <span style={experimentalBadgeStyle}>Experimental</span>
+                  )}
                 </h3>
                 <p style={{
                   color: 'rgba(255, 255, 255, 0.7)',
@@ -1668,7 +1768,7 @@ const LandingPage = () => {
               {
                 step: '3',
                 title: 'Add Context Layers',
-                description: 'Upload ACLED conflict data and admin boundaries for district-level risk assessment',
+                description: 'Upload ACLED CSV exports and admin boundaries for district-level risk assessment and country filtering',
                 icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
               },
               {
@@ -1779,48 +1879,70 @@ const LandingPage = () => {
                 }
               ].map((item, idx) => (
                 <div key={idx} style={{
-                  textAlign: 'center',
+                  textAlign: 'left',
                   padding: '20px',
                   background: 'rgba(255, 255, 255, 0.1)',
                   borderRadius: '12px',
-                  border: '1px solid rgba(255, 255, 255, 0.2)'
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  minHeight: '100%'
                 }}>
-                  <div style={{
-                    fontSize: '16px',
-                    fontWeight: 700,
-                    marginBottom: '12px',
-                    fontFamily: "'Space Grotesk', sans-serif"
-                  }}>
-                    {item.label}
+                  <div>
+                    <div style={{
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      marginBottom: '6px',
+                      fontFamily: "'Space Grotesk', sans-serif"
+                    }}>
+                      {item.label}
+                    </div>
+                    <div style={{
+                      fontSize: '13px',
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      fontStyle: 'italic'
+                    }}>
+                      {item.description}
+                    </div>
                   </div>
                   <div style={{
-                    fontSize: '13px',
-                    color: 'rgba(255, 255, 255, 0.7)',
-                    marginBottom: '12px',
-                    fontStyle: 'italic'
-                  }}>
-                    {item.description}
-                  </div>
-                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
                     fontSize: '12px',
-                    lineHeight: '1.8',
                     color: 'rgba(255, 255, 255, 0.9)'
                   }}>
                     {item.colors.map((colorItem, i) => (
                       <div key={i} style={{
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px'
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        padding: '8px 10px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        borderRadius: '8px'
                       }}>
-                        <div style={{
-                          width: '12px',
-                          height: '12px',
-                          background: colorItem.color,
-                          borderRadius: item.shape === 'circle' ? '50%' : item.shape === 'square' ? '2px' : '1px',
-                          border: '1px solid rgba(255, 255, 255, 0.3)'
-                        }}></div>
-                        <span>{colorItem.label}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{
+                            width: '12px',
+                            height: '12px',
+                            background: colorItem.color,
+                            borderRadius: item.shape === 'circle' ? '50%' : item.shape === 'square' ? '2px' : '1px',
+                            border: '1px solid rgba(255, 255, 255, 0.3)',
+                            flexShrink: 0
+                          }}></div>
+                          <span>{colorItem.label}</span>
+                        </div>
+                        <span style={{
+                          fontSize: '11px',
+                          color: 'rgba(255, 255, 255, 0.55)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          flexShrink: 0
+                        }}>
+                          {item.shape}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -1974,7 +2096,7 @@ const LandingPage = () => {
             {[
               {
                 title: 'View Global Disasters & Conflicts',
-                description: 'Access real-time data from GDACS (earthquakes, floods, cyclones, volcanoes) and ACLED (conflict events) with automatic updates'
+                description: 'Access live GDACS disaster data, then upload ACLED CSV exports from your ACLED account to add conflict events and filter them by country'
               },
               {
                 title: 'Upload Your Data & Analyze Population',
@@ -1986,7 +2108,7 @@ const LandingPage = () => {
               },
               {
                 title: 'Get AI-Powered Forecasts & Campaign Decisions',
-                description: 'Generate outbreak predictions (30 days), supply chain forecasts (7-14 days), and GO/CAUTION/DELAY/NOGO campaign viability decisions with weather integration'
+                description: 'Generate experimental outbreak predictions (30 days), supply chain forecasts (7-14 days), and GO/CAUTION/DELAY/NOGO campaign viability decisions with weather integration'
               },
               {
                 title: 'Visualize Trends & Export Reports',
@@ -2108,6 +2230,26 @@ const LandingPage = () => {
                 <li>Updated continuously</li>
                 <li>CAP XML precision polygons</li>
               </ul>
+              <div style={{ marginTop: '20px' }}>
+                <a
+                  href="https://www.gdacs.org/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#1A365D',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    fontFamily: "'Inter', sans-serif"
+                  }}
+                >
+                  Visit GDACS
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </div>
             </div>
 
             {/* ACLED */}
@@ -2141,11 +2283,31 @@ const LandingPage = () => {
                 paddingLeft: '20px',
                 margin: 0
               }}>
-                <li>Real-time conflict tracking</li>
-                <li>50+ countries covered</li>
-                <li>Daily updates</li>
-                <li>Geo-coded precision</li>
+                <li>CSV exports downloaded with your ACLED account</li>
+                <li>Upload into the app for conflict overlays</li>
+                <li>Filter uploaded events by country</li>
+                <li>Geo-coded event precision</li>
               </ul>
+              <div style={{ marginTop: '20px' }}>
+                <a
+                  href="https://acleddata.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#1A365D',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    fontFamily: "'Inter', sans-serif"
+                  }}
+                >
+                  Get ACLED data
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </div>
             </div>
 
             {/* WorldPop */}
@@ -2170,7 +2332,7 @@ const LandingPage = () => {
                 marginBottom: '18px',
                 fontStyle: 'italic'
               }}>
-                Google Earth Engine Population Data
+                WorldPop Global 2 via Google Earth Engine
               </p>
               <ul style={{
                 color: '#475569',
@@ -2182,8 +2344,60 @@ const LandingPage = () => {
                 <li>High-resolution population grids</li>
                 <li>Age and sex disaggregation</li>
                 <li>Global coverage</li>
-                <li>Real-time demographic analysis</li>
+                <li>App supports 2015-2030 WorldPop years</li>
               </ul>
+              <p style={{
+                marginTop: '18px',
+                marginBottom: 0,
+                fontSize: '13px',
+                lineHeight: '1.6',
+                color: '#64748B'
+              }}>
+                This app uses WorldPop Global 2 collections through Google Earth Engine, including total population and age-sex layers across the 2015-2030 range.
+              </p>
+              <div style={{
+                marginTop: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}>
+                <a
+                  href="https://www.worldpop.org/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#1A365D',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    fontFamily: "'Inter', sans-serif"
+                  }}
+                >
+                  Visit WorldPop
+                  <span aria-hidden="true">↗</span>
+                </a>
+                <a
+                  href="https://gee-community-catalog.org/projects/worldpop/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#1A365D',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    fontFamily: "'Inter', sans-serif"
+                  }}
+                >
+                  View exact GEE collections used
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -2209,7 +2423,7 @@ const LandingPage = () => {
             {[
               {
                 question: 'What is the Operational Outlook feature?',
-                answer: 'The Operational Outlook uses AI to generate forward-looking humanitarian analysis with 3 scenarios (most likely, escalation, stabilization), early warning indicators, and operational implications. It helps you anticipate what\'s coming next, not just what happened.'
+                answer: 'The Operational Outlook is an experimental AI feature that generates forward-looking humanitarian analysis with 3 scenarios (most likely, escalation, stabilization), early warning indicators, and operational implications. It helps you anticipate what\'s coming next, not just what happened.'
               },
               {
                 question: 'How does WorldPop integration work?',
@@ -2233,7 +2447,7 @@ const LandingPage = () => {
               },
               {
                 question: 'How does the AI use real-time web search?',
-                answer: 'The AI assistant can search the web for current humanitarian events, recent outbreak data, and breaking news to supplement its analysis. This ensures recommendations are based on the most up-to-date information available, especially for rapidly evolving situations.'
+                answer: 'The AI assistant can search the web for current humanitarian events, recent outbreak data, and breaking news to supplement its analysis. This experimental capability helps ground recommendations in current information, but results should still be reviewed by an operator before action.'
               },
               {
                 question: 'What are the drawing tools used for?',
@@ -2241,7 +2455,7 @@ const LandingPage = () => {
               },
               {
                 question: 'How does security risk scoring work with ACLED data?',
-                answer: 'The platform analyzes ACLED conflict events and creates proximity zones (0-10km, 10-25km, 25-50km, 50-100km) around facilities. Security levels are classified as CRITICAL/HIGH/MEDIUM/LOW based on incident types, recency, and proximity. District-level aggregation helps identify no-go zones.'
+                answer: 'Download an ACLED CSV export using your ACLED account, upload it into the app, and then filter the uploaded events by country. The platform uses those uploaded conflict events to create proximity zones (0-10km, 10-25km, 25-50km, 50-100km) around facilities and classify security levels based on incident type, recency, and proximity.'
               },
               {
                 question: 'Can I batch-assess multiple facilities?',
