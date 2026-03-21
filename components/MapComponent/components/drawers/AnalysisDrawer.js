@@ -3,6 +3,23 @@ import ReactMarkdown from 'react-markdown';
 import TimestampBadge from '../TimestampBadge';
 import { useToast } from '../../../Toast';
 
+const provenanceBadgeStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '6px 10px',
+  borderRadius: '999px',
+  fontSize: '11px',
+  fontWeight: 700,
+  fontFamily: "'Inter', sans-serif"
+};
+
+const ProvenanceBadge = ({ label, tone = '#475569', background = '#f1f5f9' }) => (
+  <span style={{ ...provenanceBadgeStyle, color: tone, backgroundColor: background }}>
+    {label}
+  </span>
+);
+
 const AnalysisDrawer = ({
   isOpen,
   onClose,
@@ -160,6 +177,32 @@ const AnalysisDrawer = ({
 
               <div style={{marginBottom: '15px'}}>
                 <h2 style={{margin: '0 0 10px 0', fontSize: '18px'}}>{selectedFacility.name}</h2>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                  <ProvenanceBadge
+                    label="Observed: facility + disaster exposure"
+                    tone="#1d4ed8"
+                    background="rgba(59, 130, 246, 0.12)"
+                  />
+                  {acledEnabled && acledData.length > 0 && (
+                    <ProvenanceBadge
+                      label="Observed: ACLED security context"
+                      tone="#9a3412"
+                      background="rgba(249, 115, 22, 0.12)"
+                    />
+                  )}
+                  {osmData && (
+                    <ProvenanceBadge
+                      label="Observed: OSM infrastructure context"
+                      tone="#166534"
+                      background="rgba(34, 197, 94, 0.12)"
+                    />
+                  )}
+                  <ProvenanceBadge
+                    label={isAIGenerated ? 'AI: narrative analysis' : 'Derived: rules-based analysis'}
+                    tone={isAIGenerated ? '#1B3A5C' : '#6b7280'}
+                    background={isAIGenerated ? 'rgba(27, 58, 92, 0.12)' : 'rgba(107, 114, 128, 0.12)'}
+                  />
+                </div>
                 <div style={{
                   backgroundColor: isAIGenerated ? 'rgba(26, 54, 93, 0.1)' : '#f5f5f5',
                   padding: '8px 12px',
@@ -265,6 +308,20 @@ const AnalysisDrawer = ({
                     ) : operationViability ? (
                       <div className="operation-viability-section">
                         {/* Decision Badge */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                          <ProvenanceBadge
+                            label="Derived: viability score + decision"
+                            tone="#7c2d12"
+                            background="rgba(249, 115, 22, 0.12)"
+                          />
+                          {operationViability.aiRecommendations && (
+                            <ProvenanceBadge
+                              label="AI: recommendations"
+                              tone="#1B3A5C"
+                              background="rgba(27, 58, 92, 0.12)"
+                            />
+                          )}
+                        </div>
                         <div style={{
                           backgroundColor:
                             operationViability.decision === 'GO' ? '#4CAF50' :

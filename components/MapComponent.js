@@ -74,6 +74,7 @@ import {
 import buildWeatherContext from '../utils/weatherContextBuilder';
 // import { WORLDPOP_TILE_LAYERS } from '../utils/worldpopHelpers'; // Not needed - using GEE tiles
 import { useToast } from './Toast';
+import { getOperationType } from '../config/operationTypes';
 
 // Import constants
 import {
@@ -237,7 +238,133 @@ const customStyles = `
   .drawer-section {
     margin-bottom: 20px;
   }
+
+  .leaflet-top.leaflet-left {
+    top: 110px;
+  }
 `;
+
+const STATUS_PILL_STYLES = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '7px 10px',
+  borderRadius: '999px',
+  fontSize: '12px',
+  fontWeight: 600,
+  fontFamily: "'Inter', sans-serif",
+  backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  border: '1px solid rgba(27, 58, 92, 0.12)',
+  color: '#1f2937',
+  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)',
+  backdropFilter: 'blur(8px)'
+};
+
+const formatDateFilterLabel = (dateFilter) => {
+  switch (dateFilter) {
+    case '24h': return 'Last 24h';
+    case '48h': return 'Last 48h';
+    case '72h': return 'Last 72h';
+    case '7d': return 'Last 7d';
+    case '30d': return 'Last 30d';
+    case 'all': return 'All time';
+    default: return dateFilter || 'Unknown';
+  }
+};
+
+const ContextStatusBar = ({
+  operationType,
+  dateFilter,
+  filteredDisasters,
+  alertLevelCounts,
+  districts,
+  acledEnabled,
+  acledCount,
+  osmData,
+  worldPopData
+}) => {
+  const hasOperationType = Boolean(operationType);
+  const opConfig = hasOperationType ? getOperationType(operationType) : null;
+  const requestedLayers = osmData?.metadata?.requestedLayers || [];
+  const loadedLayerCount = requestedLayers.length > 0
+    ? requestedLayers.length
+    : Object.keys(osmData?.metadata?.byLayer || {}).filter(layer => (osmData.metadata.byLayer[layer] || 0) > 0).length;
+  const worldPopDistricts = worldPopData ? Object.keys(worldPopData).length : 0;
+
+  const pills = [
+    {
+      key: 'operation',
+      label: hasOperationType ? `${opConfig.icon} ${opConfig.name}` : 'Select operation type',
+      tone: hasOperationType ? '#1B3A5C' : '#92400e',
+      background: hasOperationType ? 'rgba(27, 58, 92, 0.10)' : 'rgba(245, 158, 11, 0.12)'
+    },
+    {
+      key: 'window',
+      label: `Window: ${formatDateFilterLabel(dateFilter)}`,
+      tone: '#0f766e',
+      background: 'rgba(20, 184, 166, 0.12)'
+    },
+    {
+      key: 'disasters',
+      label: `Disasters: ${filteredDisasters.length} (${alertLevelCounts.red || 0}R/${alertLevelCounts.orange || 0}O/${alertLevelCounts.green || 0}G)`,
+      tone: '#9a3412',
+      background: 'rgba(249, 115, 22, 0.12)'
+    },
+    {
+      key: 'districts',
+      label: `Districts: ${districts?.length || 0}`,
+      tone: '#1d4ed8',
+      background: 'rgba(59, 130, 246, 0.12)'
+    },
+    {
+      key: 'acled',
+      label: acledEnabled ? `Security: ${acledCount || 0} ACLED events` : 'Security: off',
+      tone: acledEnabled ? '#7c2d12' : '#6b7280',
+      background: acledEnabled ? 'rgba(194, 65, 12, 0.12)' : 'rgba(107, 114, 128, 0.10)'
+    },
+    {
+      key: 'osm',
+      label: osmData ? `OSM: ${loadedLayerCount} layer${loadedLayerCount === 1 ? '' : 's'} loaded` : 'OSM: not loaded',
+      tone: osmData ? '#166534' : '#6b7280',
+      background: osmData ? 'rgba(34, 197, 94, 0.12)' : 'rgba(107, 114, 128, 0.10)'
+    },
+    {
+      key: 'population',
+      label: worldPopDistricts > 0 ? `Population: ${worldPopDistricts} district${worldPopDistricts === 1 ? '' : 's'}` : 'Population: not loaded',
+      tone: worldPopDistricts > 0 ? '#4338ca' : '#6b7280',
+      background: worldPopDistricts > 0 ? 'rgba(99, 102, 241, 0.12)' : 'rgba(107, 114, 128, 0.10)'
+    }
+  ];
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: '20px',
+        left: '20px',
+        right: '88px',
+        zIndex: 1500,
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '8px',
+        pointerEvents: 'none'
+      }}
+    >
+      {pills.map(pill => (
+        <div
+          key={pill.key}
+          style={{
+            ...STATUS_PILL_STYLES,
+            color: pill.tone,
+            backgroundColor: pill.background
+          }}
+        >
+          {pill.label}
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const MapComponent = ({
   disasters,
@@ -1038,6 +1165,7 @@ const MapComponent = ({
 
   // Get current map layer configuration
   const currentLayer = MAP_LAYERS[currentMapLayer.toUpperCase()] || MAP_LAYERS.STREET;
+  const filteredAcledCount = acledEnabled ? getFilteredAcledData().length : 0;
 
   // Check if any drawer is open
   const isAnyDrawerOpen = filterDrawerOpen || unifiedDrawerOpen || showChatDrawer;
@@ -1065,6 +1193,18 @@ const MapComponent = ({
       }}
     >
       <style>{customStyles}</style>
+
+      <ContextStatusBar
+        operationType={operationType}
+        dateFilter={dateFilter}
+        filteredDisasters={filteredDisasters}
+        alertLevelCounts={alertLevelCounts}
+        districts={districts}
+        acledEnabled={acledEnabled}
+        acledCount={filteredAcledCount}
+        osmData={osmData}
+        worldPopData={worldPopData}
+      />
 
       {/* Hamburger Menu - Contains all controls: Control Panel, Filter, Campaign Dashboard, Logistics, Draw, Help */}
       {!showLogisticsDrawer && (

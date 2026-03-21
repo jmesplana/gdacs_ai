@@ -3,6 +3,33 @@ import { DRAWING_COLORS } from '../../constants/mapConstants';
 import OperationTypeSelector from '../../../OperationTypeSelector';
 import { getOperationType } from '../../../../config/operationTypes';
 
+const sectionLabelStyle = {
+  padding: '10px 16px 6px',
+  fontSize: '11px',
+  fontWeight: 700,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  color: '#6b7280',
+  fontFamily: "'Inter', sans-serif",
+  backgroundColor: '#fafafa'
+};
+
+const menuButtonBaseStyle = {
+  width: '100%',
+  padding: '14px 20px',
+  backgroundColor: 'white',
+  border: 'none',
+  borderBottom: '1px solid #f0f0f0',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  fontSize: '15px',
+  fontFamily: "'Space Grotesk', sans-serif",
+  fontWeight: 600,
+  color: 'var(--aidstack-navy)',
+  transition: 'background-color 0.2s ease'
+};
+
 const HamburgerMenu = ({
   onControlPanelClick,
   onFilterClick,
@@ -34,6 +61,42 @@ const HamburgerMenu = ({
     callback();
     setIsOpen(false); // Close menu after selection
   };
+
+  const renderMenuButton = ({
+    onClick,
+    label,
+    icon,
+    disabled = false,
+    active = false,
+    activeBackground = '#f8f9fa',
+    activeTextColor = 'var(--aidstack-navy)',
+    iconColor = 'var(--aidstack-teal)',
+    title
+  }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      style={{
+        ...menuButtonBaseStyle,
+        backgroundColor: active ? activeBackground : 'white',
+        color: disabled ? '#999' : active ? activeTextColor : 'var(--aidstack-navy)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.6 : 1
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) e.currentTarget.style.backgroundColor = active ? activeBackground : '#f8f9fa';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = active ? activeBackground : 'white';
+      }}
+    >
+      <span style={{ marginRight: '12px', color: disabled ? '#999' : iconColor, display: 'inline-flex', alignItems: 'center' }}>
+        {icon}
+      </span>
+      {label}
+    </button>
+  );
 
   return (
     <>
@@ -151,167 +214,76 @@ const HamburgerMenu = ({
               />
             </div>
 
-            {/* Control Panel */}
-            <button
-              onClick={() => handleMenuClick(onControlPanelClick)}
-              style={{
-                width: '100%',
-                padding: '16px 20px',
-                backgroundColor: 'white',
-                border: 'none',
-                borderBottom: '1px solid #f0f0f0',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: '15px',
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontWeight: 600,
-                color: 'var(--aidstack-navy)',
-                transition: 'background-color 0.2s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '12px', color: 'var(--aidstack-teal)' }}>
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                <line x1="12" y1="22.08" x2="12" y2="12"></line>
-              </svg>
-              Data Hub
-            </button>
+            <div style={sectionLabelStyle}>Setup</div>
+            {renderMenuButton({
+              onClick: () => handleMenuClick(onControlPanelClick),
+              label: 'Data Hub',
+              icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                  <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+              )
+            })}
+            {renderMenuButton({
+              onClick: () => handleMenuClick(onFilterClick),
+              label: 'Filters',
+              icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                </svg>
+              )
+            })}
 
-            {/* Filter */}
-            <button
-              onClick={() => handleMenuClick(onFilterClick)}
-              style={{
-                width: '100%',
-                padding: '16px 20px',
-                backgroundColor: 'white',
-                border: 'none',
-                borderBottom: '1px solid #f0f0f0',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: '15px',
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontWeight: 600,
-                color: 'var(--aidstack-navy)',
-                transition: 'background-color 0.2s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '12px', color: 'var(--aidstack-teal)' }}>
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-              </svg>
-              Filters
-            </button>
+            <div style={sectionLabelStyle}>Analysis</div>
+            {renderMenuButton({
+              onClick: () => handleMenuClick(onCampaignDashboardClick),
+              label: hasOperationType ? `${opConfig.name} Dashboard` : 'Operation Dashboard',
+              icon: (
+                <>
+                  {hasOperationType && <span style={{ fontSize: '18px' }}>{opConfig.icon}</span>}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                    <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                  </svg>
+                </>
+              ),
+              disabled: !hasOperationType,
+              title: hasOperationType ? `${opConfig.name} dashboard` : 'Select an operation type first'
+            })}
+            {renderMenuButton({
+              onClick: () => handleMenuClick(onLogisticsClick),
+              label: 'Logistics Assessment',
+              icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="3" width="15" height="13"></rect>
+                  <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                  <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                  <circle cx="18.5" cy="18.5" r="2.5"></circle>
+                </svg>
+              ),
+              disabled: !hasDistricts,
+              active: logisticsEnabled,
+              activeBackground: 'rgba(102, 126, 234, 0.10)',
+              activeTextColor: '#667eea',
+              iconColor: hasDistricts ? '#667eea' : '#999',
+              title: !hasDistricts ? 'Upload a district shapefile to enable logistics assessment' : 'Analyze logistics accessibility'
+            })}
 
-            {/* Operation Dashboard */}
-            <button
-              onClick={() => handleMenuClick(onCampaignDashboardClick)}
-              disabled={!hasOperationType}
-              style={{
-                width: '100%',
-                padding: '16px 20px',
-                backgroundColor: 'white',
-                border: 'none',
-                borderBottom: '1px solid #f0f0f0',
-                cursor: hasOperationType ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: '15px',
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontWeight: 600,
-                color: hasOperationType ? 'var(--aidstack-navy)' : '#999',
-                transition: 'background-color 0.2s ease',
-                opacity: hasOperationType ? 1 : 0.6
-              }}
-              onMouseEnter={(e) => {
-                if (hasOperationType) e.currentTarget.style.backgroundColor = '#f8f9fa';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'white';
-              }}
-              title={hasOperationType ? `${opConfig.name} dashboard` : 'Select an operation type first'}
-            >
-              {hasOperationType && (
-                <span style={{ fontSize: '18px', marginRight: '8px' }}>{opConfig.icon}</span>
-              )}
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '12px', color: 'var(--aidstack-teal)' }}>
-                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-                <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-              </svg>
-              {hasOperationType ? `${opConfig.name} Dashboard` : 'Operation Dashboard'}
-            </button>
-
-            {/* Logistics Assessment */}
-            <button
-              onClick={() => handleMenuClick(onLogisticsClick)}
-              disabled={!hasDistricts}
-              style={{
-                width: '100%',
-                padding: '16px 20px',
-                backgroundColor: logisticsEnabled ? 'rgba(102, 126, 234, 0.1)' : 'white',
-                border: 'none',
-                borderBottom: '1px solid #f0f0f0',
-                cursor: hasDistricts ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: '15px',
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontWeight: 600,
-                color: !hasDistricts ? '#999' : logisticsEnabled ? '#667eea' : 'var(--aidstack-navy)',
-                transition: 'background-color 0.2s ease',
-                opacity: hasDistricts ? 1 : 0.5
-              }}
-              onMouseEnter={(e) => {
-                if (hasDistricts) {
-                  e.currentTarget.style.backgroundColor = logisticsEnabled ? 'rgba(102, 126, 234, 0.15)' : '#f8f9fa';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (hasDistricts) {
-                  e.currentTarget.style.backgroundColor = logisticsEnabled ? 'rgba(102, 126, 234, 0.1)' : 'white';
-                }
-              }}
-              title={!hasDistricts ? 'Upload a district shapefile to enable logistics assessment' : 'Analyze logistics accessibility'}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '12px', color: hasDistricts ? '#667eea' : '#999' }}>
-                <rect x="1" y="3" width="15" height="13"></rect>
-                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-                <circle cx="5.5" cy="18.5" r="2.5"></circle>
-                <circle cx="18.5" cy="18.5" r="2.5"></circle>
-              </svg>
-              Logistics Assessment
-            </button>
-
-            {/* Playback Mode */}
-            <button
-              onClick={() => handleMenuClick(onPlaybackClick)}
-              style={{
-                width: '100%',
-                padding: '16px 20px',
-                backgroundColor: playbackEnabled ? 'rgba(0, 186, 188, 0.1)' : 'white',
-                border: 'none',
-                borderBottom: '1px solid #f0f0f0',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: '15px',
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontWeight: 600,
-                color: playbackEnabled ? 'var(--aidstack-teal)' : 'var(--aidstack-navy)',
-                transition: 'background-color 0.2s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = playbackEnabled ? 'rgba(0, 186, 188, 0.15)' : '#f8f9fa'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = playbackEnabled ? 'rgba(0, 186, 188, 0.1)' : 'white'}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '12px', color: 'var(--aidstack-teal)' }}>
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-              </svg>
-              {playbackEnabled ? 'Stop Playback' : 'Timeline Playback'}
-            </button>
+            <div style={sectionLabelStyle}>Map Tools</div>
+            {renderMenuButton({
+              onClick: () => handleMenuClick(onPlaybackClick),
+              label: playbackEnabled ? 'Stop Playback' : 'Timeline Playback',
+              icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+              ),
+              active: playbackEnabled,
+              activeBackground: 'rgba(0, 186, 188, 0.10)',
+              activeTextColor: 'var(--aidstack-teal)'
+            })}
 
             {/* Draw Tools */}
             <button

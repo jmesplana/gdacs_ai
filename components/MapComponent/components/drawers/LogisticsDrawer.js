@@ -1,6 +1,23 @@
 import React, { useState } from 'react';
 import styles from './LogisticsDrawer.module.css';
 
+const provenanceBadgeStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '6px 10px',
+  borderRadius: '999px',
+  fontSize: '11px',
+  fontWeight: 700,
+  fontFamily: "'Inter', sans-serif"
+};
+
+const ProvenanceBadge = ({ label, tone = '#475569', background = '#f1f5f9' }) => (
+  <span style={{ ...provenanceBadgeStyle, color: tone, backgroundColor: background }}>
+    {label}
+  </span>
+);
+
 const LogisticsDrawer = ({
   isOpen,
   onClose,
@@ -109,6 +126,32 @@ const SummaryCard = ({ data }) => {
 
   return (
     <div className={styles.summaryCard}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+        <ProvenanceBadge
+          label="Observed: OSM infrastructure"
+          tone="#166534"
+          background="rgba(34, 197, 94, 0.12)"
+        />
+        {data.securityAnalysis && (
+          <ProvenanceBadge
+            label="Observed: ACLED security context"
+            tone="#9a3412"
+            background="rgba(249, 115, 22, 0.12)"
+          />
+        )}
+        <ProvenanceBadge
+          label="Derived: access score + rating"
+          tone="#7c2d12"
+          background="rgba(245, 158, 11, 0.14)"
+        />
+        {data.recommendations?.aiGenerated && (
+          <ProvenanceBadge
+            label="AI: recommendations"
+            tone="#1B3A5C"
+            background="rgba(27, 58, 92, 0.12)"
+          />
+        )}
+      </div>
       <div className={styles.scoreContainer}>
         <div className={styles.scoreCircle}>
           <div className={styles.scoreValue}>{data.accessScore.toFixed(1)}</div>

@@ -1,6 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 
+const provenanceBadgeStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '6px 10px',
+  borderRadius: '999px',
+  fontSize: '11px',
+  fontWeight: 700,
+  fontFamily: "'Inter', sans-serif"
+};
+
+const ProvenanceBadge = ({ label, tone = '#475569', background = '#f1f5f9' }) => (
+  <span style={{ ...provenanceBadgeStyle, color: tone, backgroundColor: background }}>
+    {label}
+  </span>
+);
+
 const RecommendationsDrawer = ({
   isOpen,
   onClose,
@@ -129,6 +146,19 @@ const RecommendationsDrawer = ({
               <div style={{marginBottom: '20px', padding: '15px', backgroundColor: 'var(--aidstack-light-gray)', borderRadius: '8px', borderLeft: '4px solid var(--aidstack-orange)'}}>
                 <h2 style={{margin: '0 0 5px 0', fontSize: '18px', color: 'var(--aidstack-navy)', fontFamily: "'Space Grotesk', sans-serif"}}>{facility.name}</h2>
                 {facility.type && <p style={{margin: '0', fontSize: '14px', color: 'var(--aidstack-slate-medium)', fontFamily: "'Inter', sans-serif"}}>Type: {facility.type}</p>}
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
+                <ProvenanceBadge
+                  label="Observed: facility + disaster context"
+                  tone="#1d4ed8"
+                  background="rgba(59, 130, 246, 0.12)"
+                />
+                <ProvenanceBadge
+                  label={isAIGenerated ? 'AI: recommendations' : 'Derived: standard guidance'}
+                  tone={isAIGenerated ? '#1B3A5C' : '#7c2d12'}
+                  background={isAIGenerated ? 'rgba(27, 58, 92, 0.12)' : 'rgba(245, 158, 11, 0.14)'}
+                />
               </div>
 
               {/* AI Generated Badge */}
