@@ -12,7 +12,7 @@ const ChatDrawer = ({
     {
       role: 'assistant',
       content: context?.hasDistricts
-        ? 'Hello! I\'m your humanitarian aid advisor. I can help you analyze district-level risks, understand how disasters impact your programs, and provide campaign planning guidance. Ask me about the risk levels in your uploaded administrative boundaries, or request to highlight specific districts on the map.'
+        ? 'Hello! I\'m your humanitarian aid advisor. I can help you analyze area-level risks, understand how disasters impact your programs, and provide campaign planning guidance. Ask me about the risk levels in your uploaded administrative boundaries, or request to highlight specific admin areas on the map.'
         : 'Hello! I\'m your humanitarian aid advisor. I can help you understand how disasters might impact your programs and operations. Ask me anything about the current situation, health campaigns, or disaster response planning.',
       timestamp: Date.now()
     }
@@ -186,10 +186,10 @@ const ChatDrawer = ({
 
     if (context?.hasDistricts) {
       return [
-        "Show me all districts in the area",
-        "Highlight high risk districts",
-        "Show safe districts for operations",
-        "Which districts should I avoid?"
+        "Show me all admin areas in the uploaded boundaries",
+        "Highlight high risk admin areas",
+        "Show safe admin areas for operations",
+        "Which admin areas should I avoid?"
       ];
     }
 
@@ -604,7 +604,7 @@ const ChatDrawer = ({
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                   <circle cx="12" cy="10" r="3"></circle>
                 </svg>
-                <span>District Analysis: {context.districts.country} ({context.districts.totalCount} districts)</span>
+                <span>Area Analysis: {context.districts.country} ({context.districts.totalCount} admin areas)</span>
               </div>
             )}
           </div>

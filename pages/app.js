@@ -35,6 +35,127 @@ const OperationalOutlook = dynamic(() => import('../components/OperationalOutloo
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
 export default function Home() {
+  const loadCachedJson = (key) => {
+    const sources = [
+      { storage: localStorage, label: 'localStorage' },
+      { storage: sessionStorage, label: 'sessionStorage' }
+    ];
+
+    for (const source of sources) {
+      try {
+        const value = source.storage.getItem(key);
+        if (value) {
+          return {
+            value: JSON.parse(value),
+            source: source.label
+          };
+        }
+      } catch (error) {
+        console.warn(`Unable to read ${key} from ${source.label}:`, error);
+      }
+    }
+
+    return { value: null, source: null };
+  };
+
+  const removeCachedValue = (key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.warn(`Unable to clear ${key} from localStorage:`, error);
+    }
+
+    try {
+      sessionStorage.removeItem(key);
+    } catch (error) {
+      console.warn(`Unable to clear ${key} from sessionStorage:`, error);
+    }
+  };
+
+  const persistCachedJson = (key, value) => {
+    const serialized = JSON.stringify(value);
+    const targets = [
+      { storage: localStorage, label: 'localStorage', persistent: true },
+      { storage: sessionStorage, label: 'sessionStorage', persistent: false }
+    ];
+
+    for (const target of targets) {
+      try {
+        target.storage.setItem(key, serialized);
+        if (target.label !== 'localStorage') {
+          try {
+            localStorage.removeItem(key);
+          } catch (_) {}
+        } else {
+          try {
+            sessionStorage.removeItem(key);
+          } catch (_) {}
+        }
+        return { ok: true, storage: target.label, persistent: target.persistent };
+      } catch (error) {
+        console.warn(`Unable to save ${key} to ${target.label}:`, error);
+      }
+    }
+
+    return { ok: false, storage: null, persistent: false };
+  };
+
+  const parseApiResponse = async (response, label) => {
+    const contentType = response.headers.get('content-type') || '';
+    const raw = await response.text();
+
+    if (!response.ok) {
+      const preview = raw.slice(0, 160).replace(/\s+/g, ' ').trim();
+      throw new Error(`${label} failed with status ${response.status}${preview ? `: ${preview}` : ''}`);
+    }
+
+    if (!contentType.includes('application/json')) {
+      const preview = raw.slice(0, 160).replace(/\s+/g, ' ').trim();
+      throw new Error(`${label} returned ${contentType || 'non-JSON content'}${preview ? `: ${preview}` : ''}`);
+    }
+
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      const preview = raw.slice(0, 160).replace(/\s+/g, ' ').trim();
+      throw new Error(`${label} returned invalid JSON${preview ? `: ${preview}` : ''}`);
+    }
+  };
+
+  const buildImpactFacilitiesPayload = (facilityData) => {
+    return facilityData.map((facility) => ({
+      name: facility.name,
+      latitude: facility.latitude,
+      longitude: facility.longitude
+    }));
+  };
+
+  const buildImpactDisastersPayload = (items = []) => {
+    return items.map((item) => ({
+      eventType: item.eventType,
+      eventName: item.eventName,
+      title: item.title,
+      latitude: item.latitude,
+      longitude: item.longitude,
+      alertLevel: item.alertLevel,
+      severity: item.severity,
+      polygon: item.polygon,
+      source: item.source
+    }));
+  };
+
+  const buildImpactAcledPayload = (items = []) => {
+    return items.map((item) => ({
+      event_type: item.event_type,
+      sub_event_type: item.sub_event_type,
+      latitude: item.latitude,
+      longitude: item.longitude,
+      event_date: item.event_date,
+      fatalities: item.fatalities,
+      notes: item.notes
+    }));
+  };
+
   const [disasters, setDisasters] = useState([]);
   const [filteredDisasters, setFilteredDisasters] = useState([]);
   const [gdacsDiagnostics, setGdacsDiagnostics] = useState(null);
@@ -141,24 +262,22 @@ export default function Home() {
   useEffect(() => {
     try {
       // Load facilities
-      const cachedFacilities = localStorage.getItem('gdacs_facilities');
-      const cachedAiFields = localStorage.getItem('gdacs_ai_analysis_fields');
+      const { value: cachedFacilities, source: facilitiesCacheSource } = loadCachedJson('gdacs_facilities');
+      const { value: cachedAiFields } = loadCachedJson('gdacs_ai_analysis_fields');
 
       if (cachedFacilities) {
-        const parsedFacilities = JSON.parse(cachedFacilities);
-        if (parsedFacilities && parsedFacilities.length > 0) {
-          console.log(`Loaded ${parsedFacilities.length} facilities from cache`);
-          setFacilities(parsedFacilities);
+        if (cachedFacilities && cachedFacilities.length > 0) {
+          console.log(`Loaded ${cachedFacilities.length} facilities from ${facilitiesCacheSource || 'cache'}`);
+          setFacilities(cachedFacilities);
 
           // Restore AI analysis fields if available
           if (cachedAiFields) {
-            const parsedAiFields = JSON.parse(cachedAiFields);
-            setAiAnalysisFields(parsedAiFields);
+            setAiAnalysisFields(cachedAiFields);
           }
 
           // Assess impact with cached facilities once disasters are loaded
           if (disasters.length > 0) {
-            assessImpact(parsedFacilities);
+            assessImpact(cachedFacilities);
           }
         }
       }
@@ -178,10 +297,10 @@ export default function Home() {
     } catch (error) {
       console.error('Error loading cached data:', error);
       // Clear corrupted cache
-      localStorage.removeItem('gdacs_facilities');
-      localStorage.removeItem('gdacs_ai_analysis_fields');
-      localStorage.removeItem('gdacs_acled_data');
-      localStorage.removeItem('gdacs_acled_config');
+      removeCachedValue('gdacs_facilities');
+      removeCachedValue('gdacs_ai_analysis_fields');
+      removeCachedValue('gdacs_acled_data');
+      removeCachedValue('gdacs_acled_config');
     }
   }, []);
 
@@ -279,7 +398,7 @@ export default function Home() {
         return;
       }
 
-      const data = await response.json();
+      const data = await parseApiResponse(response, 'GDACS API');
       if (!data || !Array.isArray(data)) {
         console.warn('Invalid GDACS data format. Continuing without disaster data.');
         setDisasters([]);
@@ -396,9 +515,8 @@ export default function Home() {
   // Handle clearing cached facility data
   const handleClearCache = () => {
     try {
-      // Clear localStorage
-      localStorage.removeItem('gdacs_facilities');
-      localStorage.removeItem('gdacs_ai_analysis_fields');
+      removeCachedValue('gdacs_facilities');
+      removeCachedValue('gdacs_ai_analysis_fields');
 
       // Clear state
       setFacilities([]);
@@ -604,18 +722,22 @@ export default function Home() {
           setSitrep('');
 
           // Save facilities to localStorage (this will override any previous cache)
-          try {
-            localStorage.setItem('gdacs_facilities', JSON.stringify(validFacilities));
+          const facilitiesCacheResult = persistCachedJson('gdacs_facilities', validFacilities);
 
-            // Save AI analysis fields to localStorage
-            if (columnSelections && columnSelections.aiAnalysisFields) {
-              localStorage.setItem('gdacs_ai_analysis_fields', JSON.stringify(columnSelections.aiAnalysisFields));
+          if (columnSelections && columnSelections.aiAnalysisFields) {
+            persistCachedJson('gdacs_ai_analysis_fields', columnSelections.aiAnalysisFields);
+          } else {
+            removeCachedValue('gdacs_ai_analysis_fields');
+          }
+
+          if (facilitiesCacheResult.ok) {
+            console.log(`Facilities cached to ${facilitiesCacheResult.storage}`);
+            if (!facilitiesCacheResult.persistent) {
+              addToast('Facility data is too large for persistent browser storage. It will remain available until this tab is closed.', 'warning');
             }
-
-            console.log('Facilities cached to localStorage');
-          } catch (error) {
-            console.error('Error caching facilities to localStorage:', error);
-            // Continue even if caching fails
+          } else {
+            console.error('Facility data could not be cached in browser storage');
+            addToast('Facility data loaded, but the file is too large to cache in the browser. It will need to be re-uploaded after refresh.', 'warning');
           }
 
           // Update facilities and immediately assess impact
@@ -646,36 +768,62 @@ export default function Home() {
       assessImpactRef.current = true;
       setLoading(prev => ({ ...prev, impact: true }));
 
-      // Convert facilities to CSV string for API
-      const facilitiesCsv = Papa.unparse(facilityData);
-
       // Use filtered disasters instead of all disasters
       const disastersToAssess = filteredDisasters.length > 0 ? filteredDisasters : disasters;
 
       // Include ACLED events only if enabled and available
       const acledToAssess = (acledEnabled && acledData && acledData.length > 0) ? acledData : [];
+      const impactFacilities = buildImpactFacilitiesPayload(facilityData);
+      const impactDisasters = buildImpactDisastersPayload(disastersToAssess);
+      const impactAcledEvents = buildImpactAcledPayload(acledToAssess);
+      const requestPayload = {
+        facilities: impactFacilities,
+        disasters: impactDisasters,
+        acledEvents: impactAcledEvents,
+        districts: []
+      };
 
       console.log(`Impact assessment: ${disastersToAssess.length} GDACS disasters + ${acledToAssess.length} ACLED events`);
+      console.log('Impact assessment payload summary:', {
+        facilities: facilityData.length,
+        disasters: disastersToAssess.length,
+        acledEvents: acledToAssess.length,
+        districts: 0,
+        bytes: JSON.stringify(requestPayload).length
+      });
 
       const response = await fetch('/api/impact_assessment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          facilities: facilitiesCsv,
-          disasters: disastersToAssess,
-          acledEvents: acledToAssess, // May be empty array, API will handle it
-          worldPopData: worldPopData || {},
-          districts: districtRawData || []
-        }),
+        body: JSON.stringify(requestPayload),
       });
       
-      const data = await response.json();
-      console.log(`Impact assessment found ${data.impactedFacilities?.length || 0} impacted facilities`);
+      const data = await parseApiResponse(response, 'Impact assessment');
+      const facilityLookup = new Map(
+        facilityData.map((facility) => [
+          `${facility.name}__${facility.latitude}__${facility.longitude}`,
+          facility
+        ])
+      );
+
+      const mergedImpactedFacilities = (data.impactedFacilities || []).map((item) => {
+        const key = `${item.facility?.name}__${item.facility?.latitude}__${item.facility?.longitude}`;
+        const originalFacility = facilityLookup.get(key);
+
+        return {
+          ...item,
+          facility: originalFacility
+            ? { ...originalFacility, ...item.facility }
+            : item.facility
+        };
+      });
+
+      console.log(`Impact assessment found ${mergedImpactedFacilities.length || 0} impacted facilities`);
       
       // Store the impacted facilities with the filtered disasters only
-      setImpactedFacilities(data.impactedFacilities || []);
+      setImpactedFacilities(mergedImpactedFacilities);
       
       // Store the statistical analysis
       if (data.statistics) {
@@ -715,7 +863,7 @@ export default function Home() {
         }),
       });
       
-      const data = await response.json();
+      const data = await parseApiResponse(response, 'Recommendations');
       setRecommendations(data.recommendations || null);
       setRecommendationsAIGenerated(data.isAIGenerated || false);
     } catch (error) {
@@ -756,7 +904,7 @@ export default function Home() {
         }),
       });
 
-      const data = await response.json();
+      const data = await parseApiResponse(response, 'Situation report');
       setSitrep(data.sitrep || '');
       setSitrepTimestamp(Date.now());
 
@@ -1093,7 +1241,7 @@ export default function Home() {
               });
               
               if (response.ok) {
-                const data = await response.json();
+                const data = await parseApiResponse(response, 'Facility recommendations');
                 if (data.recommendations) {
                   reportContent += `## ${impact.facility.name}\n\n`;
                   

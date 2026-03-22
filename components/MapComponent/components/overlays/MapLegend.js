@@ -50,7 +50,7 @@ const MapLegend = ({
         {showLegend ? 'Hide Legend' : 'Show Legend'}
       </button>
 
-      {/* District boundaries toggle button */}
+      {/* Admin boundaries toggle button */}
       {hasDistricts && (
         <button
           onClick={() => setShowDistricts(!showDistricts)}
@@ -73,7 +73,7 @@ const MapLegend = ({
             <line x1="8" y1="2" x2="8" y2="18"></line>
             <line x1="16" y1="6" x2="16" y2="22"></line>
           </svg>
-          {showDistricts ? 'Hide Districts' : 'Show Districts'}
+          {showDistricts ? 'Hide Admin Areas' : 'Show Admin Areas'}
         </button>
       )}
 

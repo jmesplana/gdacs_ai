@@ -107,7 +107,7 @@ export function formatWorldPopForAI(worldPopData, districts, year) {
   const sorted = [...entries].sort((a, b) => (b[1].total || 0) - (a[1].total || 0));
   if (sorted.length > 0) {
     const topDistrict = districts?.find(d => String(d.id) === String(sorted[0][0]));
-    text += `- Most populous district: ${topDistrict?.name || sorted[0][0]} (${(sorted[0][1].total || 0).toLocaleString()} people)\n`;
+    text += `- Most populous admin area: ${topDistrict?.name || sorted[0][0]} (${(sorted[0][1].total || 0).toLocaleString()} people)\n`;
   }
 
   // Vulnerable groups aggregate
@@ -118,10 +118,10 @@ export function formatWorldPopForAI(worldPopData, districts, year) {
     text += `- Vulnerable groups (under 5 + 60+): ${vulnPct}% of total (${(totalUnder5 + total60plus).toLocaleString()} people)\n`;
   }
 
-  text += `\n### Per-District Population Breakdown\n`;
+  text += `\n### Population Breakdown by Admin Area\n`;
   for (const [districtId, data] of sorted.slice(0, 20)) {
     const district = districts?.find(d => String(d.id) === String(districtId));
-    const name = district?.name || `District ${districtId}`;
+    const name = district?.name || `Admin Area ${districtId}`;
     const total = (data.total || 0).toLocaleString();
 
     if (data.ageGroups) {

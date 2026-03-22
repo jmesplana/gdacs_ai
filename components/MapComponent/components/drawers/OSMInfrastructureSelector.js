@@ -4,10 +4,10 @@ import React, { useEffect, useMemo, useState } from 'react';
  * OSM Infrastructure Selector Component
  *
  * User flow:
- * 1. Select which districts/admin areas to load
+ * 1. Select which admin areas to load
  * 2. Select which infrastructure types to load (hospitals, schools, water, etc.)
  * 3. Click "Load Selected Data" button
- * 4. Data is fetched only for selected districts and categories
+ * 4. Data is fetched only for selected admin areas and categories
  */
 
 const INFRASTRUCTURE_CATEGORIES = [
@@ -79,14 +79,14 @@ export default function OSMInfrastructureSelector({
   }, [osmLoading, requestStartedAt]);
 
   const estimatedTimeLabel = useMemo(() => {
-    if (!activeRequest) return 'Usually 10-60 seconds depending on district size and selected layers.';
+    if (!activeRequest) return 'Usually 10-60 seconds depending on admin area size and selected layers.';
     if (activeRequest.districtCount >= 10 || activeRequest.categoryCount >= 5) {
       return 'This is a larger OSM request. Wait time can reach 30-60 seconds.';
     }
     return 'Most OSM requests complete in around 10-30 seconds.';
   }, [activeRequest]);
 
-  // No districts uploaded yet
+  // No admin boundaries uploaded yet
   if (!districts || districts.length === 0) {
     return (
       <div style={{
@@ -98,12 +98,12 @@ export default function OSMInfrastructureSelector({
         textAlign: 'center',
         border: '1px solid #e0e0e0'
       }}>
-        📍 Upload a district shapefile to enable infrastructure data loading
+        📍 Upload an admin boundary shapefile to enable infrastructure data loading
       </div>
     );
   }
 
-  // Sort districts alphabetically by name
+  // Sort uploaded admin areas alphabetically by name
   const sortedDistricts = [...districts].sort((a, b) => {
     const nameA = (a.name || '').toLowerCase();
     const nameB = (b.name || '').toLowerCase();
@@ -117,7 +117,7 @@ export default function OSMInfrastructureSelector({
     });
 
     if (selectedDistricts.length === 0 || selectedCategories.length === 0) {
-      console.warn('⚠️ Cannot load: missing districts or categories');
+      console.warn('⚠️ Cannot load: missing admin areas or categories');
       return;
     }
 
@@ -195,8 +195,8 @@ export default function OSMInfrastructureSelector({
           </div>
           <div style={{ fontSize: '13px', color: '#7c2d12', lineHeight: 1.55 }}>
             {activeRequest
-              ? `Fetching ${activeRequest.categoryCount} infrastructure ${activeRequest.categoryCount === 1 ? 'type' : 'types'} for ${activeRequest.districtCount} ${activeRequest.districtCount === 1 ? 'district' : 'districts'}.`
-              : 'Fetching the selected infrastructure layers for the selected districts.'}
+              ? `Fetching ${activeRequest.categoryCount} infrastructure ${activeRequest.categoryCount === 1 ? 'type' : 'types'} for ${activeRequest.districtCount} ${activeRequest.districtCount === 1 ? 'admin area' : 'admin areas'}.`
+              : 'Fetching the selected infrastructure layers for the selected admin areas.'}
           </div>
           {activeRequest?.categoryNames?.length > 0 && (
             <div style={{ marginTop: '8px', fontSize: '12px', color: '#9a3412', fontWeight: 600 }}>
@@ -238,7 +238,7 @@ export default function OSMInfrastructureSelector({
             OSM infrastructure loaded
           </div>
           <div style={{ fontSize: '13px', color: '#065f46', lineHeight: 1.55 }}>
-            Loaded {lastCompletedLoad.totalFeatures.toLocaleString()} features across {lastCompletedLoad.categoryCount} {lastCompletedLoad.categoryCount === 1 ? 'category' : 'categories'} for {lastCompletedLoad.districtCount} {lastCompletedLoad.districtCount === 1 ? 'district' : 'districts'}.
+            Loaded {lastCompletedLoad.totalFeatures.toLocaleString()} features across {lastCompletedLoad.categoryCount} {lastCompletedLoad.categoryCount === 1 ? 'category' : 'categories'} for {lastCompletedLoad.districtCount} {lastCompletedLoad.districtCount === 1 ? 'admin area' : 'admin areas'}.
           </div>
           <div style={{ marginTop: '8px', fontSize: '12px', color: '#047857' }}>
             Completed in {Math.max(lastCompletedLoad.elapsedSeconds, 1)}s
@@ -252,7 +252,7 @@ export default function OSMInfrastructureSelector({
         </div>
       )}
 
-      {/* Step 1: Select Districts */}
+      {/* Step 1: Select Admin Areas */}
       <div style={{
         marginBottom: '16px',
         padding: '12px',
@@ -261,7 +261,7 @@ export default function OSMInfrastructureSelector({
         border: '1px solid #e5e7eb'
       }}>
         <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#333', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-          <span>Step 1: Select Districts</span>
+          <span>Step 1: Select Admin Areas</span>
           {osmLoading && (
             <span style={{
               fontSize: '11px',
@@ -319,13 +319,13 @@ export default function OSMInfrastructureSelector({
                   }}
                   style={{ marginRight: '8px' }}
                 />
-                <span>{district.name || `District ${originalIdx + 1}`}</span>
+                <span>{district.name || `Admin Area ${originalIdx + 1}`}</span>
               </label>
             );
           })}
           {sortedDistricts.length > 100 && (
             <div style={{ padding: '8px', fontSize: '11px', color: '#666', textAlign: 'center', backgroundColor: '#fafafa' }}>
-              Showing first 100 of {sortedDistricts.length} districts
+              Showing first 100 of {sortedDistricts.length} admin areas
             </div>
           )}
         </div>
@@ -397,7 +397,7 @@ export default function OSMInfrastructureSelector({
 
         {selectedDistricts.length > 0 && (
           <div style={{ marginTop: '8px', fontSize: '11px', color: '#059669', fontWeight: 500 }}>
-            ✓ {selectedDistricts.length} {selectedDistricts.length === 1 ? 'district' : 'districts'} selected
+            ✓ {selectedDistricts.length} {selectedDistricts.length === 1 ? 'admin area' : 'admin areas'} selected
           </div>
         )}
       </div>
@@ -416,7 +416,7 @@ export default function OSMInfrastructureSelector({
         </div>
         {selectedDistricts.length === 0 && (
           <div style={{ fontSize: '11px', color: '#666', marginBottom: '10px', fontStyle: 'italic' }}>
-            Select districts first ↑
+            Select admin areas first ↑
           </div>
         )}
 
@@ -537,14 +537,14 @@ export default function OSMInfrastructureSelector({
       >
         {osmLoading ? (
           activeRequest
-            ? `Loading ${activeRequest.categoryCount} ${activeRequest.categoryCount === 1 ? 'Type' : 'Types'} for ${activeRequest.districtCount} ${activeRequest.districtCount === 1 ? 'District' : 'Districts'}...`
+            ? `Loading ${activeRequest.categoryCount} ${activeRequest.categoryCount === 1 ? 'Type' : 'Types'} for ${activeRequest.districtCount} ${activeRequest.districtCount === 1 ? 'Admin Area' : 'Admin Areas'}...`
             : 'Loading Infrastructure Data...'
         ) : selectedDistricts.length === 0 ? (
-          'Select Districts to Continue'
+          'Select Admin Areas to Continue'
         ) : selectedCategories.length === 0 ? (
           'Select Infrastructure Types to Continue'
         ) : (
-          `Load ${selectedCategories.length} ${selectedCategories.length === 1 ? 'Type' : 'Types'} for ${selectedDistricts.length} ${selectedDistricts.length === 1 ? 'District' : 'Districts'}`
+          `Load ${selectedCategories.length} ${selectedCategories.length === 1 ? 'Type' : 'Types'} for ${selectedDistricts.length} ${selectedDistricts.length === 1 ? 'Admin Area' : 'Admin Areas'}`
         )}
       </button>
 

@@ -159,22 +159,144 @@ const FacilityDrawer = ({
   const content = (
     <div className="drawer-content" style={embedded ? {} : undefined}>
       <div className="drawer-section">
-            <div style={{
-              margin: '0 0 18px 0',
-              padding: '12px 14px',
-              background: '#F8FAFC',
-              border: '1px solid #E2E8F0',
-              borderRadius: '10px',
-              fontFamily: "'Inter', sans-serif"
-            }}>
-              <div style={{ fontWeight: 700, color: 'var(--aidstack-navy)', marginBottom: '4px', fontSize: '14px' }}>
-                Start with any data source
-              </div>
-              <div style={{ fontSize: '13px', color: '#475569', lineHeight: '1.6' }}>
-                Facilities are optional. You can analyze districts with boundaries only, add ACLED for security context, load WorldPop for population, or enrich the map with OSM infrastructure.
-              </div>
+        <div style={{
+          margin: '0 0 18px 0',
+          padding: '12px 14px',
+          background: '#F8FAFC',
+          border: '1px solid #E2E8F0',
+          borderRadius: '10px',
+          fontFamily: "'Inter', sans-serif"
+        }}>
+          <div style={{ fontWeight: 700, color: 'var(--aidstack-navy)', marginBottom: '4px', fontSize: '14px' }}>
+            Start with any data source
+          </div>
+          <div style={{ fontSize: '13px', color: '#475569', lineHeight: '1.6' }}>
+            Facilities are optional. You can analyze administrative areas with boundaries only, add ACLED for security context, load WorldPop for population, or enrich the map with OSM infrastructure.
+          </div>
+        </div>
+
+          {/* Admin Level Boundaries Section */}
+          <CollapsibleSection
+            title="Admin Boundaries"
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+            }
+            count={districts.length}
+            color="var(--aidstack-teal)"
+            defaultExpanded={districts.length === 0}
+          >
+            <div style={{ fontSize: '13px', color: '#666', marginBottom: '14px', lineHeight: '1.6' }}>
+              Upload a shapefile to enable area-level analysis, boundary labels, population overlays, and logistics workflows.
             </div>
-            <div style={{ margin: '10px 0 20px 0', textAlign: 'center' }}>
+            <ShapefileUploader onDistrictsLoaded={onDistrictsLoaded} />
+
+            {/* Label Field Selector - Only show when districts are loaded and fields are available */}
+            {districts.length > 0 && districtAvailableFields.length > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: 'var(--aidstack-slate-medium)',
+                  marginBottom: '10px',
+                  fontFamily: "'Inter', sans-serif"
+                }}>
+                  Select Label Field:
+                </label>
+                <select
+                  value={districtLabelField || ''}
+                  onChange={(e) => onDistrictLabelFieldChange && onDistrictLabelFieldChange(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '6px',
+                    border: '2px solid var(--aidstack-teal)',
+                    backgroundColor: 'white',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    fontFamily: "'Inter', sans-serif",
+                    color: 'var(--aidstack-navy)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {districtAvailableFields.map(field => (
+                    <option key={field} value={field}>
+                      {field}
+                    </option>
+                  ))}
+                </select>
+                <div style={{
+                  marginTop: '8px',
+                  fontSize: '12px',
+                  color: '#666',
+                  fontStyle: 'italic'
+                }}>
+                  This field will be used as labels on the map
+                </div>
+              </div>
+            )}
+
+            {districts.length > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  cursor: 'pointer',
+                  padding: '12px',
+                  backgroundColor: showDistrictLabels ? '#e0f2f1' : '#f5f5f5',
+                  borderRadius: '8px',
+                  border: `2px solid ${showDistrictLabels ? '#009688' : '#e0e0e0'}`,
+                  transition: 'all 0.2s',
+                  fontFamily: "'Inter', sans-serif"
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={showDistrictLabels}
+                    onChange={(e) => setShowDistrictLabels(e.target.checked)}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={showDistrictLabels ? '#009688' : '#666'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  <span style={{
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: showDistrictLabels ? '#00796b' : '#666'
+                  }}>
+                    Show Admin Labels on Map
+                  </span>
+                </label>
+              </div>
+            )}
+          </CollapsibleSection>
+
+          {/* Facilities Section */}
+          <CollapsibleSection
+            title="Facilities"
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
+            }
+            count={facilities.length}
+            color="var(--aidstack-navy)"
+            defaultExpanded={facilities.length > 0}
+          >
+            <div style={{ margin: '8px 0 20px 0', textAlign: 'center' }}>
+              <div style={{ fontSize: '13px', color: '#666', marginBottom: '14px', lineHeight: '1.6', textAlign: 'left' }}>
+                Upload facilities when you want site-level impact analysis, marker labels, or facility-specific AI recommendations.
+              </div>
               <div
                 onClick={handleFileUploadClick}
                 style={{
@@ -210,30 +332,6 @@ const FacilityDrawer = ({
                 </div>
               </div>
 
-              <button
-                onClick={handleFileUploadClick}
-                style={{
-                  width: '100%',
-                  padding: '12px 20px',
-                  marginTop: '20px',
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
-                  <path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4M17 8l-5-5-5 5M12 3v12"></path>
-                </svg>
-                Upload Facility Data
-              </button>
-
               <div style={{ fontSize: '12px', marginTop: '10px', color: '#666', display: 'flex', justifyContent: 'center', gap: '20px' }}>
                 <a
                   href="#"
@@ -251,7 +349,6 @@ const FacilityDrawer = ({
                 </a>
               </div>
 
-              {/* Clear Cache Button */}
               {facilities.length > 0 && onClearCache && (
                 <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #eee' }}>
                   <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px', textAlign: 'center' }}>
@@ -288,7 +385,378 @@ const FacilityDrawer = ({
                 </div>
               )}
             </div>
-          </div>
+
+            {/* Show Labels Toggle - Only useful when facilities exist */}
+            {facilities.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  cursor: 'pointer',
+                  padding: '12px',
+                  backgroundColor: showLabels ? '#e8f5e9' : '#f5f5f5',
+                  borderRadius: '8px',
+                  border: `2px solid ${showLabels ? '#4CAF50' : '#e0e0e0'}`,
+                  transition: 'all 0.2s',
+                  fontFamily: "'Inter', sans-serif"
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={showLabels}
+                    onChange={(e) => setShowLabels(e.target.checked)}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={showLabels ? '#4CAF50' : '#666'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <path d="M9 3v18"></path>
+                  </svg>
+                  <span style={{
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: showLabels ? '#2e7d32' : '#666'
+                  }}>
+                    Show Facility Labels on Map
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {facilities.length > 0 && (
+              <>
+                {/* Search Bar */}
+                <div style={{ marginBottom: '15px' }}>
+                  <div style={{
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{
+                      position: 'absolute',
+                      left: '12px',
+                      pointerEvents: 'none'
+                    }}>
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search facilities..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px 10px 40px',
+                        border: '1px solid #ddd',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontFamily: 'Inter, sans-serif',
+                        outline: 'none',
+                        transition: 'border-color 0.2s'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = '#2196F3'}
+                      onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        style={{
+                          position: 'absolute',
+                          right: '8px',
+                          background: 'none',
+                          border: 'none',
+                          color: '#999',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filter and Sort Controls */}
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  marginBottom: '15px',
+                  flexWrap: 'wrap'
+                }}>
+                  {/* Status Filter */}
+                  <div style={{ flex: '1 1 45%' }}>
+                    <label style={{
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      color: '#666',
+                      display: 'block',
+                      marginBottom: '4px',
+                      fontFamily: 'Inter, sans-serif'
+                    }}>
+                      Status
+                    </label>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontFamily: 'Inter, sans-serif',
+                        backgroundColor: 'white',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="all">All ({facilities.length})</option>
+                      <option value="impacted">Impacted ({impactedFacilities.length})</option>
+                      <option value="safe">Safe ({facilities.length - impactedFacilities.length})</option>
+                    </select>
+                  </div>
+
+                  {/* Sort By */}
+                  <div style={{ flex: '1 1 45%' }}>
+                    <label style={{
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      color: '#666',
+                      display: 'block',
+                      marginBottom: '4px',
+                      fontFamily: 'Inter, sans-serif'
+                    }}>
+                      Sort By
+                    </label>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontFamily: 'Inter, sans-serif',
+                        backgroundColor: 'white',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="name">Name (A-Z)</option>
+                      <option value="distance">Impact Status</option>
+                    </select>
+                  </div>
+                </div>
+
+                {(searchQuery || statusFilter !== 'all') && (
+                  <div style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#e3f2fd',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    color: '#1565c0',
+                    marginBottom: '15px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
+                    <span>
+                      <strong>{filteredAndSortedFacilities.length}</strong> {filteredAndSortedFacilities.length === 1 ? 'facility' : 'facilities'} found
+                    </span>
+                    <button
+                      onClick={() => {
+                        setSearchQuery('');
+                        setStatusFilter('all');
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#1565c0',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600'
+                      }}
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              maxHeight: '400px',
+              overflowY: 'auto',
+              paddingRight: '5px'
+            }}>
+              {facilities.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>
+                  No facilities uploaded yet.
+                </div>
+              ) : filteredAndSortedFacilities.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '20px',
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: '8px',
+                  color: '#666'
+                }}>
+                  No facilities match your search criteria.
+                </div>
+              ) : (
+                filteredAndSortedFacilities.map((facility, index) => {
+                  const impactedInfo = impactedFacilities.find(imp => imp.facility.name === facility.name);
+                  const isImpacted = !!impactedInfo;
+
+                  return (
+                    <div key={index} style={{
+                      backgroundColor: isImpacted ? 'rgba(244, 67, 54, 0.05)' : 'rgba(76, 175, 80, 0.05)',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      border: `1px solid ${isImpacted ? 'rgba(244, 67, 54, 0.2)' : 'rgba(76, 175, 80, 0.2)'}`,
+                      transition: 'all 0.2s'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        marginBottom: '8px'
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontWeight: 'bold',
+                            marginBottom: '4px',
+                            fontSize: '14px',
+                            fontFamily: 'Space Grotesk, sans-serif'
+                          }}>
+                            {facility.name}
+                          </div>
+                          {facility.description && (
+                            <div style={{
+                              fontSize: '11px',
+                              color: '#666',
+                              marginBottom: '4px',
+                              fontFamily: 'Inter, sans-serif'
+                            }}>
+                              {facility.description}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          backgroundColor: isImpacted ? '#ffebee' : '#e8f5e9',
+                          color: isImpacted ? '#c62828' : '#2e7d32',
+                          whiteSpace: 'nowrap',
+                          fontFamily: 'Inter, sans-serif'
+                        }}>
+                          {isImpacted ? '⚠️ Impacted' : '✓ Safe'}
+                        </div>
+                      </div>
+
+                      {isImpacted && (
+                        <>
+                          <div style={{
+                            fontSize: '12px',
+                            color: '#666',
+                            display: 'flex',
+                            alignItems: 'center',
+                            marginBottom: '8px',
+                            fontFamily: 'Inter, sans-serif'
+                          }}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
+                              <circle cx="12" cy="12" r="10"></circle>
+                              <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            {impactedInfo.impacts?.length || 0} {impactedInfo.impacts?.length === 1 ? 'disaster' : 'disasters'}
+                          </div>
+                          <button
+                            onClick={() => onFacilitySelect(facility)}
+                            style={{
+                              backgroundColor: '#F44336',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '6px 12px',
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              width: '100%',
+                              justifyContent: 'center',
+                              fontWeight: '600',
+                              fontFamily: 'Inter, sans-serif',
+                              transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = '#d32f2f'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = '#F44336'}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}>
+                              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                            View Details
+                          </button>
+                        </>
+                      )}
+
+                      {!isImpacted && (
+                        <button
+                          onClick={() => onFacilityViewOnMap ? onFacilityViewOnMap(facility) : onFacilitySelect(facility)}
+                          style={{
+                            backgroundColor: 'white',
+                            color: '#4CAF50',
+                            border: '1px solid #4CAF50',
+                            borderRadius: '4px',
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            width: '100%',
+                            justifyContent: 'center',
+                            fontWeight: '600',
+                            fontFamily: 'Inter, sans-serif',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.backgroundColor = '#4CAF50';
+                            e.target.style.color = 'white';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.backgroundColor = 'white';
+                            e.target.style.color = '#4CAF50';
+                          }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}>
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                          </svg>
+                          View on Map
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </CollapsibleSection>
 
           {/* ACLED Security Data Section */}
           <CollapsibleSection
@@ -668,492 +1136,6 @@ const FacilityDrawer = ({
             )}
           </CollapsibleSection>
 
-          {/* Admin Level Boundaries Section */}
-          <CollapsibleSection
-            title="Admin Boundaries"
-            icon={
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-              </svg>
-            }
-            count={districts.length}
-            color="var(--aidstack-teal)"
-            defaultExpanded={false}
-          >
-            <ShapefileUploader onDistrictsLoaded={onDistrictsLoaded} />
-
-            {/* Label Field Selector - Only show when districts are loaded and fields are available */}
-            {districts.length > 0 && districtAvailableFields.length > 0 && (
-              <div style={{ marginTop: '20px' }}>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: 'var(--aidstack-slate-medium)',
-                  marginBottom: '10px',
-                  fontFamily: "'Inter', sans-serif"
-                }}>
-                  Select Label Field:
-                </label>
-                <select
-                  value={districtLabelField || ''}
-                  onChange={(e) => onDistrictLabelFieldChange && onDistrictLabelFieldChange(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    borderRadius: '6px',
-                    border: '2px solid var(--aidstack-teal)',
-                    backgroundColor: 'white',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    fontFamily: "'Inter', sans-serif",
-                    color: 'var(--aidstack-navy)',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {districtAvailableFields.map(field => (
-                    <option key={field} value={field}>
-                      {field}
-                    </option>
-                  ))}
-                </select>
-                <div style={{
-                  marginTop: '8px',
-                  fontSize: '12px',
-                  color: '#666',
-                  fontStyle: 'italic'
-                }}>
-                  This field will be used as labels on the map
-                </div>
-              </div>
-            )}
-
-            {/* Show Admin Labels Toggle - Only show when districts are loaded */}
-            {districts.length > 0 && (
-              <div style={{ marginTop: '20px' }}>
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  cursor: 'pointer',
-                  padding: '12px',
-                  backgroundColor: showDistrictLabels ? '#e0f2f1' : '#f5f5f5',
-                  borderRadius: '8px',
-                  border: `2px solid ${showDistrictLabels ? '#009688' : '#e0e0e0'}`,
-                  transition: 'all 0.2s',
-                  fontFamily: "'Inter', sans-serif"
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={showDistrictLabels}
-                    onChange={(e) => setShowDistrictLabels(e.target.checked)}
-                    style={{
-                      width: '18px',
-                      height: '18px',
-                      cursor: 'pointer'
-                    }}
-                  />
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={showDistrictLabels ? '#009688' : '#666'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                    <circle cx="12" cy="10" r="3"></circle>
-                  </svg>
-                  <span style={{
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: showDistrictLabels ? '#00796b' : '#666'
-                  }}>
-                    Show Admin Labels on Map
-                  </span>
-                </label>
-              </div>
-            )}
-          </CollapsibleSection>
-
-          <CollapsibleSection
-            title="Facilities"
-            icon={
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                <polyline points="9 22 9 12 15 12 15 22"></polyline>
-              </svg>
-            }
-            count={facilities.length}
-            color="var(--aidstack-navy)"
-            defaultExpanded={true}
-          >
-            {/* Show Labels Toggle - Always visible */}
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                cursor: 'pointer',
-                padding: '12px',
-                backgroundColor: showLabels ? '#e8f5e9' : '#f5f5f5',
-                borderRadius: '8px',
-                border: `2px solid ${showLabels ? '#4CAF50' : '#e0e0e0'}`,
-                transition: 'all 0.2s',
-                fontFamily: "'Inter', sans-serif"
-              }}>
-                <input
-                  type="checkbox"
-                  checked={showLabels}
-                  onChange={(e) => setShowLabels(e.target.checked)}
-                  style={{
-                    width: '18px',
-                    height: '18px',
-                    cursor: 'pointer'
-                  }}
-                />
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={showLabels ? '#4CAF50' : '#666'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <path d="M9 3v18"></path>
-                </svg>
-                <span style={{
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: showLabels ? '#2e7d32' : '#666'
-                }}>
-                  Show Facility Labels on Map
-                </span>
-              </label>
-            </div>
-
-            {facilities.length > 0 && (
-              <>
-                {/* Search Bar */}
-                <div style={{ marginBottom: '15px' }}>
-                  <div style={{
-                    position: 'relative',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{
-                      position: 'absolute',
-                      left: '12px',
-                      pointerEvents: 'none'
-                    }}>
-                      <circle cx="11" cy="11" r="8"></circle>
-                      <path d="m21 21-4.35-4.35"></path>
-                    </svg>
-                    <input
-                      type="text"
-                      placeholder="Search facilities..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px 10px 40px',
-                        border: '1px solid #ddd',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        fontFamily: 'Inter, sans-serif',
-                        outline: 'none',
-                        transition: 'border-color 0.2s'
-                      }}
-                      onFocus={(e) => e.target.style.borderColor = '#2196F3'}
-                      onBlur={(e) => e.target.style.borderColor = '#ddd'}
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        style={{
-                          position: 'absolute',
-                          right: '8px',
-                          background: 'none',
-                          border: 'none',
-                          color: '#999',
-                          cursor: 'pointer',
-                          padding: '4px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Filter and Sort Controls */}
-                <div style={{
-                  display: 'flex',
-                  gap: '8px',
-                  marginBottom: '15px',
-                  flexWrap: 'wrap'
-                }}>
-                  {/* Status Filter */}
-                  <div style={{ flex: '1 1 45%' }}>
-                    <label style={{
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      color: '#666',
-                      display: 'block',
-                      marginBottom: '4px',
-                      fontFamily: 'Inter, sans-serif'
-                    }}>
-                      Status
-                    </label>
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        border: '1px solid #ddd',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontFamily: 'Inter, sans-serif',
-                        backgroundColor: 'white',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value="all">All ({facilities.length})</option>
-                      <option value="impacted">Impacted ({impactedFacilities.length})</option>
-                      <option value="safe">Safe ({facilities.length - impactedFacilities.length})</option>
-                    </select>
-                  </div>
-
-                  {/* Sort By */}
-                  <div style={{ flex: '1 1 45%' }}>
-                    <label style={{
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      color: '#666',
-                      display: 'block',
-                      marginBottom: '4px',
-                      fontFamily: 'Inter, sans-serif'
-                    }}>
-                      Sort By
-                    </label>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        border: '1px solid #ddd',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontFamily: 'Inter, sans-serif',
-                        backgroundColor: 'white',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value="name">Name (A-Z)</option>
-                      <option value="distance">Impact Status</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Results Summary */}
-                {(searchQuery || statusFilter !== 'all') && (
-                  <div style={{
-                    padding: '8px 12px',
-                    backgroundColor: '#e3f2fd',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    color: '#1565c0',
-                    marginBottom: '15px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontFamily: 'Inter, sans-serif'
-                  }}>
-                    <span>
-                      <strong>{filteredAndSortedFacilities.length}</strong> {filteredAndSortedFacilities.length === 1 ? 'facility' : 'facilities'} found
-                    </span>
-                    <button
-                      onClick={() => {
-                        setSearchQuery('');
-                        setStatusFilter('all');
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#1565c0',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        fontWeight: '600'
-                      }}
-                    >
-                      Clear filters
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-              maxHeight: '400px',
-              overflowY: 'auto',
-              paddingRight: '5px'
-            }}>
-              {facilities.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>
-                  No facilities uploaded yet.
-                </div>
-              ) : filteredAndSortedFacilities.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '20px',
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: '8px',
-                  color: '#666'
-                }}>
-                  No facilities match your search criteria.
-                </div>
-              ) : (
-                filteredAndSortedFacilities.map((facility, index) => {
-                  const impactedInfo = impactedFacilities.find(imp => imp.facility.name === facility.name);
-                  const isImpacted = !!impactedInfo;
-
-                  return (
-                    <div key={index} style={{
-                      backgroundColor: isImpacted ? 'rgba(244, 67, 54, 0.05)' : 'rgba(76, 175, 80, 0.05)',
-                      borderRadius: '8px',
-                      padding: '12px',
-                      border: `1px solid ${isImpacted ? 'rgba(244, 67, 54, 0.2)' : 'rgba(76, 175, 80, 0.2)'}`,
-                      transition: 'all 0.2s'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        justifyContent: 'space-between',
-                        marginBottom: '8px'
-                      }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{
-                            fontWeight: 'bold',
-                            marginBottom: '4px',
-                            fontSize: '14px',
-                            fontFamily: 'Space Grotesk, sans-serif'
-                          }}>
-                            {facility.name}
-                          </div>
-                          {facility.description && (
-                            <div style={{
-                              fontSize: '11px',
-                              color: '#666',
-                              marginBottom: '4px',
-                              fontFamily: 'Inter, sans-serif'
-                            }}>
-                              {facility.description}
-                            </div>
-                          )}
-                        </div>
-                        <div style={{
-                          padding: '4px 8px',
-                          borderRadius: '12px',
-                          fontSize: '11px',
-                          fontWeight: '600',
-                          backgroundColor: isImpacted ? '#ffebee' : '#e8f5e9',
-                          color: isImpacted ? '#c62828' : '#2e7d32',
-                          whiteSpace: 'nowrap',
-                          fontFamily: 'Inter, sans-serif'
-                        }}>
-                          {isImpacted ? '⚠️ Impacted' : '✓ Safe'}
-                        </div>
-                      </div>
-
-                      {isImpacted && (
-                        <>
-                          <div style={{
-                            fontSize: '12px',
-                            color: '#666',
-                            display: 'flex',
-                            alignItems: 'center',
-                            marginBottom: '8px',
-                            fontFamily: 'Inter, sans-serif'
-                          }}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
-                              <circle cx="12" cy="12" r="10"></circle>
-                              <polyline points="12 6 12 12 16 14"></polyline>
-                            </svg>
-                            {impactedInfo.impacts?.length || 0} {impactedInfo.impacts?.length === 1 ? 'disaster' : 'disasters'}
-                          </div>
-                          <button
-                            onClick={() => onFacilitySelect(facility)}
-                            style={{
-                              backgroundColor: '#F44336',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              padding: '6px 12px',
-                              fontSize: '12px',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              width: '100%',
-                              justifyContent: 'center',
-                              fontWeight: '600',
-                              fontFamily: 'Inter, sans-serif',
-                              transition: 'background-color 0.2s'
-                            }}
-                            onMouseEnter={(e) => e.target.style.backgroundColor = '#d32f2f'}
-                            onMouseLeave={(e) => e.target.style.backgroundColor = '#F44336'}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}>
-                              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                            </svg>
-                            View Details
-                          </button>
-                        </>
-                      )}
-
-                      {!isImpacted && (
-                        <button
-                          onClick={() => onFacilityViewOnMap ? onFacilityViewOnMap(facility) : onFacilitySelect(facility)}
-                          style={{
-                            backgroundColor: 'white',
-                            color: '#4CAF50',
-                            border: '1px solid #4CAF50',
-                            borderRadius: '4px',
-                            padding: '6px 12px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            width: '100%',
-                            justifyContent: 'center',
-                            fontWeight: '600',
-                            fontFamily: 'Inter, sans-serif',
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.backgroundColor = '#4CAF50';
-                            e.target.style.color = 'white';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.backgroundColor = 'white';
-                            e.target.style.color = '#4CAF50';
-                          }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}>
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                            <circle cx="12" cy="10" r="3"></circle>
-                          </svg>
-                          View on Map
-                        </button>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </CollapsibleSection>
-
           <button
             onClick={onGenerateSitrep}
             style={{
@@ -1184,6 +1166,7 @@ const FacilityDrawer = ({
             </svg>
             Generate Situation Report
           </button>
+      </div>
     </div>
   );
 

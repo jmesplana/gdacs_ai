@@ -11,7 +11,7 @@ const STEPS = [
   {
     icon: '🗺️',
     title: 'Review live disaster & security data',
-    description: 'GDACS disaster alerts load automatically. For ACLED, download a CSV export using your ACLED account, then upload it into the app to enable conflict overlays and country filtering. You can also upload an admin boundary shapefile (.zip) for district-level risk views.',
+    description: 'GDACS disaster alerts load automatically. For ACLED, download a CSV export using your ACLED account, then upload it into the app to enable conflict overlays and country filtering. You can also upload an admin boundary shapefile (.zip) for area-level risk views.',
     cta: null,
   },
   {
@@ -23,7 +23,7 @@ const STEPS = [
   {
     icon: '🎯',
     title: 'Assess campaign viability',
-    description: 'Get GO/CAUTION/DELAY/NOGO decisions for each facility or district. Batch-assess 1000+ facilities at once to prioritize safe operations and identify high-risk areas.',
+    description: 'Get GO/CAUTION/DELAY/NOGO decisions for each facility or administrative area. Batch-assess 1000+ facilities at once to prioritize safe operations and identify high-risk areas.',
     cta: null,
   },
   {

@@ -669,7 +669,7 @@ const LandingPage = () => {
                     color: '#475569',
                     fontFamily: "'Inter', sans-serif"
                   }}>
-                    34 facilities within the current hazard corridor. Priority districts are highlighted for the next 72 hours.
+                    34 facilities within the current hazard corridor. Priority admin areas are highlighted for the next 72 hours.
                   </div>
                 </div>
 
@@ -714,7 +714,7 @@ const LandingPage = () => {
                     }}>
                       {[
                         { label: 'Facilities', value: '34', color: '#EF4444' },
-                        { label: 'Districts', value: '5', color: '#F97316' },
+                        { label: 'Areas', value: '5', color: '#F97316' },
                         { label: 'Risk', value: 'High', color: '#7C3AED' }
                       ].map((item) => (
                         <div key={item.label} style={{
@@ -947,9 +947,9 @@ const LandingPage = () => {
                 paddingLeft: '20px'
               }}>
                 <li>Upload facilities via CSV/Excel</li>
-                <li>Shapefile support for district boundaries</li>
+                <li>Shapefile support for admin boundaries</li>
                 <li>Automated distance calculations</li>
-                <li>District-level risk mapping</li>
+                <li>Area-level risk mapping</li>
               </ul>
             </div>
 
@@ -1072,7 +1072,7 @@ const LandingPage = () => {
                   'Real-time population heatmaps',
                   'Vulnerable population identification (under-5, over-60)',
                   'Age-sex demographic breakdowns',
-                  'District-level population statistics'
+                  'Area-level population statistics'
                 ]
               },
               {
@@ -1094,7 +1094,7 @@ const LandingPage = () => {
                 description: 'GO/CAUTION/DELAY/NOGO decisions for campaign planning',
                 features: [
                   'Multi-facility batch assessment',
-                  'District-level campaign readiness',
+                  'Area-level campaign readiness',
                   'Operation-specific risk scoring',
                   'HTML/PDF decision brief export'
                 ]
@@ -1152,7 +1152,7 @@ const LandingPage = () => {
                 description: 'Context-aware AI assistant with real-time information',
                 features: [
                   'Real-time web search integration',
-                  'District interaction intents',
+                  'Admin area interaction intents',
                   'Streaming responses',
                   'Context-aware recommendations'
                 ]
@@ -1431,19 +1431,19 @@ const LandingPage = () => {
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2l4 4M7.5 12.5l-4 4M4.5 16.5L2 19l3 3 2.5-2.5M9 6l6 6M16.5 7.5l3-3L22 7l-3 3"/><path d="M7 7l9 9"/></svg>,
                 description: 'Track vaccination coverage, map refusals, quantify missed children, and pause campaigns in conflict zones',
                 features: ['Campaign coverage tracking', 'Refusal hotspot mapping', 'Conflict impact analysis', 'Catch-up needs calculation'],
-                example: 'Calculate total missed children in districts affected by 14+ day interruptions'
+                example: 'Calculate total missed children in admin areas affected by 14+ day interruptions'
               },
               {
                 title: 'Cholera/OCV Response',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>,
                 description: 'Joint WASH-OCV planning for flood-affected areas with disease surveillance integration',
                 features: ['Flood-cholera correlation', 'WASH access mapping', 'OCV prioritization', 'Emergency response targeting'],
-                example: 'Identify districts with floods + low WASH + high cholera cases needing urgent intervention'
+                example: 'Identify admin areas with floods + low WASH + high cholera cases needing urgent intervention'
               },
               {
                 title: 'Humanitarian Access',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
-                description: 'Safety assessments for field teams with real-time conflict tracking and district risk scoring',
+                description: 'Safety assessments for field teams with real-time conflict tracking and admin-area risk scoring',
                 features: ['ACLED conflict events', 'No-go zone identification', 'Route safety scoring', 'Access timeline planning'],
                 example: 'Show which supply routes are safe this week based on recent security incidents'
               },
@@ -1480,21 +1480,21 @@ const LandingPage = () => {
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>,
                 description: 'Water point vulnerability and emergency WASH needs assessment',
                 features: ['Flood-affected water point mapping', 'Contamination risk zones', 'Emergency latrine needs calculation', 'Hygiene kit distribution planning'],
-                example: 'Calculate emergency WASH needs for flood-affected districts with damaged water infrastructure'
+                example: 'Calculate emergency WASH needs for flood-affected admin areas with damaged water infrastructure'
               },
               {
                 title: 'Mental Health & Psychosocial Support',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>,
                 description: 'Trauma-affected population mapping and service gap analysis',
                 features: ['Conflict-affected area prioritization', 'Service coverage gap analysis', 'Safe space site selection', 'Counselor deployment planning'],
-                example: 'Identify districts with high conflict exposure and no MHPSS services'
+                example: 'Identify admin areas with high conflict exposure and no MHPSS services'
               },
               {
                 title: 'Nutrition/RUTF Distribution',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>,
                 description: 'Acute malnutrition response with supply chain optimization',
                 features: ['Drought-malnutrition correlation', 'RUTF cold chain risk assessment', 'Distribution site accessibility', 'SAM case load forecasting'],
-                example: 'Predict SAM caseload increase in drought-affected districts and plan RUTF pre-positioning'
+                example: 'Predict SAM caseload increase in drought-affected admin areas and plan RUTF pre-positioning'
               }
             ].map((useCase, idx) => (
               <div key={idx} style={{
@@ -1660,13 +1660,13 @@ const LandingPage = () => {
               {
                 step: '3',
                 title: 'Add Context Layers',
-                description: 'Upload ACLED CSV exports and admin boundaries for district-level risk assessment and country filtering',
+                description: 'Upload ACLED CSV exports and admin boundaries for area-level risk assessment and country filtering',
                 icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
               },
               {
                 step: '4',
                 title: 'Ask Questions',
-                description: 'Natural language queries: "Which districts need catch-up campaigns?"',
+                description: 'Natural language queries: "Which admin areas need catch-up campaigns?"',
                 icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               }
             ].map((step, idx) => (
@@ -1758,7 +1758,7 @@ const LandingPage = () => {
                   description: 'Circular markers'
                 },
                 {
-                  label: 'District Risk',
+                  label: 'Admin Area Risk',
                   shape: 'polygon',
                   colors: [
                     { label: 'None', color: '#4A90E2' },
@@ -1992,7 +1992,7 @@ const LandingPage = () => {
               },
               {
                 title: 'Upload Your Data & Analyze Population',
-                description: 'Import facility locations from CSV/Excel, upload shapefiles for district boundaries, and visualize WorldPop demographic data with age-sex breakdowns'
+                description: 'Import facility locations from CSV/Excel, upload shapefiles for admin boundaries, and visualize WorldPop demographic data with age-sex breakdowns'
               },
               {
                 title: 'Automatic Multi-Layer Impact Assessment',
@@ -2331,7 +2331,7 @@ const LandingPage = () => {
               },
               {
                 question: 'How does weather forecast integration work?',
-                answer: 'The AI chatbot integrates 2-week weather forecasts for your operational area and districts. It automatically generates warnings for flood risk, disease outbreak conditions, heat stress, and cold chain risks. Ask questions like "Can I run campaigns this week?" or "Which districts have flood risk?"'
+                answer: 'The AI chatbot integrates 2-week weather forecasts for your operational area and uploaded admin areas. It automatically generates warnings for flood risk, disease outbreak conditions, heat stress, and cold chain risks. Ask questions like "Can I run campaigns this week?" or "Which admin areas have flood risk?"'
               },
               {
                 question: 'What is Timeline Playback?',
@@ -2359,7 +2359,7 @@ const LandingPage = () => {
               },
               {
                 question: 'Can I use my own facility data?',
-                answer: 'Yes, upload any CSV or Excel file with name, latitude, and longitude columns. You can also upload shapefiles for district boundaries to get district-level risk assessments, population statistics, and weather forecasts.'
+                answer: 'Yes, upload any CSV or Excel file with name, latitude, and longitude columns. You can also upload shapefiles for admin boundaries to get area-level risk assessments, population statistics, and weather forecasts.'
               },
               {
                 question: 'Is my data stored on servers?',

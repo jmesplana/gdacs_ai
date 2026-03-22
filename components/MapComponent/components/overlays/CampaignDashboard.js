@@ -14,7 +14,7 @@ const metricPillStyle = {
 
 const computeDashboardConfidence = ({ districts, facilities, disasters, acledEnabled, acledData, worldPopData, mode }) => {
   const signals = [
-    { label: 'District boundaries', available: districts.length > 0 },
+    { label: 'Admin boundaries', available: districts.length > 0 },
     { label: 'Disaster data', available: disasters.length > 0 },
     { label: 'Security context', available: acledEnabled && acledData.length > 0 },
     { label: 'Population data', available: Object.keys(worldPopData || {}).length > 0 },
@@ -454,7 +454,7 @@ const CampaignDashboard = ({
           <h3 className="drawer-title" style={{color: 'white', fontFamily: "'Space Grotesk', sans-serif"}}>
             <span style={{fontSize: '24px', marginRight: '10px'}}>{opConfig.icon}</span>
             {opConfig.name} Readiness Dashboard
-            {assessmentMode === 'district' && <span style={{fontSize: '14px', opacity: 0.8, marginLeft: '10px'}}>(District-Level)</span>}
+            {assessmentMode === 'district' && <span style={{fontSize: '14px', opacity: 0.8, marginLeft: '10px'}}>(Area-Level)</span>}
           </h3>
           <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
         </div>
@@ -463,10 +463,10 @@ const CampaignDashboard = ({
           {!districts || districts.length === 0 ? (
             <div style={{padding: '20px', textAlign: 'center', backgroundColor: 'var(--aidstack-light-gray)', borderRadius: '8px', margin: '20px'}}>
               <p style={{marginBottom: '10px', color: 'var(--aidstack-slate-medium)'}}>
-                <strong>Upload district boundaries</strong> for {opConfig.name.toLowerCase()} planning (recommended)
+                <strong>Upload admin boundaries</strong> for {opConfig.name.toLowerCase()} planning (recommended)
               </p>
               <p style={{fontSize: '14px', color: 'var(--aidstack-slate-medium)'}}>
-                {opConfig.name} operations are typically planned at the district level. Upload a shapefile to get started.
+                {opConfig.name} operations are typically planned at the admin-area level. Upload a shapefile to get started.
               </p>
             </div>
           ) : loading ? (
@@ -579,7 +579,7 @@ const CampaignDashboard = ({
               {/* Districts/Facilities by Decision */}
               <div style={{ marginBottom: '25px' }}>
                 <h4 style={{ fontSize: '16px', marginBottom: '15px', color: 'var(--aidstack-navy)' }}>
-                  {dashboardData.mode === 'district' ? 'District Status Breakdown' : 'Facility Status Breakdown'}
+                  {dashboardData.mode === 'district' ? 'Admin Area Status Breakdown' : 'Facility Status Breakdown'}
                 </h4>
 
                 {dashboardData.mode === 'district' && (
@@ -603,7 +603,7 @@ const CampaignDashboard = ({
                       color: '#4b5563',
                       lineHeight: '1.6'
                     }}>
-                      District decisions combine ACLED security risk, active GDACS disasters, facility impact inside each district, and operation-specific disaster sensitivity for {opConfig.name.toLowerCase()}.
+                      Area decisions combine ACLED security risk, active GDACS disasters, facility impact inside each uploaded admin area, and operation-specific disaster sensitivity for {opConfig.name.toLowerCase()}.
                     </div>
                     <div style={{
                       marginTop: '10px',
@@ -694,8 +694,8 @@ const CampaignDashboard = ({
                                 }}
                               >
                                 {showAllItems
-                                  ? 'Show fewer districts'
-                                  : `Show ${items.length - previewLimit} more district${items.length - previewLimit === 1 ? '' : 's'}`}
+                                  ? 'Show fewer admin areas'
+                                  : `Show ${items.length - previewLimit} more admin area${items.length - previewLimit === 1 ? '' : 's'}`}
                               </button>
                             )}
                           </div>

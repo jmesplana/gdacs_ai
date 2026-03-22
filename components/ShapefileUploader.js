@@ -494,7 +494,7 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
         color: 'var(--aidstack-slate-medium)',
         marginBottom: '15px'
       }}>
-        Upload a shapefile (.zip) with administrative boundaries (districts, provinces, etc.) for risk analysis and campaign planning
+        Upload a shapefile (.zip) with administrative boundaries (districts, provinces, regions, etc.) for risk analysis and campaign planning
       </p>
 
       <div style={{ marginBottom: '10px' }}>
