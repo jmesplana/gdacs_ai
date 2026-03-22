@@ -403,7 +403,6 @@ const LandingPage = () => {
             transform: 'perspective(1000px) rotateY(-5deg)',
             transition: 'transform 0.3s ease'
           }}>
-            {/* Browser Chrome */}
             <div style={{
               background: '#F3F4F6',
               borderRadius: '12px 12px 0 0',
@@ -431,334 +430,263 @@ const LandingPage = () => {
               </div>
             </div>
 
-            {/* App Interface Mockup */}
             <div style={{
               background: '#F8FAFC',
               borderRadius: '0 0 12px 12px',
               overflow: 'hidden',
-              position: 'relative',
               minHeight: '600px'
             }}>
-              {/* Top Header Bar */}
               <div style={{
                 background: 'white',
-                padding: '12px 16px',
+                padding: '14px 16px',
                 borderBottom: '1px solid #E5E7EB',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 gap: '12px'
               }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2.5">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
                   </svg>
-                  <span style={{
-                    fontFamily: "'Space Grotesk', sans-serif",
+                  <div>
+                    <div style={{
+                      fontFamily: "'Space Grotesk', sans-serif",
+                      fontWeight: 700,
+                      fontSize: '14px',
+                      color: '#1A365D'
+                    }}>
+                      Aidstack Disasters
+                    </div>
+                    <div style={{
+                      fontSize: '10px',
+                      color: '#64748B',
+                      fontFamily: "'Inter', sans-serif"
+                    }}>
+                      Live hazards with facility impact context
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <div style={{
+                    background: '#ECFDF5',
+                    border: '1px solid #A7F3D0',
+                    color: '#047857',
+                    padding: '5px 8px',
+                    borderRadius: '999px',
+                    fontSize: '10px',
                     fontWeight: 700,
-                    fontSize: '15px',
-                    color: '#1A365D'
-                  }}>Aidstack</span>
-                </div>
-
-                <div style={{
-                  flex: 1,
-                  maxWidth: '200px',
-                  background: '#F8FAFC',
-                  border: '1px solid #E5E7EB',
-                  borderRadius: '6px',
-                  padding: '6px 10px',
-                  fontSize: '11px',
-                  color: '#64748B',
-                  fontFamily: "'Inter', sans-serif"
-                }}>
-                  Select operation type
-                </div>
-
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    fontFamily: "'Inter', sans-serif"
+                  }}>
+                    211 safe
+                  </div>
                   <div style={{
                     background: '#FEF2F2',
-                    border: '1px solid #FCA5A5',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
+                    border: '1px solid #FECACA',
+                    color: '#B91C1C',
+                    padding: '5px 8px',
+                    borderRadius: '999px',
                     fontSize: '10px',
-                    fontWeight: 600,
-                    color: '#DC2626',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
+                    fontWeight: 700,
+                    fontFamily: "'Inter', sans-serif"
                   }}>
-                    <span style={{
-                      width: '6px',
-                      height: '6px',
-                      background: '#DC2626',
-                      borderRadius: '50%',
-                      display: 'inline-block'
-                    }}></span>
-                    23 Active
-                  </div>
-                  <div style={{
-                    background: '#FF6B35',
-                    color: 'white',
-                    padding: '5px 10px',
-                    borderRadius: '5px',
-                    fontSize: '10px',
-                    fontWeight: 600
-                  }}>
-                    Analyze
-                  </div>
-                  <div style={{
-                    width: '24px',
-                    height: '24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2">
-                      <line x1="3" y1="12" x2="21" y2="12"></line>
-                      <line x1="3" y1="6" x2="21" y2="6"></line>
-                      <line x1="3" y1="18" x2="21" y2="18"></line>
-                    </svg>
+                    34 impacted
                   </div>
                 </div>
               </div>
 
-              {/* Map Area with Disaster Markers */}
               <div style={{
                 position: 'relative',
                 height: '530px',
-                background: 'linear-gradient(135deg, #D1E7DD 0%, #C3D5E8 30%, #D4D9F0 60%, #E8DFE0 100%)',
+                background: 'linear-gradient(135deg, #D9E7D7 0%, #D3E1EF 38%, #E3D9D0 100%)',
                 overflow: 'hidden'
               }}>
-                {/* More realistic map texture */}
                 <div style={{
                   position: 'absolute',
                   inset: 0,
                   opacity: 0.08,
-                  backgroundImage: 'linear-gradient(45deg, #1A365D 25%, transparent 25%, transparent 75%, #1A365D 75%, #1A365D), linear-gradient(45deg, #1A365D 25%, transparent 25%, transparent 75%, #1A365D 75%, #1A365D)',
-                  backgroundSize: '20px 20px',
-                  backgroundPosition: '0 0, 10px 10px'
+                  backgroundImage: 'radial-gradient(circle at 20% 30%, #1A365D 0, transparent 26%), radial-gradient(circle at 72% 18%, #1A365D 0, transparent 24%), linear-gradient(135deg, rgba(255,255,255,0.2) 0, transparent 60%)'
                 }}></div>
 
-                {/* District polygon outlines */}
-                <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.25 }}>
-                  <path d="M 100 80 L 180 60 L 200 120 L 150 140 Z" fill="none" stroke="#1A365D" strokeWidth="1.5" />
-                  <path d="M 250 150 L 320 140 L 340 200 L 280 220 Z" fill="none" stroke="#1A365D" strokeWidth="1.5" />
-                  <path d="M 150 250 L 220 240 L 240 310 L 170 320 Z" fill="none" stroke="#1A365D" strokeWidth="1.5" />
-                  <path d="M 350 80 L 420 70 L 440 130 L 380 145 Z" fill="rgba(239, 68, 68, 0.1)" stroke="#EF4444" strokeWidth="2" />
+                <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+                  <path d="M 62 120 L 180 82 L 252 150 L 218 252 L 108 270 L 56 204 Z" fill="rgba(148, 163, 184, 0.1)" stroke="rgba(26,54,93,0.28)" strokeWidth="2" />
+                  <path d="M 238 92 L 372 72 L 462 158 L 422 276 L 298 292 L 222 206 Z" fill="rgba(239, 68, 68, 0.16)" stroke="#EF4444" strokeWidth="2.5" />
+                  <path d="M 118 294 L 258 278 L 314 390 L 212 472 L 86 430 L 72 342 Z" fill="rgba(251, 191, 36, 0.14)" stroke="rgba(217, 119, 6, 0.65)" strokeWidth="2" />
                 </svg>
 
-                {/* Disaster Markers - More variety and realistic */}
+                <div style={{
+                  position: 'absolute',
+                  top: '18px',
+                  left: '18px',
+                  display: 'flex',
+                  gap: '8px',
+                  flexWrap: 'wrap',
+                  zIndex: 2
+                }}>
+                  {[
+                    { label: 'Flood corridor', color: '#F97316' },
+                    { label: 'ACLED loaded', color: '#7C3AED' },
+                    { label: 'WorldPop active', color: '#1D4ED8' }
+                  ].map((chip) => (
+                    <div key={chip.label} style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'rgba(255,255,255,0.92)',
+                      borderRadius: '999px',
+                      padding: '6px 10px',
+                      boxShadow: '0 6px 16px rgba(15,23,42,0.08)',
+                      fontSize: '10px',
+                      color: '#334155',
+                      fontWeight: 700,
+                      fontFamily: "'Inter', sans-serif"
+                    }}>
+                      <span style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        background: chip.color
+                      }}></span>
+                      {chip.label}
+                    </div>
+                  ))}
+                </div>
+
                 {[
-                  { top: '18%', left: '22%', color: '#EF4444', label: 'EQ 6.8M', type: 'severe' },
-                  { top: '28%', left: '68%', color: '#FF6B35', label: 'TC Cat 4', type: 'high' },
-                  { top: '52%', left: '38%', color: '#F59E0B', label: 'Flood', type: 'medium' },
-                  { top: '68%', left: '72%', color: '#EF4444', label: 'VO', type: 'severe' },
-                  { top: '42%', left: '18%', color: '#10B981', label: 'DR', type: 'low' },
-                  { top: '75%', left: '25%', color: '#F59E0B', label: 'WF', type: 'medium' },
+                  { top: '24%', left: '65%', color: '#EF4444', label: 'Flood' },
+                  { top: '34%', left: '58%', color: '#F97316', label: 'Bridge risk' },
+                  { top: '58%', left: '31%', color: '#7C3AED', label: 'ACLED' }
                 ].map((marker, idx) => (
                   <div key={idx} style={{
                     position: 'absolute',
                     top: marker.top,
                     left: marker.left,
                     transform: 'translate(-50%, -50%)',
-                    animation: `pulse${idx % 5} 2s ease-in-out infinite`
+                    zIndex: 2
                   }}>
                     <div style={{
-                      width: marker.type === 'severe' ? '50px' : '40px',
-                      height: marker.type === 'severe' ? '50px' : '40px',
+                      width: '42px',
+                      height: '42px',
                       borderRadius: '50%',
                       background: marker.color,
-                      opacity: 0.25,
-                      position: 'absolute'
+                      opacity: 0.18,
+                      position: 'absolute',
+                      left: '50%',
+                      top: '50%',
+                      transform: 'translate(-50%, -50%)'
                     }}></div>
                     <div style={{
-                      width: '20px',
-                      height: '20px',
+                      width: '16px',
+                      height: '16px',
                       borderRadius: '50%',
                       background: marker.color,
                       border: '2px solid white',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                      boxShadow: '0 8px 18px rgba(15,23,42,0.18)',
                       position: 'relative',
-                      zIndex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
+                      zIndex: 1
+                    }}></div>
+                    <div style={{
+                      position: 'absolute',
+                      top: '-24px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '999px',
+                      fontSize: '9px',
+                      fontWeight: 700,
+                      color: '#334155',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 6px 18px rgba(15,23,42,0.12)',
+                      fontFamily: "'Inter', sans-serif"
                     }}>
-                      <div style={{
-                        position: 'absolute',
-                        top: '-24px',
-                        background: 'white',
-                        padding: '3px 7px',
-                        borderRadius: '3px',
-                        fontSize: '9px',
-                        fontWeight: 700,
-                        color: marker.color,
-                        boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-                        whiteSpace: 'nowrap',
-                        fontFamily: "'Inter', sans-serif"
-                      }}>
-                        {marker.label}
-                      </div>
+                      {marker.label}
                     </div>
                   </div>
                 ))}
 
-                {/* Facility Square Markers (not house icons) */}
                 {[
-                  { top: '20%', left: '24%', impacted: true },
-                  { top: '30%', left: '69%', impacted: true },
-                  { top: '44%', left: '52%', impacted: false },
-                  { top: '60%', left: '65%', impacted: false },
-                  { top: '70%', left: '28%', impacted: false },
-                  { top: '50%', left: '22%', impacted: true },
+                  { top: '27%', left: '60%', impacted: true },
+                  { top: '31%', left: '69%', impacted: true },
+                  { top: '40%', left: '54%', impacted: false },
+                  { top: '45%', left: '73%', impacted: true },
+                  { top: '61%', left: '24%', impacted: false },
+                  { top: '67%', left: '33%', impacted: false },
                 ].map((facility, idx) => (
                   <div key={idx} style={{
                     position: 'absolute',
                     top: facility.top,
                     left: facility.left,
-                    transform: 'translate(-50%, -50%)'
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 3
                   }}>
                     <div style={{
                       width: '12px',
                       height: '12px',
                       background: facility.impacted ? '#EF4444' : '#10B981',
                       border: '2px solid white',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                      borderRadius: '2px'
+                      boxShadow: '0 4px 10px rgba(15,23,42,0.18)',
+                      borderRadius: '3px'
                     }}></div>
                   </div>
                 ))}
 
-                {/* ACLED Conflict Markers (purple circular) */}
-                {[
-                  { top: '35%', left: '45%' },
-                  { top: '58%', left: '80%' },
-                  { top: '25%', left: '55%' },
-                ].map((acled, idx) => (
-                  <div key={idx} style={{
-                    position: 'absolute',
-                    top: acled.top,
-                    left: acled.left,
-                    transform: 'translate(-50%, -50%)'
-                  }}>
-                    <div style={{
-                      width: '14px',
-                      height: '14px',
-                      borderRadius: '50%',
-                      background: '#9333EA',
-                      border: '2px solid white',
-                      boxShadow: '0 1px 3px rgba(147, 51, 234, 0.4)',
-                      opacity: 0.85
-                    }}></div>
-                  </div>
-                ))}
-
-                {/* Map Legend - Bottom Left */}
                 <div style={{
                   position: 'absolute',
-                  bottom: '80px',
-                  left: '16px',
-                  background: 'white',
-                  borderRadius: '8px',
-                  padding: '10px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                  fontSize: '9px',
-                  fontFamily: "'Inter', sans-serif"
+                  left: '18px',
+                  bottom: '18px',
+                  width: '190px',
+                  background: 'rgba(255,255,255,0.94)',
+                  borderRadius: '14px',
+                  padding: '14px',
+                  boxShadow: '0 14px 28px rgba(15,23,42,0.12)',
+                  zIndex: 3
                 }}>
-                  <div style={{ fontWeight: 700, marginBottom: '6px', color: '#1A365D', fontSize: '10px' }}>Legend</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#EF4444' }}></div>
-                      <span style={{ color: '#475569' }}>Severe</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#FF6B35' }}></div>
-                      <span style={{ color: '#475569' }}>High</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div style={{ width: '8px', height: '8px', background: '#10B981', borderRadius: '1px' }}></div>
-                      <span style={{ color: '#475569' }}>Facilities</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#9333EA' }}></div>
-                      <span style={{ color: '#475569' }}>ACLED</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Timeline Scrubber - Bottom */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: '16px',
-                  left: '110px',
-                  right: '16px',
-                  background: 'white',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                  </svg>
                   <div style={{
-                    flex: 1,
-                    height: '4px',
-                    background: '#E5E7EB',
-                    borderRadius: '2px',
-                    position: 'relative'
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    color: '#94A3B8',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    marginBottom: '8px',
+                    fontFamily: "'Inter', sans-serif"
                   }}>
-                    <div style={{
-                      position: 'absolute',
-                      left: 0,
-                      top: 0,
-                      width: '35%',
-                      height: '100%',
-                      background: '#FF6B35',
-                      borderRadius: '2px'
-                    }}></div>
-                    <div style={{
-                      position: 'absolute',
-                      left: '35%',
-                      top: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      width: '12px',
-                      height: '12px',
-                      background: 'white',
-                      border: '2px solid #FF6B35',
-                      borderRadius: '50%',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-                    }}></div>
+                    Map Focus
                   </div>
-                  <span style={{ fontSize: '10px', color: '#64748B', fontFamily: "'Inter', sans-serif", whiteSpace: 'nowrap' }}>Mar 12 - Mar 15</span>
+                  <div style={{
+                    fontSize: '17px',
+                    fontWeight: 700,
+                    color: '#1A365D',
+                    marginBottom: '6px',
+                    fontFamily: "'Space Grotesk', sans-serif"
+                  }}>
+                    Northern River Belt
+                  </div>
+                  <div style={{
+                    fontSize: '12px',
+                    lineHeight: '1.6',
+                    color: '#475569',
+                    fontFamily: "'Inter', sans-serif"
+                  }}>
+                    34 facilities within the current hazard corridor. Priority districts are highlighted for the next 72 hours.
+                  </div>
                 </div>
 
-                {/* Right Side Drawer - AI Analysis Panel */}
                 <div style={{
                   position: 'absolute',
-                  right: '16px',
-                  top: '16px',
-                  bottom: '16px',
-                  width: '240px',
-                  background: 'white',
-                  borderRadius: '10px',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+                  right: '18px',
+                  top: '18px',
+                  width: '235px',
+                  background: 'rgba(255,255,255,0.96)',
+                  borderRadius: '16px',
+                  boxShadow: '0 18px 40px rgba(15,23,42,0.16)',
                   overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column'
+                  zIndex: 3
                 }}>
-                  {/* Drawer Header */}
                   <div style={{
                     background: 'linear-gradient(135deg, #1A365D 0%, #2D5A7B 100%)',
-                    padding: '12px 14px',
+                    padding: '14px 16px',
                     color: 'white'
                   }}>
                     <div style={{
@@ -767,20 +695,56 @@ const LandingPage = () => {
                       fontSize: '14px',
                       marginBottom: '4px'
                     }}>
-                      AI Analysis
+                      AI Brief
                     </div>
                     <div style={{
                       fontSize: '10px',
                       opacity: 0.9,
                       fontFamily: "'Inter', sans-serif"
                     }}>
-                      Operational Outlook
+                      Selected hotspot: River transport corridor
                     </div>
                   </div>
+                  <div style={{ padding: '14px 16px' }}>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gap: '8px',
+                      marginBottom: '14px'
+                    }}>
+                      {[
+                        { label: 'Facilities', value: '34', color: '#EF4444' },
+                        { label: 'Districts', value: '5', color: '#F97316' },
+                        { label: 'Risk', value: 'High', color: '#7C3AED' }
+                      ].map((item) => (
+                        <div key={item.label} style={{
+                          background: '#F8FAFC',
+                          borderRadius: '10px',
+                          padding: '8px',
+                          textAlign: 'center'
+                        }}>
+                          <div style={{
+                            fontSize: '15px',
+                            fontWeight: 700,
+                            color: item.color,
+                            fontFamily: "'Space Grotesk', sans-serif"
+                          }}>
+                            {item.value}
+                          </div>
+                          <div style={{
+                            fontSize: '9px',
+                            color: '#64748B',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            fontFamily: "'Inter', sans-serif"
+                          }}>
+                            {item.label}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
 
-                  {/* Analysis Content */}
-                  <div style={{ padding: '12px', flex: 1, overflow: 'hidden' }}>
-                    {/* Section Header */}
                     <div style={{
                       fontSize: '11px',
                       fontWeight: 700,
@@ -788,163 +752,91 @@ const LandingPage = () => {
                       marginBottom: '8px',
                       fontFamily: "'Space Grotesk', sans-serif"
                     }}>
-                      Most Likely Scenario
+                      Recommended next move
                     </div>
                     <div style={{
-                      fontSize: '10px',
-                      lineHeight: '1.5',
-                      color: '#475569',
+                      background: '#FFF7ED',
+                      border: '1px solid #FED7AA',
+                      borderRadius: '10px',
+                      padding: '10px 12px',
+                      fontSize: '11px',
+                      lineHeight: '1.55',
+                      color: '#7C2D12',
                       marginBottom: '12px',
                       fontFamily: "'Inter', sans-serif"
                     }}>
-                      Moderate flooding affects 3-5 districts. Impact on 25-40 facilities within 72 hours.
+                      Pre-position cold-chain backup and mobile teams west of the flood corridor before road access drops.
                     </div>
 
                     <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
                       fontSize: '11px',
-                      fontWeight: 700,
-                      color: '#1A365D',
-                      marginBottom: '8px',
-                      fontFamily: "'Space Grotesk', sans-serif"
+                      color: '#475569',
+                      fontFamily: "'Inter', sans-serif"
                     }}>
-                      Key Recommendations
+                      <div>Flood escalation probability: <strong>62%</strong></div>
+                      <div>Conflict incidents in nearby districts: <strong>3</strong></div>
+                      <div>Population in affected catchment: <strong>184K</strong></div>
                     </div>
-                    <div style={{
-                      background: '#FEF2F2',
-                      border: '1px solid #FCA5A5',
-                      borderRadius: '6px',
-                      padding: '8px',
-                      marginBottom: '8px'
-                    }}>
-                      <div style={{ fontSize: '9px', fontWeight: 600, color: '#DC2626', marginBottom: '4px', fontFamily: "'Inter', sans-serif" }}>
-                        IMMEDIATE
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#475569', fontFamily: "'Inter', sans-serif" }}>
-                        Pre-position supplies in northern districts
-                      </div>
-                    </div>
-                    <div style={{
-                      background: '#FEF3E2',
-                      border: '1px solid #FCD34D',
-                      borderRadius: '6px',
-                      padding: '8px',
-                      marginBottom: '10px'
-                    }}>
-                      <div style={{ fontSize: '9px', fontWeight: 600, color: '#D97706', marginBottom: '4px', fontFamily: "'Inter', sans-serif" }}>
-                        24-48 HOURS
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#475569', fontFamily: "'Inter', sans-serif" }}>
-                        Activate emergency response teams
-                      </div>
-                    </div>
-
-                    <div style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      color: '#1A365D',
-                      marginBottom: '6px',
-                      fontFamily: "'Space Grotesk', sans-serif"
-                    }}>
-                      Risk Factors
-                    </div>
-                    <div style={{ fontSize: '10px', lineHeight: '1.5', color: '#475569', fontFamily: "'Inter', sans-serif" }}>
-                      • Weather escalation risk: 35%<br />
-                      • Security concerns in 2 districts<br />
-                      • Limited road access due to flooding
-                    </div>
-                  </div>
-
-                  {/* Bottom Action */}
-                  <div style={{
-                    borderTop: '1px solid #E5E7EB',
-                    padding: '10px'
-                  }}>
-                    <button style={{
-                      width: '100%',
-                      background: '#FF6B35',
-                      color: 'white',
-                      border: 'none',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      fontFamily: "'Space Grotesk', sans-serif",
-                      cursor: 'pointer'
-                    }}>
-                      View Full Report
-                    </button>
                   </div>
                 </div>
 
-                {/* Floating Action Buttons - Left Side */}
                 <div style={{
                   position: 'absolute',
-                  left: '16px',
-                  top: '16px',
+                  right: '18px',
+                  bottom: '18px',
+                  left: '228px',
+                  background: 'rgba(255,255,255,0.94)',
+                  borderRadius: '12px',
+                  padding: '10px 14px',
+                  boxShadow: '0 10px 24px rgba(15,23,42,0.12)',
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}>
-                  <div style={{
-                    width: '36px',
-                    height: '36px',
-                    background: 'white',
-                    borderRadius: '8px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A365D" strokeWidth="2">
-                      <path d="M4 6h16M4 12h16M4 18h16"></path>
-                    </svg>
-                  </div>
-                  <div style={{
-                    width: '36px',
-                    height: '36px',
-                    background: 'white',
-                    borderRadius: '8px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A365D" strokeWidth="2">
-                      <circle cx="11" cy="11" r="8"></circle>
-                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Stats Bar - Bottom Right (above timeline) */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: '60px',
-                  right: '16px',
-                  background: 'white',
-                  borderRadius: '8px',
-                  padding: '10px 12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                  display: 'flex',
+                  alignItems: 'center',
                   gap: '12px',
-                  fontSize: '10px',
-                  fontFamily: "'Inter', sans-serif"
+                  zIndex: 3
                 }}>
-                  <div>
-                    <div style={{ color: '#94A3B8', marginBottom: '3px', fontSize: '8px', fontWeight: 600 }}>TOTAL</div>
-                    <div style={{ fontSize: '16px', fontWeight: 700, color: '#1A365D', fontFamily: "'Space Grotesk', sans-serif" }}>245</div>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    background: '#FFEDD5'
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth="2">
+                      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
                   </div>
-                  <div style={{ width: '1px', background: '#E5E7EB' }}></div>
-                  <div>
-                    <div style={{ color: '#94A3B8', marginBottom: '3px', fontSize: '8px', fontWeight: 600 }}>IMPACTED</div>
-                    <div style={{ fontSize: '16px', fontWeight: 700, color: '#EF4444', fontFamily: "'Space Grotesk', sans-serif" }}>34</div>
-                  </div>
-                  <div style={{ width: '1px', background: '#E5E7EB' }}></div>
-                  <div>
-                    <div style={{ color: '#94A3B8', marginBottom: '3px', fontSize: '8px', fontWeight: 600 }}>SAFE</div>
-                    <div style={{ fontSize: '16px', fontWeight: 700, color: '#10B981', fontFamily: "'Space Grotesk', sans-serif" }}>211</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      height: '5px',
+                      background: '#E2E8F0',
+                      borderRadius: '999px',
+                      position: 'relative',
+                      marginBottom: '6px'
+                    }}>
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '54%',
+                        background: 'linear-gradient(90deg, #FB923C 0%, #EF4444 100%)',
+                        borderRadius: '999px'
+                      }}></div>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '10px',
+                      color: '#64748B',
+                      fontWeight: 600,
+                      fontFamily: "'Inter', sans-serif"
+                    }}>
+                      <span>Playback: last 72 hours</span>
+                      <span>Mar 19 - Mar 22</span>
+                    </div>
                   </div>
                 </div>
               </div>

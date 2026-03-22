@@ -159,6 +159,21 @@ const FacilityDrawer = ({
   const content = (
     <div className="drawer-content" style={embedded ? {} : undefined}>
       <div className="drawer-section">
+            <div style={{
+              margin: '0 0 18px 0',
+              padding: '12px 14px',
+              background: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              borderRadius: '10px',
+              fontFamily: "'Inter', sans-serif"
+            }}>
+              <div style={{ fontWeight: 700, color: 'var(--aidstack-navy)', marginBottom: '4px', fontSize: '14px' }}>
+                Start with any data source
+              </div>
+              <div style={{ fontSize: '13px', color: '#475569', lineHeight: '1.6' }}>
+                Facilities are optional. You can analyze districts with boundaries only, add ACLED for security context, load WorldPop for population, or enrich the map with OSM infrastructure.
+              </div>
+            </div>
             <div style={{ margin: '10px 0 20px 0', textAlign: 'center' }}>
               <div
                 onClick={handleFileUploadClick}

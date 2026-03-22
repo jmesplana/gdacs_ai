@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import FacilityDrawer from './FacilityDrawer';
 import AnalysisDrawer from './AnalysisDrawer';
 import SitrepDrawer from './SitrepDrawer';
-import MapLayersDrawer from './MapLayersDrawer';
 
 const UnifiedDrawer = ({
   isOpen,
@@ -57,6 +56,7 @@ const UnifiedDrawer = ({
   // Additional props
   onTabChange,
   operationType = 'general',
+  worldPopData = {},
 
   // Label control
   showLabels,
@@ -88,7 +88,7 @@ const UnifiedDrawer = ({
   const tabs = [
     {
       id: 'facilities',
-      label: 'Data Hub',
+      label: 'Context',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
@@ -119,18 +119,20 @@ const UnifiedDrawer = ({
       ),
       disabled: !sitrep
     },
-    {
-      id: 'layers',
-      label: 'Layers',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-          <polyline points="2 17 12 22 22 17"></polyline>
-          <polyline points="2 12 12 17 22 12"></polyline>
-        </svg>
-      )
-    }
   ];
+
+  const hasFacilities = (facilities?.length || 0) > 0;
+  const hasDistricts = (districts?.length || 0) > 0;
+  const hasAcled = (acledData?.length || 0) > 0;
+  const hasWorldPop = Object.keys(worldPopData || {}).length > 0;
+  const availableNow = [];
+
+  if (hasDistricts) availableNow.push('district-based risk review');
+  if (hasAcled) availableNow.push('security filtering');
+  if (hasWorldPop) availableNow.push('population analysis');
+  if (hasFacilities) availableNow.push('facility impact analysis');
+
+  const logisticsReadiness = [hasDistricts, hasAcled || hasFacilities].filter(Boolean).length;
 
   return (
     <>
@@ -169,7 +171,7 @@ const UnifiedDrawer = ({
               fontFamily: "'Space Grotesk', sans-serif",
               margin: 0
             }}>
-              Data Hub
+              Workspace
             </h3>
             <button
               className="drawer-close"
@@ -282,6 +284,98 @@ const UnifiedDrawer = ({
           overflowY: 'auto',
           overflowX: 'hidden'
         }}>
+          <div style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid #E5E7EB',
+            background: '#F8FAFC'
+          }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: '10px',
+              marginBottom: '12px'
+            }}>
+              {[
+                { label: 'Admin boundaries', loaded: hasDistricts },
+                { label: 'Facilities', loaded: hasFacilities },
+                { label: 'ACLED', loaded: hasAcled },
+                { label: 'WorldPop', loaded: hasWorldPop }
+              ].map((item) => (
+                <div key={item.label} style={{
+                  background: 'white',
+                  border: `1px solid ${item.loaded ? '#A7F3D0' : '#E2E8F0'}`,
+                  borderRadius: '10px',
+                  padding: '10px 12px'
+                }}>
+                  <div style={{
+                    fontSize: '10px',
+                    color: '#94A3B8',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    fontWeight: 700,
+                    fontFamily: "'Inter', sans-serif",
+                    marginBottom: '4px'
+                  }}>
+                    {item.label}
+                  </div>
+                  <div style={{
+                    fontSize: '13px',
+                    color: item.loaded ? '#047857' : '#64748B',
+                    fontWeight: 700,
+                    fontFamily: "'Inter', sans-serif"
+                  }}>
+                    {item.loaded ? 'Loaded' : 'Not loaded'}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{
+              background: 'white',
+              border: '1px solid #E2E8F0',
+              borderRadius: '10px',
+              padding: '12px'
+            }}>
+              <div style={{
+                fontSize: '11px',
+                color: '#94A3B8',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                fontWeight: 700,
+                fontFamily: "'Inter', sans-serif",
+                marginBottom: '6px'
+              }}>
+                Available Now
+              </div>
+              <div style={{
+                fontSize: '13px',
+                color: '#334155',
+                lineHeight: '1.6',
+                fontFamily: "'Inter', sans-serif",
+                marginBottom: '10px'
+              }}>
+                {availableNow.length > 0
+                  ? `You can work with ${availableNow.join(', ')} using your current data.`
+                  : 'Load any data source to start analyzing context. Facilities are optional.'}
+              </div>
+              <div style={{
+                fontSize: '12px',
+                color: '#475569',
+                fontFamily: "'Inter', sans-serif"
+              }}>
+                Logistics readiness: <strong>{logisticsReadiness}/2</strong> core inputs loaded
+              </div>
+              <div style={{
+                fontSize: '11px',
+                color: '#64748B',
+                marginTop: '4px',
+                fontFamily: "'Inter', sans-serif"
+              }}>
+                Requires admin boundaries plus either facilities or ACLED/security context.
+              </div>
+            </div>
+          </div>
+
           {activeTab === 'facilities' && (
             <FacilityDrawer
               isOpen={true}
@@ -326,10 +420,10 @@ const UnifiedDrawer = ({
                   impactedFacilities={impactedFacilities}
                   acledData={acledData}
                   acledEnabled={acledEnabled}
-                  operationType={operationType}
-                  onViewRecommendations={onViewRecommendations}
-                  osmData={osmData}
-                />
+              operationType={operationType}
+              onViewRecommendations={onViewRecommendations}
+              osmData={osmData}
+            />
               ) : (
                 <div style={{
                   textAlign: 'center',
@@ -373,26 +467,6 @@ const UnifiedDrawer = ({
             </div>
           )}
 
-          {activeTab === 'layers' && (
-            <div style={{ margin: '-20px' }}>
-              <MapLayersDrawer
-                isOpen={true}
-                onClose={() => {}}
-                embedded={true}
-                settings={layerSettings}
-                onToggle={onLayerToggle}
-                onConfigChange={onLayerConfigChange}
-                districts={districts}
-                osmData={osmData}
-                osmStats={osmStats}
-                osmLoading={osmLoading}
-                osmLayerVisibility={osmLayerVisibility}
-                onLoadOSM={onLoadOSM}
-                onToggleOSMLayerVisibility={onToggleOSMLayerVisibility}
-                onClearOSMCategory={onClearOSMCategory}
-              />
-            </div>
-          )}
         </div>
       </div>
 

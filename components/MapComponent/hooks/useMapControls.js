@@ -20,7 +20,8 @@ export const useMapControls = () => {
   // Drawer states
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [unifiedDrawerOpen, setUnifiedDrawerOpen] = useState(false);
-  const [activeDrawerTab, setActiveDrawerTab] = useState('facilities'); // facilities, analysis, chat, reports, layers
+  const [mapLayersDrawerOpen, setMapLayersDrawerOpen] = useState(false);
+  const [activeDrawerTab, setActiveDrawerTab] = useState('facilities'); // facilities, analysis, reports
 
   // Map layer states
   const [currentMapLayer, setCurrentMapLayer] = useState('street');
@@ -49,23 +50,31 @@ export const useMapControls = () => {
   const toggleFilterDrawer = useCallback(() => {
     setFilterDrawerOpen(prev => !prev);
     setUnifiedDrawerOpen(false); // Close unified drawer
+    setMapLayersDrawerOpen(false);
   }, []);
 
   const openUnifiedDrawer = useCallback((tab = 'facilities') => {
-    setActiveDrawerTab(tab);
+    setActiveDrawerTab(tab === 'layers' ? 'facilities' : tab);
     setUnifiedDrawerOpen(true);
     setFilterDrawerOpen(false); // Close filter drawer
+    setMapLayersDrawerOpen(false);
   }, []);
 
   const toggleUnifiedDrawer = useCallback(() => {
     setUnifiedDrawerOpen(prev => !prev);
     setFilterDrawerOpen(false);
+    setMapLayersDrawerOpen(false);
+  }, []);
+
+  const toggleMapLayersDrawer = useCallback(() => {
+    setMapLayersDrawerOpen(prev => !prev);
+    setFilterDrawerOpen(false);
+    setUnifiedDrawerOpen(false);
   }, []);
 
   // Legacy functions for backward compatibility
   const toggleFacilityDrawer = useCallback(() => openUnifiedDrawer('facilities'), [openUnifiedDrawer]);
   const toggleSitrepDrawer = useCallback(() => openUnifiedDrawer('reports'), [openUnifiedDrawer]);
-  const toggleMapLayersDrawer = useCallback(() => openUnifiedDrawer('layers'), [openUnifiedDrawer]);
   const toggleAnalysisDrawer = useCallback(() => openUnifiedDrawer('analysis'), [openUnifiedDrawer]);
 
   const closeAllOverlays = useCallback(() => {
@@ -74,6 +83,7 @@ export const useMapControls = () => {
     setShowStatistics(false);
     setFilterDrawerOpen(false);
     setUnifiedDrawerOpen(false);
+    setMapLayersDrawerOpen(false);
   }, []);
 
   return {
@@ -91,6 +101,7 @@ export const useMapControls = () => {
     // Drawer states
     filterDrawerOpen,
     unifiedDrawerOpen,
+    mapLayersDrawerOpen,
     activeDrawerTab,
 
     // Map layer states
@@ -115,10 +126,10 @@ export const useMapControls = () => {
     openUnifiedDrawer,
     toggleUnifiedDrawer,
     setActiveDrawerTab,
+    toggleMapLayersDrawer,
     // Legacy toggle functions (for backward compatibility)
     toggleFacilityDrawer,
     toggleSitrepDrawer,
-    toggleMapLayersDrawer,
     toggleAnalysisDrawer,
     closeAllOverlays
   };

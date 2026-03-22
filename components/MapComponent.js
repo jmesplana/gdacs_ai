@@ -40,10 +40,12 @@ import {
   RecommendationsDrawer,
   ChatDrawer,
   WorldPopDrawer,
-  LogisticsDrawer
+  LogisticsDrawer,
+  MapLayersDrawer
 } from './MapComponent/components/drawers';
 
 import {
+  FloatingActionButtons,
   MapLegend,
   CampaignDashboard,
   HamburgerMenu,
@@ -508,6 +510,7 @@ const MapComponent = ({
     isFullscreen,
     filterDrawerOpen,
     unifiedDrawerOpen,
+    mapLayersDrawerOpen,
     activeDrawerTab,
     currentMapLayer,
     showRoads,
@@ -1222,7 +1225,7 @@ const MapComponent = ({
   );
 
   // Check if any drawer is open
-  const isAnyDrawerOpen = filterDrawerOpen || unifiedDrawerOpen || showChatDrawer;
+  const isAnyDrawerOpen = filterDrawerOpen || unifiedDrawerOpen || mapLayersDrawerOpen || showChatDrawer;
 
   // Drawer width (should match the drawer width in CSS)
   const drawerWidth = 400;
@@ -1260,7 +1263,7 @@ const MapComponent = ({
         worldPopData={worldPopData}
       />
 
-      {/* Hamburger Menu - Contains all controls: Control Panel, Filter, Campaign Dashboard, Logistics, Draw, Help */}
+      {/* Hamburger Menu - high-level workspace and analysis actions */}
       {!showLogisticsDrawer && (
         <HamburgerMenu
           onControlPanelClick={toggleUnifiedDrawer}
@@ -1281,6 +1284,22 @@ const MapComponent = ({
           onPlaybackClick={togglePlayback}
           logisticsEnabled={showLogisticsDrawer}
           hasDistricts={districts && districts.length > 0}
+        />
+      )}
+
+      {!showLogisticsDrawer && (
+        <FloatingActionButtons
+          onLayersClick={toggleMapLayersDrawer}
+          drawingEnabled={drawingEnabled}
+          onDrawClick={toggleDrawing}
+          drawingColor={drawingColor}
+          setDrawingColor={setDrawingColor}
+          onUndoDrawing={undoLastDrawing}
+          onClearDrawings={clearAllDrawings}
+          drawingsCount={drawings.length}
+          onLogisticsClick={handleLogisticsAssessment}
+          hasDistricts={districts && districts.length > 0}
+          logisticsLoading={logisticsLoading}
         />
       )}
 
@@ -1365,6 +1384,7 @@ const MapComponent = ({
         operationType={operationType}
         onViewRecommendations={handleGenerateRecommendations}
         osmData={osmData}
+        worldPopData={worldPopData}
 
         // Label control
         showLabels={showLabels}
@@ -1376,28 +1396,17 @@ const MapComponent = ({
         sitrep={sitrep}
         sitrepTimestamp={sitrepTimestamp}
 
-        // Layers tab props
-        layerSettings={{
-          currentMapLayer,
-          showRoads,
-          osmData,
-          osmStats,
-          osmLoading,
-          osmError,
-          osmLayerVisibility,
-          showOSMLayer
-        }}
-        onLayerToggle={(setting, value) => {
-          if (setting === 'currentMapLayer') setCurrentMapLayer(value);
-          if (setting === 'showRoads') setShowRoads(value);
-        }}
-        onLayerConfigChange={(config) => {
-          if (config.currentMapLayer) setCurrentMapLayer(config.currentMapLayer);
-          if (config.showRoads !== undefined) setShowRoads(config.showRoads);
-        }}
-        onOSMRefresh={refreshOSM}
-        onOSMToggle={toggleAllOSM}
-        onOSMLayerToggle={toggleLayerVisibility}
+      />
+
+      <MapLayersDrawer
+        isOpen={mapLayersDrawerOpen}
+        onClose={toggleMapLayersDrawer}
+        currentMapLayer={currentMapLayer}
+        setCurrentMapLayer={setCurrentMapLayer}
+        showRoads={showRoads}
+        setShowRoads={setShowRoads}
+        districts={districts}
+        osmData={osmData}
         osmStats={osmStats}
         osmLoading={osmLoading}
         osmLayerVisibility={osmLayerVisibility}
@@ -1409,7 +1418,6 @@ const MapComponent = ({
             categories: selectedCategories
           });
 
-          // Calculate combined boundary from selected districts
           const allCoords = [];
           selectedDistricts.forEach(district => {
             if (district.geometry && district.geometry.coordinates) {
@@ -1419,8 +1427,6 @@ const MapComponent = ({
               allCoords.push(...coords);
             }
           });
-
-          console.log('📍 Collected coordinates from districts:', allCoords.length);
 
           if (allCoords.length > 0) {
             const lons = allCoords.map(c => c[0]);
@@ -1441,12 +1447,6 @@ const MapComponent = ({
               ]]
             };
 
-            console.log(`✅ Loading OSM: ${selectedCategories.length} categories for ${selectedDistricts.length} district(s)...`);
-            console.log('✅ Selected categories:', selectedCategories);
-            console.log('✅ Boundary:', boundary);
-
-            // Keep previously loaded categories for the same boundary and only
-            // replace data when the selected geography changes.
             fetchOSMInfrastructure(boundary, selectedCategories);
           } else {
             console.error('❌ No coordinates collected from districts!');
@@ -1455,42 +1455,6 @@ const MapComponent = ({
         onToggleOSMLayerVisibility={toggleLayerVisibility}
         onClearOSMCategory={(category) => {
           console.log(`Clear OSM category: ${category}`);
-          // TODO: Implement category clearing in hook
-        }}
-        onOSMDistrictSelect={(selectedDistricts) => {
-          // Old callback - keeping for backward compatibility
-          const allCoords = [];
-          selectedDistricts.forEach(district => {
-            if (district.geometry && district.geometry.coordinates) {
-              const coords = district.geometry.type === 'Polygon'
-                ? district.geometry.coordinates[0]
-                : district.geometry.coordinates[0][0];
-              allCoords.push(...coords);
-            }
-          });
-
-          if (allCoords.length > 0) {
-            const lons = allCoords.map(c => c[0]);
-            const lats = allCoords.map(c => c[1]);
-            const minLon = Math.min(...lons);
-            const maxLon = Math.max(...lons);
-            const minLat = Math.min(...lats);
-            const maxLat = Math.max(...lats);
-
-            const boundary = {
-              type: 'Polygon',
-              coordinates: [[
-                [minLon, minLat],
-                [maxLon, minLat],
-                [maxLon, maxLat],
-                [minLon, maxLat],
-                [minLon, minLat]
-              ]]
-            };
-
-            console.log(`Loading OSM for ${selectedDistricts.length} selected district(s)...`);
-            fetchOSMInfrastructure(boundary);
-          }
         }}
       />
 

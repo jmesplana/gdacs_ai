@@ -1,6 +1,7 @@
 import { DRAWING_COLORS } from '../../constants/mapConstants';
 
 const FloatingActionButtons = ({
+  onLayersClick,
   drawingEnabled,
   onDrawClick,
   drawingColor,
@@ -14,6 +15,47 @@ const FloatingActionButtons = ({
 }) => {
   return (
     <>
+      {/* Layers FAB - map-native access similar to consumer maps */}
+      {onLayersClick && (
+        <button
+          type="button"
+          onClick={onLayersClick}
+          title="Map Layers"
+          style={{
+            position: 'absolute',
+            top: '76px',
+            right: '20px',
+            zIndex: 1500,
+            backgroundColor: 'white',
+            color: 'var(--aidstack-navy)',
+            border: '2px solid rgba(15, 23, 42, 0.08)',
+            width: '48px',
+            height: '48px',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.3s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F8FAFC';
+            e.currentTarget.style.transform = 'scale(1.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'white';
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </button>
+      )}
+
       {/* Logistics Assessment FAB - appears when districts are loaded */}
       {hasDistricts && onLogisticsClick && (
         <button
@@ -90,21 +132,20 @@ const FloatingActionButtons = ({
         title={drawingEnabled ? "Hide Drawing Tools" : "Show Drawing Tools"}
         style={{
           position: 'absolute',
-          bottom: '20px',
+          top: '132px',
           right: '20px',
           zIndex: 1500,
           backgroundColor: drawingEnabled ? 'var(--aidstack-orange)' : 'white',
           color: drawingEnabled ? 'white' : 'var(--aidstack-navy)',
           border: drawingEnabled ? '2px solid var(--aidstack-orange)' : '2px solid var(--aidstack-navy)',
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontWeight: 600,
-          fontSize: '15px',
-          padding: '12px 20px',
+          width: '48px',
+          height: '48px',
           borderRadius: '8px',
           cursor: 'pointer',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'center',
           transition: 'all 0.3s ease'
         }}
         onMouseEnter={(e) => {
@@ -122,10 +163,9 @@ const FloatingActionButtons = ({
           e.currentTarget.style.transform = 'scale(1)';
         }}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
         </svg>
-        {drawingEnabled ? 'Hide Drawing' : 'Draw'}
       </button>
 
       <style jsx>{`
@@ -138,7 +178,7 @@ const FloatingActionButtons = ({
       {drawingEnabled && (
         <div style={{
           position: 'absolute',
-          bottom: '80px',
+          top: '188px',
           right: '20px',
           backgroundColor: 'white',
           borderRadius: '8px',
