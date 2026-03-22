@@ -76,6 +76,10 @@
   padding: 20px;
 }
 
+.embeddedContent {
+  padding: 20px 0 24px;
+}
+
 /* Summary Card */
 .summaryCard {
   background: linear-gradient(135deg, var(--aidstack-navy) 0%, #24476f 68%, #2d5a7b 100%);

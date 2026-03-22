@@ -37,10 +37,8 @@ import {
   FilterDrawer,
   UnifiedDrawer,
   ColumnSelectionModal,
-  RecommendationsDrawer,
   ChatDrawer,
   WorldPopDrawer,
-  LogisticsDrawer,
   MapLayersDrawer
 } from './MapComponent/components/drawers';
 
@@ -356,7 +354,7 @@ const ContextStatusBar = ({
     },
     {
       key: 'districts',
-      label: `Districts: ${districts?.length || 0}`,
+      label: `Admin Areas: ${districts?.length || 0}`,
       tone: '#1d4ed8',
       background: 'rgba(59, 130, 246, 0.12)'
     },
@@ -374,7 +372,7 @@ const ContextStatusBar = ({
     },
     {
       key: 'population',
-      label: worldPopDistricts > 0 ? `Population: ${worldPopDistricts} district${worldPopDistricts === 1 ? '' : 's'}` : 'Population: not loaded',
+      label: worldPopDistricts > 0 ? `Population: ${worldPopDistricts} admin area${worldPopDistricts === 1 ? '' : 's'}` : 'Population: not loaded',
       tone: worldPopDistricts > 0 ? '#4338ca' : '#6b7280',
       background: worldPopDistricts > 0 ? 'rgba(99, 102, 241, 0.12)' : 'rgba(107, 114, 128, 0.10)'
     }
@@ -626,15 +624,13 @@ const MapComponent = ({
     toggleAllLogistics,
     retryAssessment
   } = useLogisticsAssessment();
-  const [showLogisticsDrawer, setShowLogisticsDrawer] = useState(false);
 
-  // Recommendations drawer state
-  const [showRecommendationsDrawer, setShowRecommendationsDrawer] = useState(false);
   const [recommendations, setRecommendations] = useState(null);
   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
   const [recommendationsAIGenerated, setRecommendationsAIGenerated] = useState(false);
   const [recommendationsTimestamp, setRecommendationsTimestamp] = useState(null);
   const [recommendationsCache, setRecommendationsCache] = useState({}); // Cache by facility name
+  const [recommendationsFacilityKey, setRecommendationsFacilityKey] = useState(null);
 
   // Campaign Dashboard state
   const [showCampaignDashboard, setShowCampaignDashboard] = useState(false);
@@ -875,6 +871,14 @@ const MapComponent = ({
     return risks;
   };
 
+  const getRecommendationsCacheKey = (facility) => {
+    const facilityImpacts = impactedFacilities.find(
+      f => f.facility.name === facility?.name
+    )?.impacts || [];
+
+    return `${facility?.name || 'unknown'}_${facilityImpacts.length}`;
+  };
+
   // Generate recommendations for a facility
   const handleGenerateRecommendations = async (facility, forceRefresh = false) => {
     const facilityImpacts = impactedFacilities.find(
@@ -882,18 +886,18 @@ const MapComponent = ({
     )?.impacts || [];
 
     // Check if we have cached recommendations for this facility
-    const cacheKey = `${facility.name}_${facilityImpacts.length}`;
+    const cacheKey = getRecommendationsCacheKey(facility);
     if (!forceRefresh && recommendationsCache[cacheKey]) {
       console.log('Using cached recommendations for:', facility.name);
       setRecommendations(recommendationsCache[cacheKey].recommendations);
       setRecommendationsAIGenerated(recommendationsCache[cacheKey].isAIGenerated);
       setRecommendationsTimestamp(recommendationsCache[cacheKey].timestamp);
-      setShowRecommendationsDrawer(true);
+      setRecommendationsFacilityKey(cacheKey);
       return;
     }
 
     setRecommendationsLoading(true);
-    setShowRecommendationsDrawer(true);
+    setRecommendationsFacilityKey(cacheKey);
 
     try {
       console.log('Generating recommendations for:', facility.name, 'with', facilityImpacts.length, 'impacts');
@@ -936,6 +940,7 @@ const MapComponent = ({
       console.error('Error generating recommendations:', error);
       setRecommendations({ error: 'Failed to generate recommendations. Please try again.' });
       setRecommendationsAIGenerated(false);
+      setRecommendationsTimestamp(Date.now());
     } finally {
       setRecommendationsLoading(false);
     }
@@ -1067,7 +1072,7 @@ const MapComponent = ({
   const handleLogisticsAssessment = async () => {
     // Only require OSM data - disasters are optional (baseline assessment)
     if (!osmData) {
-      addToast('Please upload a district shapefile to enable logistics assessment', 'warning');
+      addToast('Please upload an admin boundary shapefile to enable logistics assessment', 'warning');
       return;
     }
 
@@ -1178,8 +1183,8 @@ const MapComponent = ({
       // Continue with empty disasters array to show baseline assessment
     }
 
-    // Open the drawer immediately to show loading state
-    setShowLogisticsDrawer(true);
+    // Open the workspace logistics tab immediately to show loading state
+    openUnifiedDrawer('logistics');
 
     const locationContext = districts && districts.length > 0
       ? extractLocationFromDistrict(districts[0])
@@ -1202,11 +1207,6 @@ const MapComponent = ({
     } else if (logisticsError) {
       addToast(`Logistics assessment failed: ${logisticsError}`, 'error');
     }
-  };
-
-  // Handle logistics drawer toggle
-  const handleLogisticsDrawerToggle = () => {
-    setShowLogisticsDrawer(prev => !prev);
   };
 
   // Handle fullscreen toggle
@@ -1264,45 +1264,38 @@ const MapComponent = ({
       />
 
       {/* Hamburger Menu - high-level workspace and analysis actions */}
-      {!showLogisticsDrawer && (
-        <HamburgerMenu
-          onControlPanelClick={toggleUnifiedDrawer}
-          onFilterClick={toggleFilterDrawer}
-          onCampaignDashboardClick={() => setShowCampaignDashboard(true)}
-          onLogisticsClick={handleLogisticsAssessment}
-          onHelpClick={() => setShowHelp(!showHelp)}
-          drawingEnabled={drawingEnabled}
-          onDrawClick={toggleDrawing}
-          drawingColor={drawingColor}
-          setDrawingColor={setDrawingColor}
-          onUndoDrawing={undoLastDrawing}
-          onClearDrawings={clearAllDrawings}
-          drawingsCount={drawings.length}
-          operationType={operationType}
-          onOperationTypeChange={onOperationTypeChange}
-          playbackEnabled={playbackEnabled}
-          onPlaybackClick={togglePlayback}
-          logisticsEnabled={showLogisticsDrawer}
-          hasDistricts={districts && districts.length > 0}
-        />
-      )}
+      <HamburgerMenu
+        onControlPanelClick={toggleUnifiedDrawer}
+        onFilterClick={toggleFilterDrawer}
+        onCampaignDashboardClick={() => setShowCampaignDashboard(true)}
+        onLogisticsClick={handleLogisticsAssessment}
+        onHelpClick={() => setShowHelp(!showHelp)}
+        drawingEnabled={drawingEnabled}
+        onDrawClick={toggleDrawing}
+        drawingColor={drawingColor}
+        setDrawingColor={setDrawingColor}
+        onUndoDrawing={undoLastDrawing}
+        onClearDrawings={clearAllDrawings}
+        drawingsCount={drawings.length}
+        operationType={operationType}
+        onOperationTypeChange={onOperationTypeChange}
+        playbackEnabled={playbackEnabled}
+        onPlaybackClick={togglePlayback}
+        logisticsEnabled={activeDrawerTab === 'logistics' && unifiedDrawerOpen}
+        hasDistricts={districts && districts.length > 0}
+      />
 
-      {!showLogisticsDrawer && (
-        <FloatingActionButtons
-          onLayersClick={toggleMapLayersDrawer}
-          onFilterClick={toggleFilterDrawer}
-          drawingEnabled={drawingEnabled}
-          onDrawClick={toggleDrawing}
-          drawingColor={drawingColor}
-          setDrawingColor={setDrawingColor}
-          onUndoDrawing={undoLastDrawing}
-          onClearDrawings={clearAllDrawings}
-          drawingsCount={drawings.length}
-          onLogisticsClick={handleLogisticsAssessment}
-          hasDistricts={districts && districts.length > 0}
-          logisticsLoading={logisticsLoading}
-        />
-      )}
+      <FloatingActionButtons
+        onLayersClick={toggleMapLayersDrawer}
+        onFilterClick={toggleFilterDrawer}
+        drawingEnabled={drawingEnabled}
+        onDrawClick={toggleDrawing}
+        drawingColor={drawingColor}
+        setDrawingColor={setDrawingColor}
+        onUndoDrawing={undoLastDrawing}
+        onClearDrawings={clearAllDrawings}
+        drawingsCount={drawings.length}
+      />
 
       {/* Filter Drawer */}
       <FilterDrawer
@@ -1384,8 +1377,17 @@ const MapComponent = ({
         analysisLoading={analysisLoading}
         operationType={operationType}
         onViewRecommendations={handleGenerateRecommendations}
+        recommendations={recommendations}
+        recommendationsLoading={recommendationsLoading}
+        recommendationsAIGenerated={recommendationsAIGenerated}
+        recommendationsTimestamp={recommendationsTimestamp}
+        recommendationsFacilityKey={recommendationsFacilityKey}
         osmData={osmData}
         worldPopData={worldPopData}
+        logisticsData={logisticsData}
+        logisticsLoading={logisticsLoading}
+        logisticsError={logisticsError}
+        onRunLogistics={handleLogisticsAssessment}
 
         // Label control
         showLabels={showLabels}
@@ -1458,17 +1460,6 @@ const MapComponent = ({
           console.log(`Clear OSM category: ${category}`);
         }}
       />
-
-      {/* Recommendations Drawer */}
-      <RecommendationsDrawer
-        isOpen={showRecommendationsDrawer}
-        onClose={() => setShowRecommendationsDrawer(false)}
-        facility={selectedFacility}
-        recommendations={recommendations}
-        loading={recommendationsLoading}
-        isAIGenerated={recommendationsAIGenerated}
-      />
-
 
       {/* Column Selection Modal */}
       <ColumnSelectionModal
@@ -1740,7 +1731,7 @@ const MapComponent = ({
                 const props = feature.properties;
 
                 // Build popup HTML with all available properties
-                const displayName = props.name || props.NAME || props.DISTRICT || props.District || 'Unnamed District';
+                const displayName = props.name || props.NAME || props.DISTRICT || props.District || 'Unnamed Admin Area';
 
                 // Risk level display
                 const riskLevel = props.riskLevel || 'none';
@@ -2289,16 +2280,6 @@ const MapComponent = ({
         toggleScopeToShapefile={toggleScopeToShapefile}
       />
 
-      {/* Logistics Assessment Drawer */}
-      <LogisticsDrawer
-        isOpen={showLogisticsDrawer}
-        onClose={() => setShowLogisticsDrawer(false)}
-        data={logisticsData}
-        loading={logisticsLoading}
-        error={logisticsError}
-        onRetry={() => handleLogisticsAssessment()}
-      />
-
       {/* Campaign Dashboard */}
       <CampaignDashboard
         facilities={facilities}
@@ -2329,7 +2310,7 @@ const MapComponent = ({
       {/* Campaign Dashboard button moved to hamburger menu for cleaner UI */}
 
       {/* WorldPop Population Button - visible when districts are loaded */}
-      {!showLogisticsDrawer && districts && districts.length > 0 && (
+      {districts && districts.length > 0 && (
         <button
           onClick={() => setShowWorldPopDrawer(true)}
           title="Population Data (WorldPop)"
@@ -2374,7 +2355,7 @@ const MapComponent = ({
       )}
 
       {/* AI Chat Button - Positioned at bottom-right of map */}
-      {!showLogisticsDrawer && (
+      {(
       <button
         onClick={() => setShowChatDrawer(true)}
         title="Ask AI Assistant"

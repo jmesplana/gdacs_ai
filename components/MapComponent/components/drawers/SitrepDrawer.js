@@ -6,11 +6,13 @@ const SitrepDrawer = ({
   isOpen,
   onClose,
   sitrep,
+  timestamp,
   sitrepLoading,
   onGenerateSitrep,
   disasters,
   facilities,
-  impactedFacilities = []
+  impactedFacilities = [],
+  embedded = false
 }) => {
   const { addToast } = useToast();
   const [progressMsg, setProgressMsg] = useState('');
@@ -122,88 +124,209 @@ const SitrepDrawer = ({
     }
   };
 
-  return (
-    <>
-      <div className={`drawer-backdrop ${isOpen ? 'open' : ''}`} onClick={onClose}></div>
-      <div
-        className={`drawer drawer-right ${isOpen ? 'open' : ''}`}
-        onClick={(e) => e.stopPropagation()}
-        style={{ zIndex: 3000 }}
-      >
-        <div className="drawer-header" style={{
-          background: 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)',
-          color: 'white',
-          margin: '-20px -20px 20px -20px',
-          padding: '20px'
-        }}>
-          <h3 className="drawer-title" style={{color: 'white', fontFamily: "'Space Grotesk', sans-serif"}}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
-              <polyline points="10 9 9 9 8 9"></polyline>
-            </svg>
-            Situation Report
-          </h3>
-          <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
-        </div>
-        <div className="drawer-content">
-          <div className="drawer-section">
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <div style={{
-                width: '70px',
-                height: '70px',
-                borderRadius: '50%',
-                backgroundColor: '#F44336',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 15px auto'
-              }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-              </div>
-              <div style={{
-                fontWeight: 'bold',
-                marginBottom: '5px',
-                color: '#D32F2F',
-                fontSize: '18px'
-              }}>
-                Generate Situation Report
-              </div>
-              <div style={{ fontSize: '14px', color: '#666', maxWidth: '80%', margin: '0 auto' }}>
-                Generate a comprehensive situation report for all active disasters and impacted facilities.
-              </div>
+  const isTableRow = (line) => {
+    const trimmed = line.trim();
+    return trimmed.includes('|') && !trimmed.startsWith('```');
+  };
 
+  const isTableSeparator = (line) => {
+    const normalized = line.trim().replace(/\|/g, '').replace(/:/g, '').replace(/-/g, '').trim();
+    return normalized.length === 0 && line.includes('-');
+  };
+
+  const parseTableRow = (line) => {
+    return line
+      .trim()
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map((cell) => cell.trim());
+  };
+
+  const renderSitrepContent = (content) => {
+    if (!content) return null;
+
+    const lines = content.split('\n');
+    const blocks = [];
+    let currentMarkdown = [];
+    let i = 0;
+
+    const flushMarkdown = () => {
+      const markdown = currentMarkdown.join('\n').trim();
+      if (markdown) {
+        blocks.push({ type: 'markdown', content: markdown });
+      }
+      currentMarkdown = [];
+    };
+
+    while (i < lines.length) {
+      const currentLine = lines[i];
+      const nextLine = lines[i + 1];
+
+      if (isTableRow(currentLine) && nextLine && isTableSeparator(nextLine)) {
+        flushMarkdown();
+
+        const header = parseTableRow(currentLine);
+        const rows = [];
+        i += 2;
+
+        while (i < lines.length && isTableRow(lines[i])) {
+          rows.push(parseTableRow(lines[i]));
+          i += 1;
+        }
+
+        blocks.push({ type: 'table', header, rows });
+        continue;
+      }
+
+      currentMarkdown.push(currentLine);
+      i += 1;
+    }
+
+    flushMarkdown();
+
+    return blocks.map((block, index) => {
+      if (block.type === 'table') {
+        return (
+          <div key={`table-${index}`} className="sitrep-table-wrap">
+            <table className="sitrep-table">
+              <thead>
+                <tr>
+                  {block.header.map((cell, cellIndex) => (
+                    <th key={`th-${cellIndex}`}>{cell}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {block.rows.map((row, rowIndex) => (
+                  <tr key={`tr-${rowIndex}`}>
+                    {row.map((cell, cellIndex) => (
+                      <td key={`td-${rowIndex}-${cellIndex}`}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+
+      return (
+        <ReactMarkdown
+          key={`md-${index}`}
+          components={{
+            h1: ({ children }) => <h1>{children}</h1>,
+            h2: ({ children }) => <h2>{children}</h2>,
+            h3: ({ children }) => <h3>{children}</h3>,
+            p: ({ children }) => <p>{children}</p>,
+            ul: ({ children }) => <ul>{children}</ul>,
+            ol: ({ children }) => <ol>{children}</ol>,
+            li: ({ children }) => <li>{children}</li>,
+            strong: ({ children }) => <strong>{children}</strong>
+          }}
+        >
+          {block.content}
+        </ReactMarkdown>
+      );
+    });
+  };
+
+  const reportBody = (
+    <div className="drawer-content">
+      <div className="drawer-section">
+        <div style={{ padding: embedded ? '20px 0 8px 0' : '0' }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: '12px',
+            marginBottom: '18px',
+            flexWrap: 'wrap'
+          }}>
+            <div>
+              <div style={{
+                fontSize: '20px',
+                fontWeight: 700,
+                color: 'var(--aidstack-navy)',
+                fontFamily: "'Space Grotesk', sans-serif",
+                marginBottom: '6px'
+              }}>
+                Situation Report
+              </div>
+              <div style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
+                Operational summary for current disasters, facility exposure, and response context.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{
+                backgroundColor: '#eef2ff',
+                color: '#334155',
+                borderRadius: '999px',
+                padding: '7px 12px',
+                fontSize: '12px',
+                fontWeight: 700
+              }}>
+                {impactedFacilities.length} impacted facilities
+              </div>
+              {timestamp && (
+                <div style={{
+                  backgroundColor: '#f8fafc',
+                  color: '#475569',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '999px',
+                  padding: '7px 12px',
+                  fontSize: '12px',
+                  fontWeight: 700
+                }}>
+                  Updated {new Date(timestamp).toLocaleString()}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{
+            background: 'linear-gradient(180deg, #fff 0%, #f8fafc 100%)',
+            border: '1px solid #e2e8f0',
+            borderRadius: '14px',
+            padding: '16px',
+            marginBottom: '18px'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px',
+              flexWrap: 'wrap',
+              marginBottom: '12px'
+            }}>
+              <div style={{ maxWidth: '520px' }}>
+                <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+                  Generate or refresh the current report
+                </div>
+                <div style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
+                  Uses the current disaster filter, impacted facilities, ACLED context, OSM context, and population data already loaded in the workspace.
+                </div>
+              </div>
               <button
                 onClick={() => {
                   if (impactedFacilities.length > 0) {
-                    onGenerateSitrep();
-                    // Do not close the drawer - we'll show the report here
+                    onGenerateSitrep(true);
                   }
                 }}
                 style={{
-                  width: '100%',
-                  padding: '12px 20px',
-                  marginTop: '20px',
-                  backgroundColor: '#F44336',
+                  padding: '12px 18px',
+                  backgroundColor: 'var(--aidstack-navy)',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '4px',
+                  borderRadius: '10px',
                   fontSize: '14px',
-                  fontWeight: 'bold',
-                  cursor: impactedFacilities.length > 0 ? 'pointer' : 'not-allowed',
+                  fontWeight: '700',
+                  cursor: impactedFacilities.length > 0 && !sitrepLoading ? 'pointer' : 'not-allowed',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  opacity: impactedFacilities.length > 0 ? 1 : 0.5,
-                  pointerEvents: impactedFacilities.length > 0 ? 'auto' : 'none'
+                  opacity: impactedFacilities.length > 0 && !sitrepLoading ? 1 : 0.5,
+                  pointerEvents: impactedFacilities.length > 0 && !sitrepLoading ? 'auto' : 'none'
                 }}
                 disabled={impactedFacilities.length === 0 || sitrepLoading}
               >
@@ -222,109 +345,229 @@ const SitrepDrawer = ({
                     {progressMsg || 'Starting...'}
                   </>
                 ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      <polyline points="14 2 14 8 20 8"></polyline>
-                      <line x1="16" y1="13" x2="8" y2="13"></line>
-                      <line x1="16" y1="17" x2="8" y2="17"></line>
-                      <polyline points="10 9 9 9 8 9"></polyline>
-                    </svg>
-                    Generate Report
-                  </>
+                  sitrep ? 'Refresh Report' : 'Generate Report'
                 )}
               </button>
-
-              {impactedFacilities.length === 0 && (
-                <div style={{ fontSize: '12px', marginTop: '10px', color: '#666' }}>
-                  Upload facilities and assess impact first
-                </div>
-              )}
-
-              {/* Display the sitrep if available */}
-              {sitrep && !sitrepLoading && (
-                <div style={{
-                  marginTop: '25px',
-                  padding: '15px',
-                  backgroundColor: '#fff',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  lineHeight: '1.5',
-                  maxHeight: '400px',
-                  overflowY: 'auto'
-                }}>
-                  <div style={{
-                    fontWeight: 'bold',
-                    fontSize: '16px',
-                    marginBottom: '10px',
-                    paddingBottom: '10px',
-                    borderBottom: '1px solid #e0e0e0',
-                    color: '#D32F2F'
-                  }}>
-                    Situation Report
-                  </div>
-
-                  <div className="sitrep-container" style={{ textAlign: 'left' }}>
-                    <ReactMarkdown>
-                      {sitrep}
-                    </ReactMarkdown>
-                  </div>
-
-                  <div style={{
-                    marginTop: '15px',
-                    display: 'flex',
-                    gap: '10px',
-                    justifyContent: 'flex-end'
-                  }}>
-                    <button
-                      onClick={handleDownloadDoc}
-                      style={{
-                        padding: '8px 12px',
-                        backgroundColor: '#F44336',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                      </svg>
-                      Download Report (.doc)
-                    </button>
-
-                    <button
-                      onClick={handleCopyToClipboard}
-                      style={{
-                        padding: '8px 12px',
-                        backgroundColor: 'var(--aidstack-navy)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                      </svg>
-                      Copy to Clipboard
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
+
+            {impactedFacilities.length === 0 && (
+              <div style={{ fontSize: '12px', color: '#64748b' }}>
+                Upload facilities and run impact assessment first.
+              </div>
+            )}
           </div>
+
+          {sitrepLoading ? (
+            <div style={{
+              textAlign: 'center',
+              padding: '48px 24px',
+              backgroundColor: '#fff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '14px'
+            }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '12px', animation: 'spin 1s linear infinite' }}>
+                <line x1="12" y1="2" x2="12" y2="6"></line>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                <line x1="2" y1="12" x2="6" y2="12"></line>
+                <line x1="18" y1="12" x2="22" y2="12"></line>
+                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+              </svg>
+              <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>Generating report</div>
+              <div style={{ fontSize: '13px', color: '#64748b' }}>{progressMsg || 'Starting...'}</div>
+            </div>
+          ) : sitrep ? (
+            <div style={{
+              backgroundColor: '#fff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '14px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '14px 16px',
+                borderBottom: '1px solid #e2e8f0',
+                backgroundColor: '#f8fafc',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ fontSize: '13px', color: '#475569', fontWeight: 700 }}>
+                  Report Output
+                </div>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={handleCopyToClipboard}
+                    style={{
+                      padding: '8px 12px',
+                      backgroundColor: 'white',
+                      color: 'var(--aidstack-navy)',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    Copy
+                  </button>
+                  <button
+                    onClick={handleDownloadDoc}
+                    style={{
+                      padding: '8px 12px',
+                      backgroundColor: 'var(--aidstack-orange)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    Download .doc
+                  </button>
+                </div>
+              </div>
+
+              <div className="sitrep-rich-content">
+                {renderSitrepContent(sitrep)}
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              backgroundColor: '#fff',
+              border: '1px dashed #cbd5e1',
+              borderRadius: '14px',
+              padding: '28px',
+              color: '#64748b',
+              textAlign: 'center'
+            }}>
+              Generate a situation report to populate this panel.
+            </div>
+          )}
         </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        .sitrep-rich-content {
+          padding: 24px;
+          line-height: 1.75;
+          color: #1f2937;
+          font-size: 14px;
+        }
+
+        .sitrep-rich-content :global(h1) {
+          margin: 0 0 18px 0;
+          font-size: 28px;
+          line-height: 1.2;
+          color: #0f172a;
+          font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .sitrep-rich-content :global(h2) {
+          margin: 28px 0 12px 0;
+          padding-top: 8px;
+          border-top: 1px solid #e2e8f0;
+          font-size: 18px;
+          line-height: 1.3;
+          color: var(--aidstack-navy);
+          font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .sitrep-rich-content :global(h3) {
+          margin: 18px 0 8px 0;
+          font-size: 15px;
+          color: #334155;
+          font-weight: 700;
+        }
+
+        .sitrep-rich-content :global(p) {
+          margin: 0 0 12px 0;
+        }
+
+        .sitrep-rich-content :global(ul),
+        .sitrep-rich-content :global(ol) {
+          margin: 0 0 14px 0;
+          padding-left: 20px;
+        }
+
+        .sitrep-rich-content :global(li) {
+          margin-bottom: 8px;
+        }
+
+        .sitrep-rich-content :global(strong) {
+          color: #0f172a;
+        }
+
+        .sitrep-table-wrap {
+          overflow-x: auto;
+          margin: 0 0 16px 0;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+        }
+
+        .sitrep-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+          line-height: 1.5;
+          background: white;
+        }
+
+        .sitrep-table th {
+          background: #f8fafc;
+          color: #0f172a;
+          text-align: left;
+          padding: 10px 12px;
+          border-bottom: 1px solid #e2e8f0;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+
+        .sitrep-table td {
+          padding: 10px 12px;
+          border-top: 1px solid #e2e8f0;
+          color: #334155;
+          vertical-align: top;
+        }
+      `}</style>
+    </div>
+  );
+
+  if (embedded) {
+    return reportBody;
+  }
+
+  return (
+    <>
+      <div className={`drawer-backdrop ${isOpen ? 'open' : ''}`} onClick={onClose}></div>
+      <div
+        className={`drawer drawer-right ${isOpen ? 'open' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+        style={{ zIndex: 3000 }}
+      >
+        <div className="drawer-header" style={{
+          background: 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)',
+          color: 'white',
+          margin: '-20px -20px 20px -20px',
+          padding: '20px'
+        }}>
+          <h3 className="drawer-title" style={{color: 'white', fontFamily: "'Space Grotesk', sans-serif"}}>
+            Situation Report
+          </h3>
+          <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
+        </div>
+        {reportBody}
       </div>
     </>
   );

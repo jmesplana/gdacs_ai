@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import FacilityDrawer from './FacilityDrawer';
 import AnalysisDrawer from './AnalysisDrawer';
 import SitrepDrawer from './SitrepDrawer';
+import LogisticsDrawer from './LogisticsDrawer';
 
 const UnifiedDrawer = ({
   isOpen,
@@ -32,11 +33,20 @@ const UnifiedDrawer = ({
   analysis,
   analysisLoading,
   onViewRecommendations,
+  recommendations,
+  recommendationsLoading,
+  recommendationsAIGenerated,
+  recommendationsTimestamp,
+  recommendationsFacilityKey,
   osmData,
 
   // Sitrep drawer props
   sitrep,
   sitrepTimestamp,
+  logisticsData,
+  logisticsLoading,
+  logisticsError,
+  onRunLogistics,
 
   // Layers drawer props
   layerSettings,
@@ -85,6 +95,11 @@ const UnifiedDrawer = ({
     }
   };
 
+  const hasFacilities = (facilities?.length || 0) > 0;
+  const hasDistricts = (districts?.length || 0) > 0;
+  const hasAcled = (acledData?.length || 0) > 0;
+  const hasWorldPop = Object.keys(worldPopData || {}).length > 0;
+
   const tabs = [
     {
       id: 'facilities',
@@ -109,6 +124,20 @@ const UnifiedDrawer = ({
       disabled: !selectedFacility
     },
     {
+      id: 'logistics',
+      label: 'Logistics',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M16 3h1a4 4 0 0 1 4 4v9"></path>
+          <path d="M2 7h15"></path>
+          <path d="M6 3h7v18H6z"></path>
+          <circle cx="9.5" cy="17.5" r="1.5"></circle>
+          <path d="M13 17h8"></path>
+        </svg>
+      ),
+      disabled: !hasDistricts && !logisticsData
+    },
+    {
       id: 'reports',
       label: 'Reports',
       icon: (
@@ -117,14 +146,10 @@ const UnifiedDrawer = ({
           <polyline points="14 2 14 8 20 8"></polyline>
         </svg>
       ),
-      disabled: !sitrep
+      disabled: (impactedFacilities?.length || 0) === 0 && !sitrep
     },
   ];
 
-  const hasFacilities = (facilities?.length || 0) > 0;
-  const hasDistricts = (districts?.length || 0) > 0;
-  const hasAcled = (acledData?.length || 0) > 0;
-  const hasWorldPop = Object.keys(worldPopData || {}).length > 0;
   const availableNow = [];
 
   if (hasDistricts) availableNow.push('district-based risk review');
@@ -282,7 +307,9 @@ const UnifiedDrawer = ({
           padding: '0',
           height: 'calc(100vh - 130px)',
           overflowY: 'auto',
-          overflowX: 'hidden'
+          overflowX: 'hidden',
+          paddingTop: '10px',
+          boxSizing: 'border-box'
         }}>
           <div style={{
             padding: '16px 20px',
@@ -420,10 +447,15 @@ const UnifiedDrawer = ({
                   impactedFacilities={impactedFacilities}
                   acledData={acledData}
                   acledEnabled={acledEnabled}
-              operationType={operationType}
-              onViewRecommendations={onViewRecommendations}
-              osmData={osmData}
-            />
+                  operationType={operationType}
+                  onViewRecommendations={onViewRecommendations}
+                  recommendations={recommendations}
+                  recommendationsLoading={recommendationsLoading}
+                  recommendationsAIGenerated={recommendationsAIGenerated}
+                  recommendationsTimestamp={recommendationsTimestamp}
+                  recommendationsFacilityKey={recommendationsFacilityKey}
+                  osmData={osmData}
+                />
               ) : (
                 <div style={{
                   textAlign: 'center',
@@ -440,29 +472,85 @@ const UnifiedDrawer = ({
           )}
 
           {activeTab === 'reports' && (
-            <div style={{ margin: '-20px' }}>
-              {sitrep ? (
-                <SitrepDrawer
+            <div style={{ padding: '0 20px 24px 20px' }}>
+              <SitrepDrawer
+                embedded={true}
+                isOpen={true}
+                onClose={() => {}}
+                sitrep={sitrep}
+                timestamp={sitrepTimestamp}
+                sitrepLoading={sitrepLoading}
+                onGenerateSitrep={onGenerateSitrep}
+                impactedFacilities={impactedFacilities}
+                facilities={facilities}
+              />
+            </div>
+          )}
+
+          {activeTab === 'logistics' && (
+            <div style={{ padding: '0 20px 24px 20px' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '12px',
+                flexWrap: 'wrap',
+                padding: '20px 0 8px'
+              }}>
+                <div>
+                  <div style={{
+                    fontSize: '20px',
+                    fontWeight: 700,
+                    color: 'var(--aidstack-navy)',
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    marginBottom: '6px'
+                  }}>
+                    Logistics Assessment
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
+                    Access, transport, fuel, airport, and security context for the current operational area.
+                  </div>
+                </div>
+                <button
+                  onClick={onRunLogistics}
+                  disabled={!hasDistricts || logisticsLoading}
+                  style={{
+                    padding: '12px 18px',
+                    backgroundColor: 'var(--aidstack-navy)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    cursor: !hasDistricts || logisticsLoading ? 'not-allowed' : 'pointer',
+                    opacity: !hasDistricts || logisticsLoading ? 0.5 : 1
+                  }}
+                >
+                  {logisticsLoading ? 'Running...' : 'Run Assessment'}
+                </button>
+              </div>
+
+              {!hasDistricts && !logisticsData ? (
+                <div style={{
+                  backgroundColor: '#fff',
+                  border: '1px dashed #cbd5e1',
+                  borderRadius: '14px',
+                  padding: '28px',
+                  color: '#64748b',
+                  textAlign: 'center'
+                }}>
+                  Upload admin boundaries and OSM context to enable logistics assessment.
+                </div>
+              ) : (
+                <LogisticsDrawer
+                  embedded={true}
                   isOpen={true}
                   onClose={() => {}}
-                  sitrep={sitrep}
-                  timestamp={sitrepTimestamp}
+                  data={logisticsData}
+                  loading={logisticsLoading}
+                  error={logisticsError}
+                  onRetry={onRunLogistics}
                 />
-              ) : (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px 20px',
-                  color: '#666'
-                }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 16px' }}>
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                  </svg>
-                  <p>No reports generated yet</p>
-                  <p style={{ fontSize: '13px', marginTop: '8px' }}>
-                    Upload facilities and generate a situation report from the Facilities tab
-                  </p>
-                </div>
               )}
             </div>
           )}

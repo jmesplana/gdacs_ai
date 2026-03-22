@@ -34,7 +34,8 @@ const LogisticsDrawer = ({
   data,
   loading,
   error,
-  onRetry
+  onRetry,
+  embedded = false
 }) => {
   const [expandedSections, setExpandedSections] = useState({
     roadNetwork: true,
@@ -53,7 +54,72 @@ const LogisticsDrawer = ({
     }));
   };
 
-  if (!isOpen) return null;
+  if (!embedded && !isOpen) return null;
+
+  const content = (
+    <div className={embedded ? styles.embeddedContent : styles.content}>
+      {loading && <LoadingState />}
+      {error && <ErrorState error={error} onRetry={onRetry} />}
+      {!loading && !error && !data && <EmptyState onRetry={onRetry} />}
+      {!loading && !error && data && (
+        <>
+          <SummaryCard data={data} />
+
+          <RoadNetworkSection
+            data={data.roadNetwork}
+            expanded={expandedSections.roadNetwork}
+            onToggle={() => toggleSection('roadNetwork')}
+          />
+
+          <FuelAccessSection
+            data={data.fuelAccess}
+            expanded={expandedSections.fuelAccess}
+            onToggle={() => toggleSection('fuelAccess')}
+          />
+
+          <AirAccessSection
+            data={data.airAccess}
+            expanded={expandedSections.airAccess}
+            onToggle={() => toggleSection('airAccess')}
+          />
+
+          {data.securityAnalysis && (
+            <SecuritySection
+              data={data.securityAnalysis}
+              expanded={expandedSections.security}
+              onToggle={() => toggleSection('security')}
+            />
+          )}
+
+          <BreakingDevelopmentsSection
+            data={data.breakingDevelopments}
+            expanded={expandedSections.breakingDevelopments}
+            onToggle={() => toggleSection('breakingDevelopments')}
+          />
+
+          <RecommendationsSection
+            data={data.recommendations}
+            expanded={expandedSections.recommendations}
+            onToggle={() => toggleSection('recommendations')}
+          />
+
+          {data.alternativeRoutes && data.alternativeRoutes.length > 0 && (
+            <AlternativeRoutesSection
+              data={data.alternativeRoutes}
+              expanded={expandedSections.alternativeRoutes}
+              onToggle={() => toggleSection('alternativeRoutes')}
+            />
+          )}
+
+          <MetadataSection data={data.metadata} />
+        </>
+      )}
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
 
   return (
     <div className={styles.drawerOverlay} onClick={onClose}>
@@ -65,64 +131,7 @@ const LogisticsDrawer = ({
         </div>
 
         {/* Content */}
-        <div className={styles.content}>
-          {loading && <LoadingState />}
-          {error && <ErrorState error={error} onRetry={onRetry} />}
-          {!loading && !error && !data && <EmptyState />}
-          {!loading && !error && data && (
-            <>
-              <SummaryCard data={data} />
-
-              <RoadNetworkSection
-                data={data.roadNetwork}
-                expanded={expandedSections.roadNetwork}
-                onToggle={() => toggleSection('roadNetwork')}
-              />
-
-              <FuelAccessSection
-                data={data.fuelAccess}
-                expanded={expandedSections.fuelAccess}
-                onToggle={() => toggleSection('fuelAccess')}
-              />
-
-              <AirAccessSection
-                data={data.airAccess}
-                expanded={expandedSections.airAccess}
-                onToggle={() => toggleSection('airAccess')}
-              />
-
-              {data.securityAnalysis && (
-                <SecuritySection
-                  data={data.securityAnalysis}
-                  expanded={expandedSections.security}
-                  onToggle={() => toggleSection('security')}
-                />
-              )}
-
-              <BreakingDevelopmentsSection
-                data={data.breakingDevelopments}
-                expanded={expandedSections.breakingDevelopments}
-                onToggle={() => toggleSection('breakingDevelopments')}
-              />
-
-              <RecommendationsSection
-                data={data.recommendations}
-                expanded={expandedSections.recommendations}
-                onToggle={() => toggleSection('recommendations')}
-              />
-
-              {data.alternativeRoutes && data.alternativeRoutes.length > 0 && (
-                <AlternativeRoutesSection
-                  data={data.alternativeRoutes}
-                  expanded={expandedSections.alternativeRoutes}
-                  onToggle={() => toggleSection('alternativeRoutes')}
-                />
-              )}
-
-              <MetadataSection data={data.metadata} />
-            </>
-          )}
-        </div>
+        {content}
       </div>
     </div>
   );
@@ -223,11 +232,14 @@ const ErrorState = ({ error, onRetry }) => (
 );
 
 // Empty State
-const EmptyState = () => (
+const EmptyState = ({ onRetry }) => (
   <div className={styles.centerState}>
     <div className={styles.emptyIcon}>📦</div>
     <h3>No Data Available</h3>
     <p className={styles.subtext}>Upload districts and ensure disasters are loaded to run logistics assessment</p>
+    {onRetry && (
+      <button className={styles.retryButton} onClick={onRetry}>Run Assessment</button>
+    )}
   </div>
 );
 

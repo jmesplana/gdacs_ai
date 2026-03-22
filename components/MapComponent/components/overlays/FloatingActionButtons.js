@@ -107,16 +107,16 @@ const FloatingActionButtons = ({
             bottom: '20px',
             right: drawingEnabled ? '220px' : '140px', // Position to left of draw button
             zIndex: 1500,
-            backgroundColor: '#667eea',
-            color: 'white',
-            border: '2px solid #667eea',
+            backgroundColor: 'white',
+            color: 'var(--aidstack-navy)',
+            border: '2px solid rgba(15, 23, 42, 0.08)',
             fontFamily: "'Space Grotesk', sans-serif",
             fontWeight: 600,
-            fontSize: '15px',
+            fontSize: '14px',
             padding: '12px 20px',
             borderRadius: '8px',
             cursor: logisticsLoading ? 'not-allowed' : 'pointer',
-            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
             display: 'flex',
             alignItems: 'center',
             transition: 'all 0.3s ease',
@@ -124,13 +124,17 @@ const FloatingActionButtons = ({
           }}
           onMouseEnter={(e) => {
             if (!logisticsLoading) {
-              e.currentTarget.style.backgroundColor = '#5568d3';
+              e.currentTarget.style.backgroundColor = '#F8FAFC';
+              e.currentTarget.style.borderColor = 'var(--aidstack-orange)';
+              e.currentTarget.style.color = 'var(--aidstack-orange)';
               e.currentTarget.style.transform = 'scale(1.05)';
             }
           }}
           onMouseLeave={(e) => {
             if (!logisticsLoading) {
-              e.currentTarget.style.backgroundColor = '#667eea';
+              e.currentTarget.style.backgroundColor = 'white';
+              e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.08)';
+              e.currentTarget.style.color = 'var(--aidstack-navy)';
               e.currentTarget.style.transform = 'scale(1)';
             }
           }}
@@ -152,10 +156,11 @@ const FloatingActionButtons = ({
           ) : (
             <>
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}>
-                <rect x="1" y="3" width="15" height="13"></rect>
-                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-                <circle cx="5.5" cy="18.5" r="2.5"></circle>
-                <circle cx="18.5" cy="18.5" r="2.5"></circle>
+                <path d="M16 3h1a4 4 0 0 1 4 4v9"></path>
+                <path d="M2 7h15"></path>
+                <path d="M6 3h7v18H6z"></path>
+                <circle cx="9.5" cy="17.5" r="1.5"></circle>
+                <path d="M13 17h8"></path>
               </svg>
               Logistics
             </>

@@ -21,7 +21,7 @@ export const useMapControls = () => {
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [unifiedDrawerOpen, setUnifiedDrawerOpen] = useState(false);
   const [mapLayersDrawerOpen, setMapLayersDrawerOpen] = useState(false);
-  const [activeDrawerTab, setActiveDrawerTab] = useState('facilities'); // facilities, analysis, reports
+  const [activeDrawerTab, setActiveDrawerTab] = useState('facilities'); // facilities, analysis, logistics, reports
 
   // Map layer states
   const [currentMapLayer, setCurrentMapLayer] = useState('street');

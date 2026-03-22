@@ -56,6 +56,11 @@ const AnalysisDrawer = ({
   isAIGenerated,
   timestamp,
   onRefresh,
+  recommendations = null,
+  recommendationsLoading = false,
+  recommendationsAIGenerated = false,
+  recommendationsTimestamp = null,
+  recommendationsFacilityKey = null,
   acledData = [],
   acledEnabled = false,
   operationType = 'general',
@@ -83,6 +88,66 @@ const AnalysisDrawer = ({
   const [operationViability, setOperationViability] = useState(null);
   const [viabilityLoading, setViabilityLoading] = useState(false);
   const [showViability, setShowViability] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
+
+  useEffect(() => {
+    setShowRecommendations(false);
+  }, [selectedFacility?.name]);
+
+  const parseApiResponse = async (response, label) => {
+    const contentType = response.headers.get('content-type') || '';
+    const raw = await response.text();
+
+    if (!response.ok) {
+      const preview = raw.slice(0, 160).replace(/\s+/g, ' ').trim();
+      throw new Error(`${label} failed with status ${response.status}${preview ? `: ${preview}` : ''}`);
+    }
+
+    if (!contentType.includes('application/json')) {
+      const preview = raw.slice(0, 160).replace(/\s+/g, ' ').trim();
+      throw new Error(`${label} returned ${contentType || 'non-JSON content'}${preview ? `: ${preview}` : ''}`);
+    }
+
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      const preview = raw.slice(0, 160).replace(/\s+/g, ' ').trim();
+      throw new Error(`${label} returned invalid JSON${preview ? `: ${preview}` : ''}`);
+    }
+  };
+
+  const formatRecommendationContent = (content) => {
+    if (Array.isArray(content)) {
+      return (
+        <ul style={{ paddingLeft: '18px', margin: '8px 0' }}>
+          {content.map((item, index) => (
+            <li key={index} style={{ marginBottom: '8px', lineHeight: '1.5' }}>
+              {typeof item === 'string' ? item : JSON.stringify(item)}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    if (typeof content === 'object' && content !== null) {
+      return (
+        <div style={{
+          backgroundColor: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: '8px',
+          padding: '12px'
+        }}>
+          {Object.entries(content).map(([key, value]) => (
+            <div key={key} style={{ marginBottom: '8px', lineHeight: '1.5' }}>
+              <strong>{key}:</strong> {typeof value === 'string' ? value : JSON.stringify(value)}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return <div style={{ lineHeight: '1.6' }}>{String(content)}</div>;
+  };
 
   // Fetch operation viability when facility is selected
   useEffect(() => {
@@ -116,14 +181,22 @@ const AnalysisDrawer = ({
         }),
       });
 
-      const data = await response.json();
+      const data = await parseApiResponse(response, 'Operation viability');
       setOperationViability(data);
     } catch (error) {
       console.error('Error fetching operation viability:', error);
+      addToast(error.message || 'Failed to fetch operation viability', 'error');
     } finally {
       setViabilityLoading(false);
     }
   };
+
+  const selectedFacilityRecommendationsKey = selectedFacility
+    ? `${selectedFacility.name}_${(impactedFacilities.find(
+        impacted => impacted.facility.name === selectedFacility.name
+      )?.impacts || []).length}`
+    : null;
+  const hasCurrentRecommendations = selectedFacilityRecommendationsKey === recommendationsFacilityKey;
 
   const handleExportFacilityBrief = async () => {
     if (!selectedFacility || !operationViability) return;
@@ -693,6 +766,7 @@ const AnalysisDrawer = ({
                       <button
                         className="button"
                         onClick={() => {
+                          setShowRecommendations(true);
                           if (onViewRecommendations) {
                             onViewRecommendations(selectedFacility);
                           }
@@ -739,6 +813,127 @@ const AnalysisDrawer = ({
                           : `No active threats - Get preparedness and mitigation guidance`
                         }
                       </p>
+
+                      {showRecommendations && (
+                        <div style={{
+                          marginTop: '16px',
+                          padding: '16px',
+                          backgroundColor: '#f8fafc',
+                          border: '1px solid #dbe3ee',
+                          borderRadius: '10px'
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '10px',
+                            marginBottom: '12px'
+                          }}>
+                            <div>
+                              <div style={{
+                                fontSize: '15px',
+                                fontWeight: 700,
+                                color: 'var(--aidstack-navy)',
+                                marginBottom: '4px'
+                              }}>
+                                {hasImpacts ? 'Response Recommendations' : 'Preparedness Recommendations'}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#64748b' }}>
+                                {recommendationsTimestamp && hasCurrentRecommendations
+                                  ? `Updated ${new Date(recommendationsTimestamp).toLocaleString()}`
+                                  : 'Generated for the selected facility'}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              {hasCurrentRecommendations && (
+                                <ProvenanceBadge
+                                  label={recommendationsAIGenerated ? 'AI: recommendations' : 'Derived: standard guidance'}
+                                  tone={recommendationsAIGenerated ? '#1B3A5C' : '#7c2d12'}
+                                  background={recommendationsAIGenerated ? 'rgba(27, 58, 92, 0.12)' : 'rgba(245, 158, 11, 0.14)'}
+                                />
+                              )}
+                              <button
+                                onClick={() => onViewRecommendations && onViewRecommendations(selectedFacility, true)}
+                                style={{
+                                  background: 'white',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '6px',
+                                  padding: '8px 10px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  color: '#334155'
+                                }}
+                              >
+                                Refresh
+                              </button>
+                              <button
+                                onClick={() => setShowRecommendations(false)}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  color: '#64748b'
+                                }}
+                              >
+                                Hide
+                              </button>
+                            </div>
+                          </div>
+
+                          {recommendationsLoading ? (
+                            <div style={{ textAlign: 'center', padding: '24px 0', color: '#475569' }}>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '10px', animation: 'spin 1s linear infinite' }}>
+                                <line x1="12" y1="2" x2="12" y2="6"></line>
+                                <line x1="12" y1="18" x2="12" y2="22"></line>
+                                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                                <line x1="2" y1="12" x2="6" y2="12"></line>
+                                <line x1="18" y1="12" x2="22" y2="12"></line>
+                                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                              </svg>
+                              <div>Generating recommendations...</div>
+                            </div>
+                          ) : hasCurrentRecommendations && recommendations && !recommendations.error ? (
+                            <div>
+                              {Object.entries(recommendations).map(([category, content]) => {
+                                if (['error', 'Credits', 'About'].includes(category)) return null;
+
+                                return (
+                                  <div key={category} style={{ marginBottom: '18px' }}>
+                                    <h4 style={{
+                                      fontSize: '14px',
+                                      fontWeight: 700,
+                                      color: 'var(--aidstack-orange)',
+                                      marginBottom: '8px'
+                                    }}>
+                                      {category}
+                                    </h4>
+                                    {formatRecommendationContent(content)}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : hasCurrentRecommendations && recommendations?.error ? (
+                            <div style={{
+                              backgroundColor: '#fef2f2',
+                              color: '#991b1b',
+                              border: '1px solid #fecaca',
+                              borderRadius: '8px',
+                              padding: '12px'
+                            }}>
+                              {recommendations.error}
+                            </div>
+                          ) : (
+                            <div style={{ color: '#475569', lineHeight: '1.6' }}>
+                              Recommendations will appear here for the selected facility.
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </>
                   );
                 })()}

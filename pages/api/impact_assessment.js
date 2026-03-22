@@ -1,7 +1,8 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import Papa from 'papaparse';
 import { getDistance, isPointInPolygon, getAreaOfPolygon } from 'geolib';
-const turf = require('@turf/turf');
+import { point } from '@turf/helpers';
+import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 
 export const config = {
   api: {
@@ -92,7 +93,7 @@ function assessImpact(facilities, disasters, acledEvents, worldPopData = {}, dis
   const findFacilityDistrict = (facility) => {
     if (!districts || districts.length === 0) return null;
 
-    const facilityPoint = turf.point([facility.longitude, facility.latitude]);
+    const facilityPoint = point([facility.longitude, facility.latitude]);
 
     for (const district of districts) {
       try {
@@ -102,7 +103,7 @@ function assessImpact(facilities, disasters, acledEvents, worldPopData = {}, dis
 
         if (!districtFeature) continue;
 
-        if (turf.booleanPointInPolygon(facilityPoint, districtFeature)) {
+        if (booleanPointInPolygon(facilityPoint, districtFeature)) {
           const props = district.properties || {};
           return {
             name: props.ADM2_EN || props.NAME || props.name || props.district || 'Unknown',
