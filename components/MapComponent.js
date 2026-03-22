@@ -1290,6 +1290,7 @@ const MapComponent = ({
       {!showLogisticsDrawer && (
         <FloatingActionButtons
           onLayersClick={toggleMapLayersDrawer}
+          onFilterClick={toggleFilterDrawer}
           drawingEnabled={drawingEnabled}
           onDrawClick={toggleDrawing}
           drawingColor={drawingColor}
