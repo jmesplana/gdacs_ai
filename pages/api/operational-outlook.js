@@ -1,6 +1,7 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
 import { formatOSMForAI } from '../../lib/osmHelpers';
+import { scoreDistrictRisk } from '../../lib/districtRiskScoring';
 /**
  * Operational Outlook API
  * Generates forward-looking humanitarian analysis based on current situation
@@ -596,93 +597,22 @@ function buildAnalysisContext(facilities, disasters, acledData, districts, predi
  * Calculate admin level risks based on ACLED events (same logic as MapComponent)
  */
 function calculateDistrictRisks(districts, acledData) {
+  if (!districts || districts.length === 0) {
+    return [];
+  }
+
   if (!acledData || acledData.length === 0) {
     return districts.map(d => ({ ...d, riskLevel: 'none', riskScore: 0, eventCount: 0 }));
   }
 
   return districts.map(district => {
-    const bounds = district.bounds || district.properties?.bounds;
-
-    // Calculate bounds if not provided
-    let districtBounds = bounds;
-    if (!districtBounds && district.geometry) {
-      const coords = district.geometry.coordinates;
-      let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-
-      const processCoord = (coord) => {
-        const [lng, lat] = coord;
-        if (lat < minLat) minLat = lat;
-        if (lat > maxLat) maxLat = lat;
-        if (lng < minLng) minLng = lng;
-        if (lng > maxLng) maxLng = lng;
-      };
-
-      if (district.geometry.type === 'Polygon') {
-        coords[0].forEach(processCoord);
-      } else if (district.geometry.type === 'MultiPolygon') {
-        coords.forEach(polygon => polygon[0].forEach(processCoord));
-      }
-
-      districtBounds = { minLat, maxLat, minLng, maxLng };
-    }
-
-    let riskScore = 0;
-    let eventCount = 0;
-
-    if (districtBounds && acledData) {
-      // Check ACLED events within district bounds
-      acledData.forEach(event => {
-        const eventLat = parseFloat(event.latitude);
-        const eventLng = parseFloat(event.longitude);
-
-        if (eventLat >= districtBounds.minLat && eventLat <= districtBounds.maxLat &&
-            eventLng >= districtBounds.minLng && eventLng <= districtBounds.maxLng) {
-          eventCount++;
-
-          // Weight by event type
-          const eventType = (event.event_type || '').toLowerCase();
-          if (eventType.includes('battles') || eventType.includes('violence against civilians')) {
-            riskScore += 10;
-          } else if (eventType.includes('explosion')) {
-            riskScore += 8;
-          } else if (eventType.includes('strategic development')) {
-            riskScore += 2;
-          } else {
-            riskScore += 5;
-          }
-
-          // Weight by fatalities
-          const fatalities = parseInt(event.fatalities) || 0;
-          if (fatalities > 10) {
-            riskScore += 10;
-          } else if (fatalities > 5) {
-            riskScore += 7;
-          } else if (fatalities > 0) {
-            riskScore += 3;
-          }
-        }
-      });
-    }
-
-    // Determine risk level
-    let riskLevel;
-    if (riskScore === 0) {
-      riskLevel = 'none';
-    } else if (riskScore < 10) {
-      riskLevel = 'low';
-    } else if (riskScore < 20) {
-      riskLevel = 'medium';
-    } else if (riskScore < 40) {
-      riskLevel = 'high';
-    } else {
-      riskLevel = 'very-high';
-    }
+    const risk = scoreDistrictRisk(district, { acledData });
 
     return {
       ...district,
-      riskLevel,
-      riskScore,
-      eventCount
+      riskLevel: risk.level,
+      riskScore: risk.score,
+      eventCount: risk.eventCount
     };
   });
 }

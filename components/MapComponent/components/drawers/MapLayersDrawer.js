@@ -20,6 +20,7 @@ const MapLayersDrawer = ({
   osmLoading,
   osmLayerVisibility,
   onLoadOSM, // (selectedDistricts, selectedCategories) => void
+  onOSMSelectionChange,
   onToggleOSMLayerVisibility,
   onClearOSMCategory
 }) => {
@@ -119,6 +120,7 @@ const MapLayersDrawer = ({
             osmLoading={osmLoading}
             osmLayerVisibility={osmLayerVisibility}
             onLoadOSM={onLoadOSM}
+            onSelectionChange={onOSMSelectionChange}
             onToggleLayerVisibility={onToggleOSMLayerVisibility}
             onClearCategory={onClearOSMCategory}
           />

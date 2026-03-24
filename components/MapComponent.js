@@ -75,6 +75,7 @@ import buildWeatherContext from '../utils/weatherContextBuilder';
 // import { WORLDPOP_TILE_LAYERS } from '../utils/worldpopHelpers'; // Not needed - using GEE tiles
 import { useToast } from './Toast';
 import { getOperationType } from '../config/operationTypes';
+import { buildDistrictRiskIndex } from '../lib/districtRiskScoring';
 
 // Import constants
 import {
@@ -446,7 +447,8 @@ const MapComponent = ({
   onDistrictClick,
   onDistrictOutlookClick,
   onWorldPopDataChange,
-  onOSMDataChange
+  onOSMDataChange,
+  onAnalysisDistrictsChange
 }) => {
   // Map refs - keep these in main component
   const mapRef = useRef(null);
@@ -789,86 +791,7 @@ const MapComponent = ({
   // Calculate district risk levels based on disasters and ACLED events
   const calculateDistrictRisks = (districts, disasters, acledData) => {
     if (!districts || districts.length === 0) return {};
-
-    const risks = {};
-
-    districts.forEach(district => {
-      let riskScore = 0;
-      let eventCount = 0;
-
-      // Check for disasters in this district
-      disasters?.forEach(disaster => {
-        if (disaster.latitude && disaster.longitude) {
-          const lat = parseFloat(disaster.latitude);
-          const lng = parseFloat(disaster.longitude);
-
-          // Check if disaster is within district bounds
-          if (district.bounds) {
-            const { minLat, maxLat, minLng, maxLng } = district.bounds;
-            if (lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng) {
-              eventCount++;
-              // Weight by severity
-              if (disaster.severity === 'Extreme' || disaster.alertLevel === 'Red') {
-                riskScore += 10;
-              } else if (disaster.severity === 'Severe' || disaster.alertLevel === 'Orange') {
-                riskScore += 7;
-              } else if (disaster.severity === 'Moderate' || disaster.alertLevel === 'Yellow') {
-                riskScore += 5;
-              } else {
-                riskScore += 3;
-              }
-            }
-          }
-        }
-      });
-
-      // Check for ACLED events in this district
-      acledData?.forEach(event => {
-        if (event.latitude && event.longitude) {
-          const lat = parseFloat(event.latitude);
-          const lng = parseFloat(event.longitude);
-
-          if (district.bounds) {
-            const { minLat, maxLat, minLng, maxLng } = district.bounds;
-            if (lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng) {
-              eventCount++;
-              // Weight by event type
-              if (event.event_type === 'Battles' || event.event_type === 'Explosions/Remote violence') {
-                riskScore += 8;
-              } else if (event.event_type === 'Violence against civilians') {
-                riskScore += 10;
-              } else if (event.event_type === 'Riots' || event.event_type === 'Protests') {
-                riskScore += 4;
-              } else {
-                riskScore += 2;
-              }
-            }
-          }
-        }
-      });
-
-      // Determine risk level
-      let level = 'none';
-      if (riskScore === 0) {
-        level = 'none';
-      } else if (riskScore < 10) {
-        level = 'low';
-      } else if (riskScore < 20) {
-        level = 'medium';
-      } else if (riskScore < 40) {
-        level = 'high';
-      } else {
-        level = 'very-high';
-      }
-
-      risks[district.id] = {
-        level,
-        score: riskScore,
-        eventCount
-      };
-    });
-
-    return risks;
+    return buildDistrictRiskIndex(districts, { disasters, acledData });
   };
 
   const getRecommendationsCacheKey = (facility) => {
@@ -1413,6 +1336,7 @@ const MapComponent = ({
         osmStats={osmStats}
         osmLoading={osmLoading}
         osmLayerVisibility={osmLayerVisibility}
+        onOSMSelectionChange={onAnalysisDistrictsChange}
         onLoadOSM={(selectedDistricts, selectedCategories) => {
           console.log('🚀 onLoadOSM called!', {
             districtsCount: selectedDistricts?.length,

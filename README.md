@@ -1,325 +1,368 @@
-# Disaster & Conflict Impact Assessment Platform
+# Disaster, Conflict, and Operational Prioritization Platform
 
 **Live Demo:** [https://disasters.aidstack.ai](https://disasters.aidstack.ai)
 
-A comprehensive platform for humanitarian and disaster response professionals to assess operational risks, analyze facility impacts, and make data-driven decisions using real-time disaster and conflict data.
+A web-based humanitarian operations workspace for combining **GDACS disasters**, **ACLED conflict data**, **administrative boundaries**, **facility datasets**, **WorldPop population layers**, and **OSM infrastructure** into one scoped operational view. The platform supports impact assessment, operational viability, logistics analysis, forward-looking outlooks, situation reporting, and ranked action prioritization.
 
 ---
 
-## 🎯 Overview
+## Overview
 
-This platform combines **natural disaster monitoring (GDACS)**, **conflict event tracking (ACLED)**, and **administrative boundary analysis** with AI-powered insights to support humanitarian operations, health campaigns, and emergency response planning.
+This application is built for responders who need to answer a practical question quickly:
 
----
+**What is happening in the area we care about, who is exposed, what access still works, and what should we do next?**
 
-## ✨ Core Features
+The app is designed around an area-based workflow:
 
-### 🗺️ Multi-Layer Map Visualization
-- **Interactive Map**: Street, satellite, and terrain views with seamless switching
-- **Administrative Boundaries**: Upload shapefiles to visualize districts/regions with risk-level color coding
-- **Facility Markers**: Square markers (green=safe, red=impacted) for easy visual differentiation
-- **ACLED Conflict Events**: Circular markers showing security incidents (battles, violence, protests)
-- **GDACS Disasters**: Real-time natural disaster alerts with polygon impact zones
-- **Heatmap Overlay**: Intensity visualization for disaster clustering
-- **Road Network**: Toggle road overlays for navigation context
-- **Drawing Tools**: Annotate maps with polygons, circles, lines, and custom markers
+1. Load a shapefile or GeoJSON boundary for the operational geography.
+2. Upload facilities and optional ACLED data.
+3. Filter to the district or admin area that matters for the response.
+4. Enrich that area with WorldPop and OSM infrastructure.
+5. Run analysis tools on the scoped area rather than on all global events.
 
-### 📊 Data Integration
-- **GDACS Natural Disasters**: Earthquakes, floods, cyclones, droughts, volcanoes (auto-updated)
-- **ACLED Conflict Data**: Upload CSV with security events (battles, violence, protests, strategic developments)
-- **Administrative Boundaries**: Upload shapefiles (SHP/GeoJSON) for district-level analysis
-- **Facility Data**: Upload any CSV with coordinates (health facilities, vaccination sites, warehouses, etc.)
-- **Custom Fields**: Select any columns for AI analysis (population, coverage rates, disease cases, etc.)
-
-### 🤖 AI-Powered Analysis
-- **Interactive Chatbot**: Ask natural language questions about your operational context
-- **Campaign Viability**: Assess safety and feasibility for health campaigns by location
-- **Impact Quantification**: Calculate missed populations, coverage gaps, resource needs
-- **Operational Outlook**: Forward-looking analysis with scenario planning and early warning indicators
-- **District Forecasts**: Predict conflict escalation, disease outbreaks, and supply chain disruptions
-- **Contextual Recommendations**: Get specific guidance based on your uploaded data
-
-### 📈 Assessment & Planning Tools
-- **Facility Impact Assessment**: Automatic calculation of disaster/conflict proximity
-- **District Risk Scoring**: Combined GDACS + ACLED risk levels (None/Low/Medium/High/Very High)
-- **Campaign Dashboard**: Track vaccination/distribution campaigns across multiple districts
-- **Operational Viability**: GO/NO-GO recommendations with specific timelines and mitigation strategies
-- **Situation Reports**: Auto-generate structured SitReps for stakeholder sharing
-
-### 🎨 Visual Differentiation
-- **Facilities**: Square markers (easy to spot)
-- **ACLED Events**: Circular markers (color-coded by event type)
-- **Districts**: Polygon fills (color by risk level: blue→green→yellow→orange→red)
-- **Clusters**: Grouped markers with count badges
-- **Interactive Popups**: Detailed information on click
+This keeps global GDACS alerts useful for awareness while letting operations stay focused on a specific response geography.
 
 ---
 
-## 🏥 Use Cases
+## Core Capabilities
 
-### 1. Immunization Campaign Planning
-**Problem:** Need to determine which districts are safe for vaccination campaigns and quantify missed children in conflict-affected areas.
+### Mapping and data layers
+- GDACS disaster alerts with polygons and impact zones
+- ACLED conflict event overlays with filtering by event type and recency
+- Uploaded administrative boundaries from shapefiles or GeoJSON
+- Uploaded facilities or sites from CSV
+- Heatmap and timeline playback for disaster and conflict activity
+- Drawing and annotation tools for routes, zones, and operational notes
+- Street, satellite, and terrain base maps
 
-**Solution:**
-- Upload vaccination sites as "facilities" with campaign metrics (target, covered, missed, refusals, disease cases)
-- Upload ACLED conflict data and admin boundaries
-- Ask chatbot: *"Which districts should I pause campaigns in due to security?"*
-- Get AI analysis: District-by-district recommendations with risk levels and catch-up needs
+### Operational analysis
+- Facility impact assessment against GDACS disasters and optional ACLED events
+- District-level risk scoring from disaster and conflict context
+- Facility-level AI analysis and recommendations
+- Operation-specific viability scoring for immunization, malaria, WASH, nutrition, medical supply, shelter, and general humanitarian operations
+- Security assessment with ACLED-aware movement considerations
+- Logistics assessment using OSM roads, bridges, airports, fuel, and other infrastructure
+- Forward-looking operational outlooks and predictive dashboards
+- Situation report generation and exportable decision briefs
+- Scoped prioritization board for ranking actions inside selected admin areas
 
-**Example Questions:**
-- "Calculate total missed children in conflict-affected districts"
-- "Which districts have coverage below 80%?"
-- "Correlate refusals with polio cases"
-- "Recommend campaign timeline for District X"
-
-**See detailed guide:** [IMMUNIZATION_USE_CASE.md](IMMUNIZATION_USE_CASE.md)
-
----
-
-### 2. Humanitarian Access Planning
-**Problem:** Assess operational access and safety for field teams across multiple locations.
-
-**Solution:**
-- Upload field office/warehouse locations
-- Overlay ACLED conflict events and GDACS disasters
-- View district-level risk maps
-- Get AI recommendations for route planning and timing
-
-**Example Questions:**
-- "Which supply routes are safe this week?"
-- "Show me no-go areas for field teams"
-- "When can we resume operations in District Y?"
-- "Recommend alternative access points for high-risk areas"
+### Enrichment layers
+- WorldPop population statistics and age-sex breakdowns through Google Earth Engine
+- OSM selective infrastructure loading for chosen admin areas and categories
+- Weather-aware analysis and forecast context
+- AI chat with current workspace context, including districts, facilities, disasters, ACLED, WorldPop, weather, and OSM when available
 
 ---
 
-### 3. Cholera/OCV Response (WASH Integration)
-**Problem:** Prioritize districts for joint WASH-OCV interventions after flooding.
+## What Has Been Added
 
-**Solution:**
-- Upload OCV campaign data (target, covered, WASH access %)
-- Load GDACS flood data (automatic)
-- Upload cholera case data
-- Ask: *"Which flood-affected districts need urgent WASH-OCV intervention?"*
+Compared with the earlier GDACS-focused tool, the current app includes:
 
-**Example Questions:**
-- "Correlate flood events with cholera cases"
-- "Which districts have low WASH access and high cholera burden?"
-- "Prioritize emergency OCV campaigns by district"
-- "Estimate resources needed for joint WASH-OCV response"
-
----
-
-### 4. Supply Chain Risk Assessment
-**Problem:** Identify supply chain vulnerabilities and predict disruptions.
-
-**Solution:**
-- Upload warehouse/distribution center locations
-- Map transport routes with drawing tools
-- Overlay conflict and disaster data
-- Generate supply chain risk forecasts
-
-**Example Questions:**
-- "Which warehouses are at risk from flooding?"
-- "Show conflict events along supply route A→B"
-- "Predict supply disruptions for next 2 weeks"
-- "Recommend pre-positioning locations for emergency stocks"
+- ACLED upload, filtering, and map visualization
+- District/admin boundary upload and district-level risk analysis
+- WorldPop integration via Google Earth Engine
+- Selective OSM infrastructure loading by admin area and category
+- Logistics assessment with confidence and infrastructure coverage indicators
+- Operation-specific viability APIs and dashboards
+- Prediction dashboard for disaster, outbreak, and supply-chain risk
+- Operational Outlook for scenario-based forward planning
+- SitRep generation and decision-brief export APIs
+- Prioritization Board for ranked next actions in a scoped response area
+- Shared area-based workflow so WorldPop, OSM, and prioritization all depend on the same selected operational geography
 
 ---
 
-### 5. Disease Outbreak Response
-**Problem:** Map disease cases, identify transmission hotspots, and plan rapid response.
+## Prioritization Board
 
-**Solution:**
-- Upload disease case data (AFP, measles, cholera) as "facilities"
-- Include case counts, dates, and demographics in CSV
-- Overlay with population density and health facility locations
-- Get AI analysis of transmission patterns
+The Prioritization Board is a modular feature with its own endpoint:
 
-**Example Questions:**
-- "Where are polio transmission hotspots?"
-- "Correlate measles cases with vaccination coverage gaps"
-- "Which zero-dose districts have active disease transmission?"
-- "Recommend rapid response team deployment locations"
+- UI component: `components/PrioritizationBoard.js`
+- API endpoint: `pages/api/prioritization-board.js`
+- Scoring logic: `lib/prioritizationBoard.js`
+
+### How it works
+
+The board is intentionally **not global**. It does not rank all facilities against all worldwide GDACS events.
+
+It requires:
+- uploaded administrative boundaries
+- a selected admin area / analysis area
+
+It then ranks only the data inside that selected geography:
+- facilities in the selected area
+- disasters in the selected area
+- ACLED events in the selected area, if available
+- WorldPop context for the selected area, if available
+- OSM context for the selected area, if available
+
+### Confidence model
+
+The board still runs when some enrichment layers are missing:
+
+- ACLED is optional
+- WorldPop is optional
+- OSM is optional
+
+When those layers are missing, the board shows lower-confidence / missing-signal context rather than blocking execution.
 
 ---
 
-### 6. Multi-Sector Needs Assessment
-**Problem:** Conduct comprehensive area-based assessments combining multiple data sources.
+## Supported Workflows
 
-**Solution:**
-- Upload facilities from multiple sectors (health, WASH, education, shelter)
-- Add admin boundaries with population data
-- Overlay disasters and conflict events
-- Generate integrated operational outlook
+### 1. Immunization campaign planning
+- Upload vaccination sites or campaign locations as facilities
+- Upload admin boundaries to define the operational geography
+- Optionally upload ACLED to understand security constraints
+- Load WorldPop to estimate exposed and underserved populations
+- Use operation viability, outlook, and prioritization to decide where to go now, where to delay, and where to pre-position
 
-**Example Questions:**
-- "Which districts have overlapping health, WASH, and protection needs?"
-- "Prioritize areas for multi-sector response"
-- "Show correlation between conflict and displacement patterns"
-- "Generate 3-month operational forecast for Region X"
+### 2. Humanitarian access and logistics
+- Upload offices, warehouses, or distribution points
+- Select target admin areas
+- Load OSM infrastructure only for those admin areas
+- Run logistics assessment to review roads, bridges, fuel, airports, and security context
+- Use the prioritization board to rank where teams should assess or move first
+
+### 3. Outbreak and WASH response
+- Upload case or intervention sites as facilities
+- Use district boundaries to define the analysis area
+- Load WorldPop for population exposure and demographic context
+- Combine flood/disaster context with WASH and health datasets
+- Use the outlook and forecast tools for forward planning
+
+### 4. Multi-sector operational planning
+- Combine facilities from health, WASH, education, shelter, or logistics
+- Filter to the actual operational geography
+- Use ACLED, GDACS, WorldPop, and OSM as layered context
+- Generate SitReps, decision briefs, and ranked operational actions
 
 ---
 
-## 🚀 Getting Started
+## Data Inputs
+
+### GDACS
+- Automatically loaded disaster alerts
+- Used for map visualization, facility impact assessment, forecasting context, and district risk scoring
+
+### ACLED
+- Upload CSV exports from ACLED
+- Used for security overlays, district risk scoring, viability logic, logistics context, and prioritization when present
+- ACLED data is not persisted in browser cache due to file size constraints
+
+### Administrative boundaries
+- Upload shapefiles (`.zip`) or GeoJSON
+- Used to scope analysis to actual response geographies
+- Required for WorldPop, OSM area loading, district-level analysis, and the Prioritization Board
+
+### Facilities
+- Upload any CSV with at least:
+  - `name`
+  - `latitude`
+  - `longitude`
+- Additional columns can be used by AI analysis and operational logic
+
+### WorldPop
+- Pulled through Google Earth Engine after districts are loaded
+- Supports total population and age-sex analysis
+- Intended to be used on uploaded district geometries, not on arbitrary global map extents
+
+### OSM infrastructure
+- Loaded only for selected admin areas
+- Categories include hospitals, schools, roads, bridges, water, power, fuel, pharmacies, and airports
+- Used in logistics assessment and other operational context layers
+
+---
+
+## Typical User Flow
+
+### Step 1: Load the operational geography
+1. Upload a shapefile or GeoJSON admin boundary
+2. Confirm districts render on the map
+
+### Step 2: Add operational context
+1. Upload facilities
+2. Optionally upload ACLED
+3. Set the operation type
+
+### Step 3: Select the area you actually care about
+1. Use the admin-area selector in the OSM / map layers workflow
+2. Select the district or set of districts relevant to the response
+3. Load WorldPop or OSM for that scoped area if needed
+
+### Step 4: Run analysis
+- Click facilities for AI analysis and operation viability
+- Run logistics assessment for the selected operational area
+- Open the prediction dashboard for forward-looking risk
+- Open Operational Outlook for scenario analysis
+- Open the Prioritization Board to rank next actions for the selected area
+
+### Step 5: Report and share
+- Generate SitReps
+- Export decision briefs
+- Use map annotations and playback for operational review
+
+---
+
+## Key Features by Module
+
+### Facility impact assessment
+- Calculates which facilities are impacted by nearby GDACS and optional ACLED events
+- Preserves uploaded facility attributes for downstream AI analysis
+- Produces impact statistics, overlap summaries, and district-level affected population summaries
+
+### Operation viability
+- Uses operation-specific rules for:
+  - immunization
+  - malaria control
+  - WASH
+  - nutrition
+  - medical supply
+  - shelter
+  - general operations
+- Produces GO / CAUTION / DELAY / NO-GO style outputs with mitigation guidance
+
+### Logistics assessment
+- Uses OSM infrastructure layers plus disasters and optional ACLED events
+- Reviews road access, bridges, fuel, airports, and route alternatives
+- Returns access score, rating, recommendations, and confidence
+
+### Prediction dashboard
+- Disaster forecast
+- Outbreak prediction
+- Supply-chain forecast
+- Weather-aware forward indicators
+
+### Operational Outlook
+- Most likely, escalation, and stabilization scenarios
+- Humanitarian drivers
+- Early warning indicators
+- Operational implications for the selected area
+
+### Prioritization Board
+- Area-scoped facility and district ranking
+- Recommended next action for each row
+- Optional workflow fields such as owner and status
+- Confidence and missing-signal awareness when ACLED, WorldPop, or OSM are not loaded
+
+---
+
+## Installation
 
 ### Prerequisites
-- Node.js (v14 or newer)
-- npm or yarn
-- OpenAI API key (for AI features)
+- Node.js 18+ recommended
+- npm
+- OpenAI API key for AI features
+- Google Earth Engine service account key for WorldPop features
 
-### Installation
+### Setup
 
-1. **Clone the repository:**
+1. Clone the repository:
    ```bash
    git clone https://github.com/jmesplana/gdacs_ai.git
    cd gdacs_ai
    ```
 
-2. **Install dependencies:**
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-3. **Configure environment variables:**
-   Create `.env.local` in the root directory:
-   ```
-   OPENAI_API_KEY=your_openai_api_key_here
+3. Create `.env.local`:
+   ```bash
+   OPENAI_API_KEY=your_openai_api_key
+   GEE_SERVICE_ACCOUNT_KEY='{"type":"service_account",...}'
    ```
 
-4. **Start development server:**
+4. Optional environment variables:
+   ```bash
+   REDIS_URL=your_redis_url
+   APP_BASE_URL=http://localhost:3000
+   OPENAI_WEB_SEARCH_MODEL=gpt-4.1-mini
+   ```
+
+5. Start the development server:
    ```bash
    npm run dev
    ```
 
-5. **Open in browser:**
-   Navigate to [http://localhost:3000](http://localhost:3000)
+6. Open:
+   [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## 📖 Usage Guide
+## Deployment Notes
 
-### Step 1: Upload Data
+The app is designed to run well on **Vercel** using Next.js API routes.
 
-**Option A: Admin Boundaries (Recommended First)**
-1. Click "Upload Shapefile"
-2. Select your .zip file containing .shp, .shx, .dbf files
-3. Districts will appear on map with risk colors
-
-**Option B: Facility/Site Data**
-1. Prepare CSV with required columns: `name`, `latitude`, `longitude`
-2. Add optional columns for AI analysis (population, coverage, cases, etc.)
-3. Upload and select which columns the AI should analyze
-4. Facilities appear as square markers
-
-**Option C: ACLED Conflict Data**
-1. Download ACLED data from [acleddata.com](https://acleddata.com)
-2. Upload CSV with conflict events
-3. Events appear as circular markers (color-coded by type)
-
-### Step 2: Configure Filters
-- **Date Range**: Filter disasters/conflicts by time period
-- **Event Types**: Select specific ACLED event types to display
-- **Geographic Focus**: Filter by country/region
-
-### Step 3: Analyze
-- **Click facilities** for detailed impact analysis
-- **Ask chatbot questions** about your operational context
-- **Generate reports** (SitReps, campaign viability, operational outlook)
-- **View district forecasts** for forward planning
-
-### Step 4: Export & Share
-- Download situation reports
-- Share map annotations
-- Export analysis results
+Important considerations:
+- OpenAI-backed APIs run server-side through Vercel functions
+- WorldPop requires `GEE_SERVICE_ACCOUNT_KEY` to be configured in Vercel environment variables
+- OSM infrastructure loading is area-scoped to reduce request size and keep responses practical for serverless deployment
+- ACLED uploads can be large and are intentionally not browser-cached
+- The Prioritization Board endpoint is lightweight because it scores already-scoped client state rather than querying global datasets directly
 
 ---
 
-## 📋 CSV Data Format Examples
+## Example Facility CSV
 
-### Facility Upload (Flexible)
 ```csv
-name,latitude,longitude,population,coverage_rate,cases,partner
-District A,1.234,32.567,50000,90,3,UNICEF
-District B,2.345,33.678,30000,60,12,MoH
+name,latitude,longitude,population,coverage_rate,cases,facility_type,partner
+District A Clinic,1.234,32.567,50000,90,3,clinic,UNICEF
+District B Warehouse,2.345,33.678,30000,60,12,warehouse,MoH
 ```
 
-### ACLED Data (Standard Format)
-Download directly from [ACLED](https://acleddata.com) - no modification needed.
-
-### Admin Boundaries
-Upload shapefiles (.zip containing .shp/.shx/.dbf) or GeoJSON files.
-
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Frontend
-- **Next.js** - React framework
-- **Leaflet** - Interactive maps
-- **React Leaflet** - React bindings for Leaflet
-- **Leaflet.heat** - Heatmap visualization
-- **MarkerClusterGroup** - Marker clustering
+- Next.js
+- React
+- Leaflet / React Leaflet
+- Marker clustering
+- Leaflet Draw
 
 ### Backend
-- **Next.js API Routes** - Serverless functions
-- **OpenAI API** - GPT-4 for AI analysis
-- **Shapefile.js** - Shapefile parsing
-- **PapaParse** - CSV parsing
-- **Geolib** - Geospatial calculations
+- Next.js API routes
+- OpenAI API
+- Google Earth Engine (`@google/earthengine`)
+- PapaParse
+- Shapefile.js
+- Geolib
+- Turf
 
-### Data Sources
-- **GDACS** - Global Disaster Alert and Coordination System
-- **ACLED** - Armed Conflict Location & Event Data Project
-- **User-provided** - Custom facility and campaign data
-
----
-
-## 🎨 Visual Design
-
-### Marker Styles
-- **Facilities**: 🟩🟥 Squares (green=safe, red=impacted)
-- **ACLED Events**: 🔴🟠🟡 Circles (color by event type)
-- **Clusters**: Rounded squares/circles with count badges
-
-### District Colors
-- 🔵 **Blue** - No risk
-- 🟢 **Green** - Low risk
-- 🟡 **Yellow** - Medium risk
-- 🟠 **Orange** - High risk
-- 🔴 **Red** - Very high risk
+### Data sources
+- GDACS
+- ACLED
+- WorldPop
+- OpenStreetMap
+- User-provided facility and boundary datasets
 
 ---
 
-## 🤝 Contributing
+## Related Documentation
 
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request with clear descriptions
-
----
-
-## 📄 License
-
-MIT License - see LICENSE file for details
+- [IMMUNIZATION_USE_CASE.md](IMMUNIZATION_USE_CASE.md)
+- [OPERATIONAL_OUTLOOK.md](OPERATIONAL_OUTLOOK.md)
+- [WORLDPOP_INTEGRATION_PLAN.md](WORLDPOP_INTEGRATION_PLAN.md)
+- [OSM_SELECTIVE_LOADING_IMPLEMENTATION.md](OSM_SELECTIVE_LOADING_IMPLEMENTATION.md)
+- [APP_HUB_ARCHITECTURE.md](APP_HUB_ARCHITECTURE.md)
 
 ---
 
-## 🔗 Links
+## Links
 
-- **Live Platform**: [https://disasters.aidstack.ai](https://disasters.aidstack.ai)
-- **GitHub**: [https://github.com/jmesplana/gdacs_ai](https://github.com/jmesplana/gdacs_ai)
-- **Immunization Use Case Guide**: [IMMUNIZATION_USE_CASE.md](IMMUNIZATION_USE_CASE.md)
-
----
-
-## 📞 Support
-
-For questions, issues, or feature requests:
-- Open an issue on GitHub
-- Contact: [Your contact info]
+- Live Platform: [https://disasters.aidstack.ai](https://disasters.aidstack.ai)
+- GitHub: [https://github.com/jmesplana/gdacs_ai](https://github.com/jmesplana/gdacs_ai)
 
 ---
 
-**Built for humanitarian responders, by humanitarian responders.**
+## Support
+
+For issues or feature requests:
+- open a GitHub issue
+- review the architecture and integration notes in the repo docs before changing core workflows
+
+---
+
+Built for humanitarian response workflows where geographic scope, operational context, and next-action prioritization matter more than raw alert volume.

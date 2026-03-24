@@ -29,6 +29,7 @@ export default function OSMInfrastructureSelector({
   osmStats = null,
   osmLayerVisibility = {},
   onLoadOSM, // Callback: (selectedDistricts, selectedCategories) => void
+  onSelectionChange, // Callback: (selectedDistricts) => void
   onToggleLayerVisibility, // Callback: (category) => void
   onClearCategory, // Callback: (category) => void
 }) {
@@ -38,6 +39,10 @@ export default function OSMInfrastructureSelector({
   const [requestStartedAt, setRequestStartedAt] = useState(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastCompletedLoad, setLastCompletedLoad] = useState(null);
+  const districtSignature = useMemo(
+    () => districts.map((district, idx) => district.id || district.name || idx).join('|'),
+    [districts]
+  );
 
   useEffect(() => {
     if (!osmLoading && activeRequest) {
@@ -60,13 +65,19 @@ export default function OSMInfrastructureSelector({
         completedAt: new Date().toISOString()
       });
 
-      setSelectedDistricts([]);
       setSelectedCategories([]);
       setActiveRequest(null);
       setRequestStartedAt(null);
       setElapsedSeconds(0);
     }
   }, [osmLoading, activeRequest, osmStats, elapsedSeconds]);
+
+  useEffect(() => {
+    setSelectedDistricts([]);
+    setSelectedCategories([]);
+    setActiveRequest(null);
+    setLastCompletedLoad(null);
+  }, [districtSignature]);
 
   useEffect(() => {
     if (!osmLoading || !requestStartedAt) return undefined;
@@ -77,6 +88,16 @@ export default function OSMInfrastructureSelector({
 
     return () => clearInterval(interval);
   }, [osmLoading, requestStartedAt]);
+
+  useEffect(() => {
+    if (!onSelectionChange) return;
+
+    const selectedDistrictRecords = districts.filter((district, idx) =>
+      selectedDistricts.includes(district.id || idx)
+    );
+
+    onSelectionChange(selectedDistrictRecords);
+  }, [districts, onSelectionChange, selectedDistricts]);
 
   const estimatedTimeLabel = useMemo(() => {
     if (!activeRequest) return 'Usually 10-60 seconds depending on admin area size and selected layers.';

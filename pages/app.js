@@ -32,6 +32,10 @@ const OperationalOutlook = dynamic(() => import('../components/OperationalOutloo
   ssr: false,
 });
 
+const PrioritizationBoard = dynamic(() => import('../components/PrioritizationBoard'), {
+  ssr: false,
+});
+
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
 export default function Home() {
@@ -181,6 +185,7 @@ export default function Home() {
   const [showChatDrawer, setShowChatDrawer] = useState(false); // Chat drawer visibility
   const [showPredictions, setShowPredictions] = useState(false); // Prediction dashboard visibility
   const [showOperationalOutlook, setShowOperationalOutlook] = useState(false); // Operational outlook dashboard visibility
+  const [showPrioritizationBoard, setShowPrioritizationBoard] = useState(false); // Prioritization board visibility
   const [completeReport, setCompleteReport] = useState(null); // Store combined AI report
   const [lastUpdated, setLastUpdated] = useState(null); // Track when data was last updated
   const [timeSinceUpdate, setTimeSinceUpdate] = useState(''); // Human-readable time since last update
@@ -211,6 +216,7 @@ export default function Home() {
 
   // OSM infrastructure data (lifted from MapComponent)
   const [osmData, setOsmData] = useState(null);
+  const [selectedAnalysisDistricts, setSelectedAnalysisDistricts] = useState([]);
 
   // Toast notifications
   const { toasts, addToast, dismissToast } = useToast();
@@ -1682,6 +1688,30 @@ export default function Home() {
                 </svg>
                 View Forecast
               </button>
+
+              <button
+                onClick={() => setShowPrioritizationBoard(true)}
+                disabled={!districts.length || !selectedAnalysisDistricts.length}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: (!districts.length || !selectedAnalysisDistricts.length) ? 'var(--aidstack-slate-light)' : '#0f766e',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '8px 12px',
+                  cursor: (!districts.length || !selectedAnalysisDistricts.length) ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  fontFamily: "'Inter', sans-serif"
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                  <path d="M3 3v18h18"></path>
+                  <path d="M7 14l4-4 3 3 5-7"></path>
+                </svg>
+                Prioritization Board
+              </button>
             </div>
             
             {/* Last Updated indicator */}
@@ -2023,6 +2053,7 @@ export default function Home() {
           onOSMDataChange={(data) => {
             setOsmData(data);
           }}
+          onAnalysisDistrictsChange={setSelectedAnalysisDistricts}
         />
 
         {selectedFacility && (
@@ -2065,6 +2096,26 @@ export default function Home() {
             onClose={() => {
               setShowOperationalOutlook(false);
               setSelectedDistrictForOutlook(null); // Clear selected district when closing
+            }}
+          />
+        )}
+
+        {showPrioritizationBoard && (
+          <PrioritizationBoard
+            isOpen={showPrioritizationBoard}
+            onClose={() => setShowPrioritizationBoard(false)}
+            facilities={facilities}
+            impactedFacilities={impactedFacilities}
+            disasters={filteredDisasters.length > 0 ? filteredDisasters : disasters}
+            acledData={acledEnabled ? acledData : []}
+            districts={districts}
+            selectedDistricts={selectedAnalysisDistricts}
+            worldPopData={worldPopData}
+            osmData={osmData}
+            operationType={operationType || 'general'}
+            onViewFacility={(facility) => {
+              setShowPrioritizationBoard(false);
+              handleFacilitySelect(facility);
             }}
           />
         )}
