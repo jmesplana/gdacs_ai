@@ -132,6 +132,26 @@ function renderLinkedText(text) {
   return parts.length > 0 ? parts : text;
 }
 
+function AIDisclaimer({ sourceLabel = null }) {
+  return (
+    <div style={{
+      marginTop: '10px',
+      background: '#fff7ed',
+      border: '1px solid #fed7aa',
+      borderLeft: '4px solid #f59e0b',
+      borderRadius: '10px',
+      padding: '10px 12px',
+      color: '#9a3412',
+      fontSize: '12px',
+      lineHeight: 1.55
+    }}>
+      <strong>Verification note:</strong> AI-generated synthesis may be incomplete or imprecise. Confirm against the loaded data
+      {sourceLabel ? ` and the linked source (${sourceLabel})` : ' and linked source material'}
+      {' '}before acting or sharing externally.
+    </div>
+  );
+}
+
 function getSummaryCards(board, facilities, impactedFacilities) {
   if (!board?.summary?.hasFacilityData) {
     return [
@@ -162,6 +182,7 @@ export default function PrioritizationBoard({
   worldPopData = {},
   osmData = null,
   operationType = 'general',
+  onBoardLoaded = null,
   onViewFacility = null
 }) {
   const [loading, setLoading] = useState(false);
@@ -222,6 +243,9 @@ export default function PrioritizationBoard({
 
       const data = await parseResponse(response, 'Prioritization board');
       setBoard(data);
+      if (onBoardLoaded) {
+        onBoardLoaded(data);
+      }
     } catch (err) {
       console.error('Error loading prioritization board:', err);
       setError(err.message);
@@ -429,6 +453,29 @@ export default function PrioritizationBoard({
                 AI synthesis + recent web context
               </span>
             )}
+          </div>
+
+          <div style={{
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            padding: '10px 12px',
+            marginBottom: '14px',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '10px 14px',
+            alignItems: 'center'
+          }}>
+            <span style={{ fontSize: '12px', color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Score Bands
+            </span>
+            <span style={{ fontSize: '12px', color: '#991b1b', fontWeight: 700 }}>Urgent: 75-100</span>
+            <span style={{ fontSize: '12px', color: '#9a3412', fontWeight: 700 }}>High: 55-74</span>
+            <span style={{ fontSize: '12px', color: '#92400e', fontWeight: 700 }}>Medium: 35-54</span>
+            <span style={{ fontSize: '12px', color: '#0c4a6e', fontWeight: 700 }}>Monitor: 0-34</span>
+            <span style={{ fontSize: '12px', color: '#64748b' }}>
+              Area counts are based on the final admin-level priority score.
+            </span>
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
@@ -789,6 +836,10 @@ export default function PrioritizationBoard({
                                   {row.recentSourceLabel || row.recentSourceUrl}
                                 </a>
                               </div>
+                            )}
+
+                            {row.analysisSource?.toLowerCase?.().includes('ai') && (
+                              <AIDisclaimer sourceLabel={row.recentSourceLabel} />
                             )}
                           </>
                         )}

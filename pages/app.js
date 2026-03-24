@@ -217,6 +217,7 @@ export default function Home() {
   // OSM infrastructure data (lifted from MapComponent)
   const [osmData, setOsmData] = useState(null);
   const [selectedAnalysisDistricts, setSelectedAnalysisDistricts] = useState([]);
+  const [latestPrioritizationBoard, setLatestPrioritizationBoard] = useState(null);
 
   // Toast notifications
   const { toasts, addToast, dismissToast } = useToast();
@@ -2054,6 +2055,7 @@ export default function Home() {
             setOsmData(data);
           }}
           onAnalysisDistrictsChange={setSelectedAnalysisDistricts}
+          prioritizationBoard={latestPrioritizationBoard}
         />
 
         {selectedFacility && (
@@ -2113,6 +2115,7 @@ export default function Home() {
             worldPopData={worldPopData}
             osmData={osmData}
             operationType={operationType || 'general'}
+            onBoardLoaded={setLatestPrioritizationBoard}
             onViewFacility={(facility) => {
               setShowPrioritizationBoard(false);
               handleFacilitySelect(facility);

@@ -448,7 +448,8 @@ const MapComponent = ({
   onDistrictOutlookClick,
   onWorldPopDataChange,
   onOSMDataChange,
-  onAnalysisDistrictsChange
+  onAnalysisDistrictsChange,
+  prioritizationBoard = null
 }) => {
   // Map refs - keep these in main component
   const mapRef = useRef(null);
@@ -2181,7 +2182,8 @@ const MapComponent = ({
             region: d.region
           })) : null,
           // OpenStreetMap Infrastructure data
-          osmData: osmData
+          osmData: osmData,
+          prioritizationBoard: prioritizationBoard
         }}
       />
 

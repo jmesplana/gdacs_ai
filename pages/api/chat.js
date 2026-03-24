@@ -203,6 +203,7 @@ IMPORTANT:
 - For malaria programs after floods: ALWAYS recommend 50% increase in ACT/RDT stock, coordinate with WASH for vector control, monitor for 40-60% case surge
 - Provide GO/NO-GO/DELAY/CAUTION recommendations with clear rationale based on AMP and WHO best practices
 - Suggest appropriate digital tools and assessment procedures when relevant
+- **Prioritization Board Use**: If the context includes a prioritization board, treat it as the primary decision layer for questions like "top priorities", "which admin levels should we focus on", "urgent areas", "what should leadership do", or "summarize the prioritization matrix". Reference the ranked admin levels, posture, recommended action, and key gaps directly from that board before using other context.
 
 **DISTRICT-LEVEL ANALYSIS (When Administrative Boundaries Shapefile is Uploaded):**
 - When a shapefile is uploaded, you have access to detailed district-level risk assessment data in the "ADMINISTRATIVE BOUNDARIES SHAPEFILE" section
@@ -772,6 +773,34 @@ function buildContextSummary(context) {
       hasFeatures: !!context.osmData?.features,
       featuresLength: context.osmData?.features?.length
     });
+  }
+
+  if (context.prioritizationBoard?.districtRows?.length > 0) {
+    const board = context.prioritizationBoard;
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`PRIORITIZATION BOARD (Latest Generated Decision Layer)`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`Scope: ${board.summary?.selectedAreaCount || board.districtRows.length} admin area(s)`);
+    summary.push(`Score bands: Urgent 75-100 | High 55-74 | Medium 35-54 | Monitor 0-34`);
+    summary.push(`Urgent Areas: ${board.districtRows.filter((row) => row.priorityLevel === 'Urgent').length}`);
+    summary.push(`High Areas: ${board.districtRows.filter((row) => row.priorityLevel === 'High').length}`);
+
+    summary.push(`\nTOP PRIORITIZED ADMIN LEVELS:`);
+    board.districtRows.slice(0, 5).forEach((row) => {
+      summary.push(`- Rank ${row.rank}: ${row.district}`);
+      summary.push(`  Priority: ${row.priorityLevel} (score ${row.priorityScore}/100)`);
+      if (row.posture) summary.push(`  Posture: ${row.posture}`);
+      if (row.recommendedAction) summary.push(`  Recommended action: ${row.recommendedAction}`);
+      if (row.populationEstimate) summary.push(`  Population: ${row.populationEstimate.toLocaleString()}`);
+      if (typeof row.disasterCount === 'number' || typeof row.acledCount === 'number') {
+        summary.push(`  Signals: GDACS ${row.disasterCount ?? 0}, ACLED ${row.acledCount ?? 0}`);
+      }
+      if (row.keyGaps?.length) summary.push(`  Key gaps: ${row.keyGaps.join(' | ')}`);
+    });
+
+    summary.push(`\n⚡ IMPORTANT: Use this prioritization board as the primary source for ranked admin-level priorities, recommended next steps, and leadership-focused decision support.`);
+    summary.push(`   The board may include AI-generated synthesis fields. Treat linked sources and loaded data as the verification basis for those narrative fields.`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   }
 
   // Disaster information
