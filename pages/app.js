@@ -155,8 +155,7 @@ export default function Home() {
       latitude: item.latitude,
       longitude: item.longitude,
       event_date: item.event_date,
-      fatalities: item.fatalities,
-      notes: item.notes
+      fatalities: item.fatalities
     }));
   };
 
@@ -311,13 +310,6 @@ export default function Home() {
     }
   }, []);
 
-  // Reassess impact whenever disaster data changes (initial load or refresh)
-  useEffect(() => {
-    if (disasters.length > 0 && facilities.length > 0) {
-      assessImpact(facilities);
-    }
-  }, [disasters]);
-  
   // Update the "time since" last data refresh
   useEffect(() => {
     if (!lastUpdated) return;
@@ -357,7 +349,7 @@ export default function Home() {
 
   // Filter disasters when disaster data or date filter changes
   useEffect(() => {
-    filterDisastersByDate(dateFilter);
+    const nextFilteredDisasters = filterDisastersByDate(dateFilter);
 
     // Debug logging for disaster data
     console.log('Disasters data state:', {
@@ -369,7 +361,7 @@ export default function Home() {
     // Re-assess impact when filter changes if facilities are available
     if (facilities.length > 0) {
       console.log('Auto-refreshing impact assessment due to filter change');
-      assessImpact(facilities);
+      assessImpact(facilities, { disastersOverride: nextFilteredDisasters });
     }
   }, [disasters, dateFilter]);
 
@@ -764,7 +756,45 @@ export default function Home() {
 
   // Assess the impact of disasters on facilities
   const assessImpactRef = useRef(false); // Prevent concurrent calls
-  const assessImpact = async (facilityData) => {
+  const lastImpactPayloadRef = useRef('');
+  const lastImpactResultRef = useRef(null);
+
+  const applyImpactAssessmentResult = (facilityData, data, disastersToAssess) => {
+    const facilityLookup = new Map(
+      facilityData.map((facility) => [
+        `${facility.name}__${facility.latitude}__${facility.longitude}`,
+        facility
+      ])
+    );
+
+    const mergedImpactedFacilities = (data.impactedFacilities || []).map((item) => {
+      const key = `${item.facility?.name}__${item.facility?.latitude}__${item.facility?.longitude}`;
+      const originalFacility = facilityLookup.get(key);
+
+      return {
+        ...item,
+        facility: originalFacility
+          ? { ...originalFacility, ...item.facility }
+          : item.facility
+      };
+    });
+
+    console.log(`Impact assessment found ${mergedImpactedFacilities.length || 0} impacted facilities`);
+
+    setImpactedFacilities(mergedImpactedFacilities);
+
+    if (data.statistics) {
+      console.log('Impact assessment statistics:', data.statistics);
+      setImpactStatistics(data.statistics);
+    }
+
+    console.log(`Applied impact assessment with ${dateFilter} date filter (${disastersToAssess.length} disasters)`);
+
+    setSelectedFacility(null);
+    setRecommendations(null);
+  };
+
+  const assessImpact = async (facilityData, options = {}) => {
     // Prevent multiple simultaneous assessments
     if (assessImpactRef.current) {
       console.log('Impact assessment already running, skipping...');
@@ -776,10 +806,10 @@ export default function Home() {
       setLoading(prev => ({ ...prev, impact: true }));
 
       // Use filtered disasters instead of all disasters
-      const disastersToAssess = filteredDisasters.length > 0 ? filteredDisasters : disasters;
+      const disastersToAssess = options.disastersOverride || (filteredDisasters.length > 0 ? filteredDisasters : disasters);
 
       // Include ACLED events only if enabled and available
-      const acledToAssess = (acledEnabled && acledData && acledData.length > 0) ? acledData : [];
+      const acledToAssess = options.acledOverride || ((acledEnabled && acledData && acledData.length > 0) ? acledData : []);
       const impactFacilities = buildImpactFacilitiesPayload(facilityData);
       const impactDisasters = buildImpactDisastersPayload(disastersToAssess);
       const impactAcledEvents = buildImpactAcledPayload(acledToAssess);
@@ -789,6 +819,7 @@ export default function Home() {
         acledEvents: impactAcledEvents,
         districts: []
       };
+      const payloadJson = JSON.stringify(requestPayload);
 
       console.log(`Impact assessment: ${disastersToAssess.length} GDACS disasters + ${acledToAssess.length} ACLED events`);
       console.log('Impact assessment payload summary:', {
@@ -796,54 +827,27 @@ export default function Home() {
         disasters: disastersToAssess.length,
         acledEvents: acledToAssess.length,
         districts: 0,
-        bytes: JSON.stringify(requestPayload).length
+        bytes: payloadJson.length
       });
+
+      if (lastImpactPayloadRef.current === payloadJson && lastImpactResultRef.current) {
+        console.log('Impact assessment payload unchanged, reusing cached result');
+        applyImpactAssessmentResult(facilityData, lastImpactResultRef.current, disastersToAssess);
+        return;
+      }
 
       const response = await fetch('/api/impact_assessment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestPayload),
+        body: payloadJson,
       });
       
       const data = await parseApiResponse(response, 'Impact assessment');
-      const facilityLookup = new Map(
-        facilityData.map((facility) => [
-          `${facility.name}__${facility.latitude}__${facility.longitude}`,
-          facility
-        ])
-      );
-
-      const mergedImpactedFacilities = (data.impactedFacilities || []).map((item) => {
-        const key = `${item.facility?.name}__${item.facility?.latitude}__${item.facility?.longitude}`;
-        const originalFacility = facilityLookup.get(key);
-
-        return {
-          ...item,
-          facility: originalFacility
-            ? { ...originalFacility, ...item.facility }
-            : item.facility
-        };
-      });
-
-      console.log(`Impact assessment found ${mergedImpactedFacilities.length || 0} impacted facilities`);
-      
-      // Store the impacted facilities with the filtered disasters only
-      setImpactedFacilities(mergedImpactedFacilities);
-      
-      // Store the statistical analysis
-      if (data.statistics) {
-        console.log('Impact assessment statistics:', data.statistics);
-        setImpactStatistics(data.statistics);
-      }
-      
-      // Log information about the filtering application
-      console.log(`Applied impact assessment with ${dateFilter} date filter (${disastersToAssess.length} disasters)`);
-      
-      // Reset selected facility and recommendations
-      setSelectedFacility(null);
-      setRecommendations(null);
+      lastImpactPayloadRef.current = payloadJson;
+      lastImpactResultRef.current = data;
+      applyImpactAssessmentResult(facilityData, data, disastersToAssess);
     } catch (error) {
       console.error('Error assessing impact:', error);
       addToast('Failed to assess facility impact. Please try again.', 'error');

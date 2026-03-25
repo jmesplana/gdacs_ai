@@ -1,8 +1,6 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import Papa from 'papaparse';
 import { getDistance, isPointInPolygon, getAreaOfPolygon } from 'geolib';
-import { point } from '@turf/helpers';
-import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 
 export const config = {
   api: {
@@ -11,6 +9,66 @@ export const config = {
     },
   },
 };
+
+function isPointOnSegment(point, start, end) {
+  const [px, py] = point;
+  const [x1, y1] = start;
+  const [x2, y2] = end;
+  const cross = (py - y1) * (x2 - x1) - (px - x1) * (y2 - y1);
+
+  if (Math.abs(cross) > 1e-10) return false;
+
+  const dot = (px - x1) * (px - x2) + (py - y1) * (py - y2);
+  return dot <= 1e-10;
+}
+
+function isPointInRing(point, ring = []) {
+  if (ring.length < 4) return false;
+
+  let inside = false;
+
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const start = ring[i];
+    const end = ring[j];
+
+    if (!Array.isArray(start) || !Array.isArray(end)) continue;
+    if (isPointOnSegment(point, start, end)) return true;
+
+    const [xi, yi] = start;
+    const [xj, yj] = end;
+    const intersects =
+      yi > point[1] !== yj > point[1] &&
+      point[0] < ((xj - xi) * (point[1] - yi)) / ((yj - yi) || Number.EPSILON) + xi;
+
+    if (intersects) inside = !inside;
+  }
+
+  return inside;
+}
+
+function isPointInPolygonCoordinates(point, polygon = []) {
+  if (!polygon.length || !isPointInRing(point, polygon[0])) return false;
+
+  for (let i = 1; i < polygon.length; i += 1) {
+    if (isPointInRing(point, polygon[i])) return false;
+  }
+
+  return true;
+}
+
+function isPointInGeoJsonGeometry(point, geometry) {
+  if (!geometry?.type || !geometry?.coordinates) return false;
+
+  if (geometry.type === 'Polygon') {
+    return isPointInPolygonCoordinates(point, geometry.coordinates);
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    return geometry.coordinates.some((polygon) => isPointInPolygonCoordinates(point, polygon));
+  }
+
+  return false;
+}
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -93,7 +151,7 @@ function assessImpact(facilities, disasters, acledEvents, worldPopData = {}, dis
   const findFacilityDistrict = (facility) => {
     if (!districts || districts.length === 0) return null;
 
-    const facilityPoint = point([facility.longitude, facility.latitude]);
+    const facilityPoint = [facility.longitude, facility.latitude];
 
     for (const district of districts) {
       try {
@@ -103,7 +161,7 @@ function assessImpact(facilities, disasters, acledEvents, worldPopData = {}, dis
 
         if (!districtFeature) continue;
 
-        if (booleanPointInPolygon(facilityPoint, districtFeature)) {
+        if (isPointInGeoJsonGeometry(facilityPoint, districtFeature.geometry)) {
           const props = district.properties || {};
           return {
             name: props.ADM2_EN || props.NAME || props.name || props.district || 'Unknown',

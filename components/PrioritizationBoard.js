@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { buildPrioritizationBoard } from '../lib/prioritizationBoard';
 
 const LOCAL_WORKFLOW_KEY = 'gdacs_prioritization_workflow';
 
@@ -10,6 +11,17 @@ const levelColors = {
 };
 
 const statusOptions = ['Unassigned', 'In Review', 'In Progress', 'Done'];
+const POPULATION_FIELDS = [
+  'population',
+  'target_population',
+  'catchment_population',
+  'catchment',
+  'beneficiaries',
+  'people_served',
+  'children_u5',
+  'districtPopulation'
+];
+const FACILITY_TYPE_FIELDS = ['facility_type', 'type', 'category', 'service_type'];
 
 function parseResponse(response, label) {
   return response.text().then((raw) => {
@@ -40,6 +52,153 @@ function saveWorkflowState(state) {
   } catch (error) {
     console.warn('Unable to save prioritization workflow state:', error);
   }
+}
+
+function simplifyRing(ring = [], maxPoints = 250) {
+  if (!Array.isArray(ring) || ring.length <= maxPoints) return ring;
+
+  const closed = ring.length > 2 &&
+    ring[0]?.[0] === ring[ring.length - 1]?.[0] &&
+    ring[0]?.[1] === ring[ring.length - 1]?.[1];
+  const workingRing = closed ? ring.slice(0, -1) : ring.slice();
+  const stride = Math.max(1, Math.ceil(workingRing.length / maxPoints));
+  const simplified = workingRing.filter((_, index) => index === 0 || index === workingRing.length - 1 || index % stride === 0);
+
+  if (closed) {
+    simplified.push(simplified[0]);
+  }
+
+  return simplified;
+}
+
+function simplifyGeometry(geometry = null) {
+  if (!geometry?.type || !geometry?.coordinates) return geometry;
+
+  if (geometry.type === 'Polygon') {
+    return {
+      ...geometry,
+      coordinates: geometry.coordinates.map((ring, index) => simplifyRing(ring, index === 0 ? 250 : 100))
+    };
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    return {
+      ...geometry,
+      coordinates: geometry.coordinates.map((polygon) =>
+        polygon.map((ring, index) => simplifyRing(ring, index === 0 ? 250 : 100))
+      )
+    };
+  }
+
+  return geometry;
+}
+
+function compactDistrict(district = {}, index = 0) {
+  const props = district.properties || {};
+
+  return {
+    id: district.id || index,
+    name: district.name || props.ADM2_EN || props.NAME_2 || props.NAME || props.name || props.district || `Selected Area ${index + 1}`,
+    geometry: simplifyGeometry(district.geometry || null),
+    bounds: district.bounds || null,
+    properties: {
+      ADM2_EN: props.ADM2_EN,
+      NAME_2: props.NAME_2,
+      NAME: props.NAME,
+      name: props.name,
+      district: props.district,
+      population: props.population,
+      POP: props.POP
+    }
+  };
+}
+
+function compactFacility(facility = {}) {
+  const compact = {
+    name: facility.name,
+    latitude: facility.latitude,
+    longitude: facility.longitude,
+    district: facility.district,
+    admin2: facility.admin2,
+    region: facility.region,
+    admin1: facility.admin1
+  };
+
+  FACILITY_TYPE_FIELDS.forEach((field) => {
+    if (facility[field] !== undefined) compact[field] = facility[field];
+  });
+
+  POPULATION_FIELDS.forEach((field) => {
+    if (facility[field] !== undefined) compact[field] = facility[field];
+  });
+
+  return compact;
+}
+
+function compactImpactRecord(record = {}) {
+  return {
+    facility: compactFacility(record.facility || {}),
+    impacts: Array.isArray(record.impacts)
+      ? record.impacts.map((impact) => ({
+          distance: impact.distance,
+          disaster: {
+            eventType: impact.disaster?.eventType,
+            eventName: impact.disaster?.eventName,
+            title: impact.disaster?.title,
+            alertLevel: impact.disaster?.alertLevel,
+            severity: impact.disaster?.severity,
+            source: impact.disaster?.source
+          }
+        }))
+      : []
+  };
+}
+
+function compactWorldPopData(worldPopData = {}, selectedDistricts = []) {
+  if (!worldPopData || !selectedDistricts.length) return {};
+
+  const scoped = {};
+  selectedDistricts.forEach((district, idx) => {
+    const props = district.properties || {};
+    const keys = [
+      String(district.id || idx),
+      district.name,
+      props.ADM2_EN,
+      props.NAME_2,
+      props.NAME,
+      props.name,
+      props.district,
+      district.id || idx
+    ].filter(Boolean);
+
+    keys.forEach((key) => {
+      if (worldPopData[key] && !scoped[key]) {
+        scoped[key] = worldPopData[key];
+      }
+    });
+  });
+
+  return scoped;
+}
+
+function compactOsmData(osmData = null) {
+  const features = osmData?.features || [];
+  const filteredFeatures = features
+    .filter((feature) => {
+      const category = String(feature.properties?.category || '').toLowerCase();
+      return category === 'hospital' || category === 'clinic';
+    })
+    .map((feature) => ({
+      geometry: feature.geometry,
+      properties: {
+        category: feature.properties?.category
+      }
+    }));
+
+  return {
+    type: 'FeatureCollection',
+    features: filteredFeatures
+  };
 }
 
 function SummaryCard({ label, value, tone }) {
@@ -225,20 +384,54 @@ export default function PrioritizationBoard({
     setError(null);
 
     try {
+      const compactSelectedDistricts = selectedDistricts.map(compactDistrict);
+      const localBoard = buildPrioritizationBoard({
+        facilities: facilities.map(compactFacility),
+        impactedFacilities: impactedFacilities.map(compactImpactRecord),
+        disasters: disasters.map((item) => ({
+          eventType: item.eventType,
+          eventName: item.eventName,
+          title: item.title,
+          latitude: item.latitude,
+          longitude: item.longitude,
+          alertLevel: item.alertLevel,
+          severity: item.severity,
+          source: item.source
+        })),
+        acledData: acledData.map((item) => ({
+          event_type: item.event_type,
+          latitude: item.latitude,
+          longitude: item.longitude,
+          fatalities: item.fatalities
+        })),
+        districts: [],
+        selectedDistricts: compactSelectedDistricts,
+        worldPopData: compactWorldPopData(worldPopData, compactSelectedDistricts),
+        osmData: compactOsmData(osmData),
+        operationType
+      });
+      const requestPayload = {
+        board: localBoard,
+        operationType,
+        selectedDistricts: compactSelectedDistricts.map((district) => ({
+          id: district.id,
+          name: district.name
+        })),
+        facilities: facilities.length > 0 ? [{ loaded: true }] : []
+      };
+      const payloadJson = JSON.stringify(requestPayload);
+
+      console.log('Prioritization board payload summary:', {
+        districtRows: localBoard.districtRows?.length || 0,
+        facilityRows: localBoard.facilityRows?.length || 0,
+        selectedDistricts: requestPayload.selectedDistricts.length,
+        bytes: payloadJson.length
+      });
+
       const response = await fetch('/api/prioritization-board', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          facilities,
-          impactedFacilities,
-          disasters,
-          acledData,
-          districts,
-          selectedDistricts,
-          worldPopData,
-          osmData,
-          operationType
-        })
+        body: payloadJson
       });
 
       const data = await parseResponse(response, 'Prioritization board');

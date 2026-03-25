@@ -1,5 +1,4 @@
 import { withRateLimit } from '../../lib/rateLimit';
-import { buildPrioritizationBoard } from '../../lib/prioritizationBoard';
 import OpenAI from 'openai';
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
@@ -7,7 +6,7 @@ const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPE
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '10mb',
+      sizeLimit: '25mb',
     },
   },
 };
@@ -19,32 +18,15 @@ async function handler(req, res) {
 
   try {
     const {
+      board = null,
       facilities = [],
-      impactedFacilities = [],
-      disasters = [],
-      acledData = [],
-      districts = [],
       selectedDistricts = [],
-      worldPopData = {},
-      osmData = null,
       operationType = 'general'
     } = req.body || {};
 
-    if (!Array.isArray(selectedDistricts) || selectedDistricts.length === 0) {
-      return res.status(400).json({ error: 'selectedDistricts array is required' });
+    if (!board || !Array.isArray(board?.districtRows)) {
+      return res.status(400).json({ error: 'precomputed board is required' });
     }
-
-    const board = buildPrioritizationBoard({
-      facilities,
-      impactedFacilities,
-      disasters,
-      acledData,
-      districts,
-      selectedDistricts,
-      worldPopData,
-      osmData,
-      operationType
-    });
 
     const enrichedBoard = await enrichBoardWithAI(board, {
       operationType,

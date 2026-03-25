@@ -736,7 +736,7 @@ const MapComponent = ({
     }
 
     // Calculate risk levels first
-    const districtRisks = calculateDistrictRisks(districts, filteredDisasters, getFilteredAcledData());
+    const districtRisks = calculateDistrictRisks(districts, filteredDisasters, filteredAcledData);
 
     let matchingDistricts = [];
 
@@ -871,7 +871,7 @@ const MapComponent = ({
   };
 
   // Filter ACLED data based on config (same logic as AcledMarkers.js)
-  const getFilteredAcledData = () => {
+  const filteredAcledData = useMemo(() => {
     if (!acledData || acledData.length === 0 || !acledEnabled) {
       return [];
     }
@@ -921,7 +921,7 @@ const MapComponent = ({
 
       return true;
     });
-  };
+  }, [acledData, acledEnabled, acledConfig]);
 
   // Removed: Auto-showing zoom indicator when date filter changes
   // useEffect(() => {
@@ -1057,7 +1057,7 @@ const MapComponent = ({
       }
     }
 
-    const nearbyAcledEvents = getFilteredAcledData().filter(event => {
+    const nearbyAcledEvents = filteredAcledData.filter(event => {
       const eventLat = parseFloat(event.latitude);
       const eventLon = parseFloat(event.longitude);
 
@@ -1142,10 +1142,89 @@ const MapComponent = ({
 
   // Get current map layer configuration
   const currentLayer = MAP_LAYERS[currentMapLayer.toUpperCase()] || MAP_LAYERS.STREET;
-  const filteredAcledCount = acledEnabled ? getFilteredAcledData().length : 0;
+  const filteredAcledCount = filteredAcledData.length;
   const visibleDisasters = useMemo(
     () => (playbackEnabled ? filterByPlaybackDate(filteredDisasters, 'pubDate') : filteredDisasters),
     [playbackEnabled, filterByPlaybackDate, filteredDisasters]
+  );
+  const visibleAcledEvents = useMemo(
+    () => (playbackEnabled ? filterByPlaybackDate(filteredAcledData, 'event_date') : filteredAcledData),
+    [playbackEnabled, filterByPlaybackDate, filteredAcledData]
+  );
+  const districtRisks = useMemo(
+    () => calculateDistrictRisks(districts, visibleDisasters, visibleAcledEvents),
+    [districts, visibleDisasters, visibleAcledEvents]
+  );
+  const districtSummary = useMemo(() => {
+    if (!districts || districts.length === 0) return null;
+
+    const riskCounts = {
+      'very-high': 0,
+      'high': 0,
+      'medium': 0,
+      'low': 0,
+      'none': 0
+    };
+    const samplesByRisk = {
+      'very-high': [],
+      'high': [],
+      'medium': [],
+      'low': [],
+      'none': []
+    };
+    let minLat = Infinity;
+    let maxLat = -Infinity;
+    let minLng = Infinity;
+    let maxLng = -Infinity;
+
+    districts.forEach(district => {
+      const risk = districtRisks[district.id];
+      if (risk) {
+        riskCounts[risk.level]++;
+        if (samplesByRisk[risk.level].length < 3) {
+          samplesByRisk[risk.level].push({
+            name: district.name,
+            eventCount: risk.eventCount,
+            score: risk.score
+          });
+        }
+      }
+
+      if (district.bounds) {
+        minLat = Math.min(minLat, district.bounds.minLat);
+        maxLat = Math.max(maxLat, district.bounds.maxLat);
+        minLng = Math.min(minLng, district.bounds.minLng);
+        maxLng = Math.max(maxLng, district.bounds.maxLng);
+      }
+    });
+
+    return {
+      totalCount: districts.length,
+      country: districts[0]?.country || 'Unknown',
+      region: districts[0]?.region || 'Unknown',
+      geographicBounds: Number.isFinite(minLat) ? {
+        minLat: minLat.toFixed(2),
+        maxLat: maxLat.toFixed(2),
+        minLng: minLng.toFixed(2),
+        maxLng: maxLng.toFixed(2),
+        centerLat: ((minLat + maxLat) / 2).toFixed(2),
+        centerLng: ((minLng + maxLng) / 2).toFixed(2)
+      } : null,
+      riskBreakdown: riskCounts,
+      sampleDistricts: samplesByRisk
+    };
+  }, [districts, districtRisks]);
+  const enrichedDistricts = useMemo(
+    () => districts.map(district => {
+      const risk = districtRisks[district.id] || { level: 'none', score: 0, eventCount: 0 };
+      return {
+        ...district,
+        riskLevel: risk.level,
+        riskScore: risk.score,
+        eventCount: risk.eventCount
+      };
+    }),
+    [districts, districtRisks]
   );
 
   // Check if any drawer is open
@@ -1562,11 +1641,6 @@ const MapComponent = ({
         {showDistricts && districts && districts.length > 0 && (() => {
           console.log(`Rendering ${districts.length} districts on map`);
 
-          // Calculate risk levels for all districts (use playback-filtered data if enabled)
-          const disastersForRisk = playbackEnabled ? filterByPlaybackDate(filteredDisasters, 'pubDate') : filteredDisasters;
-          const acledForRisk = playbackEnabled ? filterByPlaybackDate(getFilteredAcledData(), 'event_date') : getFilteredAcledData();
-          const districtRisks = calculateDistrictRisks(districts, disastersForRisk, acledForRisk);
-
           // Risk level colors (nice gradient)
           const getRiskColor = (level) => {
             switch (level) {
@@ -1635,7 +1709,7 @@ const MapComponent = ({
 
           return (
             <GeoJSON
-              key={`districts-${districts.length}-${filteredDisasters.length}-${getFilteredAcledData().length}-${highlightedDistricts.length}-labels-${showDistrictLabels}-field-${districtLabelField}`}
+              key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistricts.length}-labels-${showDistrictLabels}-field-${districtLabelField}`}
               data={featureCollection}
               pane="overlayPane"
               interactive={true}
@@ -1883,7 +1957,7 @@ const MapComponent = ({
 
         {/* ACLED conflict event markers */}
         <AcledMarkers
-          acledData={playbackEnabled ? filterByPlaybackDate(getFilteredAcledData(), 'event_date') : getFilteredAcledData()}
+          acledData={visibleAcledEvents}
           acledEnabled={acledEnabled}
           acledConfig={acledConfig}
         />
@@ -2084,72 +2158,7 @@ const MapComponent = ({
           totalAcledEvents: acledData?.length || 0,
           totalDistricts: districts?.length || 0,
           hasDistricts: districts && districts.length > 0,
-          districts: districts && districts.length > 0 ? (() => {
-            // Calculate risk levels for all districts
-            const districtRisks = calculateDistrictRisks(districts, visibleDisasters, getFilteredAcledData());
-
-            // Count districts by risk level
-            const riskCounts = {
-              'very-high': 0,
-              'high': 0,
-              'medium': 0,
-              'low': 0,
-              'none': 0
-            };
-
-            // Get sample district names by risk level (top 3 for each)
-            const samplesByRisk = {
-              'very-high': [],
-              'high': [],
-              'medium': [],
-              'low': [],
-              'none': []
-            };
-
-            districts.forEach(district => {
-              const risk = districtRisks[district.id];
-              if (risk) {
-                riskCounts[risk.level]++;
-                if (samplesByRisk[risk.level].length < 3) {
-                  samplesByRisk[risk.level].push({
-                    name: district.name,
-                    eventCount: risk.eventCount,
-                    score: risk.score
-                  });
-                }
-              }
-            });
-
-            // Get geographic bounds of the shapefile area
-            let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-            districts.forEach(d => {
-              if (d.bounds) {
-                minLat = Math.min(minLat, d.bounds.minLat);
-                maxLat = Math.max(maxLat, d.bounds.maxLat);
-                minLng = Math.min(minLng, d.bounds.minLng);
-                maxLng = Math.max(maxLng, d.bounds.maxLng);
-              }
-            });
-
-            const country = districts[0]?.country || 'Unknown';
-            const region = districts[0]?.region || 'Unknown';
-
-            return {
-              totalCount: districts.length,
-              country: country,
-              region: region,
-              geographicBounds: {
-                minLat: minLat.toFixed(2),
-                maxLat: maxLat.toFixed(2),
-                minLng: minLng.toFixed(2),
-                maxLng: maxLng.toFixed(2),
-                centerLat: ((minLat + maxLat) / 2).toFixed(2),
-                centerLng: ((minLng + maxLng) / 2).toFixed(2)
-              },
-              riskBreakdown: riskCounts,
-              sampleDistricts: samplesByRisk
-            };
-          })() : null,
+          districts: districtSummary,
           // Send 200 facilities with only essential fields to keep payload reasonable
           facilities: facilities?.slice(0, 200).map(f => ({
             name: f.name,
@@ -2168,7 +2177,7 @@ const MapComponent = ({
           impactedFacilities: impactedFacilities?.slice(0, 20),
           impactStatistics: impactStatistics,
           recentAnalysis: analysisData ? JSON.stringify(analysisData).substring(0, 200) : null,
-          acledData: getFilteredAcledData().slice(0, 30), // Reduced ACLED to 30 for performance
+          acledData: filteredAcledData.slice(0, 30), // Reduced ACLED to 30 for performance
           acledEnabled: acledEnabled,
           acledConfig: acledConfig,
           weatherForecast: weatherContext, // Add weather context for chatbot
@@ -2211,21 +2220,9 @@ const MapComponent = ({
         facilities={facilities}
         disasters={visibleDisasters}
         impactedFacilities={impactedFacilities}
-        acledData={getFilteredAcledData()} // Use filtered ACLED data
+        acledData={filteredAcledData}
         acledEnabled={acledEnabled}
-        districts={(() => {
-          // Enrich districts with risk data before passing to dashboard
-          const districtRisks = calculateDistrictRisks(districts, visibleDisasters, getFilteredAcledData());
-          return districts.map(district => {
-            const risk = districtRisks[district.id] || { level: 'none', score: 0, eventCount: 0 };
-            return {
-              ...district,
-              riskLevel: risk.level,
-              riskScore: risk.score,
-              eventCount: risk.eventCount
-            };
-          });
-        })()} // Pass enriched districts with risk data
+        districts={enrichedDistricts}
         worldPopData={worldPopData}
         worldPopYear={worldPopLastFetch?.year}
         isOpen={showCampaignDashboard}
