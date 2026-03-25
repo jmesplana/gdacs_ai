@@ -7,7 +7,7 @@ export const config = {
   api: {
     responseLimit: false,
     bodyParser: {
-      sizeLimit: '10mb', // Increased from default 1mb to handle large contexts
+      sizeLimit: '20mb',
     },
   },
 };
@@ -45,11 +45,59 @@ const tools = [
   }
 ];
 
+const DEFAULT_CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4.1-mini';
+const WEB_SEARCH_CHAT_MODEL = process.env.OPENAI_WEB_SEARCH_MODEL || 'gpt-4o-search-preview';
+
 // Web search configuration for Chat Completions API
 // Note: For gpt-4o-search-preview, use web_search_options parameter instead of tools array
 const webSearchOptions = {
   search_context_size: "high"
 };
+
+function shouldUseWebSearch(message = '', context = {}) {
+  const lower = String(message).toLowerCase();
+
+  const explicitWebTerms = [
+    'latest', 'today', 'current', 'current situation', 'recent', 'news',
+    'headline', 'headlines', 'update', 'updates', 'look up', 'lookup',
+    'search', 'web search', 'online', 'verify', 'confirm'
+  ];
+  const guidanceTermsNeedingFreshness = [
+    'who guidance', 'cdc guidance', 'ministry guidance', 'policy',
+    'restriction', 'restrictions', 'travel advisory', 'security update'
+  ];
+
+  const asksForFreshInfo =
+    explicitWebTerms.some((term) => lower.includes(term)) ||
+    guidanceTermsNeedingFreshness.some((term) => lower.includes(term));
+
+  const hasLoadedOperationalData =
+    (context?.facilities?.length || 0) > 0 ||
+    (context?.disasters?.length || 0) > 0 ||
+    (context?.acledData?.length || 0) > 0 ||
+    Boolean(context?.weatherForecast) ||
+    Boolean(context?.worldPopData && Object.keys(context.worldPopData).length > 0) ||
+    Boolean(context?.prioritizationBoard?.districtRows?.length);
+
+  return asksForFreshInfo || !hasLoadedOperationalData;
+}
+
+function buildChatCompletionParams({ model, messages, stream, useWebSearch }) {
+  const params = {
+    model,
+    messages,
+    max_tokens: 1500,
+    stream
+  };
+
+  if (useWebSearch) {
+    params.web_search_options = webSearchOptions;
+  } else {
+    params.temperature = 0.3;
+  }
+
+  return params;
+}
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -110,6 +158,9 @@ async function handler(req, res) {
     const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
     const currentDateTime = new Date().toUTCString();
 
+    const useWebSearch = shouldUseWebSearch(message, context);
+    const chatModel = useWebSearch ? WEB_SEARCH_CHAT_MODEL : DEFAULT_CHAT_MODEL;
+
     // Build conversation messages
     const messages = [
       {
@@ -125,6 +176,7 @@ async function handler(req, res) {
 2. ONLY use web search for information NOT available in your context
 3. When WorldPop population data is loaded, NEVER search the web for population statistics
 4. When facilities/districts are loaded, NEVER search for facility lists or location data
+5. When selectedAnalysisDistricts is present, treat those districts as the active admin scope for district-level analysis
 
 Use web search ONLY for:
 - Recent news and events not in the disaster feed
@@ -174,7 +226,8 @@ Your role is to:
 4. Explain technical humanitarian concepts in plain language
 5. Reference specific facilities, disasters, and data from the context when relevant
 6. When asked about facilities, you MUST reference the facilities list provided in the context above
-7. **Campaign Planning Support**: When asked about campaign viability, feasibility, or "can I run a campaign at [facility]", provide guidance on:
+7. When districts are actively selected in the context, answer about that selected admin area unless the user clearly asks about the full uploaded shapefile
+8. **Campaign Planning Support**: When asked about campaign viability, feasibility, or "can I run a campaign at [facility]", provide guidance on:
    - Whether it's safe to proceed with health campaigns (malaria, immunization, etc.)
    - Specific risks for campaign teams and target populations
    - Cold chain considerations for vaccine programs
@@ -182,7 +235,7 @@ Your role is to:
    - Timeline recommendations (go immediately, wait X days/weeks, postpone)
    - Mitigation strategies for identified risks
    - Resource adjustments needed (extra supplies, mobile teams, etc.)
-8. **Malaria Program Expertise** (following AMP guidance):
+9. **Malaria Program Expertise** (following AMP guidance):
    - ITN/LLIN distribution channel selection (mass campaign vs routine vs school-based based on context)
    - Post-disaster vector control intensification (floods create breeding sites, coordinate with WASH)
    - Expected malaria case surge: 40-60% increase after floods, 50% increase in ACT/RDT stock needed
@@ -190,7 +243,7 @@ Your role is to:
    - At-risk populations: IDPs, conflict-affected areas, displaced communities
    - Assessment planning: Recommend cLQAS methodology (10-step process) for campaign quality assurance
    - Digital tools: Mobile data collection (BYOD), geospatial microplanning, real-time dashboards
-9. **Assessment Procedures** (cLQAS methodology):
+10. **Assessment Procedures** (cLQAS methodology):
    - In-process evaluations: During household registration and distribution
    - End-process evaluations: Post-campaign coverage assessment
    - Rapid assessments: For emergency/disaster contexts
@@ -207,6 +260,7 @@ IMPORTANT:
 
 **DISTRICT-LEVEL ANALYSIS (When Administrative Boundaries Shapefile is Uploaded):**
 - When a shapefile is uploaded, you have access to detailed district-level risk assessment data in the "ADMINISTRATIVE BOUNDARIES SHAPEFILE" section
+- When the context includes an "ACTIVE ADMIN-AREA SELECTION" section, that selection overrides the broader shapefile for district-specific questions
 - Focus your analysis on the specific geographic area covered by the shapefile (check the Country, Region, and Coverage Area)
 - Reference specific districts by name when discussing risks, especially the examples provided in each risk category
 - When the user asks you to "highlight" or "show" districts on the map (e.g., "highlight high risk districts", "show me no-go areas"):
@@ -255,19 +309,19 @@ Be direct, practical, and specific. Use the context data to give personalized an
       }
 
       console.log('📤 Calling OpenAI API with streaming...');
-      console.log('Model:', "gpt-4o-search-preview");
-      console.log('Web search enabled:', true);
+      console.log('Model:', chatModel);
+      console.log('Web search enabled:', useWebSearch);
       console.time('OpenAI stream start');
 
       try {
-        const streamResponse = await openai.chat.completions.create({
-          model: "gpt-4o-search-preview",
-          messages: messages,
-          max_tokens: 1500,
-          stream: true,
-          web_search_options: webSearchOptions
-          // Note: gpt-4o-search-preview doesn't support tools or temperature parameters
-        });
+        const streamResponse = await openai.chat.completions.create(
+          buildChatCompletionParams({
+            model: chatModel,
+            messages,
+            stream: true,
+            useWebSearch
+          })
+        );
 
         console.timeEnd('OpenAI stream start');
         console.log('✅ OpenAI stream started, processing chunks...');
@@ -363,13 +417,14 @@ Be direct, practical, and specific. Use the context data to give personalized an
             });
 
             // Continue streaming with tool results
-            const followUpStream = await openai.chat.completions.create({
-              model: "gpt-4o-search-preview",
-              messages: messages,
-              max_tokens: 1500,
-              stream: true,
-              web_search_options: webSearchOptions
-            });
+            const followUpStream = await openai.chat.completions.create(
+              buildChatCompletionParams({
+                model: chatModel,
+                messages,
+                stream: true,
+                useWebSearch
+              })
+            );
 
             for await (const followUpChunk of followUpStream) {
               const followUpContent = followUpChunk.choices[0]?.delta?.content;
@@ -397,13 +452,14 @@ Be direct, practical, and specific. Use the context data to give personalized an
       }
     } else {
       // Non-streaming mode with web search
-      let response = await openai.chat.completions.create({
-        model: "gpt-4o-search-preview",
-        messages: messages,
-        max_tokens: 1500,
-        web_search_options: webSearchOptions
-        // Note: gpt-4o-search-preview doesn't support tools or temperature parameters
-      });
+      let response = await openai.chat.completions.create(
+        buildChatCompletionParams({
+          model: chatModel,
+          messages,
+          stream: false,
+          useWebSearch
+        })
+      );
 
       // Handle function calls if requested
       let finalResponse = response.choices[0].message;
@@ -442,12 +498,14 @@ Be direct, practical, and specific. Use the context data to give personalized an
         }
 
         // Make a second API call with tool results
-        const followUpResponse = await openai.chat.completions.create({
-          model: "gpt-4o-search-preview",
-          messages: messages,
-          max_tokens: 1500,
-          web_search_options: webSearchOptions
-        });
+        const followUpResponse = await openai.chat.completions.create(
+          buildChatCompletionParams({
+            model: chatModel,
+            messages,
+            stream: false,
+            useWebSearch
+          })
+        );
 
         finalResponse = followUpResponse.choices[0].message;
       }
@@ -550,6 +608,23 @@ function buildContextSummary(context) {
   if (!context) return "No context available.";
 
   let summary = [];
+
+  if (context.selectedAnalysisDistricts && context.selectedAnalysisDistricts.length > 0) {
+    const selectedNames = context.selectedAnalysisDistricts
+      .map((district) => district.name)
+      .filter(Boolean);
+
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`ACTIVE ADMIN-AREA SELECTION`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`Selected Districts: ${context.selectedAnalysisDistricts.length}`);
+    if (selectedNames.length > 0) {
+      summary.push(`Names: ${selectedNames.join(', ')}`);
+    }
+    summary.push(`⚡ IMPORTANT: These selected districts are the user's current analysis scope.`);
+    summary.push(`   For district- or admin-level questions, prioritize this selection over the full uploaded shapefile.`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  }
 
   // Facility information
   if (context.selectedFacility) {
@@ -831,11 +906,14 @@ function buildContextSummary(context) {
 
   // Impacted facilities
   if (context.impactedFacilities && context.impactedFacilities.length > 0) {
-    summary.push(`\nIMPACTED FACILITIES (${context.impactedFacilities.length} total):`);
+    const totalImpacted = context.totalImpactedFacilities || context.impactedFacilities.length;
+    summary.push(`\nIMPACTED FACILITIES (showing ${context.impactedFacilities.length} of ${totalImpacted} total):`);
     context.impactedFacilities.slice(0, 5).forEach(item => {
       summary.push(`- ${item.facility.name}: ${item.impacts.length} disaster(s) affecting it`);
     });
-    if (context.impactedFacilities.length > 5) {
+    if (totalImpacted > context.impactedFacilities.length) {
+      summary.push(`... plus ${totalImpacted - context.impactedFacilities.length} additional impacted facilities not included in the chat sample`);
+    } else if (context.impactedFacilities.length > 5) {
       summary.push(`... and ${context.impactedFacilities.length - 5} more facilities`);
     }
   }

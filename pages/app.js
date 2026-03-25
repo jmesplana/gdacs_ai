@@ -2071,6 +2071,7 @@ export default function Home() {
             setOsmData(data);
           }}
           onAnalysisDistrictsChange={setSelectedAnalysisDistricts}
+          selectedAnalysisDistricts={selectedAnalysisDistricts}
           prioritizationBoard={latestPrioritizationBoard}
         />
 

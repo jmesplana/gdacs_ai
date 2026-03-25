@@ -7,6 +7,10 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from './Toast';
+import {
+  filterFacilitiesToDistricts,
+  filterItemsToDistricts
+} from '../lib/analysisScope';
 
 const experimentalTabs = new Set(['disaster', 'outbreak', 'supply']);
 
@@ -36,6 +40,16 @@ const PredictionDashboard = ({
   const [locationInfo, setLocationInfo] = useState(null);
   const [facilitiesMetadata, setFacilitiesMetadata] = useState(null);
   const [weatherData, setWeatherData] = useState(null); // Store raw weather data for charts
+  const analysisDistricts = selectedDistrict ? [selectedDistrict] : districts;
+  const scopedFacilities = analysisDistricts.length > 0
+    ? filterFacilitiesToDistricts(facilities || [], analysisDistricts)
+    : (facilities || []);
+  const scopedDisasters = analysisDistricts.length > 0
+    ? filterItemsToDistricts(disasters || [], analysisDistricts)
+    : (disasters || []);
+  const scopedAcled = analysisDistricts.length > 0
+    ? filterItemsToDistricts(acledData || [], analysisDistricts)
+    : (acledData || []);
 
   // Extract metadata from facilities (population, country, disease prevalence, etc.)
   const extractFacilitiesMetadata = (facilities) => {
@@ -181,21 +195,21 @@ const PredictionDashboard = ({
     }
 
     // Priority 1: Use facilities if available
-    if (facilities && facilities.length > 0) {
-      const sumLat = facilities.reduce((sum, f) => sum + f.latitude, 0);
-      const sumLng = facilities.reduce((sum, f) => sum + f.longitude, 0);
+    if (scopedFacilities && scopedFacilities.length > 0) {
+      const sumLat = scopedFacilities.reduce((sum, f) => sum + f.latitude, 0);
+      const sumLng = scopedFacilities.reduce((sum, f) => sum + f.longitude, 0);
 
       return {
-        latitude: sumLat / facilities.length,
-        longitude: sumLng / facilities.length,
+        latitude: sumLat / scopedFacilities.length,
+        longitude: sumLng / scopedFacilities.length,
         source: 'facilities',
-        count: facilities.length,
+        count: scopedFacilities.length,
       };
     }
 
     // Priority 2: Use disasters if no facilities
-    if (disasters && disasters.length > 0) {
-      const validDisasters = disasters.filter(d => d.latitude && d.longitude);
+    if (scopedDisasters && scopedDisasters.length > 0) {
+      const validDisasters = scopedDisasters.filter(d => d.latitude && d.longitude);
       if (validDisasters.length > 0) {
         const sumLat = validDisasters.reduce((sum, d) => sum + parseFloat(d.latitude), 0);
         const sumLng = validDisasters.reduce((sum, d) => sum + parseFloat(d.longitude), 0);
@@ -223,15 +237,15 @@ const PredictionDashboard = ({
 
     try {
       // Extract metadata from facilities
-      const metadata = extractFacilitiesMetadata(facilities);
+      const metadata = extractFacilitiesMetadata(scopedFacilities);
       setFacilitiesMetadata(metadata);
 
       // Determine population estimate
       let populationEstimate = 50000; // Default
       if (metadata && metadata.totalPopulation > 0) {
         populationEstimate = metadata.totalPopulation;
-      } else if (facilities && facilities.length > 0) {
-        populationEstimate = facilities.length * 5000; // Estimate 5k per facility
+      } else if (scopedFacilities && scopedFacilities.length > 0) {
+        populationEstimate = scopedFacilities.length * 5000; // Estimate 5k per facility
       }
 
       // Build location info - prioritize selected district, then shapefile, then facilities metadata
@@ -294,17 +308,7 @@ const PredictionDashboard = ({
         }
       }
 
-      // Filter ACLED data by district bounds if in district mode
-      let filteredAcled = acledData || [];
-      if (selectedDistrict && center.bounds && acledData.length > 0) {
-        const bounds = center.bounds;
-        filteredAcled = acledData.filter(event => {
-          const lat = parseFloat(event.latitude);
-          const lng = parseFloat(event.longitude);
-          return lat >= bounds.minLat && lat <= bounds.maxLat &&
-                 lng >= bounds.minLng && lng <= bounds.maxLng;
-        });
-      }
+      const filteredAcled = scopedAcled;
 
       // Fetch weather data first (need it for weather chart tab)
       let weatherResponse;
@@ -338,12 +342,12 @@ const PredictionDashboard = ({
       });
 
       // Count WASH facilities damaged (estimate from disasters)
-      const washDamaged = disasters?.filter(d =>
+      const washDamaged = scopedDisasters?.filter(d =>
         d.eventtype?.toLowerCase().includes('flood') ||
         d.eventtype?.toLowerCase().includes('cyclone')
       ).length || 0;
 
-      const healthDamaged = disasters?.filter(d =>
+      const healthDamaged = scopedDisasters?.filter(d =>
         d.alertLevel === 'Red' || d.alertLevel === 'Orange'
       ).length || 0;
 
@@ -365,7 +369,7 @@ const PredictionDashboard = ({
           body: JSON.stringify({
             latitude: center.latitude,
             longitude: center.longitude,
-            disasters: disasters || [],
+            disasters: scopedDisasters,
             populationEstimate,
             washFacilitiesDamaged: washDamaged,
             healthFacilitiesDamaged: healthDamaged,
@@ -383,7 +387,7 @@ const PredictionDashboard = ({
           body: JSON.stringify({
             latitude: center.latitude,
             longitude: center.longitude,
-            disasters: disasters || [],
+            disasters: scopedDisasters,
             forecastDays: 14,
           }),
         }).then(r => r.json()),

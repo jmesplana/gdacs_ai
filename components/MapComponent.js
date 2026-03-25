@@ -449,6 +449,7 @@ const MapComponent = ({
   onWorldPopDataChange,
   onOSMDataChange,
   onAnalysisDistrictsChange,
+  selectedAnalysisDistricts = [],
   prioritizationBoard = null
 }) => {
   // Map refs - keep these in main component
@@ -1417,7 +1418,7 @@ const MapComponent = ({
         osmLoading={osmLoading}
         osmLayerVisibility={osmLayerVisibility}
         onOSMSelectionChange={onAnalysisDistrictsChange}
-        onLoadOSM={(selectedDistricts, selectedCategories) => {
+        onLoadOSM={async (selectedDistricts, selectedCategories) => {
           console.log('🚀 onLoadOSM called!', {
             districtsCount: selectedDistricts?.length,
             categoriesCount: selectedCategories?.length,
@@ -1425,38 +1426,22 @@ const MapComponent = ({
             categories: selectedCategories
           });
 
-          const allCoords = [];
-          selectedDistricts.forEach(district => {
-            if (district.geometry && district.geometry.coordinates) {
-              const coords = district.geometry.type === 'Polygon'
-                ? district.geometry.coordinates[0]
-                : district.geometry.coordinates[0][0];
-              allCoords.push(...coords);
-            }
-          });
+          const districtsWithGeometry = selectedDistricts.filter((district) =>
+            district?.geometry?.coordinates
+          );
 
-          if (allCoords.length > 0) {
-            const lons = allCoords.map(c => c[0]);
-            const lats = allCoords.map(c => c[1]);
-            const minLon = Math.min(...lons);
-            const maxLon = Math.max(...lons);
-            const minLat = Math.min(...lats);
-            const maxLat = Math.max(...lats);
-
-            const boundary = {
-              type: 'Polygon',
-              coordinates: [[
-                [minLon, minLat],
-                [maxLon, minLat],
-                [maxLon, maxLat],
-                [minLon, maxLat],
-                [minLon, minLat]
-              ]]
-            };
-
-            fetchOSMInfrastructure(boundary, selectedCategories);
-          } else {
+          if (districtsWithGeometry.length === 0) {
             console.error('❌ No coordinates collected from districts!');
+            return;
+          }
+
+          clearOSM();
+
+          for (let index = 0; index < districtsWithGeometry.length; index += 1) {
+            const district = districtsWithGeometry[index];
+            await fetchOSMInfrastructure(district.geometry, selectedCategories, {
+              mergeWithExisting: index > 0
+            });
           }
         }}
         onToggleOSMLayerVisibility={toggleLayerVisibility}
@@ -2155,12 +2140,19 @@ const MapComponent = ({
         context={{
           selectedFacility: selectedFacility,
           totalFacilities: facilities?.length || 0,
+          totalImpactedFacilities: impactedFacilities?.length || 0,
           totalAcledEvents: acledData?.length || 0,
           totalDistricts: districts?.length || 0,
+          selectedAnalysisDistricts: selectedAnalysisDistricts?.map((district) => ({
+            id: district.id,
+            name: district.name,
+            country: district.country,
+            region: district.region
+          })) || [],
           hasDistricts: districts && districts.length > 0,
           districts: districtSummary,
-          // Send 200 facilities with only essential fields to keep payload reasonable
-          facilities: facilities?.slice(0, 200).map(f => ({
+          // Send a compact facility sample to keep chat fast
+          facilities: facilities?.slice(0, 75).map(f => ({
             name: f.name,
             latitude: f.latitude,
             longitude: f.longitude,
@@ -2223,6 +2215,7 @@ const MapComponent = ({
         acledData={filteredAcledData}
         acledEnabled={acledEnabled}
         districts={enrichedDistricts}
+        selectedDistricts={selectedAnalysisDistricts}
         worldPopData={worldPopData}
         worldPopYear={worldPopLastFetch?.year}
         isOpen={showCampaignDashboard}

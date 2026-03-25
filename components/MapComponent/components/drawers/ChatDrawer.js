@@ -1,6 +1,168 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 
+function compactWorldPopDataForChat(worldPopData = {}, maxEntries = 50) {
+  const entries = Object.entries(worldPopData || {}).slice(0, maxEntries);
+  return Object.fromEntries(entries);
+}
+
+function truncateText(value, maxLength = 500) {
+  if (value === null || value === undefined) return value;
+  const stringValue = String(value);
+  return stringValue.length > maxLength
+    ? `${stringValue.slice(0, maxLength - 3)}...`
+    : stringValue;
+}
+
+function compactPrioritizationBoardForChat(board = null, maxRows = 10) {
+  if (!board?.districtRows?.length) return null;
+
+  return {
+    summary: board.summary
+      ? {
+          selectedAreaCount: board.summary.selectedAreaCount,
+          totalFacilities: board.summary.totalFacilities,
+          urgentFacilities: board.summary.urgentFacilities,
+          highFacilities: board.summary.highFacilities,
+          impactedFacilities: board.summary.impactedFacilities,
+          totalDisasters: board.summary.totalDisasters,
+          totalAcledEvents: board.summary.totalAcledEvents,
+          districtCount: board.summary.districtCount,
+          hasFacilityData: board.summary.hasFacilityData,
+          confidence: board.summary.confidence
+        }
+      : null,
+    districtRows: board.districtRows.slice(0, maxRows).map((row) => ({
+      rank: row.rank,
+      district: row.district,
+      priorityScore: row.priorityScore,
+      priorityLevel: row.priorityLevel,
+      posture: row.posture,
+      recommendedAction: row.recommendedAction,
+      populationEstimate: row.populationEstimate,
+      disasterCount: row.disasterCount,
+      acledCount: row.acledCount,
+      keyGaps: Array.isArray(row.keyGaps) ? row.keyGaps.slice(0, 4) : [],
+      soWhat: truncateText(row.soWhat, 300),
+      leadershipNote: truncateText(row.leadershipNote, 240),
+      recentContext: truncateText(row.recentContext, 280)
+    }))
+  };
+}
+
+function compactImpactedFacilitiesForChat(items = [], maxItems = 20) {
+  return (items || []).slice(0, maxItems).map((item) => ({
+    facility: {
+      name: item?.facility?.name,
+      latitude: item?.facility?.latitude,
+      longitude: item?.facility?.longitude,
+      type: item?.facility?.type || item?.facility?.facilityType
+    },
+    impacts: (item?.impacts || []).slice(0, 5).map((impact) => ({
+      distance: impact?.distance,
+      impactMethod: impact?.impactMethod,
+      disaster: {
+        eventType: impact?.disaster?.eventType,
+        eventName: impact?.disaster?.eventName,
+        title: impact?.disaster?.title,
+        alertLevel: impact?.disaster?.alertLevel,
+        severity: impact?.disaster?.severity
+      }
+    }))
+  }));
+}
+
+function compactDisastersForChat(items = [], maxItems = 20) {
+  return (items || []).slice(0, maxItems).map((item) => ({
+    eventType: item?.eventType,
+    eventName: item?.eventName,
+    title: item?.title,
+    alertLevel: item?.alertLevel,
+    severity: item?.severity,
+    country: item?.country,
+    latitude: item?.latitude,
+    longitude: item?.longitude
+  }));
+}
+
+function compactDistrictsForWorldPopForChat(items = [], maxItems = 100) {
+  return (items || []).slice(0, maxItems).map((item) => ({
+    id: item?.id,
+    name: item?.name,
+    country: item?.country,
+    region: item?.region
+  }));
+}
+
+function compactSelectedFacilityForChat(facility = null) {
+  if (!facility) return null;
+
+  return {
+    name: facility.name,
+    latitude: facility.latitude,
+    longitude: facility.longitude,
+    type: facility.type || facility.facilityType,
+    country: facility.country,
+    region: facility.region,
+    district: facility.district
+  };
+}
+
+function compactOsmDataForChat(osmData = null, maxFeatures = 250) {
+  const features = osmData?.features || [];
+  if (!features.length) return null;
+
+  const prioritized = [...features].sort((a, b) => {
+    const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+    const priorityA = priorityOrder[a?.properties?.priority] ?? 9;
+    const priorityB = priorityOrder[b?.properties?.priority] ?? 9;
+    return priorityA - priorityB;
+  });
+
+  return {
+    type: 'FeatureCollection',
+    metadata: {
+      totalFeatures: osmData?.metadata?.totalFeatures || features.length,
+      byLayer: osmData?.metadata?.byLayer || {},
+      requestedLayers: osmData?.metadata?.requestedLayers || []
+    },
+    features: prioritized.slice(0, maxFeatures).map((feature) => ({
+      geometry: feature.geometry,
+      properties: {
+        name: feature?.properties?.name || feature?.properties?.tags?.name || null,
+        category: feature?.properties?.category || null,
+        priority: feature?.properties?.priority || null,
+        tags: {
+          name: feature?.properties?.tags?.name || null,
+          amenity: feature?.properties?.tags?.amenity || null,
+          healthcare: feature?.properties?.tags?.healthcare || null,
+          highway: feature?.properties?.tags?.highway || null,
+          bridge: feature?.properties?.tags?.bridge || null,
+          aeroway: feature?.properties?.tags?.aeroway || null,
+          power: feature?.properties?.tags?.power || null,
+          man_made: feature?.properties?.tags?.man_made || null,
+          natural: feature?.properties?.tags?.natural || null,
+          'addr:district': feature?.properties?.tags?.['addr:district'] || null,
+          'addr:city': feature?.properties?.tags?.['addr:city'] || null
+        }
+      }
+    }))
+  };
+}
+
+function compactChatContext(context = {}) {
+  return {
+    ...context,
+    selectedFacility: compactSelectedFacilityForChat(context.selectedFacility),
+    disasters: compactDisastersForChat(context.disasters),
+    impactedFacilities: compactImpactedFacilitiesForChat(context.impactedFacilities),
+    districtsForWorldPop: compactDistrictsForWorldPopForChat(context.districtsForWorldPop),
+    worldPopData: compactWorldPopDataForChat(context.worldPopData),
+    osmData: compactOsmDataForChat(context.osmData),
+    prioritizationBoard: compactPrioritizationBoardForChat(context.prioritizationBoard)
+  };
+}
+
 const ChatDrawer = ({
   isOpen,
   onClose,
@@ -64,13 +226,15 @@ const ChatDrawer = ({
         acledEnabled: context.acledEnabled
       });
 
+      const compactContext = compactChatContext(context);
+
       console.time('Serializing request body');
       const requestBody = JSON.stringify({
         message: userMessage.content,
-        context: context,
-        conversationHistory: messages.map(m => ({
+        context: compactContext,
+        conversationHistory: messages.slice(-10).map(m => ({
           role: m.role,
-          content: m.content
+          content: truncateText(m.content, 1200)
         })),
         stream: true
       });

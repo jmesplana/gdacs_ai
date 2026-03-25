@@ -8,10 +8,16 @@ import { PREDICTION_CONFIG } from '../../config/predictionConfig';
 
 // Try to use Vercel KV if available, otherwise use in-memory cache
 let kv = null;
-try {
-  kv = require('@vercel/kv').kv;
-} catch (error) {
-  console.warn('Vercel KV not configured, using in-memory cache');
+const hasKvEnv = Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+
+if (hasKvEnv) {
+  try {
+    kv = require('@vercel/kv').kv;
+  } catch (error) {
+    console.warn('Vercel KV package unavailable, using in-memory cache');
+  }
+} else {
+  console.log('Vercel KV env vars not set, using in-memory weather cache');
 }
 
 // Fallback in-memory cache (for development)

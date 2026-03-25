@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { getOperationType } from '../../../../config/operationTypes';
 import { useToast } from '../../../Toast';
+import {
+  filterFacilitiesToDistricts,
+  filterImpactedFacilitiesToDistricts,
+  filterItemsToDistricts,
+  getScopedWorldPopData
+} from '../../../../lib/analysisScope';
 
 const metricPillStyle = {
   fontSize: '11px',
@@ -50,6 +56,7 @@ const CampaignDashboard = ({
   acledData = [],
   acledEnabled = false,
   districts = [], // NEW: District boundaries from shapefile
+  selectedDistricts = [],
   worldPopData = {},
   worldPopYear = null,
   isOpen,
@@ -63,13 +70,14 @@ const CampaignDashboard = ({
   const [loading, setLoading] = useState(false);
   const [assessmentMode, setAssessmentMode] = useState('district'); // 'district' or 'facility'
   const [expandedDecisions, setExpandedDecisions] = useState({});
+  const analysisDistricts = selectedDistricts.length > 0 ? selectedDistricts : districts;
 
   // Calculate dashboard statistics
   useEffect(() => {
     if (isOpen) {
       setExpandedDecisions({});
       // Determine assessment mode
-      if (districts && districts.length > 0) {
+      if (analysisDistricts && analysisDistricts.length > 0) {
         setAssessmentMode('district');
         calculateDistrictDashboard();
       } else if (facilities.length > 0) {
@@ -77,25 +85,30 @@ const CampaignDashboard = ({
         calculateFacilityDashboard();
       }
     }
-  }, [isOpen, districts, facilities, disasters, impactedFacilities, acledData, acledEnabled, operationType]);
+  }, [isOpen, analysisDistricts, facilities, disasters, impactedFacilities, acledData, acledEnabled, operationType]);
 
   // District-level campaign assessment (recommended)
   const calculateDistrictDashboard = async () => {
     setLoading(true);
 
     try {
-      console.log(`Campaign Dashboard: District-level assessment for ${districts.length} districts`);
+      const scopedFacilities = filterFacilitiesToDistricts(facilities, analysisDistricts);
+      const scopedImpactedFacilities = filterImpactedFacilitiesToDistricts(impactedFacilities, analysisDistricts);
+      const scopedDisasters = filterItemsToDistricts(disasters, analysisDistricts);
+      const scopedWorldPopData = getScopedWorldPopData(worldPopData, analysisDistricts);
+
+      console.log(`Campaign Dashboard: District-level assessment for ${analysisDistricts.length} districts`);
 
       const response = await fetch('/api/district-campaign-viability', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          districts,
-          facilities,
-          impactedFacilities,
-          disasters,
+          districts: analysisDistricts,
+          facilities: scopedFacilities,
+          impactedFacilities: scopedImpactedFacilities,
+          disasters: scopedDisasters,
           operationType,
-          worldPopData: worldPopData || {},
+          worldPopData: scopedWorldPopData,
           worldPopYear: worldPopYear || null
         })
       });
@@ -360,13 +373,26 @@ const CampaignDashboard = ({
 
   if (!isOpen) return null;
 
+  const scopedFacilities = analysisDistricts.length > 0
+    ? filterFacilitiesToDistricts(facilities, analysisDistricts)
+    : facilities;
+  const scopedDisasters = analysisDistricts.length > 0
+    ? filterItemsToDistricts(disasters, analysisDistricts)
+    : disasters;
+  const scopedAcledData = analysisDistricts.length > 0
+    ? filterItemsToDistricts(acledData, analysisDistricts)
+    : acledData;
+  const scopedWorldPopData = analysisDistricts.length > 0
+    ? getScopedWorldPopData(worldPopData, analysisDistricts)
+    : worldPopData;
+
   const dashboardConfidence = computeDashboardConfidence({
-    districts,
-    facilities,
-    disasters,
+    districts: analysisDistricts,
+    facilities: scopedFacilities,
+    disasters: scopedDisasters,
     acledEnabled,
-    acledData,
-    worldPopData,
+    acledData: scopedAcledData,
+    worldPopData: scopedWorldPopData,
     mode: assessmentMode
   });
 

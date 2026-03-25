@@ -5,6 +5,12 @@
 
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
+import {
+  filterFacilitiesToDistricts,
+  filterItemsToDistricts,
+  filterOsmDataToDistricts,
+  getScopedWorldPopData
+} from '../lib/analysisScope';
 
 const experimentalBadgeStyle = {
   display: 'inline-flex',
@@ -32,6 +38,22 @@ const OperationalOutlook = ({
   const [outlook, setOutlook] = useState(null);
   const [error, setError] = useState(null);
   const [predictions, setPredictions] = useState(null);
+  const analysisDistricts = selectedDistrict ? [selectedDistrict] : districts;
+  const scopedFacilities = analysisDistricts.length > 0
+    ? filterFacilitiesToDistricts(facilities || [], analysisDistricts)
+    : (facilities || []);
+  const scopedDisasters = analysisDistricts.length > 0
+    ? filterItemsToDistricts(disasters || [], analysisDistricts)
+    : (disasters || []);
+  const scopedAcledData = analysisDistricts.length > 0
+    ? filterItemsToDistricts(acledData || [], analysisDistricts)
+    : (acledData || []);
+  const scopedWorldPopData = analysisDistricts.length > 0
+    ? getScopedWorldPopData(worldPopData || {}, analysisDistricts)
+    : (worldPopData || {});
+  const scopedOsmData = analysisDistricts.length > 0
+    ? filterOsmDataToDistricts(osmData, analysisDistricts)
+    : osmData;
 
   useEffect(() => {
     generateOutlook();
@@ -43,13 +65,11 @@ const OperationalOutlook = ({
 
     try {
       // If a single district is selected, focus the analysis on that district only
-      let analysisDistricts = districts;
       let geoBounds = null;
 
       if (selectedDistrict) {
         // Admin-level analysis: use only the selected district
         console.log('Generating admin-level outlook for:', selectedDistrict.name);
-        analysisDistricts = [selectedDistrict];
 
         // Calculate bounds from just this district
         if (selectedDistrict.bounds) {
@@ -60,30 +80,18 @@ const OperationalOutlook = ({
       } else {
         // Country-level analysis: use all districts
         console.log('Generating country-level outlook for all districts');
-        if (districts && districts.length > 0) {
-          geoBounds = calculateDistrictBounds(districts);
+        if (analysisDistricts && analysisDistricts.length > 0) {
+          geoBounds = calculateDistrictBounds(analysisDistricts);
         }
       }
 
-      // Filter ACLED data to the analysis area (either single district or all districts)
-      let filteredAcledData = acledData || [];
-      if (geoBounds && acledData && acledData.length > 0) {
-        console.log('Filtering ACLED data to bounds:', geoBounds);
-        filteredAcledData = acledData.filter(event => {
-          const lat = parseFloat(event.latitude);
-          const lng = parseFloat(event.longitude);
-          return !isNaN(lat) && !isNaN(lng) &&
-                 lat >= geoBounds.minLat && lat <= geoBounds.maxLat &&
-                 lng >= geoBounds.minLng && lng <= geoBounds.maxLng;
-        });
-        console.log(`Filtered ACLED: ${acledData.length} → ${filteredAcledData.length} events`);
-      }
+      const filteredAcledData = scopedAcledData;
 
       // First, try to fetch predictions to include in the outlook
       let predictionsData = null;
 
       // Get center point for predictions
-      if (facilities.length > 0 || districts.length > 0) {
+      if (scopedFacilities.length > 0 || analysisDistricts.length > 0) {
         const centerPoint = getCenterPoint();
 
         // Fetch disaster forecast
@@ -107,7 +115,7 @@ const OperationalOutlook = ({
         }
 
         // Fetch outbreak prediction if we have facility/population data
-        if (facilities.length > 0) {
+        if (scopedFacilities.length > 0) {
           try {
             const outbreakRes = await fetch('/api/outbreak-prediction', {
               method: 'POST',
@@ -115,8 +123,8 @@ const OperationalOutlook = ({
               body: JSON.stringify({
                 latitude: centerPoint.latitude,
                 longitude: centerPoint.longitude,
-                disasters: disasters,
-                populationEstimate: facilities.length * 10000, // Rough estimate
+                disasters: scopedDisasters,
+                populationEstimate: scopedFacilities.length * 10000, // Rough estimate
                 forecastDays: 30
               })
             });
@@ -138,7 +146,7 @@ const OperationalOutlook = ({
             body: JSON.stringify({
               latitude: centerPoint.latitude,
               longitude: centerPoint.longitude,
-              disasters: disasters,
+              disasters: scopedDisasters,
               forecastDays: 14
             })
           });
@@ -159,15 +167,15 @@ const OperationalOutlook = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          facilities,
-          disasters, // Already filtered by app.js
+          facilities: scopedFacilities,
+          disasters: scopedDisasters,
           acledData: filteredAcledData, // Filtered to analysis area bounds
           districts: analysisDistricts, // Either single district or all districts
           predictions: predictionsData,
           selectedDistrict: selectedDistrict ? selectedDistrict.name : null, // Signal to API if this is admin-level analysis
-          worldPopData: worldPopData || {},
+          worldPopData: scopedWorldPopData,
           worldPopYear: worldPopYear || null,
-          osmData: osmData || null // Include OSM infrastructure data
+          osmData: scopedOsmData || null // Include OSM infrastructure data
         })
       });
 
@@ -257,11 +265,11 @@ const OperationalOutlook = ({
 
   const getCenterPoint = () => {
     // Prioritize districts, then facilities
-    if (districts && districts.length > 0) {
+    if (analysisDistricts && analysisDistricts.length > 0) {
       // Calculate center of all districts
       let totalLat = 0, totalLng = 0, count = 0;
 
-      districts.forEach(district => {
+      analysisDistricts.forEach(district => {
         if (district.geometry && district.geometry.coordinates) {
           const coords = district.geometry.coordinates;
           // Simple centroid calculation for polygons
@@ -291,12 +299,12 @@ const OperationalOutlook = ({
       }
     }
 
-    if (facilities && facilities.length > 0) {
-      const totalLat = facilities.reduce((sum, f) => sum + parseFloat(f.latitude), 0);
-      const totalLng = facilities.reduce((sum, f) => sum + parseFloat(f.longitude), 0);
+    if (scopedFacilities && scopedFacilities.length > 0) {
+      const totalLat = scopedFacilities.reduce((sum, f) => sum + parseFloat(f.latitude), 0);
+      const totalLng = scopedFacilities.reduce((sum, f) => sum + parseFloat(f.longitude), 0);
       return {
-        latitude: totalLat / facilities.length,
-        longitude: totalLng / facilities.length
+        latitude: totalLat / scopedFacilities.length,
+        longitude: totalLng / scopedFacilities.length
       };
     }
 

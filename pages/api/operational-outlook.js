@@ -121,7 +121,8 @@ async function handler(req, res) {
     let webSearchResults = null;
     if (country) {
       try {
-        const searchQuery = `${country} humanitarian crisis disaster conflict ${new Date().getFullYear()}`;
+        const searchScope = selectedDistrict ? `${selectedDistrict} ${country}` : country;
+        const searchQuery = `${searchScope} humanitarian crisis disaster conflict ${new Date().getFullYear()}`;
         console.log(`🔍 Searching web for: "${searchQuery}"`);
         webSearchResults = await performWebSearch(searchQuery);
       } catch (searchError) {

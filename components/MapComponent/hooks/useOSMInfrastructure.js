@@ -3,7 +3,7 @@
  * Handles fetching, caching, and state management
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 function areBoundariesEqual(boundaryA, boundaryB) {
   if (!boundaryA || !boundaryB) return false;
@@ -87,6 +87,16 @@ export function useOSMInfrastructure() {
     airport: true,
   });
   const [showOSMLayer, setShowOSMLayer] = useState(true);
+  const osmDataRef = useRef(null);
+  const osmBoundaryRef = useRef(null);
+
+  useEffect(() => {
+    osmDataRef.current = osmData;
+  }, [osmData]);
+
+  useEffect(() => {
+    osmBoundaryRef.current = osmBoundary;
+  }, [osmBoundary]);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -237,21 +247,25 @@ export function useOSMInfrastructure() {
           tags: f.properties.tags
         })));
 
+        const currentOsmData = osmDataRef.current;
+        const currentBoundary = osmBoundaryRef.current;
         const shouldMergeWithExisting =
-          selectedCategories &&
-          Array.isArray(selectedCategories) &&
-          selectedCategories.length > 0 &&
-          osmData &&
-          areBoundariesEqual(osmBoundary, cleanBoundary);
+          Boolean(options.mergeWithExisting) || (
+            selectedCategories &&
+            Array.isArray(selectedCategories) &&
+            selectedCategories.length > 0 &&
+            currentOsmData &&
+            areBoundariesEqual(currentBoundary, cleanBoundary)
+          );
 
         const nextData = shouldMergeWithExisting
-          ? mergeOsmData(osmData, result.data)
+          ? mergeOsmData(currentOsmData, result.data)
           : result.data;
 
         setOsmData(nextData);
         setOsmStats(nextData.metadata.byLayer);
         setOsmTimestamp(nextData.metadata.timestamp);
-        setOsmBoundary(cleanBoundary); // Use sanitized boundary
+        setOsmBoundary(shouldMergeWithExisting && currentBoundary ? currentBoundary : cleanBoundary);
 
         console.log('💾 OSM state updated');
         return nextData;
@@ -281,12 +295,12 @@ export function useOSMInfrastructure() {
       console.log('🏁 Fetch completed, setting loading to false');
       setOsmLoading(false);
     }
-  }, [osmLayers, osmData, osmBoundary]);
+  }, [osmLayers]);
 
   // Refresh with current boundary
   const refreshOSM = useCallback((forceRefresh = false) => {
     if (osmBoundary) {
-      return fetchOSMInfrastructure(osmBoundary, { forceRefresh });
+      return fetchOSMInfrastructure(osmBoundary, null, { forceRefresh });
     }
   }, [osmBoundary, fetchOSMInfrastructure]);
 
@@ -297,6 +311,8 @@ export function useOSMInfrastructure() {
     setOsmTimestamp(null);
     setOsmBoundary(null);
     setOsmError(null);
+    osmDataRef.current = null;
+    osmBoundaryRef.current = null;
     localStorage.removeItem('osmData');
     console.log('OSM data cleared');
   }, []);
