@@ -85,6 +85,54 @@ function compactDisastersForChat(items = [], maxItems = 20) {
   }));
 }
 
+function compactAcledDataForChat(items = [], maxItems = 30) {
+  return (items || []).slice(0, maxItems).map((item) => ({
+    event_date: item?.event_date,
+    event_type: item?.event_type,
+    sub_event_type: item?.sub_event_type,
+    country: item?.country,
+    admin1: item?.admin1,
+    admin2: item?.admin2,
+    location: item?.location,
+    latitude: item?.latitude,
+    longitude: item?.longitude,
+    fatalities: item?.fatalities
+  }));
+}
+
+function compactImpactStatisticsForChat(statistics = null, maxDisasterStats = 20, maxOverlapStats = 10) {
+  if (!statistics) return null;
+
+  return {
+    facilitiesImpacted: statistics.facilitiesImpacted ?? statistics.impactedFacilityCount ?? 0,
+    impactedFacilityCount: statistics.impactedFacilityCount ?? statistics.facilitiesImpacted ?? 0,
+    totalImpacts: statistics.totalImpacts ?? 0,
+    totalDisasters: statistics.totalDisasters ?? 0,
+    totalFacilities: statistics.totalFacilities ?? 0,
+    percentageImpacted: statistics.percentageImpacted ?? null,
+    affectedDistricts: statistics.affectedDistricts ?? null,
+    estimatedAffectedPopulation: statistics.estimatedAffectedPopulation ?? null,
+    byDisasterType: statistics.byDisasterType || null,
+    disasterStats: Array.isArray(statistics.disasterStats)
+      ? statistics.disasterStats.slice(0, maxDisasterStats).map((item) => ({
+          type: item?.type,
+          alertLevel: item?.alertLevel,
+          name: item?.name,
+          affectedFacilities: item?.affectedFacilities,
+          impactArea: item?.impactArea,
+          severity: item?.severity,
+          source: item?.source
+        }))
+      : [],
+    overlappingImpacts: Array.isArray(statistics.overlappingImpacts)
+      ? statistics.overlappingImpacts.slice(0, maxOverlapStats).map((item) => ({
+          disasters: Array.isArray(item?.disasters) ? item.disasters.slice(0, 3) : [],
+          facilities: Array.isArray(item?.facilities) ? item.facilities.slice(0, 5) : []
+        }))
+      : []
+  };
+}
+
 function compactDistrictsForWorldPopForChat(items = [], maxItems = 100) {
   return (items || []).slice(0, maxItems).map((item) => ({
     id: item?.id,
@@ -154,7 +202,9 @@ function compactChatContext(context = {}) {
   return {
     ...context,
     selectedFacility: compactSelectedFacilityForChat(context.selectedFacility),
+    acledData: compactAcledDataForChat(context.acledData),
     disasters: compactDisastersForChat(context.disasters),
+    impactStatistics: compactImpactStatisticsForChat(context.impactStatistics),
     impactedFacilities: compactImpactedFacilitiesForChat(context.impactedFacilities),
     districtsForWorldPop: compactDistrictsForWorldPopForChat(context.districtsForWorldPop),
     worldPopData: compactWorldPopDataForChat(context.worldPopData),

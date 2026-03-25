@@ -897,6 +897,143 @@ export default function Home() {
     }
   };
 
+  const compactSitrepImpactedFacilities = (items = [], maxItems = 75) =>
+    (items || []).slice(0, maxItems).map((item) => ({
+      facility: {
+        name: item?.facility?.name,
+        latitude: item?.facility?.latitude,
+        longitude: item?.facility?.longitude,
+        type: item?.facility?.type || item?.facility?.facilityType,
+        country: item?.facility?.country,
+        region: item?.facility?.region,
+        district: item?.facility?.district
+      },
+      impacts: (item?.impacts || []).slice(0, 8).map((impact) => ({
+        distance: impact?.distance,
+        impactMethod: impact?.impactMethod,
+        disaster: {
+          eventType: impact?.disaster?.eventType,
+          eventName: impact?.disaster?.eventName,
+          title: impact?.disaster?.title,
+          alertLevel: impact?.disaster?.alertLevel,
+          severity: impact?.disaster?.severity,
+          source: impact?.disaster?.source,
+          event_date: impact?.disaster?.event_date
+        }
+      }))
+    }));
+
+  const compactSitrepDisasters = (items = [], maxItems = 100) =>
+    (items || []).slice(0, maxItems).map((item) => ({
+      eventType: item?.eventType,
+      eventName: item?.eventName,
+      title: item?.title,
+      alertLevel: item?.alertLevel,
+      severity: item?.severity,
+      country: item?.country,
+      latitude: item?.latitude,
+      longitude: item?.longitude,
+      polygon: Array.isArray(item?.polygon) ? item.polygon.slice(0, 25) : undefined
+    }));
+
+  const compactSitrepAcled = (items = [], maxItems = 100) =>
+    (items || []).slice(0, maxItems).map((item) => ({
+      event_date: item?.event_date,
+      event_type: item?.event_type,
+      sub_event_type: item?.sub_event_type,
+      country: item?.country,
+      admin1: item?.admin1,
+      admin2: item?.admin2,
+      location: item?.location,
+      fatalities: item?.fatalities,
+      notes: item?.notes ? String(item.notes).slice(0, 160) : null
+    }));
+
+  const compactSitrepStatistics = (statistics = null) => {
+    if (!statistics) return null;
+
+    return {
+      totalDisasters: statistics.totalDisasters,
+      totalFacilities: statistics.totalFacilities,
+      impactedFacilityCount: statistics.impactedFacilityCount,
+      percentageImpacted: statistics.percentageImpacted,
+      affectedDistricts: statistics.affectedDistricts,
+      estimatedAffectedPopulation: statistics.estimatedAffectedPopulation,
+      disasterStats: Array.isArray(statistics.disasterStats)
+        ? statistics.disasterStats.slice(0, 25).map((item) => ({
+            name: item?.name,
+            type: item?.type,
+            affectedFacilities: item?.affectedFacilities,
+            impactArea: item?.impactArea,
+            polygon: item?.polygon,
+            source: item?.source
+          }))
+        : [],
+      overlappingImpacts: Array.isArray(statistics.overlappingImpacts)
+        ? statistics.overlappingImpacts.slice(0, 15).map((item) => ({
+            disasters: Array.isArray(item?.disasters) ? item.disasters.slice(0, 3) : [],
+            facilities: Array.isArray(item?.facilities) ? item.facilities.slice(0, 6) : []
+          }))
+        : []
+    };
+  };
+
+  const compactSitrepDistricts = (items = [], maxItems = 100) =>
+    (items || []).slice(0, maxItems).map((district) => ({
+      properties: district?.properties
+        ? {
+            NAME_0: district.properties.NAME_0,
+            ADM0_EN: district.properties.ADM0_EN,
+            COUNTRY: district.properties.COUNTRY,
+            country: district.properties.country,
+            NAME_1: district.properties.NAME_1,
+            ADM1_EN: district.properties.ADM1_EN,
+            REGION: district.properties.REGION,
+            region: district.properties.region,
+            NAME_2: district.properties.NAME_2,
+            ADM2_EN: district.properties.ADM2_EN,
+            DISTRICT: district.properties.DISTRICT,
+            district: district.properties.district,
+            NAME: district.properties.NAME,
+            name: district.properties.name
+          }
+        : district
+    }));
+
+  const compactSitrepWorldPopData = (data = {}, maxEntries = 100) =>
+    Object.fromEntries(Object.entries(data || {}).slice(0, maxEntries));
+
+  const compactSitrepOsmData = (data = null, maxFeatures = 250) => {
+    const features = data?.features || [];
+    if (!features.length) return null;
+
+    return {
+      type: 'FeatureCollection',
+      metadata: {
+        totalFeatures: data?.metadata?.totalFeatures || features.length,
+        byLayer: data?.metadata?.byLayer || {},
+        requestedLayers: data?.metadata?.requestedLayers || []
+      },
+      features: features.slice(0, maxFeatures).map((feature) => ({
+        geometry: feature?.geometry,
+        properties: {
+          name: feature?.properties?.name || feature?.properties?.tags?.name || null,
+          category: feature?.properties?.category || null,
+          priority: feature?.properties?.priority || null,
+          tags: {
+            name: feature?.properties?.tags?.name || null,
+            amenity: feature?.properties?.tags?.amenity || null,
+            healthcare: feature?.properties?.tags?.healthcare || null,
+            highway: feature?.properties?.tags?.highway || null,
+            bridge: feature?.properties?.tags?.bridge || null,
+            aeroway: feature?.properties?.tags?.aeroway || null,
+            power: feature?.properties?.tags?.power || null
+          }
+        }
+      }))
+    };
+  };
+
   // Generate situation report
   const generateSitrep = async (forceRefresh = false) => {
     try {
@@ -909,22 +1046,26 @@ export default function Home() {
 
       setLoading(prev => ({ ...prev, sitrep: true }));
 
+      const requestBody = JSON.stringify({
+        impactedFacilities: compactSitrepImpactedFacilities(impactedFacilities),
+        disasters: compactSitrepDisasters(filteredDisasters.length > 0 ? filteredDisasters : disasters),
+        dateFilter: dateFilter,
+        statistics: compactSitrepStatistics(impactStatistics),
+        acledData: acledEnabled ? compactSitrepAcled(acledData) : [],
+        osmData: compactSitrepOsmData(osmData),
+        worldPopData: compactSitrepWorldPopData(worldPopData),
+        worldPopYear: worldPopLastFetch?.year || null,
+        districts: compactSitrepDistricts(districtRawData || [])
+      });
+
+      console.log(`Sitrep request body size: ${(requestBody.length / 1024).toFixed(2)} KB`);
+
       const response = await fetch('/api/sitrep', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          impactedFacilities: impactedFacilities,
-          disasters: filteredDisasters.length > 0 ? filteredDisasters : disasters,
-          dateFilter: dateFilter,
-          statistics: impactStatistics,
-          acledData: acledEnabled ? acledData : [],
-          osmData: osmData || null,
-          worldPopData: worldPopData || {},
-          worldPopYear: worldPopLastFetch?.year || null,
-          districts: districtRawData || []
-        }),
+        body: requestBody,
       });
 
       const data = await parseApiResponse(response, 'Situation report');
