@@ -14,6 +14,18 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
   const [pendingData, setPendingData] = useState(null);
   const [uploadProgress, setUploadProgress] = useState({ step: '', progress: 0 });
 
+  const sanitizeDistrictLabel = (value, fallback = '') => {
+    if (value === null || value === undefined) return fallback;
+
+    const cleaned = String(value)
+      .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
+      .replace(/[\u200E\u200F\u202A-\u202E]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return cleaned || fallback;
+  };
+
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -166,9 +178,12 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
         let geometry = feat.geometry;
 
         // Try to find district name from common field names
-        const districtName = props.NAME || props.DISTRICT || props.District ||
-                            props.name || props.district || props.ADM2_EN ||
-                            props.ADM2_NAME || props.NAME_2 || `District ${idx + 1}`;
+        const districtName = sanitizeDistrictLabel(
+          props.NAME || props.DISTRICT || props.District ||
+          props.name || props.district || props.ADM2_EN ||
+          props.ADM2_NAME || props.NAME_2,
+          `District ${idx + 1}`
+        );
 
         // Get other useful properties
         const country = props.COUNTRY || props.Country || props.ADM0_NAME || props.NAME_0;
@@ -337,11 +352,11 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
     // Re-map the districts using the selected field
     const remappedDistricts = pendingData.districts.map(district => ({
       ...district,
-      name: district.properties[fieldName] || district.name,
+      name: sanitizeDistrictLabel(district.properties[fieldName], district.name),
       labelField: fieldName, // Store which field is being used for labels
       properties: {
         ...district.properties,
-        displayName: district.properties[fieldName] || district.name
+        displayName: sanitizeDistrictLabel(district.properties[fieldName], district.name)
       }
     }));
 

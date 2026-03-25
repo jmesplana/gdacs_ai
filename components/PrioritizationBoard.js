@@ -93,12 +93,29 @@ function simplifyGeometry(geometry = null) {
   return geometry;
 }
 
+function sanitizeDistrictLabel(value, fallback = '') {
+  if (value === null || value === undefined) return fallback;
+
+  const cleaned = String(value)
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+    .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
+    .replace(/[\u200E\u200F\u202A-\u202E]/g, '')
+    .replace(/\uFFFD/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return cleaned || fallback;
+}
+
 function compactDistrict(district = {}, index = 0) {
   const props = district.properties || {};
 
   return {
     id: district.id || index,
-    name: district.name || props.ADM2_EN || props.NAME_2 || props.NAME || props.name || props.district || `Selected Area ${index + 1}`,
+    name: sanitizeDistrictLabel(
+      district.name || props.ADM2_EN || props.NAME_2 || props.NAME || props.name || props.district,
+      `Selected Area ${index + 1}`
+    ),
     geometry: simplifyGeometry(district.geometry || null),
     bounds: district.bounds || null,
     properties: {
@@ -816,11 +833,14 @@ export default function PrioritizationBoard({
                         }}>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px', fontSize: '13px' }}>
                             <div><strong>Admin level:</strong> {row.district}</div>
-                            <div><strong>Type:</strong> {row.facilityType}</div>
-                            <div><strong>Threats:</strong> {row.impactSummary.impactCount}</div>
-                            <div><strong>ACLED:</strong> {row.securitySummary.nearbyCount}</div>
-                            <div><strong>Nearest:</strong> {row.impactSummary.nearestDistance !== null ? `${row.impactSummary.nearestDistance.toFixed(1)} km` : 'None'}</div>
+                            <div><strong>Facility type:</strong> {row.facilityType === 'Unspecified' ? 'Not provided' : row.facilityType}</div>
+                            <div><strong>Hazard signals:</strong> {row.impactSummary.impactCount}</div>
+                            <div><strong>Nearby ACLED (50 km):</strong> {row.securitySummary.nearbyCount}</div>
+                            <div><strong>Nearest hazard:</strong> {row.impactSummary.nearestDistance !== null ? `${row.impactSummary.nearestDistance.toFixed(1)} km` : 'None'}</div>
                             <div><strong>Population:</strong> {row.populationEstimate ? row.populationEstimate.toLocaleString() : 'Unknown'}</div>
+                          </div>
+                          <div style={{ marginTop: '10px', fontSize: '12px', color: '#64748b', lineHeight: 1.55 }}>
+                            Hazard signals come from nearby loaded disaster impacts. ACLED is the count of nearby security events within 50 km.
                           </div>
                         </div>
 
@@ -1046,21 +1066,36 @@ export default function PrioritizationBoard({
                         fontSize: '13px',
                         color: '#334155'
                       }}>
-                        <div><strong>Facilities:</strong> {row.facilityCount}</div>
+                        <div><strong>Loaded facilities:</strong> {row.facilityCount}</div>
+                        <div><strong>Uploaded hospitals:</strong> {row.uploadedHospitals ?? 0}</div>
+                        <div><strong>Uploaded clinics:</strong> {row.uploadedClinics ?? 0}</div>
                         <div><strong>Urgent:</strong> {row.urgentCount}</div>
                         <div><strong>Highest score:</strong> {row.highestPriorityScore}</div>
                         <div><strong>Population:</strong> {row.populationEstimate ? row.populationEstimate.toLocaleString() : 'Unknown'}</div>
                         <div><strong>Under 5:</strong> {row.ageGroups?.under5 ? row.ageGroups.under5.toLocaleString() : 'Unknown'}</div>
                         <div><strong>60+:</strong> {row.ageGroups?.age60plus ? row.ageGroups.age60plus.toLocaleString() : 'Unknown'}</div>
-                        <div><strong>Hospitals:</strong> {row.hospitals ?? 0}</div>
-                        <div><strong>Clinics:</strong> {row.clinics ?? 0}</div>
+                        <div><strong>OSM hospitals:</strong> {row.hospitals ?? 0}</div>
+                        <div><strong>OSM clinics:</strong> {row.clinics ?? 0}</div>
                         <div><strong>GDACS:</strong> {row.disasterCount ?? 0}</div>
                         <div><strong>ACLED:</strong> {row.acledCount ?? 0}</div>
                       </div>
+
                     </div>
                   </div>
                 );
               })}
+
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                color: '#64748b',
+                fontSize: '12px',
+                lineHeight: 1.6
+              }}>
+                Uploaded hospitals and clinics come from your loaded facility file when the facility type contains "hospital" or "clinic". OSM hospitals and clinics come from loaded OSM health infrastructure inside this admin area.
+              </div>
             </div>
           )}
         </div>

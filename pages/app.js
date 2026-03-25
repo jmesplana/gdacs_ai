@@ -159,6 +159,18 @@ export default function Home() {
     }));
   };
 
+  const sanitizeDistrictLabel = (value, fallback = '') => {
+    if (value === null || value === undefined) return fallback;
+
+    const cleaned = String(value)
+      .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
+      .replace(/[\u200E\u200F\u202A-\u202E]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return cleaned || fallback;
+  };
+
   const [disasters, setDisasters] = useState([]);
   const [filteredDisasters, setFilteredDisasters] = useState([]);
   const [gdacsDiagnostics, setGdacsDiagnostics] = useState(null);
@@ -554,11 +566,11 @@ export default function Home() {
     // Remap districts using the new field
     const remappedDistricts = districtRawData.map(district => ({
       ...district,
-      name: district.properties[fieldName] || district.name,
+      name: sanitizeDistrictLabel(district.properties[fieldName], district.name),
       labelField: fieldName,
       properties: {
         ...district.properties,
-        displayName: district.properties[fieldName] || district.name
+        displayName: sanitizeDistrictLabel(district.properties[fieldName], district.name)
       }
     }));
 
