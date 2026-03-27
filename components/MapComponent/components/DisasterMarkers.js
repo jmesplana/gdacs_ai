@@ -8,7 +8,7 @@ const geometryCacheStore = new Map(); // Cache fetched geometries across compone
 const recentGeometryFailures = new Map(); // Track failed requests to avoid immediate retries
 
 // Component to add disaster markers directly to the map
-const DisasterMarkers = ({ disasters, showImpactZones }) => {
+const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true }) => {
   const map = useMap();
   const clusterGroupRef = useRef(null);
   const geometryLayersRef = useRef(new Map()); // Track geometry layers for cleanup
@@ -285,7 +285,7 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: true,
         zoomToBoundsOnClick: true,
-        maxClusterRadius: 50,
+        maxClusterRadius: showClusterCounts ? 50 : 22,
         iconCreateFunction: (cluster) => {
             // Custom icon for disaster clusters
             const childCount = cluster.getChildCount();
@@ -315,7 +315,9 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
 
             // Determine size based on cluster count
             const size = childCount < 10 ? 'small' : childCount < 50 ? 'medium' : 'large';
-            const dimension = size === 'small' ? '36px' : size === 'medium' ? '46px' : '56px';
+            const dimension = showClusterCounts
+              ? (size === 'small' ? '36px' : size === 'medium' ? '46px' : '56px')
+              : '16px';
             const fontSize = size === 'small' ? '13px' : size === 'medium' ? '15px' : '18px';
 
             // Create the cluster icon with warning symbol and count
@@ -331,16 +333,16 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
                 border-radius: 50%;
                 font-weight: bold;
                 color: white;
-                border: 3px solid white;
-                box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+                border: ${showClusterCounts ? '3px solid white' : '2px solid white'};
+                box-shadow: ${showClusterCounts ? '0 3px 8px rgba(0,0,0,0.4)' : '0 2px 5px rgba(0,0,0,0.25)'};
                 position: relative;
               ">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 2px;">
+                ${showClusterCounts ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 2px;">
                   <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
                   <line x1="12" y1="9" x2="12" y2="13"></line>
                   <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                </svg>
-                <span style="font-size: ${fontSize}; line-height: 1;">${childCount}</span>
+                </svg>` : ''}
+                <span style="font-size: ${fontSize}; line-height: 1;">${showClusterCounts ? childCount : ''}</span>
               </div>`,
             className: 'disaster-cluster',
             iconSize: L.point(parseInt(dimension), parseInt(dimension))
@@ -662,7 +664,7 @@ const DisasterMarkers = ({ disasters, showImpactZones }) => {
         clusterGroupRef.current = null;
       }
     };
-  }, [map, disasters, showImpactZones]);
+  }, [map, disasters, showImpactZones, showClusterCounts]);
 
   return null;
 };

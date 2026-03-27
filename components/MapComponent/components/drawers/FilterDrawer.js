@@ -10,6 +10,14 @@ const FilterDrawer = ({
   setShowImpactZones,
   showLegend,
   setShowLegend,
+  showContextStatusBar,
+  setShowContextStatusBar,
+  showClusterCounts,
+  setShowClusterCounts,
+  showLabels,
+  setShowLabels,
+  showDistrictLabels,
+  setShowDistrictLabels,
   visibleDisasterTypes,
   toggleDisasterType,
   severityFilters,
@@ -181,6 +189,171 @@ const FilterDrawer = ({
                     position: 'absolute',
                     top: '2px',
                     left: showImpactZones ? '22px' : '2px',
+                    transition: 'left 0.3s'
+                  }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Workspace Status Toggle */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <line x1="4" y1="7" x2="20" y2="7"></line>
+                    <line x1="4" y1="12" x2="16" y2="12"></line>
+                    <line x1="4" y1="17" x2="12" y2="17"></line>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>Top Status Counts</span>
+                </div>
+                <div
+                  onClick={() => setShowContextStatusBar(!showContextStatusBar)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showContextStatusBar ? 'var(--aidstack-navy)' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: showContextStatusBar ? '22px' : '2px',
+                    transition: 'left 0.3s'
+                  }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Facility Labels Toggle */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <circle cx="8" cy="8" r="5"></circle>
+                    <circle cx="16" cy="16" r="5"></circle>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>Cluster Counts</span>
+                </div>
+                <div
+                  onClick={() => setShowClusterCounts(!showClusterCounts)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showClusterCounts ? '#7c3aed' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: showClusterCounts ? '22px' : '2px',
+                    transition: 'left 0.3s'
+                  }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Facility Labels Toggle */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <path d="M9 18V5l12-2v13"></path>
+                    <path d="M9 9l12-2"></path>
+                    <path d="M3 11l6-1v8l-6 1z"></path>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>Facility Labels</span>
+                </div>
+                <div
+                  onClick={() => setShowLabels(!showLabels)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showLabels ? '#4CAF50' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: showLabels ? '22px' : '2px',
+                    transition: 'left 0.3s'
+                  }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* District Labels Toggle */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#009688" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>District Labels</span>
+                </div>
+                <div
+                  onClick={() => setShowDistrictLabels(!showDistrictLabels)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showDistrictLabels ? '#009688' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: showDistrictLabels ? '22px' : '2px',
                     transition: 'left 0.3s'
                   }}
                   ></div>

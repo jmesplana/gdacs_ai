@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 
-const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer }) => {
+const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer, showClusterCounts = true }) => {
   const map = useMap();
   const clusterGroupRef = useRef(null);
   const lineLayerGroupRef = useRef(null); // For LineString/Polygon features
@@ -36,13 +36,15 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer }) => {
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         zoomToBoundsOnClick: true,
-        maxClusterRadius: 50,
+        maxClusterRadius: showClusterCounts ? 50 : 20,
         iconCreateFunction: (cluster) => {
           const childCount = cluster.getChildCount();
 
           // Determine size based on cluster count
           const size = childCount < 10 ? 'small' : childCount < 50 ? 'medium' : 'large';
-          const dimension = size === 'small' ? '32px' : size === 'medium' ? '42px' : '52px';
+          const dimension = showClusterCounts
+            ? (size === 'small' ? '32px' : size === 'medium' ? '42px' : '52px')
+            : '14px';
           const fontSize = size === 'small' ? '12px' : size === 'medium' ? '14px' : '17px';
 
           // OSM cluster icon (blue theme for infrastructure)
@@ -57,11 +59,11 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer }) => {
               border-radius: 50%;
               font-weight: bold;
               color: white;
-              border: 3px solid white;
-              box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+              border: ${showClusterCounts ? '3px solid white' : '1.5px solid white'};
+              box-shadow: ${showClusterCounts ? '0 3px 8px rgba(0,0,0,0.3)' : '0 1px 4px rgba(0,0,0,0.2)'};
               font-size: ${fontSize};
             ">
-              ${childCount}
+              ${showClusterCounts ? childCount : ''}
             </div>`,
             className: 'osm-cluster',
             iconSize: L.point(parseInt(dimension), parseInt(dimension))
@@ -284,7 +286,7 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer }) => {
         lineLayerGroupRef.current = null;
       }
     };
-  }, [osmData, layerVisibility, showOSMLayer, map]);
+  }, [osmData, layerVisibility, showOSMLayer, showClusterCounts, map]);
 
   return null; // This component doesn't render React elements
 };

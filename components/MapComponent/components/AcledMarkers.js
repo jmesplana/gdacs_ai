@@ -14,7 +14,8 @@ function formatField(value) {
 const AcledMarkers = ({
   acledData = [],
   acledEnabled = false,
-  acledConfig = {}
+  acledConfig = {},
+  showClusterCounts = true
 }) => {
   // Don't render if ACLED is disabled or no data
   if (!acledEnabled || !acledData || acledData.length === 0) {
@@ -107,28 +108,31 @@ const AcledMarkers = ({
   return (
     <MarkerClusterGroup
       showCoverageOnHover={false}
-      maxClusterRadius={50}
+      maxClusterRadius={showClusterCounts ? 50 : 20}
       iconCreateFunction={(cluster) => {
         const count = cluster.getChildCount();
         const size = count < 10 ? 'small' : count < 50 ? 'medium' : 'large';
+        const dimension = showClusterCounts
+          ? (size === 'small' ? '30px' : size === 'medium' ? '40px' : '50px')
+          : '14px';
 
         return L.divIcon({
           html: `<div style="
             background: rgba(211, 47, 47, 0.8);
             color: white;
             border-radius: 50%;
-            width: ${size === 'small' ? '30px' : size === 'medium' ? '40px' : '50px'};
-            height: ${size === 'small' ? '30px' : size === 'medium' ? '40px' : '50px'};
+            width: ${dimension};
+            height: ${dimension};
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
             font-size: ${size === 'small' ? '12px' : size === 'medium' ? '14px' : '16px'};
-            border: 2px solid white;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-          ">${count}</div>`,
+            border: ${showClusterCounts ? '2px solid white' : '1.5px solid white'};
+            box-shadow: ${showClusterCounts ? '0 2px 6px rgba(0,0,0,0.3)' : '0 1px 4px rgba(0,0,0,0.2)'};
+          ">${showClusterCounts ? count : ''}</div>`,
           className: 'acled-cluster',
-          iconSize: [40, 40]
+          iconSize: [parseInt(dimension), parseInt(dimension)]
         });
       }}
     >

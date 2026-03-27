@@ -601,6 +601,8 @@ const MapComponent = ({
     showTimeline,
     showStatistics,
     showLegend,
+    showContextStatusBar,
+    showClusterCounts,
     showLabels,
     showDistrictLabels,
     isFullscreen,
@@ -616,6 +618,8 @@ const MapComponent = ({
     setShowTimeline,
     setShowStatistics,
     setShowLegend,
+    setShowContextStatusBar,
+    setShowClusterCounts,
     setShowLabels,
     setShowDistrictLabels,
     setIsFullscreen,
@@ -1357,17 +1361,19 @@ const MapComponent = ({
     >
       <style>{customStyles}</style>
 
-      <ContextStatusBar
-        operationType={operationType}
-        dateFilter={dateFilter}
-        filteredDisasters={filteredDisasters}
-        alertLevelCounts={alertLevelCounts}
-        districts={districts}
-        acledEnabled={acledEnabled}
-        acledCount={filteredAcledCount}
-        osmData={osmData}
-        worldPopData={worldPopData}
-      />
+      {showContextStatusBar && (
+        <ContextStatusBar
+          operationType={operationType}
+          dateFilter={dateFilter}
+          filteredDisasters={filteredDisasters}
+          alertLevelCounts={alertLevelCounts}
+          districts={districts}
+          acledEnabled={acledEnabled}
+          acledCount={filteredAcledCount}
+          osmData={osmData}
+          worldPopData={worldPopData}
+        />
+      )}
 
       {/* Hamburger Menu - high-level workspace and analysis actions */}
       <HamburgerMenu
@@ -1421,6 +1427,14 @@ const MapComponent = ({
         setShowImpactZones={setShowImpactZones}
         showLegend={showLegend}
         setShowLegend={setShowLegend}
+        showContextStatusBar={showContextStatusBar}
+        setShowContextStatusBar={setShowContextStatusBar}
+        showClusterCounts={showClusterCounts}
+        setShowClusterCounts={setShowClusterCounts}
+        showLabels={showLabels}
+        setShowLabels={setShowLabels}
+        showDistrictLabels={showDistrictLabels}
+        setShowDistrictLabels={setShowDistrictLabels}
         onZoomToFit={handleZoomToFit}
         showZoomIndicator={showZoomIndicator}
         disasters={disasters}
@@ -2045,13 +2059,16 @@ const MapComponent = ({
           key={`disaster-markers-${visibleDisasters.length}-${visibleDisasters[0]?.eventId || 'none'}-${visibleDisasters[visibleDisasters.length - 1]?.eventId || 'none'}`}
           disasters={visibleDisasters}
           showImpactZones={showImpactZones}
+          showClusterCounts={showClusterCounts}
         />
 
         {/* ACLED conflict event markers */}
         <AcledMarkers
+          key={`acled-markers-${showClusterCounts ? 'counts' : 'no-counts'}-${visibleAcledEvents.length}`}
           acledData={visibleAcledEvents}
           acledEnabled={acledEnabled}
           acledConfig={acledConfig}
+          showClusterCounts={showClusterCounts}
         />
 
         {/* OSM Infrastructure layer */}
@@ -2059,6 +2076,7 @@ const MapComponent = ({
           osmData={osmData}
           layerVisibility={osmLayerVisibility}
           showOSMLayer={showOSMLayer}
+          showClusterCounts={showClusterCounts}
         />
 
         {/* Logistics Overlays Layer */}
@@ -2084,8 +2102,9 @@ const MapComponent = ({
         {/* Facility markers */}
         {facilities && facilities.length > 0 && (
           <MarkerClusterGroup
+            key={`facility-clusters-${showClusterCounts ? 'counts' : 'no-counts'}-${facilities.length}`}
             showCoverageOnHover={false}
-            maxClusterRadius={50}
+            maxClusterRadius={showClusterCounts ? 50 : 22}
             iconCreateFunction={(cluster) => {
               const count = cluster.getChildCount();
               const size = count < 10 ? 'small' : count < 50 ? 'medium' : 'large';
@@ -2100,14 +2119,16 @@ const MapComponent = ({
               });
 
               const bgColor = hasImpacted ? 'rgba(255, 68, 68, 0.9)' : 'rgba(76, 175, 80, 0.9)';
-              const dimension = size === 'small' ? '36px' : size === 'medium' ? '46px' : '56px';
+              const dimension = showClusterCounts
+                ? (size === 'small' ? '36px' : size === 'medium' ? '46px' : '56px')
+                : '16px';
               const fontSize = size === 'small' ? '13px' : size === 'medium' ? '15px' : '18px';
 
               return L.divIcon({
                 html: `<div style="
                   background: ${bgColor};
                   color: white;
-                  border-radius: 4px;
+                  border-radius: ${showClusterCounts ? '4px' : '50%'};
                   width: ${dimension};
                   height: ${dimension};
                   display: flex;
@@ -2115,14 +2136,14 @@ const MapComponent = ({
                   align-items: center;
                   justify-content: center;
                   font-weight: bold;
-                  border: 3px solid white;
-                  box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+                  border: ${showClusterCounts ? '3px solid white' : '2px solid white'};
+                  box-shadow: ${showClusterCounts ? '0 3px 8px rgba(0,0,0,0.4)' : '0 2px 5px rgba(0,0,0,0.25)'};
                 ">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 2px;">
+                  ${showClusterCounts ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 2px;">
                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                     <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                  </svg>
-                  <span style="font-size: ${fontSize}; line-height: 1;">${count}</span>
+                  </svg>` : ''}
+                  <span style="font-size: ${fontSize}; line-height: 1;">${showClusterCounts ? count : ''}</span>
                 </div>`,
                 className: 'facility-cluster',
                 iconSize: [parseInt(dimension), parseInt(dimension)]

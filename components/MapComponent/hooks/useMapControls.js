@@ -13,6 +13,8 @@ export const useMapControls = () => {
   const [showTimeline, setShowTimeline] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
+  const [showContextStatusBar, setShowContextStatusBar] = useState(true);
+  const [showClusterCounts, setShowClusterCounts] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [showDistrictLabels, setShowDistrictLabels] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -94,6 +96,8 @@ export const useMapControls = () => {
     showTimeline,
     showStatistics,
     showLegend,
+    showContextStatusBar,
+    showClusterCounts,
     showLabels,
     showDistrictLabels,
     isFullscreen,
@@ -115,6 +119,8 @@ export const useMapControls = () => {
     setShowTimeline,
     setShowStatistics,
     setShowLegend,
+    setShowContextStatusBar,
+    setShowClusterCounts,
     setShowLabels,
     setShowDistrictLabels,
     setIsFullscreen,
