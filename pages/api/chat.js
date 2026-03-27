@@ -1,7 +1,9 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
+import { getDistance } from 'geolib';
 import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
 import { formatOSMForAI } from '../../lib/osmHelpers';
+import { buildChatContextualAnalysis, formatContextualAnalysisForPrompt } from '../../lib/contextualAnalysis';
 
 export const config = {
   api: {
@@ -105,7 +107,7 @@ async function handler(req, res) {
   }
 
   try {
-    const { message, context, conversationHistory = [], stream = false } = req.body;
+    const { message, context, conversationHistory = [], stream = false, detailLevel = 'compact' } = req.body;
 
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
@@ -139,8 +141,18 @@ async function handler(req, res) {
       worldPopYear: context?.worldPopYear
     });
 
+    const contextualAnalysis = buildChatContextualAnalysis(context, context?.operationType || 'general');
+    const contextualAnalysisSummary = formatContextualAnalysisForPrompt(contextualAnalysis);
+    const deepContextSummary = detailLevel === 'deep'
+      ? buildDeepContextSummary(context, message, conversationHistory)
+      : '';
+
     // Build context summary for the AI
-    const contextSummary = buildContextSummary(context);
+    const contextSummary = [
+      contextualAnalysisSummary,
+      deepContextSummary,
+      buildContextSummary(context)
+    ].filter(Boolean).join('\n\n');
 
     // Log context size for debugging
     const contextSize = contextSummary.length;
@@ -170,6 +182,10 @@ async function handler(req, res) {
 **📅 CURRENT DATE & TIME**: Today is ${currentDate} (${currentDateTime}). Always use this date when discussing "today", "recent", or "current" events. You also have access to the 'get_current_date' function if you need to verify the current date during the conversation.
 
 **🌐 WEB SEARCH CAPABILITY**: You have access to real-time web search through OpenAI's native web_search tool.
+
+**💬 CHAT MODE**: The current request is in ${detailLevel === 'deep' ? 'DEEP' : 'COMPACT'} mode.
+- COMPACT mode: prioritize speed, concise synthesis, and the contextual-analysis layer.
+- DEEP mode: the user is asking for evidence-heavy or detailed analysis. Use the targeted detailed context provided, cite specific event/facility details from context, and favor precision over brevity.
 
 ⚡ **CRITICAL RULE - DATA PRIORITY**:
 1. ALWAYS use data loaded in your context FIRST (facilities, disasters, ACLED, WorldPop population, weather)
@@ -252,6 +268,8 @@ Your role is to:
 IMPORTANT:
 - The user has uploaded facility data that is visible in the "FACILITIES LIST" section above. When asked questions like "which facilities have I added" or "what facilities do I have", you should list out the facilities from the FACILITIES LIST in the context, including their names, locations, types, and any other relevant details.
 - **FACILITY DATA FIELDS**: If you see "📊 AI ANALYSIS FIELDS LOADED" in the context, the user has selected specific data fields for you to analyze. The actual data values from these fields are included in each facility's listing above (shown inline after the facility name and location). You MUST use this data to answer questions about facility characteristics, populations, disease prevalence, service coverage, or any other metrics the user asks about.
+- **ACLED COUNT RULE**: If the context includes "Current analysis scope ACLED events", use that number when the user asks "how many ACLED events" or asks for the count in the current selected area. Only use the full loaded ACLED total if the user explicitly asks about the whole uploaded dataset or full system count.
+- **ACLED DETAIL RULE**: When ACLED event records in context include notes, actor1, actor2, sub_event_type, or source, use those fields when the user asks what happened in a specific event or location. Treat notes as the primary event-detail field.
 - For campaign planning questions, consider: disaster proximity, cold chain risks, access constraints, population displacement, staff safety, and program-specific needs (ACTs for malaria, vaccines for immunization)
 - For malaria programs after floods: ALWAYS recommend 50% increase in ACT/RDT stock, coordinate with WASH for vector control, monitor for 40-60% case surge
 - Provide GO/NO-GO/DELAY/CAUTION recommendations with clear rationale based on AMP and WHO best practices
@@ -604,6 +622,238 @@ function detectMapIntent(message, context) {
   return null;
 }
 
+function tokenizeForMatching(message = '') {
+  return String(message)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 3);
+}
+
+function isGenericFollowUp(message = '') {
+  const lower = String(message).toLowerCase();
+  return (
+    lower.includes('what happened') ||
+    lower.includes('who are the actors') ||
+    lower.includes('who were the actors') ||
+    lower.includes('what happened exactly') ||
+    lower.includes('exactly') ||
+    lower.includes('tell me more') ||
+    lower.includes('more detail') ||
+    lower.includes('more details') ||
+    lower.includes('what about this') ||
+    lower.includes('and this') ||
+    lower.includes('any air/drone strikes')
+  );
+}
+
+function buildDeepAnchorText(message = '', conversationHistory = []) {
+  const recentHistory = Array.isArray(conversationHistory)
+    ? conversationHistory.slice(-4).map((item) => item?.content || '').join(' ')
+    : '';
+
+  return isGenericFollowUp(message)
+    ? `${recentHistory} ${message}`
+    : message;
+}
+
+function scoreAcledEventMatch(event = {}, tokens = []) {
+  const haystack = [
+    event.event_type,
+    event.sub_event_type,
+    event.location,
+    event.admin1,
+    event.admin2,
+    event.admin3,
+    event.country,
+    event.actor1,
+    event.actor2,
+    event.notes,
+    event.source,
+    event.event_date
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return tokens.reduce((score, token) => score + (haystack.includes(token) ? 1 : 0), 0);
+}
+
+function buildDeepContextSummary(context, message, conversationHistory = []) {
+  const sections = [];
+  const anchorText = buildDeepAnchorText(message, conversationHistory);
+  const tokens = tokenizeForMatching(anchorText);
+  const lowerAnchorText = String(anchorText).toLowerCase();
+  const deepAcledData = context?.acledDeepPool?.length ? context.acledDeepPool : context?.acledData;
+
+  if (/\bairport\b|\bairports\b|\bairfield\b|\bhelipad\b|\baerodrome\b|\binternational airport\b|\bairbase\b/.test(lowerAnchorText)) {
+    const airportMatches = buildAirportEventMatches({
+      ...context,
+      acledData: deepAcledData
+    }, tokens);
+
+    if (airportMatches.length > 0) {
+      sections.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      sections.push('DEEP AIRPORT PROXIMITY CONTEXT');
+      sections.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      airportMatches.slice(0, 5).forEach((match, index) => {
+        sections.push(`Match ${index + 1}: ${match.event.event_type || 'Unknown'} near ${match.airport.name || 'Unnamed airport'} (${match.distanceKm.toFixed(1)} km)`);
+        sections.push(`Date: ${match.event.event_date || 'Unknown date'}`);
+        sections.push(`Location: ${match.event.location || 'Unknown location'}${match.event.country ? ` (${match.event.country})` : ''}`);
+        if (match.event.sub_event_type) sections.push(`Subtype: ${match.event.sub_event_type}`);
+        if (match.event.actor1) sections.push(`Actor 1: ${match.event.actor1}`);
+        if (match.event.actor2) sections.push(`Actor 2: ${match.event.actor2}`);
+        if (match.event.notes) sections.push(`Details: ${match.event.notes}`);
+        if (match.event.source) sections.push(`Source: ${match.event.source}`);
+        sections.push('');
+      });
+    }
+  }
+
+  if (deepAcledData?.length) {
+    const matchedEvents = deepAcledData
+      .map((event) => ({ event, score: scoreAcledEventMatch(event, tokens) }))
+      .filter(({ score, event }) => score > 0 || (!tokens.length && (event.notes || event.actor1 || event.source)))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map(({ event }) => event);
+
+    if (matchedEvents.length > 0) {
+      sections.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      sections.push('DEEP ACLED EVENT CONTEXT');
+      sections.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      matchedEvents.forEach((event, index) => {
+        sections.push(`Event ${index + 1}: ${event.event_type || 'Unknown'} | ${event.sub_event_type || 'No subtype'} | ${event.location || 'Unknown location'} | ${event.event_date || 'Unknown date'}`);
+        if (event.actor1) sections.push(`Actor 1: ${event.actor1}`);
+        if (event.actor2) sections.push(`Actor 2: ${event.actor2}`);
+        if (typeof event.fatalities === 'number') sections.push(`Fatalities: ${event.fatalities}`);
+        if (event.notes) sections.push(`Detailed notes: ${event.notes}`);
+        if (event.source) sections.push(`Source detail: ${event.source}`);
+        if (event.event_id) sections.push(`Event ID: ${event.event_id}`);
+        sections.push('');
+      });
+    }
+  }
+
+  if (context?.selectedFacility && context?.selectedFacilityImpacts?.length) {
+    sections.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    sections.push('DEEP FACILITY CONTEXT');
+    sections.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    sections.push(`Selected facility: ${context.selectedFacility.name}`);
+    context.selectedFacilityImpacts.slice(0, 5).forEach((impact, index) => {
+      sections.push(`Impact ${index + 1}: ${impact?.disaster?.eventType || 'Unknown'} | ${impact?.disaster?.title || impact?.disaster?.eventName || 'Unnamed event'} | ${impact?.distance ?? 'Unknown'} km`);
+    });
+  }
+
+  return sections.join('\n');
+}
+
+function getFeatureReferencePoint(feature = null) {
+  const geometry = feature?.geometry;
+  if (!geometry?.type || !geometry?.coordinates) return null;
+
+  if (geometry.type === 'Point') {
+    return { latitude: geometry.coordinates[1], longitude: geometry.coordinates[0] };
+  }
+
+  if (geometry.type === 'Polygon') {
+    const coord = geometry.coordinates?.[0]?.[0];
+    return coord ? { latitude: coord[1], longitude: coord[0] } : null;
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    const coord = geometry.coordinates?.[0]?.[0]?.[0];
+    return coord ? { latitude: coord[1], longitude: coord[0] } : null;
+  }
+
+  return null;
+}
+
+function buildAirportEventMatches(context = {}, tokens = []) {
+  const airports = (context?.osmData?.features || []).filter((feature) => feature?.properties?.category === 'airport');
+  const acledEvents = context?.acledData || [];
+
+  if (!acledEvents.length) return [];
+
+  const airportPoints = airports
+    .map((airport) => ({
+      airport,
+      point: getFeatureReferencePoint(airport)
+    }))
+    .filter((item) => item.point);
+
+  const matches = [];
+  const seenKeys = new Set();
+
+  acledEvents.forEach((event) => {
+    if (event?.latitude === undefined || event?.longitude === undefined) return;
+
+    const eventKey = event?.event_id || `${event?.event_date || ''}:${event?.location || ''}:${event?.event_type || ''}`;
+    const airportText = [
+      event?.location,
+      event?.admin1,
+      event?.admin2,
+      event?.admin3,
+      event?.sub_event_type,
+      event?.notes
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    const mentionsAirport =
+      airportText.includes('airport') ||
+      airportText.includes('airbase') ||
+      airportText.includes('air field') ||
+      airportText.includes('airfield') ||
+      airportText.includes('aerodrome') ||
+      airportText.includes('helipad');
+
+    const matchScore = scoreAcledEventMatch(event, tokens);
+
+    if (mentionsAirport && !seenKeys.has(`${eventKey}:text`)) {
+      matches.push({
+        event,
+        airport: {
+          name: event?.location || 'Airport-linked location',
+          aeroway: 'text-match'
+        },
+        distanceKm: 0,
+        score: 100 + matchScore
+      });
+      seenKeys.add(`${eventKey}:text`);
+    }
+
+    airportPoints.forEach(({ airport, point }) => {
+      const distanceKm = getDistance(
+        { latitude: parseFloat(event.latitude), longitude: parseFloat(event.longitude) },
+        point
+      ) / 1000;
+
+      if (distanceKm <= 25) {
+        const proximityKey = `${eventKey}:${airport?.properties?.name || airport?.id || 'airport'}`;
+        if (seenKeys.has(proximityKey)) return;
+
+        matches.push({
+          event,
+          airport: {
+            name: airport?.properties?.name || airport?.properties?.tags?.name || 'Unnamed airport',
+            aeroway: airport?.properties?.tags?.aeroway || null
+          },
+          distanceKm,
+          score: Math.max(1, 25 - distanceKm) + matchScore
+        });
+        seenKeys.add(proximityKey);
+      }
+    });
+  });
+
+  return matches.sort((a, b) => {
+    if ((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
+    return a.distanceKm - b.distanceKm;
+  });
+}
+
 function buildContextSummary(context) {
   if (!context) return "No context available.";
 
@@ -921,7 +1171,11 @@ function buildContextSummary(context) {
   // ACLED security data
   if (context.acledData && context.acledEnabled && context.acledData.length > 0) {
     const totalEvents = context.totalAcledEvents || context.acledData.length;
+    const scopedEvents = context.scopedAcledEvents;
     summary.push(`\nACLED SECURITY DATA LOADED: ${totalEvents.toLocaleString()} total conflict events in system`);
+    if (Number.isFinite(scopedEvents)) {
+      summary.push(`Current analysis scope ACLED events: ${scopedEvents.toLocaleString()}`);
+    }
     summary.push(`Context Sample: Showing ${context.acledData.length} filtered events for your analysis`);
     summary.push('Status: ACTIVE - Full ACLED dataset is being used in all security assessments');
 
@@ -980,6 +1234,21 @@ function buildContextSummary(context) {
       }
 
       summary.push('\nNOTE: Security assessments are enhanced with this real ACLED conflict data for proximity analysis and risk scoring.');
+    }
+
+    const detailedEvents = context.acledData
+      .filter((event) => event?.notes || event?.actor1 || event?.actor2 || event?.source)
+      .slice(0, 5);
+
+    if (detailedEvents.length > 0) {
+      summary.push('\nACLED EVENT DETAIL SAMPLE:');
+      detailedEvents.forEach((event, index) => {
+        summary.push(`- Event ${index + 1}: ${event.event_type || 'Unknown'} | ${event.sub_event_type || 'No subtype'} | ${event.location || 'Unknown location'} | ${event.event_date || 'Unknown date'}`);
+        if (event.actor1) summary.push(`  Actor 1: ${event.actor1}`);
+        if (event.actor2) summary.push(`  Actor 2: ${event.actor2}`);
+        if (event.notes) summary.push(`  Details: ${event.notes}`);
+        if (event.source) summary.push(`  Source: ${event.source}`);
+      });
     }
   } else if (context.acledData && !context.acledEnabled) {
     summary.push('\nACLED DATA: Uploaded but DISABLED - Not being used in analysis');

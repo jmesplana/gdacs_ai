@@ -85,18 +85,26 @@ function compactDisastersForChat(items = [], maxItems = 20) {
   }));
 }
 
-function compactAcledDataForChat(items = [], maxItems = 30) {
+function compactAcledDataForChat(items = [], { maxItems = 30, includeDetails = false } = {}) {
   return (items || []).slice(0, maxItems).map((item) => ({
+    event_id: item?.event_id,
     event_date: item?.event_date,
     event_type: item?.event_type,
     sub_event_type: item?.sub_event_type,
     country: item?.country,
     admin1: item?.admin1,
     admin2: item?.admin2,
+    admin3: item?.admin3,
     location: item?.location,
     latitude: item?.latitude,
     longitude: item?.longitude,
-    fatalities: item?.fatalities
+    fatalities: item?.fatalities,
+    ...(includeDetails ? {
+      actor1: truncateText(item?.actor1, 200),
+      actor2: truncateText(item?.actor2, 200),
+      notes: truncateText(item?.notes, 1200),
+      source: truncateText(item?.source, 300)
+    } : {})
   }));
 }
 
@@ -198,11 +206,25 @@ function compactOsmDataForChat(osmData = null, maxFeatures = 250) {
   };
 }
 
-function compactChatContext(context = {}) {
+function compactChatContext(context = {}, detailLevel = 'compact') {
+  const includeAcledDetails = detailLevel === 'deep';
+  const acledSource = includeAcledDetails
+    ? (context.acledDeepPool || context.acledData)
+    : context.acledData;
+
   return {
     ...context,
     selectedFacility: compactSelectedFacilityForChat(context.selectedFacility),
-    acledData: compactAcledDataForChat(context.acledData),
+    acledData: compactAcledDataForChat(acledSource, {
+      maxItems: includeAcledDetails ? 20 : 30,
+      includeDetails: includeAcledDetails
+    }),
+    ...(includeAcledDetails ? {
+      acledDeepPool: compactAcledDataForChat(context.acledDeepPool || context.acledData, {
+        maxItems: 120,
+        includeDetails: true
+      })
+    } : {}),
     disasters: compactDisastersForChat(context.disasters),
     impactStatistics: compactImpactStatisticsForChat(context.impactStatistics),
     impactedFacilities: compactImpactedFacilitiesForChat(context.impactedFacilities),
@@ -211,6 +233,29 @@ function compactChatContext(context = {}) {
     osmData: compactOsmDataForChat(context.osmData),
     prioritizationBoard: compactPrioritizationBoardForChat(context.prioritizationBoard)
   };
+}
+
+function shouldUseDeepChat(message = '') {
+  const lower = String(message).toLowerCase();
+
+  const detailTerms = [
+    'detail', 'details', 'detailed', 'deep', 'deeper', 'full', 'full details',
+    'exactly', 'what happened', 'explain', 'walk me through', 'notes', 'source',
+    'actor', 'actors', 'evidence', 'why exactly', 'root cause', 'analyze deeply'
+  ];
+  const proximityTerms = ['near', 'nearby', 'close to', 'around', 'within'];
+  const airportTerms = ['airport', 'airports', 'airfield', 'helipad', 'aerodrome'];
+
+  const acledTerms = ['acled', 'event', 'incident', 'strike', 'attack', 'explosion', 'violence'];
+  const facilityTerms = ['facility', 'clinic', 'hospital', 'warehouse', 'site'];
+
+  const asksForDetail = detailTerms.some((term) => lower.includes(term));
+  const asksAirportProximity = airportTerms.some((term) => lower.includes(term))
+    && (proximityTerms.some((term) => lower.includes(term)) || acledTerms.some((term) => lower.includes(term)));
+  const asksAboutSpecificEvidence = (acledTerms.some((term) => lower.includes(term)) && asksForDetail)
+    || (facilityTerms.some((term) => lower.includes(term)) && asksForDetail);
+
+  return asksForDetail || asksAboutSpecificEvidence || asksAirportProximity;
 }
 
 const ChatDrawer = ({
@@ -234,6 +279,7 @@ const ChatDrawer = ({
   const [streamingMessage, setStreamingMessage] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -242,6 +288,12 @@ const ChatDrawer = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamingMessage]);
+
+  useEffect(() => {
+    if (!loading) {
+      inputRef.current?.focus();
+    }
+  }, [loading]);
 
   const handleCopy = async (content, index) => {
     try {
@@ -276,12 +328,14 @@ const ChatDrawer = ({
         acledEnabled: context.acledEnabled
       });
 
-      const compactContext = compactChatContext(context);
+      const detailLevel = shouldUseDeepChat(userMessage.content) ? 'deep' : 'compact';
+      const compactContext = compactChatContext(context, detailLevel);
 
       console.time('Serializing request body');
       const requestBody = JSON.stringify({
         message: userMessage.content,
         context: compactContext,
+        detailLevel,
         conversationHistory: messages.slice(-10).map(m => ({
           role: m.role,
           content: truncateText(m.content, 1200)
@@ -663,6 +717,7 @@ const ChatDrawer = ({
             alignItems: 'flex-end'
           }}>
             <textarea
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}

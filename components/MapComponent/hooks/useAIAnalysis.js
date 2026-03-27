@@ -12,8 +12,11 @@ export const useAIAnalysis = () => {
   const [analysisTimestamp, setAnalysisTimestamp] = useState(null);
   const [analysisCache, setAnalysisCache] = useState({});
 
-  const handleAnalyzeFacility = useCallback(async (facility, disasters, forceRefresh = false) => {
+  const handleAnalyzeFacility = useCallback(async (facility, disasters, options = {}) => {
     if (!facility) return;
+
+    const forceRefresh = typeof options === 'boolean' ? options : Boolean(options.forceRefresh);
+    const contextualInputs = typeof options === 'object' && options !== null ? options : {};
 
     // Check cache first
     const cacheKey = `${facility.name}_${disasters?.length || 0}`;
@@ -38,7 +41,11 @@ export const useAIAnalysis = () => {
         },
         body: JSON.stringify({
           facility,
-          impacts: disasters
+          impacts: disasters,
+          acledData: contextualInputs.acledData || [],
+          worldPopData: contextualInputs.worldPopData || {},
+          selectedDistricts: contextualInputs.selectedDistricts || [],
+          operationType: contextualInputs.operationType || 'general'
         })
       });
 

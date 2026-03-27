@@ -1,5 +1,6 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import OpenAI from 'openai';
+import { buildFacilityAnalysisContext } from '../../lib/contextualAnalysis';
 
 export const config = {
   api: {
@@ -15,7 +16,14 @@ async function handler(req, res) {
   }
 
   try {
-    const { facility, impacts } = req.body;
+    const {
+      facility,
+      impacts,
+      acledData = [],
+      worldPopData = {},
+      selectedDistricts = [],
+      operationType = 'general'
+    } = req.body;
     console.log('API received facility:', facility?.name);
     console.log('API received impacts count:', impacts?.length || 0);
 
@@ -23,11 +31,20 @@ async function handler(req, res) {
       return res.status(400).json({ error: 'Missing facility data' });
     }
     
+    const contextualAnalysis = buildFacilityAnalysisContext({
+      facility,
+      impacts: impacts || [],
+      acledData,
+      worldPopData,
+      selectedDistricts,
+      operationType
+    });
+
     // Check if OpenAI API is available
     if (process.env.OPENAI_API_KEY) {
       try {
         console.log('Generating AI analysis...');
-        const analysis = await generateAIAnalysis(facility, impacts);
+        const analysis = await generateAIAnalysis(facility, impacts, contextualAnalysis);
         res.status(200).json({ analysis, isAIGenerated: true });
         return;
       } catch (aiError) {
@@ -39,7 +56,7 @@ async function handler(req, res) {
     // Fallback: try a simpler OpenAI prompt if the main call failed
     if (process.env.OPENAI_API_KEY) {
       try {
-        const analysis = await generateFallbackAnalysis(facility, impacts);
+        const analysis = await generateFallbackAnalysis(facility, impacts, contextualAnalysis);
         res.status(200).json({ analysis, isAIGenerated: true });
         return;
       } catch (_) {}
@@ -53,7 +70,7 @@ async function handler(req, res) {
 }
 
 // Generate AI-powered facility analysis
-async function generateAIAnalysis(facility, impacts) {
+async function generateAIAnalysis(facility, impacts, contextualAnalysis) {
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -76,6 +93,9 @@ ${impacts && impacts.length > 0 ? JSON.stringify(impacts.map(i => ({
   description: i.disaster.description
 })), null, 2) : "No current disaster exposure data available."}
 
+CONTEXTUAL ANALYSIS LAYER:
+${JSON.stringify(contextualAnalysis, null, 2)}
+
 Provide a structured analysis with the following sections:
 1. Executive Summary - A brief overview of the facility's risk profile
 2. Vulnerability Assessment - Analysis of facility vulnerabilities based on its type, location, and features
@@ -85,6 +105,7 @@ Provide a structured analysis with the following sections:
 6. Recommended Monitoring - Specific monitoring recommendations
 
 Format your response as a JSON object with these section headings as keys and detailed analysis as values. Do not use curly braces, brackets, or other JSON formatting symbols within the text content itself - provide clean, readable text for each section.
+Treat the contextual analysis layer as the primary decision baseline, then use raw facility and disaster data as supporting evidence.
 `;
 
     const response = await openai.chat.completions.create({
@@ -113,7 +134,7 @@ Format your response as a JSON object with these section headings as keys and de
 }
 
 // Simplified fallback analysis prompt (used when primary call fails)
-async function generateFallbackAnalysis(facility, impacts) {
+async function generateFallbackAnalysis(facility, impacts, contextualAnalysis) {
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -136,6 +157,8 @@ async function generateFallbackAnalysis(facility, impacts) {
     FACILITY: ${JSON.stringify(facility, null, 2)}
     
     DISASTER EXPOSURE: ${JSON.stringify(disasterInfo, null, 2)}
+
+    CONTEXTUAL ANALYSIS LAYER: ${JSON.stringify(contextualAnalysis, null, 2)}
     
     Provide a structured analysis with these sections:
     1. Executive Summary - Brief overview of the facility's risk profile
@@ -147,6 +170,7 @@ async function generateFallbackAnalysis(facility, impacts) {
     
     Format your response as a JSON object with these section headings as keys and detailed analysis as values.
     Avoid using JSON symbols like {}, [], or quotes within your text content.
+    Treat the contextual analysis layer as the primary decision baseline, then use raw facility and disaster data as supporting evidence.
     `;
     
     // Call OpenAI API

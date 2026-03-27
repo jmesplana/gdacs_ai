@@ -2,6 +2,11 @@ import { useMemo } from 'react';
 import { CircleMarker, Popup } from 'react-leaflet';
 import MarkerClusterGroup from '@changey/react-leaflet-markercluster';
 
+function formatField(value) {
+  if (value === null || value === undefined || value === '') return null;
+  return String(value);
+}
+
 /**
  * ACLED Conflict Event Markers
  * Visualizes conflict events from ACLED dataset on the map
@@ -150,8 +155,8 @@ const AcledMarkers = ({
               weight: 2
             }}
           >
-            <Popup maxWidth={350}>
-              <div style={{ minWidth: '280px', maxWidth: '350px' }}>
+            <Popup maxWidth={460}>
+              <div style={{ minWidth: '320px', maxWidth: '460px' }}>
                 <div style={{
                   background: color,
                   color: 'white',
@@ -164,7 +169,7 @@ const AcledMarkers = ({
                   {severityIcon} {event.event_type}
                 </div>
 
-                <div style={{ fontSize: '13px', lineHeight: '1.5' }}>
+                <div style={{ fontSize: '13px', lineHeight: '1.5', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
                   <p style={{ margin: '5px 0' }}>
                     <strong>Date:</strong> {event.event_date}
                   </p>
@@ -172,6 +177,8 @@ const AcledMarkers = ({
                   <p style={{ margin: '5px 0' }}>
                     <strong>Location:</strong> {event.location}
                     {event.admin1 && `, ${event.admin1}`}
+                    {event.admin2 && `, ${event.admin2}`}
+                    {event.admin3 && `, ${event.admin3}`}
                     {event.country && ` (${event.country})`}
                   </p>
 
@@ -193,6 +200,12 @@ const AcledMarkers = ({
                     </p>
                   )}
 
+                  {event.event_id && (
+                    <p style={{ margin: '5px 0' }}>
+                      <strong>Event ID:</strong> {event.event_id}
+                    </p>
+                  )}
+
                   {fatalities > 0 && (
                     <p style={{
                       margin: '8px 0',
@@ -207,29 +220,45 @@ const AcledMarkers = ({
                   )}
 
                   {event.notes && (
-                    <p style={{
+                    <div style={{
                       margin: '8px 0',
                       fontSize: '12px',
-                      color: '#666',
+                      color: '#4b5563',
                       borderTop: '1px solid #e0e0e0',
-                      paddingTop: '8px',
-                      maxHeight: '80px',
-                      overflow: 'auto'
+                      paddingTop: '8px'
                     }}>
-                      <strong>Details:</strong> {event.notes.substring(0, 200)}
-                      {event.notes.length > 200 && '...'}
-                    </p>
+                      <strong>Details:</strong>
+                      <div style={{
+                        marginTop: '6px',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        background: '#f8fafc',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                        padding: '8px',
+                        maxHeight: '180px',
+                        overflowY: 'auto'
+                      }}>
+                        {formatField(event.notes)}
+                      </div>
+                    </div>
                   )}
 
                   {event.source && (
-                    <p style={{
+                    <div style={{
                       margin: '5px 0',
                       fontSize: '11px',
-                      color: '#999'
+                      color: '#6b7280'
                     }}>
-                      <strong>Source:</strong> {event.source.substring(0, 50)}
-                      {event.source.length > 50 && '...'}
-                    </p>
+                      <strong>Source:</strong>
+                      <div style={{
+                        marginTop: '4px',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word'
+                      }}>
+                        {formatField(event.source)}
+                      </div>
+                    </div>
                   )}
 
                   <p style={{

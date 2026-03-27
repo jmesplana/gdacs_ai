@@ -75,7 +75,7 @@ import buildWeatherContext from '../utils/weatherContextBuilder';
 // import { WORLDPOP_TILE_LAYERS } from '../utils/worldpopHelpers'; // Not needed - using GEE tiles
 import { useToast } from './Toast';
 import { getOperationType } from '../config/operationTypes';
-import { buildDistrictRiskIndex } from '../lib/districtRiskScoring';
+import { buildDistrictRiskIndex, isPointInDistricts } from '../lib/districtRiskScoring';
 
 // Import constants
 import {
@@ -244,6 +244,100 @@ const customStyles = `
     top: 110px;
   }
 `;
+
+function simplifyRing(ring = [], maxPoints = 250) {
+  if (!Array.isArray(ring) || ring.length <= maxPoints) return ring;
+
+  const closed = ring.length > 2 &&
+    ring[0]?.[0] === ring[ring.length - 1]?.[0] &&
+    ring[0]?.[1] === ring[ring.length - 1]?.[1];
+  const workingRing = closed ? ring.slice(0, -1) : ring.slice();
+  const stride = Math.max(1, Math.ceil(workingRing.length / maxPoints));
+  const simplified = workingRing.filter((_, index) => index === 0 || index === workingRing.length - 1 || index % stride === 0);
+
+  if (closed) {
+    simplified.push(simplified[0]);
+  }
+
+  return simplified;
+}
+
+function simplifyGeometry(geometry = null) {
+  if (!geometry?.type || !geometry?.coordinates) return geometry;
+
+  if (geometry.type === 'Polygon') {
+    return {
+      ...geometry,
+      coordinates: geometry.coordinates.map((ring, index) => simplifyRing(ring, index === 0 ? 250 : 100))
+    };
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    return {
+      ...geometry,
+      coordinates: geometry.coordinates.map((polygon) =>
+        polygon.map((ring, index) => simplifyRing(ring, index === 0 ? 250 : 100))
+      )
+    };
+  }
+
+  return geometry;
+}
+
+function compactDistrictForContext(district = {}, index = 0) {
+  const props = district.properties || {};
+
+  return {
+    id: district.id || index,
+    name: district.name || props.ADM2_EN || props.NAME_2 || props.NAME || props.name || props.district || `Selected Area ${index + 1}`,
+    country: district.country,
+    region: district.region,
+    geometry: simplifyGeometry(district.geometry || null),
+    bounds: district.bounds || null,
+    properties: {
+      ADM2_EN: props.ADM2_EN,
+      NAME_2: props.NAME_2,
+      NAME: props.NAME,
+      name: props.name,
+      district: props.district,
+      population: props.population,
+      POP: props.POP
+    }
+  };
+}
+
+function buildAcledAggregateSummary(events = [], selectedDistricts = []) {
+  const scopedEvents = selectedDistricts.length > 0
+    ? events.filter((event) => isPointInDistricts(event.latitude, event.longitude, selectedDistricts))
+    : events;
+
+  const byEventType = scopedEvents.reduce((acc, event) => {
+    const key = event?.event_type || 'Unknown';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const bySubEventType = scopedEvents.reduce((acc, event) => {
+    const key = event?.sub_event_type || 'Unknown';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const byActor1 = scopedEvents.reduce((acc, event) => {
+    const key = event?.actor1 || 'Unknown';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    totalEvents: scopedEvents.length,
+    byEventType,
+    bySubEventType,
+    byActor1,
+    latestEventDate: scopedEvents[0]?.event_date || null,
+    selectedDistrictCount: selectedDistricts.length
+  };
+}
 
 function extractLocationFromDistrict(district) {
   const props = district?.properties || district || {};
@@ -921,6 +1015,10 @@ const MapComponent = ({
       if (!event.latitude || !event.longitude) return false;
 
       return true;
+    }).sort((a, b) => {
+      const aTime = new Date(a.event_date).getTime() || 0;
+      const bTime = new Date(b.event_date).getTime() || 0;
+      return bTime - aTime;
     });
   }, [acledData, acledEnabled, acledConfig]);
 
@@ -1144,6 +1242,10 @@ const MapComponent = ({
   // Get current map layer configuration
   const currentLayer = MAP_LAYERS[currentMapLayer.toUpperCase()] || MAP_LAYERS.STREET;
   const filteredAcledCount = filteredAcledData.length;
+  const selectedDistrictAcledSummary = useMemo(
+    () => buildAcledAggregateSummary(filteredAcledData, selectedAnalysisDistricts),
+    [filteredAcledData, selectedAnalysisDistricts]
+  );
   const visibleDisasters = useMemo(
     () => (playbackEnabled ? filterByPlaybackDate(filteredDisasters, 'pubDate') : filteredDisasters),
     [playbackEnabled, filterByPlaybackDate, filteredDisasters]
@@ -1353,7 +1455,12 @@ const MapComponent = ({
             f => f.facility.name === facility.name
           )?.impacts || [];
           console.log('Facility impacts:', facilityImpacts);
-          handleAnalyzeFacility(facility, facilityImpacts);
+          handleAnalyzeFacility(facility, facilityImpacts, {
+            acledData: acledEnabled ? filteredAcledData : [],
+            worldPopData,
+            selectedDistricts: selectedAnalysisDistricts.map(compactDistrictForContext),
+            operationType
+          });
           setActiveDrawerTab('analysis'); // Switch to analysis tab
         }}
         onFacilityViewOnMap={(facility) => {
@@ -2101,7 +2208,12 @@ const MapComponent = ({
                           const facilityImpacts = impactedFacilities.find(
                             f => f.facility.name === facility.name
                           )?.impacts || [];
-                          handleAnalyzeFacility(facility, facilityImpacts);
+                          handleAnalyzeFacility(facility, facilityImpacts, {
+                            acledData: acledEnabled ? filteredAcledData : [],
+                            worldPopData,
+                            selectedDistricts: selectedAnalysisDistricts.map(compactDistrictForContext),
+                            operationType
+                          });
                           // Open unified drawer and switch to analysis tab
                           setActiveDrawerTab('analysis');
                           if (!unifiedDrawerOpen) {
@@ -2142,13 +2254,9 @@ const MapComponent = ({
           totalFacilities: facilities?.length || 0,
           totalImpactedFacilities: impactedFacilities?.length || 0,
           totalAcledEvents: acledData?.length || 0,
+          scopedAcledEvents: prioritizationBoard?.summary?.totalAcledEvents ?? filteredAcledData.length,
           totalDistricts: districts?.length || 0,
-          selectedAnalysisDistricts: selectedAnalysisDistricts?.map((district) => ({
-            id: district.id,
-            name: district.name,
-            country: district.country,
-            region: district.region
-          })) || [],
+          selectedAnalysisDistricts: selectedAnalysisDistricts?.map(compactDistrictForContext) || [],
           hasDistricts: districts && districts.length > 0,
           districts: districtSummary,
           // Send a compact facility sample to keep chat fast
@@ -2167,11 +2275,16 @@ const MapComponent = ({
           aiAnalysisFields: aiAnalysisFields,
           disasters: disasters?.slice(0, 30),
           impactedFacilities: impactedFacilities?.slice(0, 20),
+          selectedFacilityImpacts: selectedFacility
+            ? (impactedFacilities.find((item) => item?.facility?.name === selectedFacility.name)?.impacts || []).slice(0, 10)
+            : [],
           impactStatistics: impactStatistics,
           recentAnalysis: analysisData ? JSON.stringify(analysisData).substring(0, 200) : null,
           acledData: filteredAcledData.slice(0, 30), // Reduced ACLED to 30 for performance
+          acledDeepPool: filteredAcledData.slice(0, 200),
           acledEnabled: acledEnabled,
           acledConfig: acledConfig,
+          operationType: operationType || 'general',
           weatherForecast: weatherContext, // Add weather context for chatbot
           worldPopData: worldPopData, // Add WorldPop population data
           worldPopYear: worldPopLastFetch?.year || null, // Add WorldPop year
