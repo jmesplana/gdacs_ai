@@ -606,6 +606,7 @@ const MapComponent = ({
     showClustering,
     showFacilitiesLayer,
     showAcledLayer,
+    showDistrictRiskFill,
     showLabels,
     showDistrictLabels,
     isFullscreen,
@@ -626,6 +627,7 @@ const MapComponent = ({
     setShowClustering,
     setShowFacilitiesLayer,
     setShowAcledLayer,
+    setShowDistrictRiskFill,
     setShowLabels,
     setShowDistrictLabels,
     setIsFullscreen,
@@ -1443,6 +1445,8 @@ const MapComponent = ({
         setShowFacilitiesLayer={setShowFacilitiesLayer}
         showAcledLayer={showAcledLayer}
         setShowAcledLayer={setShowAcledLayer}
+        showDistrictRiskFill={showDistrictRiskFill}
+        setShowDistrictRiskFill={setShowDistrictRiskFill}
         showLabels={showLabels}
         setShowLabels={setShowLabels}
         showDistrictLabels={showDistrictLabels}
@@ -1840,7 +1844,9 @@ const MapComponent = ({
                   weight: isHighlighted ? 4 : 3, // Increased from 2 to 3
                   opacity: isHighlighted ? 1 : 1, // Changed from 0.8 to 1 for fully visible borders
                   fillColor: getRiskColor(riskLevel),
-                  fillOpacity: isHighlighted ? 0.7 : (riskLevel === 'none' ? 0.2 : 0.5), // Minimum 0.2 opacity for all districts to ensure clickability
+                  fillOpacity: showDistrictRiskFill
+                    ? (isHighlighted ? 0.7 : (riskLevel === 'none' ? 0.2 : 0.5))
+                    : 0,
                   className: isHighlighted ? 'highlighted-district' : ''
                 };
               }}

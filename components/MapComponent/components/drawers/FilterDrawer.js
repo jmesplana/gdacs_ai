@@ -20,6 +20,8 @@ const FilterDrawer = ({
   setShowFacilitiesLayer,
   showAcledLayer,
   setShowAcledLayer,
+  showDistrictRiskFill,
+  setShowDistrictRiskFill,
   showLabels,
   setShowLabels,
   showDistrictLabels,
@@ -280,6 +282,45 @@ const FilterDrawer = ({
                     position: 'absolute',
                     top: '2px',
                     left: showClustering ? '22px' : '2px',
+                    transition: 'left 0.3s'
+                  }}
+                  ></div>
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <path d="M3 7l6-4 6 4 6-4v14l-6 4-6-4-6 4z"></path>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>Admin Area Fill</span>
+                </div>
+                <div
+                  onClick={() => setShowDistrictRiskFill(!showDistrictRiskFill)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showDistrictRiskFill ? '#1d4ed8' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: showDistrictRiskFill ? '22px' : '2px',
                     transition: 'left 0.3s'
                   }}
                   ></div>
