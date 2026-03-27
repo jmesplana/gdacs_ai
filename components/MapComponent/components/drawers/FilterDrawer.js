@@ -14,6 +14,12 @@ const FilterDrawer = ({
   setShowContextStatusBar,
   showClusterCounts,
   setShowClusterCounts,
+  showClustering,
+  setShowClustering,
+  showFacilitiesLayer,
+  setShowFacilitiesLayer,
+  showAcledLayer,
+  setShowAcledLayer,
   showLabels,
   setShowLabels,
   showDistrictLabels,
@@ -238,6 +244,128 @@ const FilterDrawer = ({
               </div>
 
               {/* Facility Labels Toggle */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+                    <path d="M16 3h3a2 2 0 0 1 2 2v3"></path>
+                    <path d="M8 21H5a2 2 0 0 1-2-2v-3"></path>
+                    <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>Marker Clustering</span>
+                </div>
+                <div
+                  onClick={() => setShowClustering(!showClustering)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showClustering ? '#475569' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: showClustering ? '22px' : '2px',
+                    transition: 'left 0.3s'
+                  }}
+                  ></div>
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <path d="M21 12a9 9 0 1 1-9-9"></path>
+                    <path d="M21 3v9h-9"></path>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>ACLED Layer</span>
+                </div>
+                <div
+                  onClick={() => setShowAcledLayer(!showAcledLayer)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showAcledLayer ? '#d97706' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: showAcledLayer ? '22px' : '2px',
+                    transition: 'left 0.3s'
+                  }}
+                  ></div>
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>Facilities Layer</span>
+                </div>
+                <div
+                  onClick={() => setShowFacilitiesLayer(!showFacilitiesLayer)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showFacilitiesLayer ? '#4CAF50' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: showFacilitiesLayer ? '22px' : '2px',
+                    transition: 'left 0.3s'
+                  }}
+                  ></div>
+                </div>
+              </div>
+
               <div style={{
                 display: 'flex',
                 alignItems: 'center',

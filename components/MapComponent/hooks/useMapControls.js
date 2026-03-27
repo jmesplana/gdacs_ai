@@ -15,6 +15,9 @@ export const useMapControls = () => {
   const [showLegend, setShowLegend] = useState(false);
   const [showContextStatusBar, setShowContextStatusBar] = useState(true);
   const [showClusterCounts, setShowClusterCounts] = useState(true);
+  const [showClustering, setShowClustering] = useState(true);
+  const [showFacilitiesLayer, setShowFacilitiesLayer] = useState(true);
+  const [showAcledLayer, setShowAcledLayer] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [showDistrictLabels, setShowDistrictLabels] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -98,6 +101,9 @@ export const useMapControls = () => {
     showLegend,
     showContextStatusBar,
     showClusterCounts,
+    showClustering,
+    showFacilitiesLayer,
+    showAcledLayer,
     showLabels,
     showDistrictLabels,
     isFullscreen,
@@ -121,6 +127,9 @@ export const useMapControls = () => {
     setShowLegend,
     setShowContextStatusBar,
     setShowClusterCounts,
+    setShowClustering,
+    setShowFacilitiesLayer,
+    setShowAcledLayer,
     setShowLabels,
     setShowDistrictLabels,
     setIsFullscreen,

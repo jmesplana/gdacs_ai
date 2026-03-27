@@ -603,6 +603,9 @@ const MapComponent = ({
     showLegend,
     showContextStatusBar,
     showClusterCounts,
+    showClustering,
+    showFacilitiesLayer,
+    showAcledLayer,
     showLabels,
     showDistrictLabels,
     isFullscreen,
@@ -620,6 +623,9 @@ const MapComponent = ({
     setShowLegend,
     setShowContextStatusBar,
     setShowClusterCounts,
+    setShowClustering,
+    setShowFacilitiesLayer,
+    setShowAcledLayer,
     setShowLabels,
     setShowDistrictLabels,
     setIsFullscreen,
@@ -1431,6 +1437,12 @@ const MapComponent = ({
         setShowContextStatusBar={setShowContextStatusBar}
         showClusterCounts={showClusterCounts}
         setShowClusterCounts={setShowClusterCounts}
+        showClustering={showClustering}
+        setShowClustering={setShowClustering}
+        showFacilitiesLayer={showFacilitiesLayer}
+        setShowFacilitiesLayer={setShowFacilitiesLayer}
+        showAcledLayer={showAcledLayer}
+        setShowAcledLayer={setShowAcledLayer}
         showLabels={showLabels}
         setShowLabels={setShowLabels}
         showDistrictLabels={showDistrictLabels}
@@ -2063,13 +2075,16 @@ const MapComponent = ({
         />
 
         {/* ACLED conflict event markers */}
-        <AcledMarkers
-          key={`acled-markers-${showClusterCounts ? 'counts' : 'no-counts'}-${visibleAcledEvents.length}`}
-          acledData={visibleAcledEvents}
-          acledEnabled={acledEnabled}
-          acledConfig={acledConfig}
-          showClusterCounts={showClusterCounts}
-        />
+        {showAcledLayer && (
+          <AcledMarkers
+            key={`acled-markers-${showClusterCounts ? 'counts' : 'no-counts'}-${showClustering ? 'clustered' : 'plain'}-${visibleAcledEvents.length}`}
+            acledData={visibleAcledEvents}
+            acledEnabled={acledEnabled}
+            acledConfig={acledConfig}
+            showClusterCounts={showClusterCounts}
+            showClustering={showClustering}
+          />
+        )}
 
         {/* OSM Infrastructure layer */}
         <OSMInfrastructureLayer
@@ -2100,9 +2115,9 @@ const MapComponent = ({
         />
 
         {/* Facility markers */}
-        {facilities && facilities.length > 0 && (
+        {showFacilitiesLayer && facilities && facilities.length > 0 && (
           <MarkerClusterGroup
-            key={`facility-clusters-${showClusterCounts ? 'counts' : 'no-counts'}-${facilities.length}`}
+            key={`facility-clusters-${showClusterCounts ? 'counts' : 'no-counts'}-${showClustering ? 'clustered' : 'plain'}-${facilities.length}`}
             showCoverageOnHover={false}
             maxClusterRadius={showClusterCounts ? 50 : 22}
             iconCreateFunction={(cluster) => {
@@ -2150,7 +2165,7 @@ const MapComponent = ({
               });
             }}
           >
-            {facilities.map((facility, idx) => {
+            {showClustering && facilities.map((facility, idx) => {
               // Fix: impactedFacilities has structure { facility: {...}, impacts: [...] }
               const isImpacted = impactedFacilities?.some(
                 impacted => impacted.facility?.name === facility.name
@@ -2263,6 +2278,112 @@ const MapComponent = ({
             })}
           </MarkerClusterGroup>
         )}
+        {showFacilitiesLayer && facilities && facilities.length > 0 && !showClustering && facilities.map((facility, idx) => {
+          const isImpacted = impactedFacilities?.some(
+            impacted => impacted.facility?.name === facility.name
+          );
+
+          const markerColor = isImpacted ? '#ff4444' : '#4CAF50';
+
+          const customIcon = L.divIcon({
+            className: 'custom-facility-icon',
+            html: `
+              <div style="
+                width: 12px;
+                height: 12px;
+                background-color: ${markerColor};
+                border: 2px solid white;
+                border-radius: 2px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+              "></div>
+            `,
+            iconSize: [12, 12],
+            iconAnchor: [6, 6]
+          });
+
+          return (
+            <ReactLeafletMarker
+              key={`facility-plain-${idx}`}
+              position={[parseFloat(facility.latitude), parseFloat(facility.longitude)]}
+              icon={customIcon}
+              title={facility.name}
+              eventHandlers={{
+                click: () => {
+                  setSelectedFacility(facility);
+                }
+              }}
+            >
+              {showLabels && (
+                <Tooltip
+                  permanent
+                  direction="top"
+                  offset={[0, -10]}
+                  className={`facility-label ${isImpacted ? 'impacted' : 'safe'}`}
+                >
+                  {facility.name}
+                </Tooltip>
+              )}
+              <Popup>
+                <div style={{ minWidth: '200px' }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>
+                    {facility.name}
+                  </h4>
+                  <p style={{ margin: '5px 0', fontSize: '13px' }}>
+                    <strong>Status:</strong>{' '}
+                    <span style={{ color: markerColor, fontWeight: 'bold' }}>
+                      {isImpacted ? 'IMPACTED' : 'Safe'}
+                    </span>
+                  </p>
+                  <p style={{ margin: '5px 0', fontSize: '13px' }}>
+                    <strong>Location:</strong> {facility.latitude}, {facility.longitude}
+                  </p>
+                  {Object.entries(facility).map(([key, value]) => {
+                    if (!['name', 'latitude', 'longitude'].includes(key) && value) {
+                      return (
+                        <p key={key} style={{ margin: '5px 0', fontSize: '13px' }}>
+                          <strong>{key}:</strong> {value}
+                        </p>
+                      );
+                    }
+                    return null;
+                  })}
+                  <button
+                    onClick={() => {
+                      setSelectedFacility(facility);
+                      const facilityImpacts = impactedFacilities.find(
+                        f => f.facility.name === facility.name
+                      )?.impacts || [];
+                      handleAnalyzeFacility(facility, facilityImpacts, {
+                        acledData: acledEnabled ? filteredAcledData : [],
+                        worldPopData,
+                        selectedDistricts: selectedAnalysisDistricts.map(compactDistrictForContext),
+                        operationType
+                      });
+                      setActiveDrawerTab('analysis');
+                      if (!unifiedDrawerOpen) {
+                        toggleUnifiedDrawer();
+                      }
+                    }}
+                    style={{
+                      marginTop: '10px',
+                      padding: '8px 16px',
+                      background: 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      width: '100%'
+                    }}
+                  >
+                    Analyze Facility
+                  </button>
+                </div>
+              </Popup>
+            </ReactLeafletMarker>
+          );
+        })}
       </MapContainer>
 
       {/* Chat Drawer - Kept separate due to complex context management */}
