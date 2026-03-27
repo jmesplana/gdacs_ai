@@ -38,6 +38,8 @@ const HamburgerMenu = ({
   onHelpClick,
   drawingEnabled,
   onDrawClick,
+  annotationMode,
+  onAddAnnotation,
   drawingColor,
   setDrawingColor,
   onUndoDrawing,
@@ -348,6 +350,32 @@ const HamburgerMenu = ({
                       title={`Select ${color}`}
                     />
                   ))}
+                </div>
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  marginBottom: '10px'
+                }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddAnnotation();
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      backgroundColor: annotationMode ? 'var(--aidstack-orange)' : 'white',
+                      color: annotationMode ? 'white' : 'var(--aidstack-navy)',
+                      border: `1px solid ${annotationMode ? 'var(--aidstack-orange)' : 'var(--aidstack-slate-light)'}`,
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontFamily: "'Inter', sans-serif",
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {annotationMode ? 'Click Map To Place Note' : 'Add Note'}
+                  </button>
                 </div>
                 <div style={{
                   display: 'flex',

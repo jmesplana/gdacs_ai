@@ -4,10 +4,105 @@ import L from 'leaflet';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import 'leaflet-draw';
 
+const escapeHtml = (value = '') => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const truncateNote = (value = '', maxLength = 80) => (
+  value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value
+);
+
+const createAnnotationIcon = (text, color) => L.divIcon({
+  className: 'map-annotation-icon',
+  iconSize: [180, 42],
+  iconAnchor: [16, 36],
+  popupAnchor: [0, -32],
+  html: `
+    <div style="display:flex;align-items:flex-end;gap:8px;">
+      <div style="width:14px;height:14px;border-radius:999px;background:${color};border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.25);flex-shrink:0;"></div>
+      <div style="max-width:150px;background:rgba(255,255,255,0.96);border-left:4px solid ${color};padding:7px 10px;border-radius:10px;box-shadow:0 6px 18px rgba(15,23,42,0.18);font:600 12px/1.35 'Inter',sans-serif;color:#0f172a;white-space:normal;">
+        ${escapeHtml(truncateNote(text))}
+      </div>
+    </div>
+  `
+});
+
+const applyAnnotationPresentation = (layer, text, color) => {
+  layer.setIcon(createAnnotationIcon(text, color));
+  layer.annotationText = text;
+  layer.annotationColor = color;
+  layer.bindPopup(
+    `<div style="min-width:220px;font-family:'Inter',sans-serif;">
+      <div style="font-weight:700;margin-bottom:8px;color:#0f172a;">Map Note</div>
+      <div style="font-size:13px;line-height:1.5;color:#334155;">${escapeHtml(text).replace(/\n/g, '<br/>')}</div>
+      <div style="margin-top:8px;font-size:11px;color:#64748b;">Click this note again to edit it.</div>
+    </div>`
+  );
+};
+
 // Leaflet.draw component for drawing functionality
-const DrawingLayer = ({ enabled, color, drawControlRef, drawnItemsRef, drawings, setDrawings }) => {
+const DrawingLayer = ({ enabled, color, annotationMode, drawControlRef, drawnItemsRef, drawings, setDrawings }) => {
   const map = useMap();
   const controlAddedRef = useRef(false);
+  const annotationClickHandlerRef = useRef(null);
+
+  const promptForAnnotation = () => {
+    const text = window.prompt('Add a map note');
+    return text ? text.trim() : '';
+  };
+
+  const createAnnotation = (latlng) => {
+    const text = promptForAnnotation();
+    if (!text) return;
+
+    const layer = L.marker(latlng, {
+      icon: createAnnotationIcon(text, color),
+      draggable: false
+    });
+
+    applyAnnotationPresentation(layer, text, color);
+
+    layer.on('click', () => {
+      const updatedText = window.prompt('Edit map note', layer.annotationText || '');
+
+      if (updatedText === null) {
+        layer.openPopup();
+        return;
+      }
+
+      const trimmed = updatedText.trim();
+      if (!trimmed) {
+        if (drawnItemsRef.current?.hasLayer(layer)) {
+          drawnItemsRef.current.removeLayer(layer);
+        }
+        setDrawings(prev => prev.filter(drawing => drawing.layer !== layer));
+        return;
+      }
+
+      applyAnnotationPresentation(layer, trimmed, layer.annotationColor || color);
+      setDrawings(prev => prev.map((drawing) => (
+        drawing.layer === layer
+          ? { ...drawing, annotationText: trimmed }
+          : drawing
+      )));
+      layer.openPopup();
+    });
+
+    drawnItemsRef.current.addLayer(layer);
+
+    const newDrawing = {
+      id: Date.now(),
+      layer,
+      color,
+      type: 'annotation',
+      annotationText: text
+    };
+
+    setDrawings(prev => [...prev, newDrawing]);
+  };
 
   // Initialize drawnItems if not provided
   if (!drawnItemsRef.current) {
@@ -112,6 +207,36 @@ const DrawingLayer = ({ enabled, color, drawControlRef, drawnItemsRef, drawings,
 
   }, [map, enabled, color, setDrawings]);
 
+  useEffect(() => {
+    if (!map) return undefined;
+
+    if (annotationClickHandlerRef.current) {
+      map.off('click', annotationClickHandlerRef.current);
+      annotationClickHandlerRef.current = null;
+    }
+
+    if (!enabled || !annotationMode) {
+      map.getContainer().style.cursor = '';
+      return undefined;
+    }
+
+    const handleAnnotationClick = (event) => {
+      createAnnotation(event.latlng);
+    };
+
+    annotationClickHandlerRef.current = handleAnnotationClick;
+    map.on('click', handleAnnotationClick);
+    map.getContainer().style.cursor = 'crosshair';
+
+    return () => {
+      if (annotationClickHandlerRef.current) {
+        map.off('click', annotationClickHandlerRef.current);
+        annotationClickHandlerRef.current = null;
+      }
+      map.getContainer().style.cursor = '';
+    };
+  }, [map, enabled, annotationMode, color, setDrawings]);
+
   // Update drawing colors when color changes
   useEffect(() => {
     if (drawControlRef.current && map) {
@@ -175,6 +300,18 @@ const DrawingLayer = ({ enabled, color, drawControlRef, drawnItemsRef, drawings,
       }
     }
   }, [color, map, enabled]);
+
+  useEffect(() => {
+    drawings.forEach((drawing) => {
+      if (drawing.type === 'annotation' && drawing.layer) {
+        applyAnnotationPresentation(
+          drawing.layer,
+          drawing.annotationText || drawing.layer.annotationText || 'Map note',
+          drawing.color || color
+        );
+      }
+    });
+  }, [drawings, color]);
 
   // Cleanup on unmount
   useEffect(() => {

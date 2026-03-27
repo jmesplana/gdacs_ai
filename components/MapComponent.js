@@ -574,9 +574,11 @@ const MapComponent = ({
     drawingEnabled,
     drawingColor,
     drawings,
+    annotationMode,
     drawControlRef,
     drawnItemsRef,
     toggleDrawing,
+    toggleAnnotationMode,
     setColor: setDrawingColor,
     clearAllDrawings,
     undoLastDrawing,
@@ -1443,6 +1445,8 @@ const MapComponent = ({
         onHelpClick={() => setShowHelp(!showHelp)}
         drawingEnabled={drawingEnabled}
         onDrawClick={toggleDrawing}
+        annotationMode={annotationMode}
+        onAddAnnotation={toggleAnnotationMode}
         drawingColor={drawingColor}
         setDrawingColor={setDrawingColor}
         onUndoDrawing={undoLastDrawing}
@@ -1461,6 +1465,8 @@ const MapComponent = ({
         onFilterClick={toggleFilterDrawer}
         drawingEnabled={drawingEnabled}
         onDrawClick={toggleDrawing}
+        annotationMode={annotationMode}
+        onAddAnnotation={toggleAnnotationMode}
         drawingColor={drawingColor}
         setDrawingColor={setDrawingColor}
         onUndoDrawing={undoLastDrawing}
@@ -2181,6 +2187,7 @@ const MapComponent = ({
         <DrawingLayer
           enabled={drawingEnabled}
           color={drawingColor}
+          annotationMode={annotationMode}
           drawControlRef={drawControlRef}
           drawnItemsRef={drawnItemsRef}
           drawings={drawings}

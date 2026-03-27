@@ -5,6 +5,8 @@ const FloatingActionButtons = ({
   onFilterClick,
   drawingEnabled,
   onDrawClick,
+  annotationMode,
+  onAddAnnotation,
   drawingColor,
   setDrawingColor,
   onUndoDrawing,
@@ -265,6 +267,31 @@ const FloatingActionButtons = ({
                 title={`Select ${color}`}
               />
             ))}
+          </div>
+          <div style={{
+            display: 'flex',
+            gap: '6px',
+            marginBottom: '8px'
+          }}>
+            <button
+              type="button"
+              onClick={onAddAnnotation}
+              title="Add Note to Map"
+              style={{
+                width: '100%',
+                padding: '6px 8px',
+                backgroundColor: annotationMode ? 'var(--aidstack-orange)' : 'white',
+                color: annotationMode ? 'white' : 'var(--aidstack-navy)',
+                border: `1px solid ${annotationMode ? 'var(--aidstack-orange)' : 'var(--aidstack-slate-light)'}`,
+                borderRadius: '4px',
+                fontSize: '11px',
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              {annotationMode ? 'Click Map To Place Note' : 'Add Note'}
+            </button>
           </div>
           <div style={{
             display: 'flex',

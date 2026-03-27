@@ -8,12 +8,14 @@ export const useDrawing = () => {
   const [drawingEnabled, setDrawingEnabled] = useState(false);
   const [drawingColor, setDrawingColor] = useState('#FF0000');
   const [drawings, setDrawings] = useState([]);
+  const [annotationMode, setAnnotationMode] = useState(false);
 
   const drawControlRef = useRef(null);
   const drawnItemsRef = useRef(null);
 
   const toggleDrawing = useCallback(() => {
     setDrawingEnabled(prev => !prev);
+    setAnnotationMode(false);
   }, []);
 
   const setColor = useCallback((color) => {
@@ -41,16 +43,23 @@ export const useDrawing = () => {
     setDrawings(prev => [...prev, drawing]);
   }, []);
 
+  const toggleAnnotationMode = useCallback(() => {
+    setDrawingEnabled(true);
+    setAnnotationMode(prev => !prev);
+  }, []);
+
   return {
     // State
     drawingEnabled,
     drawingColor,
     drawings,
+    annotationMode,
     drawControlRef,
     drawnItemsRef,
 
     // Handlers
     toggleDrawing,
+    toggleAnnotationMode,
     setColor,
     clearAllDrawings,
     undoLastDrawing,
