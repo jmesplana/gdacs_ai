@@ -110,6 +110,42 @@ const MapLayersDrawer = ({
           <span>Satellite Imagery</span>
         </label>
 
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'recent_clear' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="recent_clear"
+            checked={activeMapLayer === 'recent_clear'}
+            onChange={() => handleMapLayerChange('recent_clear')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Recent Clear (GEE)</span>
+        </label>
+
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'radar_change' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="radar_change"
+            checked={activeMapLayer === 'radar_change'}
+            onChange={() => handleMapLayerChange('radar_change')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Radar Change (GEE)</span>
+        </label>
+
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'recent_imagery' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="recent_imagery"
+            checked={activeMapLayer === 'recent_imagery'}
+            onChange={() => handleMapLayerChange('recent_imagery')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Recent Imagery (Daily)</span>
+        </label>
+
         <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'terrain' ? '#e3f2fd' : 'transparent'}}>
           <input
             type="radio"
@@ -133,6 +169,45 @@ const MapLayersDrawer = ({
           />
           <span>Toner Lite</span>
         </label>
+
+        {activeMapLayer === 'recent_clear' && (
+          <div style={{
+            fontSize: '12px',
+            color: '#555',
+            backgroundColor: '#f7f7f7',
+            borderRadius: '6px',
+            padding: '10px',
+            lineHeight: 1.5
+          }}>
+            Sentinel-2 recent clear composite over the last 10 days. Best for a clearer recent view when clouds allow.
+          </div>
+        )}
+
+        {activeMapLayer === 'radar_change' && (
+          <div style={{
+            fontSize: '12px',
+            color: '#555',
+            backgroundColor: '#f7f7f7',
+            borderRadius: '6px',
+            padding: '10px',
+            lineHeight: 1.5
+          }}>
+            Sentinel-1 radar change view. Useful in cloudy conditions and for recent surface change, but it is not photo imagery.
+          </div>
+        )}
+
+        {activeMapLayer === 'recent_imagery' && (
+          <div style={{
+            fontSize: '12px',
+            color: '#555',
+            backgroundColor: '#f7f7f7',
+            borderRadius: '6px',
+            padding: '10px',
+            lineHeight: 1.5
+          }}>
+            Near real-time NASA VIIRS imagery. Best for broad recent change and hazard context, not fine building-level damage.
+          </div>
+        )}
 
         <div style={{borderTop: '1px solid #eee', margin: '15px 0', paddingTop: '15px'}}>
           <h4 style={{marginBottom: '10px', color: '#333', fontSize: '14px'}}>Overlay Options</h4>

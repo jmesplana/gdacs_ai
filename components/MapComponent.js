@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
-import { MapContainer, TileLayer, CircleMarker, Marker as ReactLeafletMarker, Popup, Tooltip, GeoJSON } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, CircleMarker, Marker as ReactLeafletMarker, Popup, Tooltip, GeoJSON } from 'react-leaflet';
 import MarkerClusterGroup from '@changey/react-leaflet-markercluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -32,6 +32,7 @@ import {
 } from './MapComponent/components';
 import OSMInfrastructureLayer from './MapComponent/components/OSMInfrastructureLayer';
 import LogisticsOverlaysLayer from './MapComponent/components/LogisticsOverlaysLayer';
+import { calculateBounds } from '../utils/worldpopHelpers';
 
 import {
   FilterDrawer,
@@ -1253,6 +1254,12 @@ const MapComponent = ({
 
   // Get current map layer configuration
   const currentLayer = MAP_LAYERS[currentMapLayer.toUpperCase()] || MAP_LAYERS.STREET;
+  const [geeBaseLayerUrl, setGeeBaseLayerUrl] = useState(null);
+  const [geeBaseLayerError, setGeeBaseLayerError] = useState(null);
+  const geeBounds = useMemo(
+    () => calculateBounds(selectedAnalysisDistricts?.length ? selectedAnalysisDistricts : districts),
+    [selectedAnalysisDistricts, districts]
+  );
   const filteredAcledCount = filteredAcledData.length;
   const selectedDistrictAcledSummary = useMemo(
     () => buildAcledAggregateSummary(filteredAcledData, selectedAnalysisDistricts),
@@ -1266,6 +1273,50 @@ const MapComponent = ({
     () => (playbackEnabled ? filterByPlaybackDate(filteredAcledData, 'event_date') : filteredAcledData),
     [playbackEnabled, filterByPlaybackDate, filteredAcledData]
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (currentLayer.type !== 'gee') {
+      setGeeBaseLayerUrl(null);
+      setGeeBaseLayerError(null);
+      return undefined;
+    }
+
+    const loadGeeBaseLayer = async () => {
+      try {
+        setGeeBaseLayerError(null);
+        const response = await fetch('/api/gee-tiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dataset: currentLayer.dataset,
+            bounds: geeBounds || null
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load Earth Engine imagery');
+        }
+
+        if (!cancelled) {
+          setGeeBaseLayerUrl(data.tileUrl);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setGeeBaseLayerUrl(null);
+          setGeeBaseLayerError(error.message || 'Failed to load Earth Engine imagery');
+          console.error('[MapComponent] GEE baselayer error:', error);
+        }
+      }
+    };
+
+    loadGeeBaseLayer();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentLayer, geeBounds]);
   const districtRisks = useMemo(
     () => calculateDistrictRisks(districts, visibleDisasters, visibleAcledEvents),
     [districts, visibleDisasters, visibleAcledEvents]
@@ -1710,10 +1761,26 @@ const MapComponent = ({
         zoomControl={true}
       >
         {/* Base map layer */}
-        <TileLayer
-          url={currentLayer.url}
-          attribution={currentLayer.attribution}
-        />
+        {currentLayer.type === 'gee' ? (
+          <TileLayer
+            key={geeBaseLayerUrl || currentLayer.id}
+            url={geeBaseLayerUrl || MAP_LAYERS.SATELLITE.url}
+            attribution={geeBaseLayerUrl ? currentLayer.attribution : MAP_LAYERS.SATELLITE.attribution}
+          />
+        ) : currentLayer.type === 'wms' ? (
+          <WMSTileLayer
+            url={currentLayer.url}
+            layers={currentLayer.layers}
+            format={currentLayer.format || 'image/png'}
+            transparent={false}
+            attribution={currentLayer.attribution}
+          />
+        ) : (
+          <TileLayer
+            url={currentLayer.url}
+            attribution={currentLayer.attribution}
+          />
+        )}
 
         {/* Road overlay (optional) */}
         {showRoads && currentMapLayer !== 'street' && (

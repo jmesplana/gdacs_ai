@@ -33,6 +33,32 @@ export const MAP_LAYERS = {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
   },
+  RECENT_CLEAR: {
+    id: 'recent_clear',
+    name: 'Recent Clear (GEE)',
+    type: 'gee',
+    dataset: 'sentinel2_recent_clear',
+    attribution: '&copy; <a href="https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_SR_HARMONIZED">Google Earth Engine</a> / Sentinel-2',
+    note: 'Cloud-masked Sentinel-2 composite from the last 10 days. Best free clear-looking recent imagery.'
+  },
+  RADAR_CHANGE: {
+    id: 'radar_change',
+    name: 'Radar Change (GEE)',
+    type: 'gee',
+    dataset: 'sentinel1_recent_change',
+    attribution: '&copy; <a href="https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S1_GRD">Google Earth Engine</a> / Sentinel-1',
+    note: 'Recent radar change layer for cloudy conditions and flood/change detection. Not photographic imagery.'
+  },
+  RECENT_IMAGERY: {
+    id: 'recent_imagery',
+    name: 'Recent Imagery (Daily)',
+    type: 'wms',
+    url: 'https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi',
+    layers: 'VIIRS_SNPP_CorrectedReflectance_TrueColor',
+    format: 'image/jpeg',
+    attribution: '&copy; <a href="https://earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs">NASA GIBS</a> / VIIRS SNPP',
+    note: 'Near real-time daily imagery. Better for recent broad change than for fine-grained building-level damage.'
+  },
   TERRAIN: {
     id: 'terrain',
     name: 'Terrain',
