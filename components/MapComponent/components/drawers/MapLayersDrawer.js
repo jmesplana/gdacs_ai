@@ -74,6 +74,30 @@ const MapLayersDrawer = ({
           <span>Street Map</span>
         </label>
 
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'light_minimal' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="light_minimal"
+            checked={activeMapLayer === 'light_minimal'}
+            onChange={() => handleMapLayerChange('light_minimal')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Light Minimal</span>
+        </label>
+
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'light_minimal_no_labels' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="light_minimal_no_labels"
+            checked={activeMapLayer === 'light_minimal_no_labels'}
+            onChange={() => handleMapLayerChange('light_minimal_no_labels')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Light Minimal (No Labels)</span>
+        </label>
+
         <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'satellite' ? '#e3f2fd' : 'transparent'}}>
           <input
             type="radio"
@@ -96,6 +120,18 @@ const MapLayersDrawer = ({
             style={{marginRight: '10px'}}
           />
           <span>Terrain Map</span>
+        </label>
+
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'toner_lite' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="toner_lite"
+            checked={activeMapLayer === 'toner_lite'}
+            onChange={() => handleMapLayerChange('toner_lite')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Toner Lite</span>
         </label>
 
         <div style={{borderTop: '1px solid #eee', margin: '15px 0', paddingTop: '15px'}}>
