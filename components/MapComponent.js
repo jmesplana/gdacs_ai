@@ -307,6 +307,9 @@ function compactDistrictForContext(district = {}, index = 0) {
   };
 }
 
+const LARGE_DISTRICT_COUNT = 80;
+const MAX_DISTRICT_LABELS = 60;
+
 function buildAcledAggregateSummary(events = [], selectedDistricts = []) {
   const scopedEvents = selectedDistricts.length > 0
     ? events.filter((event) => isPointInDistricts(event.latitude, event.longitude, selectedDistricts))
@@ -1323,6 +1326,21 @@ const MapComponent = ({
     () => calculateDistrictRisks(districts, visibleDisasters, visibleAcledEvents),
     [districts, visibleDisasters, visibleAcledEvents]
   );
+  const selectedAnalysisDistrictIds = useMemo(
+    () => new Set((selectedAnalysisDistricts || []).map(district => district.id)),
+    [selectedAnalysisDistricts]
+  );
+  const allowDistrictLabels = showDistrictLabels && districts.length <= MAX_DISTRICT_LABELS;
+  const displayDistricts = useMemo(() => {
+    const shouldSimplifyForDisplay = districts.length >= LARGE_DISTRICT_COUNT;
+
+    return districts.map(district => ({
+      ...district,
+      displayGeometry: shouldSimplifyForDisplay
+        ? simplifyGeometry(district.geometry || null)
+        : district.geometry
+    }));
+  }, [districts]);
   const districtSummary = useMemo(() => {
     if (!districts || districts.length === 0) return null;
 
@@ -1394,6 +1412,37 @@ const MapComponent = ({
     }),
     [districts, districtRisks]
   );
+  const hasSelectedAnalysisDistricts = selectedAnalysisDistricts.length > 0;
+
+  const runFacilityAnalysis = (facility) => {
+    if (!facility) return;
+
+    if (!hasSelectedAnalysisDistricts) {
+      addToast('Select one or more districts before running analysis.', 'warning');
+      setActiveDrawerTab('layers');
+      if (!unifiedDrawerOpen) {
+        toggleUnifiedDrawer();
+      }
+      return;
+    }
+
+    setSelectedFacility(facility);
+    const facilityImpacts = impactedFacilities.find(
+      f => f.facility.name === facility.name
+    )?.impacts || [];
+
+    handleAnalyzeFacility(facility, facilityImpacts, {
+      acledData: acledEnabled ? filteredAcledData : [],
+      worldPopData,
+      selectedDistricts: selectedAnalysisDistricts.map(compactDistrictForContext),
+      operationType
+    });
+
+    setActiveDrawerTab('analysis');
+    if (!unifiedDrawerOpen) {
+      toggleUnifiedDrawer();
+    }
+  };
 
   // Check if any drawer is open
   const isAnyDrawerOpen = filterDrawerOpen || unifiedDrawerOpen || mapLayersDrawerOpen || showChatDrawer;
@@ -1537,18 +1586,7 @@ const MapComponent = ({
           handleFileUpload(syntheticEvent);
         }}
         onFacilitySelect={(facility) => {
-          setSelectedFacility(facility);
-          const facilityImpacts = impactedFacilities.find(
-            f => f.facility.name === facility.name
-          )?.impacts || [];
-          console.log('Facility impacts:', facilityImpacts);
-          handleAnalyzeFacility(facility, facilityImpacts, {
-            acledData: acledEnabled ? filteredAcledData : [],
-            worldPopData,
-            selectedDistricts: selectedAnalysisDistricts.map(compactDistrictForContext),
-            operationType
-          });
-          setActiveDrawerTab('analysis'); // Switch to analysis tab
+          runFacilityAnalysis(facility);
         }}
         onFacilityViewOnMap={(facility) => {
           if (mapRef.current && facility.latitude && facility.longitude) {
@@ -1862,9 +1900,9 @@ const MapComponent = ({
           // Create a FeatureCollection from all districts
           const featureCollection = {
             type: 'FeatureCollection',
-            features: districts
+            features: displayDistricts
               .filter(d => {
-                if (!d.geometry) {
+                if (!d.displayGeometry) {
                   console.warn('District missing geometry:', d.name);
                   return false;
                 }
@@ -1884,7 +1922,7 @@ const MapComponent = ({
                     eventCount: risk.eventCount,
                     ...district.properties
                   },
-                  geometry: district.geometry,
+                  geometry: district.displayGeometry,
                   id: district.id
                 };
               })
@@ -1904,21 +1942,22 @@ const MapComponent = ({
 
           return (
             <GeoJSON
-              key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistricts.length}-labels-${showDistrictLabels}-field-${districtLabelField}`}
+              key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistricts.length}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-field-${districtLabelField}`}
               data={featureCollection}
               pane="overlayPane"
               interactive={true}
               style={(feature) => {
                 const riskLevel = feature.properties.riskLevel || 'none';
                 const isHighlighted = highlightedDistricts.includes(feature.id);
+                const isSelected = selectedAnalysisDistrictIds.has(feature.id);
 
                 return {
-                  color: isHighlighted ? '#FF6B35' : getBorderColor(riskLevel),
-                  weight: isHighlighted ? 4 : 3, // Increased from 2 to 3
+                  color: isHighlighted ? '#FF6B35' : (isSelected ? '#0f766e' : getBorderColor(riskLevel)),
+                  weight: isHighlighted ? 4 : (isSelected ? 4 : 3),
                   opacity: isHighlighted ? 1 : 1, // Changed from 0.8 to 1 for fully visible borders
                   fillColor: getRiskColor(riskLevel),
                   fillOpacity: showDistrictRiskFill
-                    ? (isHighlighted ? 0.7 : (riskLevel === 'none' ? 0.2 : 0.5))
+                    ? (isHighlighted ? 0.7 : (isSelected ? 0.65 : (riskLevel === 'none' ? 0.2 : 0.5)))
                     : 0,
                   className: isHighlighted ? 'highlighted-district' : ''
                 };
@@ -1971,6 +2010,30 @@ const MapComponent = ({
                       <div style="font-size: 18px; font-weight: bold;">${getRiskLabel(riskLevel)}</div>
                       <div style="font-size: 11px; margin-top: 4px; opacity: 0.9;">${eventCount} event${eventCount > 1 ? 's' : ''} detected (Score: ${riskScore})</div>
                     </div>
+                  `;
+                }
+
+                const isSelectedForAnalysis = selectedAnalysisDistrictIds.has(feature.id);
+                if (onAnalysisDistrictsChange) {
+                  popupContent += `
+                    <button
+                      id="district-select-btn-${feature.id}"
+                      style="
+                        width: 100%;
+                        margin-top: 10px;
+                        padding: 10px 12px;
+                        background: ${isSelectedForAnalysis ? '#0f766e' : '#ffffff'};
+                        color: ${isSelectedForAnalysis ? '#ffffff' : '#0f766e'};
+                        border: 1px solid #0f766e;
+                        border-radius: 6px;
+                        font-size: 13px;
+                        font-weight: 700;
+                        cursor: pointer;
+                        font-family: 'Inter', sans-serif;
+                      "
+                    >
+                      ${isSelectedForAnalysis ? 'Remove From Analysis Scope' : 'Select For Analysis'}
+                    </button>
                   `;
                 }
 
@@ -2075,7 +2138,7 @@ const MapComponent = ({
                 layer.bindPopup(popupContent);
 
                 // Add zoom-dependent label (tooltip) if showDistrictLabels is true
-                if (showDistrictLabels && mapInstance) {
+                if (allowDistrictLabels && mapInstance) {
                   const minZoom = 7;
 
                   layer.bindTooltip(displayName, {
@@ -2107,9 +2170,32 @@ const MapComponent = ({
                   layer._zoomEndHandler = onZoomEnd;
                 }
 
-                // Add click event listeners for buttons
-                if (onDistrictClick || onDistrictOutlookClick) {
+                // Add click event listeners for popup buttons
+                if (onAnalysisDistrictsChange || onDistrictClick || onDistrictOutlookClick) {
                   layer.on('popupopen', () => {
+                    if (onAnalysisDistrictsChange) {
+                      const selectBtn = document.getElementById(`district-select-btn-${feature.id}`);
+                      if (selectBtn) {
+                        selectBtn.onclick = () => {
+                          const fullDistrict = districts.find(d => d.id === feature.id);
+                          if (!fullDistrict) return;
+
+                          const nextSelectedDistricts = selectedAnalysisDistrictIds.has(feature.id)
+                            ? selectedAnalysisDistricts.filter(district => district.id !== feature.id)
+                            : [...selectedAnalysisDistricts, fullDistrict];
+
+                          onAnalysisDistrictsChange(nextSelectedDistricts);
+                          addToast(
+                            selectedAnalysisDistrictIds.has(feature.id)
+                              ? `${displayName} removed from analysis scope.`
+                              : `${displayName} added to analysis scope.`,
+                            'success'
+                          );
+                          layer.closePopup();
+                        };
+                      }
+                    }
+
                     // Forecast button handler
                     if (onDistrictClick) {
                       const forecastBtn = document.getElementById(`district-forecast-btn-${feature.id}`);
@@ -2318,38 +2404,23 @@ const MapComponent = ({
                         return null;
                       })}
                       <button
-                        onClick={() => {
-                          setSelectedFacility(facility);
-                          // Find the impacts for this specific facility
-                          const facilityImpacts = impactedFacilities.find(
-                            f => f.facility.name === facility.name
-                          )?.impacts || [];
-                          handleAnalyzeFacility(facility, facilityImpacts, {
-                            acledData: acledEnabled ? filteredAcledData : [],
-                            worldPopData,
-                            selectedDistricts: selectedAnalysisDistricts.map(compactDistrictForContext),
-                            operationType
-                          });
-                          // Open unified drawer and switch to analysis tab
-                          setActiveDrawerTab('analysis');
-                          if (!unifiedDrawerOpen) {
-                            toggleUnifiedDrawer();
-                          }
-                        }}
+                        onClick={() => runFacilityAnalysis(facility)}
                         style={{
                           marginTop: '10px',
                           padding: '8px 16px',
-                          background: 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)',
+                          background: hasSelectedAnalysisDistricts
+                            ? 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)'
+                            : 'var(--aidstack-slate-light)',
                           color: 'white',
                           border: 'none',
                           borderRadius: '4px',
-                          cursor: 'pointer',
+                          cursor: hasSelectedAnalysisDistricts ? 'pointer' : 'not-allowed',
                           fontSize: '13px',
                           fontWeight: 'bold',
                           width: '100%'
                         }}
                       >
-                        Analyze Facility
+                        {hasSelectedAnalysisDistricts ? 'Analyze Facility' : 'Select Districts First'}
                       </button>
                     </div>
                   </Popup>
@@ -2428,36 +2499,23 @@ const MapComponent = ({
                     return null;
                   })}
                   <button
-                    onClick={() => {
-                      setSelectedFacility(facility);
-                      const facilityImpacts = impactedFacilities.find(
-                        f => f.facility.name === facility.name
-                      )?.impacts || [];
-                      handleAnalyzeFacility(facility, facilityImpacts, {
-                        acledData: acledEnabled ? filteredAcledData : [],
-                        worldPopData,
-                        selectedDistricts: selectedAnalysisDistricts.map(compactDistrictForContext),
-                        operationType
-                      });
-                      setActiveDrawerTab('analysis');
-                      if (!unifiedDrawerOpen) {
-                        toggleUnifiedDrawer();
-                      }
-                    }}
+                    onClick={() => runFacilityAnalysis(facility)}
                     style={{
                       marginTop: '10px',
                       padding: '8px 16px',
-                      background: 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)',
+                      background: hasSelectedAnalysisDistricts
+                        ? 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)'
+                        : 'var(--aidstack-slate-light)',
                       color: 'white',
                       border: 'none',
                       borderRadius: '4px',
-                      cursor: 'pointer',
+                      cursor: hasSelectedAnalysisDistricts ? 'pointer' : 'not-allowed',
                       fontSize: '13px',
                       fontWeight: 'bold',
                       width: '100%'
                     }}
                   >
-                    Analyze Facility
+                    {hasSelectedAnalysisDistricts ? 'Analyze Facility' : 'Select Districts First'}
                   </button>
                 </div>
               </Popup>
