@@ -9,6 +9,7 @@ const {
   filterToPolygon,
   convertToGeoJSON,
   categorizeInfrastructure,
+  optimizeInfrastructureResponse,
   calculateAreaKm2,
   subdivideBoundary,
   deduplicateFeatures,
@@ -142,30 +143,48 @@ module.exports = async function handler(req, res) {
 
     // Categorize and format
     const categorized = categorizeInfrastructure(filtered);
+    const optimized = optimizeInfrastructureResponse(categorized);
+    const warnings = [];
+
+    if (errors.length > 0) {
+      warnings.push(`Loaded partial OSM data: ${subdivisions.length - errors.length} of ${subdivisions.length} subdivisions succeeded.`);
+    }
+
+    if (optimized.metadata.roadsTrimmed > 0) {
+      warnings.push(`Road results were reduced for performance: returned ${optimized.metadata.returnedRoadCount.toLocaleString()} of ${optimized.metadata.originalRoadCount.toLocaleString()} road features.`);
+    }
 
     // Build response
     const response = {
       type: 'FeatureCollection',
-      features: categorized,
+      features: optimized.features,
       metadata: {
         queryTime: Date.now() - startTime,
-        totalFeatures: categorized.length,
-        byLayer: countByLayer(categorized),
+        totalFeatures: optimized.features.length,
+        byLayer: countByLayer(optimized.features),
         requestedLayers: layers,
         boundingBox: calculateBoundingBox(boundary),
         querySubdivisions: subdivisions.length,
         cached: false,
         timestamp: new Date().toISOString(),
-        partialFailures: errors.length
+        partialFailures: errors.length,
+        warnings,
+        roadsTrimmed: optimized.metadata.roadsTrimmed,
+        originalRoadCount: optimized.metadata.originalRoadCount,
+        returnedRoadCount: optimized.metadata.returnedRoadCount
       }
     };
 
     // Cache result
     await setCachedOSM(cacheKey, response, CACHE_TTL_HOURS);
 
-    console.log(`OSM query complete: ${categorized.length} features in ${Date.now() - startTime}ms`);
+    console.log(`OSM query complete: ${optimized.features.length} features in ${Date.now() - startTime}ms`);
 
-    return res.status(200).json({ success: true, data: response });
+    return res.status(200).json({
+      success: true,
+      data: response,
+      warning: warnings.length > 0 ? warnings.join(' ') : undefined
+    });
 
   } catch (error) {
     console.error('OSM Infrastructure Error:', error);
@@ -227,6 +246,12 @@ async function queryOverpassWithRetry(boundary, layers, options, retries = 0) {
         throw error;
       }
       throw new Error(`HTTP ${response.status}`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const responseText = await response.text();
+      throw new Error(`Unexpected Overpass response format (${contentType || 'unknown'}): ${responseText.slice(0, 80)}`);
     }
 
     const data = await response.json();

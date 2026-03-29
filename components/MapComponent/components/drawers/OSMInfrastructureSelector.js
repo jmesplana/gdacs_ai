@@ -24,9 +24,11 @@ const INFRASTRUCTURE_CATEGORIES = [
 
 export default function OSMInfrastructureSelector({
   districts = [],
+  selectedAnalysisDistricts = [],
   osmLoading = false,
   osmData = null,
   osmStats = null,
+  osmWarning = null,
   osmLayerVisibility = {},
   onLoadOSM, // Callback: (selectedDistricts, selectedCategories) => void
   onSelectionChange, // Callback: (selectedDistricts) => void
@@ -43,12 +45,20 @@ export default function OSMInfrastructureSelector({
     () => districts.map((district, idx) => district.id || district.name || idx).join('|'),
     [districts]
   );
+  const selectedAnalysisDistrictIds = useMemo(
+    () => selectedAnalysisDistricts.map((district, idx) => district.id || idx),
+    [selectedAnalysisDistricts]
+  );
+  const layerCounts = useMemo(
+    () => osmData?.metadata?.byLayer || osmStats?.byLayer || osmStats || {},
+    [osmData, osmStats]
+  );
 
   useEffect(() => {
     if (!osmLoading && activeRequest) {
       const loadedBreakdown = activeRequest.categoryIds.map(categoryId => {
         const category = INFRASTRUCTURE_CATEGORIES.find(item => item.id === categoryId);
-        const featureCount = osmStats?.byLayer?.[categoryId] || 0;
+        const featureCount = layerCounts?.[categoryId] || 0;
         return {
           id: categoryId,
           name: category?.name || categoryId,
@@ -65,12 +75,11 @@ export default function OSMInfrastructureSelector({
         completedAt: new Date().toISOString()
       });
 
-      setSelectedCategories([]);
       setActiveRequest(null);
       setRequestStartedAt(null);
       setElapsedSeconds(0);
     }
-  }, [osmLoading, activeRequest, osmStats, elapsedSeconds]);
+  }, [osmLoading, activeRequest, layerCounts, elapsedSeconds]);
 
   useEffect(() => {
     setSelectedDistricts([]);
@@ -78,6 +87,10 @@ export default function OSMInfrastructureSelector({
     setActiveRequest(null);
     setLastCompletedLoad(null);
   }, [districtSignature]);
+
+  useEffect(() => {
+    setSelectedDistricts(selectedAnalysisDistrictIds);
+  }, [selectedAnalysisDistrictIds]);
 
   useEffect(() => {
     if (!osmLoading || !requestStartedAt) return undefined;
@@ -169,8 +182,8 @@ export default function OSMInfrastructureSelector({
   };
 
   // Get loaded categories
-  const loadedCategories = osmStats?.byLayer
-    ? Object.keys(osmStats.byLayer).filter(cat => osmStats.byLayer[cat] > 0)
+  const loadedCategories = layerCounts
+    ? Object.keys(layerCounts).filter(cat => layerCounts[cat] > 0)
     : [];
 
   // Debug logging
@@ -188,6 +201,21 @@ export default function OSMInfrastructureSelector({
       <h4 style={{ marginTop: 0, marginBottom: '16px', fontSize: '14px', color: '#333' }}>
         OpenStreetMap Infrastructure
       </h4>
+
+      {osmWarning && !osmLoading && (
+        <div style={{
+          marginBottom: '16px',
+          padding: '12px',
+          borderRadius: '8px',
+          border: '1px solid #f59e0b',
+          backgroundColor: '#fffbeb',
+          color: '#92400e',
+          fontSize: '12px',
+          lineHeight: 1.5
+        }}>
+          {osmWarning}
+        </div>
+      )}
 
       {osmLoading && (
         <div style={{
@@ -453,27 +481,30 @@ export default function OSMInfrastructureSelector({
                   display: 'flex',
                   alignItems: 'center',
                   padding: '8px',
-                  cursor: (selectedDistricts.length === 0 || isLoaded) ? 'not-allowed' : 'pointer',
+                  cursor: selectedDistricts.length === 0 ? 'not-allowed' : 'pointer',
                   borderRadius: '4px',
                   backgroundColor: isLoaded ? '#ecfdf5' : (isSelected ? '#e3f2fd' : 'white'),
                   border: '1px solid ' + (isLoaded ? '#10b981' : (isSelected ? '#3b82f6' : '#e5e7eb')),
                   fontSize: '12px',
-                  opacity: (isLoaded || selectedDistricts.length === 0) ? 0.7 : 1
+                  opacity: selectedDistricts.length === 0 ? 0.7 : 1
                 }}
               >
                 <input
                   type="checkbox"
                   checked={isSelected || isLoaded}
                   onChange={(e) => {
-                    if (!isLoaded && selectedDistricts.length > 0) {
+                    if (selectedDistricts.length > 0) {
                       if (e.target.checked) {
-                        setSelectedCategories([...selectedCategories, category.id]);
+                        setSelectedCategories(prev => Array.from(new Set([...prev, category.id])));
                       } else {
-                        setSelectedCategories(selectedCategories.filter(id => id !== category.id));
+                        setSelectedCategories(prev => prev.filter(id => id !== category.id));
+                        if (isLoaded && onClearCategory) {
+                          onClearCategory(category.id);
+                        }
                       }
                     }
                   }}
-                  disabled={selectedDistricts.length === 0 || isLoaded || osmLoading}
+                  disabled={selectedDistricts.length === 0 || osmLoading}
                   style={{ marginRight: '6px' }}
                 />
                 <span style={{ marginRight: '4px' }}>{category.icon}</span>
@@ -591,7 +622,7 @@ export default function OSMInfrastructureSelector({
             const categoryDef = INFRASTRUCTURE_CATEGORIES.find(c => c.id === categoryId);
             if (!categoryDef) return null;
 
-            const count = osmStats?.byLayer?.[categoryId] || 0;
+            const count = layerCounts?.[categoryId] || 0;
             const isVisible = osmLayerVisibility[categoryId] !== false;
 
             return (

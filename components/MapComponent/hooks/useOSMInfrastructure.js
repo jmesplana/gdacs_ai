@@ -56,6 +56,36 @@ function mergeOsmData(existingData, incomingData) {
   };
 }
 
+function removeOsmCategoryData(existingData, categoryId) {
+  if (!existingData) return null;
+
+  const remainingFeatures = (existingData.features || []).filter(
+    feature => feature.properties?.category !== categoryId
+  );
+  const existingLayers = existingData.metadata?.byLayer || {};
+  const nextByLayer = { ...existingLayers };
+  delete nextByLayer[categoryId];
+
+  const nextRequestedLayers = (existingData.metadata?.requestedLayers || []).filter(
+    layer => layer !== categoryId
+  );
+
+  if (remainingFeatures.length === 0) {
+    return null;
+  }
+
+  return {
+    ...existingData,
+    features: remainingFeatures,
+    metadata: {
+      ...(existingData.metadata || {}),
+      totalFeatures: remainingFeatures.length,
+      byLayer: nextByLayer,
+      requestedLayers: nextRequestedLayers
+    }
+  };
+}
+
 export function useOSMInfrastructure() {
   const [osmData, setOsmData] = useState(null);
   const [osmLoading, setOsmLoading] = useState(false);
@@ -63,6 +93,7 @@ export function useOSMInfrastructure() {
   const [osmStats, setOsmStats] = useState(null);
   const [osmTimestamp, setOsmTimestamp] = useState(null);
   const [osmBoundary, setOsmBoundary] = useState(null);
+  const [osmWarning, setOsmWarning] = useState(null);
   const [osmLayers, setOsmLayers] = useState([
     'hospitals',
     'schools',
@@ -111,6 +142,7 @@ export function useOSMInfrastructure() {
           setOsmStats(parsed.stats);
           setOsmTimestamp(parsed.timestamp);
           setOsmBoundary(parsed.boundary);
+          setOsmWarning(parsed.warning || parsed.data?.metadata?.warnings?.join(' ') || null);
           console.log('Loaded OSM data from cache:', parsed.stats);
         } else {
           localStorage.removeItem('osmData');
@@ -129,7 +161,8 @@ export function useOSMInfrastructure() {
           data: osmData,
           stats: osmStats,
           timestamp: osmTimestamp,
-          boundary: osmBoundary
+          boundary: osmBoundary,
+          warning: osmWarning
         }));
       } catch (err) {
         console.warn('Failed to cache OSM data:', err);
@@ -137,7 +170,7 @@ export function useOSMInfrastructure() {
         localStorage.removeItem('osmData');
       }
     }
-  }, [osmData, osmStats, osmTimestamp, osmBoundary]);
+  }, [osmData, osmStats, osmTimestamp, osmBoundary, osmWarning]);
 
   // Sanitize boundary to remove circular references
   const sanitizeBoundary = (boundary) => {
@@ -198,6 +231,7 @@ export function useOSMInfrastructure() {
 
     setOsmLoading(true);
     setOsmError(null);
+    setOsmWarning(null);
 
     try {
       console.log('✅ Fetching OSM infrastructure for boundary:', cleanBoundary);
@@ -266,6 +300,7 @@ export function useOSMInfrastructure() {
         setOsmStats(nextData.metadata.byLayer);
         setOsmTimestamp(nextData.metadata.timestamp);
         setOsmBoundary(shouldMergeWithExisting && currentBoundary ? currentBoundary : cleanBoundary);
+        setOsmWarning(result.warning || result.data?.metadata?.warnings?.join(' ') || null);
 
         console.log('💾 OSM state updated');
         return nextData;
@@ -311,10 +346,41 @@ export function useOSMInfrastructure() {
     setOsmTimestamp(null);
     setOsmBoundary(null);
     setOsmError(null);
+    setOsmWarning(null);
     osmDataRef.current = null;
     osmBoundaryRef.current = null;
     localStorage.removeItem('osmData');
     console.log('OSM data cleared');
+  }, []);
+
+  const clearOSMCategory = useCallback((categoryId) => {
+    if (!categoryId) return;
+
+    setOsmData(prev => {
+      const nextData = removeOsmCategoryData(prev, categoryId);
+
+      if (!nextData) {
+        setOsmStats(null);
+        setOsmTimestamp(null);
+        setOsmBoundary(null);
+        setOsmWarning(null);
+        osmDataRef.current = null;
+        osmBoundaryRef.current = null;
+        localStorage.removeItem('osmData');
+        return null;
+      }
+
+      setOsmStats(nextData.metadata?.byLayer || null);
+      setOsmTimestamp(nextData.metadata?.timestamp || null);
+      setOsmWarning(nextData.metadata?.warnings?.join(' ') || null);
+      osmDataRef.current = nextData;
+      return nextData;
+    });
+
+    setOsmLayerVisibility(prev => ({
+      ...prev,
+      [categoryId]: true
+    }));
   }, []);
 
   // Toggle layer in query
@@ -349,6 +415,7 @@ export function useOSMInfrastructure() {
     osmStats,
     osmTimestamp,
     osmBoundary,
+    osmWarning,
     osmLayers,
     osmLayerVisibility,
     showOSMLayer,
@@ -357,6 +424,7 @@ export function useOSMInfrastructure() {
     fetchOSMInfrastructure,
     refreshOSM,
     clearOSM,
+    clearOSMCategory,
     toggleLayer,
     toggleLayerVisibility,
     toggleAllOSM,

@@ -708,12 +708,14 @@ const MapComponent = ({
     osmStats,
     osmTimestamp,
     osmBoundary,
+    osmWarning,
     osmLayers,
     osmLayerVisibility,
     showOSMLayer,
     fetchOSMInfrastructure,
     refreshOSM,
     clearOSM,
+    clearOSMCategory,
     toggleLayer,
     toggleLayerVisibility,
     toggleAllOSM,
@@ -1580,6 +1582,7 @@ const MapComponent = ({
         districtAvailableFields={districtAvailableFields}
         districtLabelField={districtLabelField}
         onDistrictLabelFieldChange={onDistrictLabelFieldChange}
+        selectedAnalysisDistricts={selectedAnalysisDistricts}
         onFileUpload={(file) => {
           console.log('File selected:', file);
           const syntheticEvent = { target: { files: [file] } };
@@ -1645,8 +1648,10 @@ const MapComponent = ({
         showRoads={showRoads}
         setShowRoads={setShowRoads}
         districts={districts}
+        selectedAnalysisDistricts={selectedAnalysisDistricts}
         osmData={osmData}
         osmStats={osmStats}
+        osmWarning={osmWarning}
         osmLoading={osmLoading}
         osmLayerVisibility={osmLayerVisibility}
         onOSMSelectionChange={onAnalysisDistrictsChange}
@@ -1677,9 +1682,7 @@ const MapComponent = ({
           }
         }}
         onToggleOSMLayerVisibility={toggleLayerVisibility}
-        onClearOSMCategory={(category) => {
-          console.log(`Clear OSM category: ${category}`);
-        }}
+        onClearOSMCategory={clearOSMCategory}
       />
 
       {/* Column Selection Modal */}

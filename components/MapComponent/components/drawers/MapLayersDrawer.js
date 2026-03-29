@@ -15,8 +15,10 @@ const MapLayersDrawer = ({
   embedded = false, // New prop for when embedded in UnifiedDrawer
   // OSM Infrastructure props
   districts,
+  selectedAnalysisDistricts,
   osmData,
   osmStats,
+  osmWarning,
   osmLoading,
   osmLayerVisibility,
   onLoadOSM, // (selectedDistricts, selectedCategories) => void
@@ -226,8 +228,10 @@ const MapLayersDrawer = ({
         <div style={{borderTop: '1px solid #eee', margin: '15px 0', paddingTop: '15px'}}>
           <OSMInfrastructureSelector
             districts={districts}
+            selectedAnalysisDistricts={selectedAnalysisDistricts}
             osmData={osmData}
             osmStats={osmStats}
+            osmWarning={osmWarning}
             osmLoading={osmLoading}
             osmLayerVisibility={osmLayerVisibility}
             onLoadOSM={onLoadOSM}

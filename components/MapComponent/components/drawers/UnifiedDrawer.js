@@ -62,6 +62,7 @@ const UnifiedDrawer = ({
   onLoadOSM, // New: (selectedDistricts, selectedCategories) => void
   onToggleOSMLayerVisibility,
   onClearOSMCategory,
+  selectedAnalysisDistricts = [],
 
   // Additional props
   onTabChange,
@@ -97,6 +98,7 @@ const UnifiedDrawer = ({
 
   const hasFacilities = (facilities?.length || 0) > 0;
   const hasDistricts = (districts?.length || 0) > 0;
+  const selectedDistrictCount = selectedAnalysisDistricts.length;
   const hasAcled = (acledData?.length || 0) > 0;
   const hasWorldPop = Object.keys(worldPopData || {}).length > 0;
 
@@ -324,6 +326,7 @@ const UnifiedDrawer = ({
             }}>
               {[
                 { label: 'Admin boundaries', loaded: hasDistricts },
+                { label: 'Analysis scope', loaded: selectedDistrictCount > 0, value: selectedDistrictCount > 0 ? `${selectedDistrictCount} selected` : 'None selected' },
                 { label: 'Facilities', loaded: hasFacilities },
                 { label: 'ACLED', loaded: hasAcled },
                 { label: 'WorldPop', loaded: hasWorldPop }
@@ -351,7 +354,7 @@ const UnifiedDrawer = ({
                     fontWeight: 700,
                     fontFamily: "'Inter', sans-serif"
                   }}>
-                    {item.loaded ? 'Loaded' : 'Not loaded'}
+                    {item.value || (item.loaded ? 'Loaded' : 'Not loaded')}
                   </div>
                 </div>
               ))}
