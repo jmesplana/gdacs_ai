@@ -29,6 +29,7 @@ function compactPrioritizationBoardForChat(board = null, maxRows = 10) {
           totalAcledEvents: board.summary.totalAcledEvents,
           districtCount: board.summary.districtCount,
           hasFacilityData: board.summary.hasFacilityData,
+          districtHazardSummary: board.summary.districtHazardSummary || null,
           confidence: board.summary.confidence
         }
       : null,
@@ -42,6 +43,21 @@ function compactPrioritizationBoardForChat(board = null, maxRows = 10) {
       populationEstimate: row.populationEstimate,
       disasterCount: row.disasterCount,
       acledCount: row.acledCount,
+      projectedHazardType: row.projectedHazardType,
+      projectedHazardScore: row.projectedHazardScore,
+      projectedHazardLevel: row.projectedHazardLevel,
+      projectedResponseScale: row.projectedResponseScale,
+      projectedConfidence: row.projectedConfidence,
+      projectedEvidenceBase: row.projectedEvidenceBase,
+      projectedTopDrivers: Array.isArray(row.projectedTopDrivers)
+        ? row.projectedTopDrivers.slice(0, 3).map((driver) => ({
+            label: driver?.label,
+            value: driver?.value,
+            unit: driver?.unit,
+            source: driver?.source
+          }))
+        : [],
+      hazardReadinessGaps: Array.isArray(row.hazardReadinessGaps) ? row.hazardReadinessGaps.slice(0, 3) : [],
       keyGaps: Array.isArray(row.keyGaps) ? row.keyGaps.slice(0, 4) : [],
       soWhat: truncateText(row.soWhat, 300),
       leadershipNote: truncateText(row.leadershipNote, 240),

@@ -547,7 +547,7 @@ const MapComponent = ({
   onWorldPopDataChange,
   onOSMDataChange,
   onAnalysisDistrictsChange,
-  onMapLayerChange,
+  onEvidenceLayersChange,
   selectedAnalysisDistricts = [],
   prioritizationBoard = null
 }) => {
@@ -613,6 +613,8 @@ const MapComponent = ({
     showClustering,
     showFacilitiesLayer,
     showAcledLayer,
+    showFloodContextLayer,
+    showDroughtContextLayer,
     showDistrictRiskFill,
     showLabels,
     showDistrictLabels,
@@ -634,6 +636,8 @@ const MapComponent = ({
     setShowClustering,
     setShowFacilitiesLayer,
     setShowAcledLayer,
+    setShowFloodContextLayer,
+    setShowDroughtContextLayer,
     setShowDistrictRiskFill,
     setShowLabels,
     setShowDistrictLabels,
@@ -1264,6 +1268,9 @@ const MapComponent = ({
   const currentLayer = MAP_LAYERS[currentMapLayer.toUpperCase()] || MAP_LAYERS.STREET;
   const [geeBaseLayerUrl, setGeeBaseLayerUrl] = useState(null);
   const [geeBaseLayerError, setGeeBaseLayerError] = useState(null);
+  const [floodContextTileUrl, setFloodContextTileUrl] = useState(null);
+  const [droughtContextTileUrl, setDroughtContextTileUrl] = useState(null);
+  const [geeOverlayError, setGeeOverlayError] = useState(null);
   const geeBounds = useMemo(
     () => calculateBounds(selectedAnalysisDistricts?.length ? selectedAnalysisDistricts : districts),
     [selectedAnalysisDistricts, districts]
@@ -1283,10 +1290,13 @@ const MapComponent = ({
   );
 
   useEffect(() => {
-    if (onMapLayerChange) {
-      onMapLayerChange(currentMapLayer);
+    if (onEvidenceLayersChange) {
+      onEvidenceLayersChange([
+        ...(showFloodContextLayer ? ['flood_context'] : []),
+        ...(showDroughtContextLayer ? ['drought_context'] : [])
+      ]);
     }
-  }, [currentMapLayer, onMapLayerChange]);
+  }, [showFloodContextLayer, showDroughtContextLayer, onEvidenceLayersChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1333,10 +1343,65 @@ const MapComponent = ({
   }, [currentLayer, geeBounds]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadOverlay = async (dataset, setter) => {
+      try {
+        const response = await fetch('/api/gee-tiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dataset,
+            bounds: geeBounds || null
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || `Failed to load ${dataset}`);
+        }
+
+        if (!cancelled) {
+          setter(data.tileUrl);
+          setGeeOverlayError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setter(null);
+          setGeeOverlayError(error.message || 'Failed to load Earth Engine overlay');
+          console.error('[MapComponent] GEE overlay error:', error);
+        }
+      }
+    };
+
+    if (showFloodContextLayer) {
+      loadOverlay('flood_context', setFloodContextTileUrl);
+    } else {
+      setFloodContextTileUrl(null);
+    }
+
+    if (showDroughtContextLayer) {
+      loadOverlay('drought_context', setDroughtContextTileUrl);
+    } else {
+      setDroughtContextTileUrl(null);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showFloodContextLayer, showDroughtContextLayer, geeBounds]);
+
+  useEffect(() => {
     if (geeBaseLayerError && currentLayer.type === 'gee') {
       addToast(`Earth Engine layer unavailable: ${geeBaseLayerError}`, 'warning');
     }
   }, [geeBaseLayerError, currentLayer.type, addToast]);
+
+  useEffect(() => {
+    if (geeOverlayError) {
+      addToast(`Earth Engine overlay unavailable: ${geeOverlayError}`, 'warning');
+    }
+  }, [geeOverlayError, addToast]);
   const districtRisks = useMemo(
     () => calculateDistrictRisks(districts, visibleDisasters, visibleAcledEvents),
     [districts, visibleDisasters, visibleAcledEvents]
@@ -1660,6 +1725,10 @@ const MapComponent = ({
         setCurrentMapLayer={setCurrentMapLayer}
         showRoads={showRoads}
         setShowRoads={setShowRoads}
+        showFloodContextLayer={showFloodContextLayer}
+        setShowFloodContextLayer={setShowFloodContextLayer}
+        showDroughtContextLayer={showDroughtContextLayer}
+        setShowDroughtContextLayer={setShowDroughtContextLayer}
         districts={districts}
         selectedAnalysisDistricts={selectedAnalysisDistricts}
         osmData={osmData}
@@ -1822,13 +1891,7 @@ const MapComponent = ({
         zoomControl={true}
       >
         {/* Base map layer */}
-        {currentLayer.type === 'gee' && currentLayer.overlayOnBase ? (
-          <TileLayer
-            key="context-basemap"
-            url={MAP_LAYERS.LIGHT_MINIMAL.url}
-            attribution={MAP_LAYERS.LIGHT_MINIMAL.attribution}
-          />
-        ) : currentLayer.type === 'gee' ? (
+        {currentLayer.type === 'gee' ? (
           <TileLayer
             key={geeBaseLayerUrl || currentLayer.id}
             url={geeBaseLayerUrl || MAP_LAYERS.SATELLITE.url}
@@ -1849,12 +1912,21 @@ const MapComponent = ({
           />
         )}
 
-        {currentLayer.type === 'gee' && currentLayer.overlayOnBase && geeBaseLayerUrl && (
+        {showFloodContextLayer && floodContextTileUrl && (
           <TileLayer
-            key={geeBaseLayerUrl}
-            url={geeBaseLayerUrl}
-            attribution={currentLayer.attribution}
-            opacity={currentLayer.overlayOpacity || 0.6}
+            key={floodContextTileUrl}
+            url={floodContextTileUrl}
+            attribution={MAP_LAYERS.FLOOD_CONTEXT.attribution}
+            opacity={MAP_LAYERS.FLOOD_CONTEXT.overlayOpacity || 0.6}
+          />
+        )}
+
+        {showDroughtContextLayer && droughtContextTileUrl && (
+          <TileLayer
+            key={droughtContextTileUrl}
+            url={droughtContextTileUrl}
+            attribution={MAP_LAYERS.DROUGHT_CONTEXT.attribution}
+            opacity={MAP_LAYERS.DROUGHT_CONTEXT.overlayOpacity || 0.6}
           />
         )}
 

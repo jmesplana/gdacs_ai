@@ -80,6 +80,7 @@ async function handler(req, res) {
     acledData = [],
     districts = [],
     predictions = null, // Optional: predictions from disaster-forecast, outbreak-prediction, supply-chain-forecast
+    districtHazardAnalysis = null,
     selectedDistrict = null, // Optional: name of single admin level being analyzed
     worldPopData = {},
     worldPopYear = null,
@@ -102,7 +103,8 @@ async function handler(req, res) {
       districts: districts?.length || 0,
       osmData: osmData?.features?.length || 0,
       worldPopData: Object.keys(worldPopData || {}).length,
-      selectedDistrict: selectedDistrict
+      selectedDistrict: selectedDistrict,
+      districtHazardAnalysis: districtHazardAnalysis?.districts?.length || 0
     });
 
     // Extract country/region from shapefile for web search using smart extraction
@@ -134,6 +136,10 @@ async function handler(req, res) {
     // Build context from available data
     let context = buildAnalysisContext(facilities, disasters, acledData, districts, predictions, webSearchResults, country, selectedDistrict);
 
+    if (districtHazardAnalysis?.districts?.length > 0) {
+      context += '\n\n' + formatDistrictHazardAnalysisForContext(districtHazardAnalysis);
+    }
+
     // Append WorldPop population data if available
     if (worldPopData && Object.keys(worldPopData).length > 0) {
       context += formatWorldPopForAI(worldPopData, districts, worldPopYear || 'unknown');
@@ -159,6 +165,7 @@ async function handler(req, res) {
       hasWebSearch: !!webSearchResults,
       hasOSMData: !!(osmData && osmData.features && osmData.features.length > 0),
       osmFeatures: osmData?.features?.length || 0,
+      hasDistrictHazardAnalysis: !!(districtHazardAnalysis?.districts?.length > 0),
       analysisLevel: selectedDistrict ? 'admin' : 'country',
       selectedAdmin: selectedDistrict
     });
@@ -187,6 +194,55 @@ async function handler(req, res) {
       message: error.message
     });
   }
+}
+
+function formatDistrictHazardAnalysisForContext(districtHazardAnalysis = null) {
+  if (!districtHazardAnalysis?.districts?.length) return '';
+
+  const lines = [
+    '## District Hazard Analysis',
+    '',
+    `Time window: ${districtHazardAnalysis.timeWindowDays || 7} days`
+  ];
+
+  if (districtHazardAnalysis.summary?.methodology?.length) {
+    lines.push('Methodology:');
+    districtHazardAnalysis.summary.methodology.slice(0, 5).forEach((item) => {
+      lines.push(`- ${item}`);
+    });
+    lines.push('');
+  }
+
+  lines.push('District hazard ranking:');
+  districtHazardAnalysis.districts.slice(0, 10).forEach((district, index) => {
+    const dominant = district.dominantHazard || {};
+    const scoreLabel = typeof dominant.score === 'number'
+      ? `${dominant.score}/100`
+      : 'Not ready';
+    lines.push(`${index + 1}. ${district.districtName}: ${normalizeHazardLabel(dominant.type)} ${dominant.level || 'not-ready'} (${scoreLabel})`);
+    if (district.responseScale) lines.push(`   Response scale: ${district.responseScale}`);
+    if (district.evidenceBase) lines.push(`   Evidence base: ${district.evidenceBase}`);
+    if (district.confidence) lines.push(`   Confidence: ${district.confidence}`);
+    if (district.drivers?.length) {
+      lines.push(`   Top drivers: ${district.drivers.slice(0, 3).map((driver) => `${driver.label}${driver.value !== null && driver.value !== undefined ? ` (${driver.value}${driver.unit ? ` ${driver.unit}` : ''})` : ''}`).join(' | ')}`);
+    }
+    if (district.rationale?.length) {
+      lines.push(`   Why: ${district.rationale.slice(0, 3).join(' | ')}`);
+    }
+  });
+
+  if (districtHazardAnalysis.summary?.sources?.length) {
+    lines.push('');
+    lines.push(`Sources: ${districtHazardAnalysis.summary.sources.join(' | ')}`);
+  }
+
+  return lines.join('\n');
+}
+
+function normalizeHazardLabel(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized || normalized === 'unavailable') return 'Hazard';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
 /**

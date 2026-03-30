@@ -358,6 +358,7 @@ export default function PrioritizationBoard({
   worldPopData = {},
   osmData = null,
   operationType = 'general',
+  enabledEvidenceLayers = [],
   onBoardLoaded = null,
   onViewFacility = null
 }) {
@@ -395,13 +396,51 @@ export default function PrioritizationBoard({
   }, [board]);
 
   const loadBoard = async () => {
-    if (!isOpen || selectedDistricts.length === 0) return;
+    if (!isOpen) return;
+    if (selectedDistricts.length === 0) {
+      setBoard(null);
+      setActiveView('districts');
+      setError('Select one or more admin areas before running the prioritization board.');
+      if (onBoardLoaded) {
+        onBoardLoaded(null);
+      }
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
       const compactSelectedDistricts = selectedDistricts.map(compactDistrict);
+      const compactScopedWorldPop = compactWorldPopData(worldPopData, compactSelectedDistricts);
+      const districtHazardAnalysisResponse = await fetch('/api/district-hazard-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          districts: compactSelectedDistricts,
+          facilities: facilities.map(compactFacility),
+          disasters: disasters.map((item) => ({
+            eventType: item.eventType,
+            eventName: item.eventName,
+            title: item.title,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            alertLevel: item.alertLevel,
+            severity: item.severity,
+            source: item.source
+          })),
+          acledData: acledData.map((item) => ({
+            event_type: item.event_type,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            fatalities: item.fatalities
+          })),
+          worldPopData: compactScopedWorldPop,
+          enabledEvidenceLayers,
+          days: 7
+        })
+      });
+      const districtHazardAnalysis = await parseResponse(districtHazardAnalysisResponse, 'District hazard analysis');
       const localBoard = buildPrioritizationBoard({
         facilities: facilities.map(compactFacility),
         impactedFacilities: impactedFacilities.map(compactImpactRecord),
@@ -423,9 +462,10 @@ export default function PrioritizationBoard({
         })),
         districts: [],
         selectedDistricts: compactSelectedDistricts,
-        worldPopData: compactWorldPopData(worldPopData, compactSelectedDistricts),
+        worldPopData: compactScopedWorldPop,
         osmData: compactOsmData(osmData),
-        operationType
+        operationType,
+        districtHazardAnalysis
       });
       const requestPayload = {
         board: localBoard,
@@ -468,7 +508,30 @@ export default function PrioritizationBoard({
     if (isOpen) {
       loadBoard();
     }
-  }, [isOpen]);
+  }, [
+    isOpen,
+    selectedDistricts.length,
+    selectedDistricts.map((district) => district.id).join('|'),
+    facilities.length,
+    impactedFacilities.length,
+    disasters.length,
+    acledData.length,
+    Object.keys(worldPopData || {}).length,
+    osmData?.features?.length || 0,
+    operationType,
+    enabledEvidenceLayers.join('|')
+  ]);
+
+  useEffect(() => {
+    if (selectedDistricts.length > 0) return;
+
+    setBoard(null);
+    setActiveView('districts');
+    setExpandedAdminLevels({});
+    if (isOpen) {
+      setError('Select one or more admin areas before running the prioritization board.');
+    }
+  }, [selectedDistricts.length, isOpen]);
 
   const visibleFacilities = useMemo(() => {
     const rows = board?.facilityRows || [];
@@ -1015,6 +1078,36 @@ export default function PrioritizationBoard({
                               <strong>So what:</strong> {renderLinkedText(row.soWhat)}
                             </div>
 
+                            <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.6, marginBottom: '10px' }}>
+                              <strong>Projected hazard:</strong>{' '}
+                              {typeof row.projectedHazardScore === 'number'
+                                ? `${row.projectedHazardLabel || row.projectedHazardType} ${row.projectedHazardLevel} (${row.projectedHazardScore}/100)`
+                                : 'Not ready'}
+                            </div>
+
+                            {row.projectedHazardSummary && (
+                              <div style={{ color: '#475569', fontSize: '13px', lineHeight: 1.6, marginBottom: '10px' }}>
+                                <strong>Hazard basis:</strong> {renderLinkedText(row.projectedHazardSummary)}
+                              </div>
+                            )}
+
+                            {(typeof row.projectedFloodScore === 'number' || typeof row.projectedDroughtScore === 'number' || typeof row.projectedHeatScore === 'number') && (
+                              <div style={{ color: '#475569', fontSize: '13px', lineHeight: 1.6, marginBottom: '10px' }}>
+                                <strong>Hazard breakdown:</strong>{' '}
+                                {[
+                                  typeof row.projectedFloodScore === 'number' ? `Flood ${row.projectedFloodScore}/100` : null,
+                                  typeof row.projectedDroughtScore === 'number' ? `Drought ${row.projectedDroughtScore}/100` : null,
+                                  typeof row.projectedHeatScore === 'number' ? `Heat ${row.projectedHeatScore}/100` : null
+                                ].filter(Boolean).join(' | ')}
+                              </div>
+                            )}
+
+                            {row.projectedTopDrivers?.length > 0 && (
+                              <div style={{ color: '#475569', fontSize: '13px', lineHeight: 1.6, marginBottom: '10px' }}>
+                                <strong>Top drivers:</strong> {row.projectedTopDrivers.map((driver) => `${driver.label}${driver.value !== null && driver.value !== undefined ? ` (${driver.value}${driver.unit ? ` ${driver.unit}` : ''})` : ''}`).join(' | ')}
+                              </div>
+                            )}
+
                             <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.55 }}>
                               <strong>Recommended action:</strong> {renderLinkedText(row.recommendedAction || row.actions.join(' • '))}
                             </div>
@@ -1078,6 +1171,13 @@ export default function PrioritizationBoard({
                         <div><strong>OSM clinics:</strong> {row.clinics ?? 0}</div>
                         <div><strong>GDACS:</strong> {row.disasterCount ?? 0}</div>
                         <div><strong>ACLED:</strong> {row.acledCount ?? 0}</div>
+                        <div><strong>Projected hazard:</strong> {typeof row.projectedHazardScore === 'number' ? `${row.projectedHazardLabel || row.projectedHazardType} ${row.projectedHazardScore}/100` : 'Not ready'}</div>
+                        <div><strong>Response scale:</strong> {row.projectedResponseScale || 'Not available'}</div>
+                        <div><strong>Evidence base:</strong> {row.projectedEvidenceBase || 'Limited'}</div>
+                        <div><strong>Confidence:</strong> {row.projectedConfidence || 'Low'}</div>
+                        <div><strong>Flood:</strong> {typeof row.projectedFloodScore === 'number' ? `${row.projectedFloodScore}/100` : 'Not ready'}</div>
+                        <div><strong>Drought:</strong> {typeof row.projectedDroughtScore === 'number' ? `${row.projectedDroughtScore}/100` : 'Not ready'}</div>
+                        <div><strong>Heat:</strong> {typeof row.projectedHeatScore === 'number' ? `${row.projectedHeatScore}/100` : 'Not ready'}</div>
                       </div>
 
                     </div>
@@ -1094,7 +1194,7 @@ export default function PrioritizationBoard({
                 fontSize: '12px',
                 lineHeight: 1.6
               }}>
-                Uploaded hospitals and clinics come from your loaded facility file when the facility type contains "hospital" or "clinic". OSM hospitals and clinics come from loaded OSM health infrastructure inside this admin area.
+                Uploaded hospitals and clinics come from your loaded facility file when the facility type contains "hospital" or "clinic". OSM hospitals and clinics come from loaded OSM health infrastructure inside this admin area. Projected hazard fields come from the shared district hazard analysis using the active forecast and any enabled GEE evidence layers.
               </div>
             </div>
           )}

@@ -8,6 +8,10 @@ const MapLayersDrawer = ({
   setCurrentMapLayer,
   showRoads,
   setShowRoads,
+  showFloodContextLayer,
+  setShowFloodContextLayer,
+  showDroughtContextLayer,
+  setShowDroughtContextLayer,
   // Support alternative prop format from UnifiedDrawer
   settings,
   onToggle,
@@ -37,6 +41,8 @@ const MapLayersDrawer = ({
   // Use either direct props or settings object
   const activeMapLayer = currentMapLayer || settings?.currentMapLayer || 'street';
   const activeShowRoads = showRoads !== undefined ? showRoads : (settings?.showRoads || false);
+  const activeShowFloodContextLayer = showFloodContextLayer !== undefined ? showFloodContextLayer : (settings?.showFloodContextLayer || false);
+  const activeShowDroughtContextLayer = showDroughtContextLayer !== undefined ? showDroughtContextLayer : (settings?.showDroughtContextLayer || false);
 
   const handleMapLayerChange = (layer) => {
     if (setCurrentMapLayer) {
@@ -55,6 +61,26 @@ const MapLayersDrawer = ({
       onToggle('showRoads', value);
     } else if (onConfigChange) {
       onConfigChange({ showRoads: value });
+    }
+  };
+
+  const handleFloodContextLayerChange = (value) => {
+    if (setShowFloodContextLayer) {
+      setShowFloodContextLayer(value);
+    } else if (onToggle) {
+      onToggle('showFloodContextLayer', value);
+    } else if (onConfigChange) {
+      onConfigChange({ showFloodContextLayer: value });
+    }
+  };
+
+  const handleDroughtContextLayerChange = (value) => {
+    if (setShowDroughtContextLayer) {
+      setShowDroughtContextLayer(value);
+    } else if (onToggle) {
+      onToggle('showDroughtContextLayer', value);
+    } else if (onConfigChange) {
+      onConfigChange({ showDroughtContextLayer: value });
     }
   };
 
@@ -136,30 +162,6 @@ const MapLayersDrawer = ({
           <span>Radar Change (GEE)</span>
         </label>
 
-        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'flood_context' ? '#e3f2fd' : 'transparent'}}>
-          <input
-            type="radio"
-            name="mapLayer"
-            value="flood_context"
-            checked={activeMapLayer === 'flood_context'}
-            onChange={() => handleMapLayerChange('flood_context')}
-            style={{marginRight: '10px'}}
-          />
-          <span>Flood Context (GEE)</span>
-        </label>
-
-        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'drought_context' ? '#e3f2fd' : 'transparent'}}>
-          <input
-            type="radio"
-            name="mapLayer"
-            value="drought_context"
-            checked={activeMapLayer === 'drought_context'}
-            onChange={() => handleMapLayerChange('drought_context')}
-            style={{marginRight: '10px'}}
-          />
-          <span>Drought Context (GEE)</span>
-        </label>
-
         <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'recent_imagery' ? '#e3f2fd' : 'transparent'}}>
           <input
             type="radio"
@@ -222,32 +224,6 @@ const MapLayersDrawer = ({
           </div>
         )}
 
-        {activeMapLayer === 'flood_context' && (
-          <div style={{
-            fontSize: '12px',
-            color: '#555',
-            backgroundColor: '#f7f7f7',
-            borderRadius: '6px',
-            padding: '10px',
-            lineHeight: 1.5
-          }}>
-            Flood evidence layer built from SRTM terrain and JRC surface water. Use this before scoring projected flood risk.
-          </div>
-        )}
-
-        {activeMapLayer === 'drought_context' && (
-          <div style={{
-            fontSize: '12px',
-            color: '#555',
-            backgroundColor: '#f7f7f7',
-            borderRadius: '6px',
-            padding: '10px',
-            lineHeight: 1.5
-          }}>
-            Drought evidence layer built from CHIRPS rainfall and ERA5-Land climate context. Use this before scoring projected drought risk.
-          </div>
-        )}
-
         {activeMapLayer === 'recent_imagery' && (
           <div style={{
             fontSize: '12px',
@@ -263,6 +239,9 @@ const MapLayersDrawer = ({
 
         <div style={{borderTop: '1px solid #eee', margin: '15px 0', paddingTop: '15px'}}>
           <h4 style={{marginBottom: '10px', color: '#333', fontSize: '14px'}}>Overlay Options</h4>
+          <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px', lineHeight: 1.5 }}>
+            Turn overlays on and off without changing the basemap.
+          </div>
           <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: activeShowRoads ? '#e3f2fd' : 'transparent'}}>
             <input
               type="checkbox"
@@ -272,6 +251,34 @@ const MapLayersDrawer = ({
             />
             <span>Show Road Network</span>
           </label>
+          <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: activeShowFloodContextLayer ? '#e0f2fe' : 'transparent'}}>
+            <input
+              type="checkbox"
+              checked={activeShowFloodContextLayer}
+              onChange={(event) => handleFloodContextLayerChange(event.target.checked)}
+              style={{marginRight: '10px'}}
+            />
+            <span>Flood Context Overlay</span>
+          </label>
+          {activeShowFloodContextLayer && (
+            <div style={{ fontSize: '12px', color: '#555', backgroundColor: '#f7f7f7', borderRadius: '6px', padding: '10px', lineHeight: 1.5, marginTop: '6px' }}>
+              SRTM terrain plus JRC surface water overlay for flood-prone context. Keep your preferred basemap active underneath.
+            </div>
+          )}
+          <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: activeShowDroughtContextLayer ? '#fef3c7' : 'transparent'}}>
+            <input
+              type="checkbox"
+              checked={activeShowDroughtContextLayer}
+              onChange={(event) => handleDroughtContextLayerChange(event.target.checked)}
+              style={{marginRight: '10px'}}
+            />
+            <span>Drought Context Overlay</span>
+          </label>
+          {activeShowDroughtContextLayer && (
+            <div style={{ fontSize: '12px', color: '#555', backgroundColor: '#f7f7f7', borderRadius: '6px', padding: '10px', lineHeight: 1.5, marginTop: '6px' }}>
+              CHIRPS rainfall plus ERA5-Land climate overlay for drought context. Keep your preferred basemap active underneath.
+            </div>
+          )}
         </div>
 
         {/* OSM Infrastructure Section */}

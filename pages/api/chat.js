@@ -1109,17 +1109,33 @@ function buildContextSummary(context) {
     summary.push(`Score bands: Urgent 75-100 | High 55-74 | Medium 35-54 | Monitor 0-34`);
     summary.push(`Urgent Areas: ${board.districtRows.filter((row) => row.priorityLevel === 'Urgent').length}`);
     summary.push(`High Areas: ${board.districtRows.filter((row) => row.priorityLevel === 'High').length}`);
+    if (board.summary?.districtHazardSummary?.sources?.length) {
+      summary.push(`Hazard evidence sources: ${board.summary.districtHazardSummary.sources.join(' | ')}`);
+    }
 
     summary.push(`\nTOP PRIORITIZED ADMIN LEVELS:`);
     board.districtRows.slice(0, 5).forEach((row) => {
       summary.push(`- Rank ${row.rank}: ${row.district}`);
       summary.push(`  Priority: ${row.priorityLevel} (score ${row.priorityScore}/100)`);
       if (row.posture) summary.push(`  Posture: ${row.posture}`);
+      if (typeof row.projectedHazardScore === 'number') {
+        summary.push(`  Projected hazard: ${row.projectedHazardType} ${row.projectedHazardLevel} (${row.projectedHazardScore}/100)`);
+      }
+      if (row.projectedResponseScale) {
+        summary.push(`  Response scale: ${row.projectedResponseScale}`);
+      }
+      if (row.projectedEvidenceBase) {
+        summary.push(`  Evidence base: ${row.projectedEvidenceBase}`);
+      }
+      if (row.projectedTopDrivers?.length) {
+        summary.push(`  Top projected drivers: ${row.projectedTopDrivers.map((driver) => `${driver.label}${driver.value !== null && driver.value !== undefined ? ` (${driver.value}${driver.unit ? ` ${driver.unit}` : ''})` : ''}`).join(' | ')}`);
+      }
       if (row.recommendedAction) summary.push(`  Recommended action: ${row.recommendedAction}`);
       if (row.populationEstimate) summary.push(`  Population: ${row.populationEstimate.toLocaleString()}`);
       if (typeof row.disasterCount === 'number' || typeof row.acledCount === 'number') {
         summary.push(`  Signals: GDACS ${row.disasterCount ?? 0}, ACLED ${row.acledCount ?? 0}`);
       }
+      if (row.hazardReadinessGaps?.length) summary.push(`  Hazard readiness gaps: ${row.hazardReadinessGaps.join(' | ')}`);
       if (row.keyGaps?.length) summary.push(`  Key gaps: ${row.keyGaps.join(' | ')}`);
     });
 

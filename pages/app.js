@@ -251,20 +251,6 @@ export default function Home() {
   // Operation type state (for multi-use humanitarian operations)
   const [operationType, setOperationType] = useState('');
 
-  const handleMapLayerChange = (layerId) => {
-    const evidenceLayerMap = {
-      flood_context: 'flood_context',
-      drought_context: 'drought_context'
-    };
-
-    const evidenceLayer = evidenceLayerMap[layerId];
-    if (!evidenceLayer) return;
-
-    setEnabledEvidenceLayers((prev) => (
-      prev.includes(evidenceLayer) ? prev : [...prev, evidenceLayer]
-    ));
-  };
-
   // Persist operation type to localStorage
   useEffect(() => {
     try {
@@ -2227,7 +2213,7 @@ export default function Home() {
             setOsmData(data);
           }}
           onAnalysisDistrictsChange={setSelectedAnalysisDistricts}
-          onMapLayerChange={handleMapLayerChange}
+          onEvidenceLayersChange={setEnabledEvidenceLayers}
           selectedAnalysisDistricts={selectedAnalysisDistricts}
           prioritizationBoard={latestPrioritizationBoard}
         />
@@ -2271,6 +2257,7 @@ export default function Home() {
             worldPopData={worldPopData}
             worldPopYear={worldPopLastFetch?.year}
             osmData={osmData}
+            enabledEvidenceLayers={enabledEvidenceLayers}
             onClose={() => {
               setShowOperationalOutlook(false);
               setSelectedDistrictForOutlook(null); // Clear selected district when closing
@@ -2291,6 +2278,7 @@ export default function Home() {
             worldPopData={worldPopData}
             osmData={osmData}
             operationType={operationType || 'general'}
+            enabledEvidenceLayers={enabledEvidenceLayers}
             onBoardLoaded={setLatestPrioritizationBoard}
             onViewFacility={(facility) => {
               setShowPrioritizationBoard(false);

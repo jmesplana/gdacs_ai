@@ -32,6 +32,7 @@ const OperationalOutlook = ({
   worldPopData = {},
   worldPopYear = null,
   osmData = null,
+  enabledEvidenceLayers = [],
   onClose
 }) => {
   const [loading, setLoading] = useState(true);
@@ -86,6 +87,31 @@ const OperationalOutlook = ({
       }
 
       const filteredAcledData = scopedAcledData;
+      let districtHazardAnalysis = null;
+
+      try {
+        const districtHazardResponse = await fetch('/api/district-hazard-analysis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            districts: analysisDistricts,
+            facilities: scopedFacilities,
+            disasters: scopedDisasters,
+            acledData: filteredAcledData,
+            worldPopData: scopedWorldPopData,
+            enabledEvidenceLayers,
+            days: 7
+          })
+        });
+
+        if (districtHazardResponse.ok) {
+          districtHazardAnalysis = await districtHazardResponse.json();
+        } else {
+          console.warn('Could not fetch district hazard analysis for outlook');
+        }
+      } catch (err) {
+        console.warn('Could not fetch district hazard analysis for outlook:', err);
+      }
 
       // First, try to fetch predictions to include in the outlook
       let predictionsData = null;
@@ -172,6 +198,7 @@ const OperationalOutlook = ({
           acledData: filteredAcledData, // Filtered to analysis area bounds
           districts: analysisDistricts, // Either single district or all districts
           predictions: predictionsData,
+          districtHazardAnalysis,
           selectedDistrict: selectedDistrict ? selectedDistrict.name : null, // Signal to API if this is admin-level analysis
           worldPopData: scopedWorldPopData,
           worldPopYear: worldPopYear || null,
