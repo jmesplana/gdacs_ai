@@ -1010,8 +1010,13 @@ export default function PrioritizationBoard({
                       padding: '16px 18px'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
-                      <div style={{ flex: 1, minWidth: '280px' }}>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1.8fr) minmax(260px, 0.95fr)',
+                      alignItems: 'start',
+                      gap: '18px'
+                    }}>
+                      <div style={{ minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
                           <span style={{
                             width: '32px',
@@ -1152,32 +1157,53 @@ export default function PrioritizationBoard({
                       </div>
 
                       <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(2, minmax(140px, 1fr))',
-                        gap: '8px 16px',
-                        minWidth: '340px',
-                        fontSize: '13px',
-                        color: '#334155'
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '12px',
+                        padding: '14px 15px'
                       }}>
-                        <div><strong>Loaded facilities:</strong> {row.facilityCount}</div>
-                        <div><strong>Uploaded hospitals:</strong> {row.uploadedHospitals ?? 0}</div>
-                        <div><strong>Uploaded clinics:</strong> {row.uploadedClinics ?? 0}</div>
-                        <div><strong>Urgent:</strong> {row.urgentCount}</div>
-                        <div><strong>Highest score:</strong> {row.highestPriorityScore}</div>
-                        <div><strong>Population:</strong> {row.populationEstimate ? row.populationEstimate.toLocaleString() : 'Unknown'}</div>
-                        <div><strong>Under 5:</strong> {row.ageGroups?.under5 ? row.ageGroups.under5.toLocaleString() : 'Unknown'}</div>
-                        <div><strong>60+:</strong> {row.ageGroups?.age60plus ? row.ageGroups.age60plus.toLocaleString() : 'Unknown'}</div>
-                        <div><strong>OSM hospitals:</strong> {row.hospitals ?? 0}</div>
-                        <div><strong>OSM clinics:</strong> {row.clinics ?? 0}</div>
-                        <div><strong>GDACS:</strong> {row.disasterCount ?? 0}</div>
-                        <div><strong>ACLED:</strong> {row.acledCount ?? 0}</div>
-                        <div><strong>Projected hazard:</strong> {typeof row.projectedHazardScore === 'number' ? `${row.projectedHazardLabel || row.projectedHazardType} ${row.projectedHazardScore}/100` : 'Not ready'}</div>
-                        <div><strong>Response scale:</strong> {row.projectedResponseScale || 'Not available'}</div>
-                        <div><strong>Evidence base:</strong> {row.projectedEvidenceBase || 'Limited'}</div>
-                        <div><strong>Confidence:</strong> {row.projectedConfidence || 'Low'}</div>
-                        <div><strong>Flood:</strong> {typeof row.projectedFloodScore === 'number' ? `${row.projectedFloodScore}/100` : 'Not ready'}</div>
-                        <div><strong>Drought:</strong> {typeof row.projectedDroughtScore === 'number' ? `${row.projectedDroughtScore}/100` : 'Not ready'}</div>
-                        <div><strong>Heat:</strong> {typeof row.projectedHeatScore === 'number' ? `${row.projectedHeatScore}/100` : 'Not ready'}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                          Summary
+                        </div>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                          gap: '9px 14px',
+                          fontSize: '13px',
+                          color: '#334155'
+                        }}>
+                          <div><strong>Loaded facilities:</strong> {row.facilityCount}</div>
+                          <div><strong>Urgent:</strong> {row.urgentCount}</div>
+                          <div><strong>Highest score:</strong> {row.highestPriorityScore}</div>
+                          <div><strong>Population:</strong> {row.populationEstimate ? row.populationEstimate.toLocaleString() : 'Unknown'}</div>
+                          <div><strong>GDACS:</strong> {row.disasterCount ?? 0}</div>
+                          <div><strong>ACLED:</strong> {row.acledCount ?? 0}</div>
+                          <div><strong>Projected hazard:</strong> {typeof row.projectedHazardScore === 'number' ? `${row.projectedHazardScore}/100` : 'Not ready'}</div>
+                          <div><strong>Response scale:</strong> {row.projectedResponseScale || 'Not available'}</div>
+                          <div><strong>Flood:</strong> {typeof row.projectedFloodScore === 'number' ? `${row.projectedFloodScore}/100` : 'Not ready'}</div>
+                          <div><strong>Drought:</strong> {typeof row.projectedDroughtScore === 'number' ? `${row.projectedDroughtScore}/100` : 'Not ready'}</div>
+                          <div><strong>Heat:</strong> {typeof row.projectedHeatScore === 'number' ? `${row.projectedHeatScore}/100` : 'Not ready'}</div>
+                          <div><strong>Confidence:</strong> {row.projectedConfidence || 'Low'}</div>
+                        </div>
+
+                        <div style={{
+                          marginTop: '12px',
+                          paddingTop: '12px',
+                          borderTop: '1px solid #e2e8f0',
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                          gap: '9px 14px',
+                          fontSize: '13px',
+                          color: '#334155'
+                        }}>
+                          <div><strong>Uploaded hospitals:</strong> {row.uploadedHospitals ?? 0}</div>
+                          <div><strong>Uploaded clinics:</strong> {row.uploadedClinics ?? 0}</div>
+                          <div><strong>OSM hospitals:</strong> {row.hospitals ?? 0}</div>
+                          <div><strong>OSM clinics:</strong> {row.clinics ?? 0}</div>
+                          <div><strong>Under 5:</strong> {row.ageGroups?.under5 ? row.ageGroups.under5.toLocaleString() : 'Unknown'}</div>
+                          <div><strong>60+:</strong> {row.ageGroups?.age60plus ? row.ageGroups.age60plus.toLocaleString() : 'Unknown'}</div>
+                          <div style={{ gridColumn: '1 / -1' }}><strong>Evidence base:</strong> {row.projectedEvidenceBase || 'Limited'}</div>
+                        </div>
                       </div>
 
                     </div>
