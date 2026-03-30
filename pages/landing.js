@@ -4,8 +4,8 @@ import LandingPage from '../components/LandingPage';
 export default function Landing() {
   const siteUrl = 'https://disasters.aidstack.ai';
   const title = 'Aidstack Disasters - AI-Powered Humanitarian Intelligence Platform';
-  const description = 'Real-time disaster monitoring, AI-powered impact assessments, and predictive analytics for humanitarian operations. Integrate GDACS disasters, ACLED conflict data, WorldPop demographics, and disease-risk indicators in one operational workspace.';
-  const keywords = 'humanitarian technology, disaster response, GDACS, ACLED, WorldPop, AI humanitarian aid, disaster monitoring, crisis response, outbreak prediction, campaign viability, emergency response platform, humanitarian operations, conflict mapping, population data';
+  const description = 'Admin-level humanitarian analysis from uploaded boundary shapefiles. Combine GDACS, ACLED, WorldPop, OSM, and Earth Engine hazard context in one auditable workspace for forecast, operational outlook, and prioritization.';
+  const keywords = 'humanitarian technology, disaster response, GDACS, ACLED, WorldPop, Google Earth Engine, admin boundary analysis, prioritization board, operational outlook, emergency response platform, humanitarian operations, conflict mapping, population data';
 
   return (
     <>
@@ -72,13 +72,14 @@ export default function Landing() {
                 'Real-time GDACS disaster monitoring',
                 'ACLED conflict event tracking',
                 'WorldPop population demographics',
-                'AI-powered impact assessments',
-                'Disease outbreak predictions',
+                'Admin boundary shapefile analysis',
+                'District hazard analysis with auditable drivers',
+                'Operational outlook and prioritization board',
                 'Campaign viability analysis',
-                'Supply chain forecasting',
+                'Flood and drought context overlays',
                 'Batch facility assessment',
                 'Interactive geospatial mapping',
-                'AI-powered recommendations'
+                'AI-assisted decision support'
               ]
             })
           }}

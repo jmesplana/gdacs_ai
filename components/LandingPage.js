@@ -244,7 +244,7 @@ const LandingPage = () => {
               marginBottom: '24px',
               letterSpacing: '-0.02em'
             }}>
-              Forward-Looking Intelligence
+              Admin-Level Intelligence
               <br />
               <span style={{
                 background: 'linear-gradient(90deg, #FF6B35 0%, #FFA366 100%)',
@@ -262,7 +262,7 @@ const LandingPage = () => {
               marginBottom: '32px',
               maxWidth: '540px'
             }}>
-              Plan ahead with AI-powered scenario analysis, weather forecasts, and temporal playback. Monitor disasters, assess risks, and anticipate what's coming next—all in one platform.
+              Upload administrative boundaries, select the admin areas that matter, and combine live disasters, conflict data, population, OSM infrastructure, and Earth Engine hazard context in one auditable workspace.
             </p>
             <div style={{
               display: 'inline-flex',
@@ -289,9 +289,9 @@ const LandingPage = () => {
                 letterSpacing: '0.04em',
                 textTransform: 'uppercase'
               }}>
-                Experimental
+                Evidence-Gated
               </span>
-              <span>Forward-looking AI forecasts and early-warning features are still being validated and should be used as planning support, not as sole decision authority.</span>
+              <span>Forecast, operational outlook, and prioritization only score hazards when the required evidence layers are enabled. Every result includes drivers, sources, and limitations for review.</span>
             </div>
             <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '40px' }}>
               <Link href="/app">
@@ -356,9 +356,9 @@ const LandingPage = () => {
               maxWidth: '600px'
             }}>
               {[
-                { number: '14-Day', label: 'Risk Forecasting' },
-                { number: '1000+', label: 'Batch Assessments' },
-                { number: '<30s', label: 'AI Analysis' }
+                { number: 'Admin-First', label: 'Analysis Workflow' },
+                { number: '1000+', label: 'Facility Assessments' },
+                { number: 'Auditable', label: 'Hazard Evidence' }
               ].map((item, idx) => (
                 <div key={idx} style={{
                   display: 'flex',
@@ -946,10 +946,10 @@ const LandingPage = () => {
                 lineHeight: '1.8',
                 paddingLeft: '20px'
               }}>
-                <li>Upload facilities via CSV/Excel</li>
-                <li>Shapefile support for admin boundaries</li>
-                <li>Automated distance calculations</li>
-                <li>Area-level risk mapping</li>
+                <li>Upload facilities via CSV or Excel</li>
+                <li>Upload shapefiles for admin boundaries</li>
+                <li>Select admin areas before running analysis</li>
+                <li>Scope all analysis to the uploaded boundaries</li>
               </ul>
             </div>
 
@@ -981,8 +981,7 @@ const LandingPage = () => {
                 color: '#0F172A',
                 marginBottom: '12px'
               }}>
-                AI-Powered Foresight
-                <span style={experimentalBadgeStyle}>Experimental</span>
+                Auditable Decision Support
               </h3>
               <ul style={{
                 color: '#475569',
@@ -990,14 +989,12 @@ const LandingPage = () => {
                 lineHeight: '1.8',
                 paddingLeft: '20px'
               }}>
-                <li>Operational Outlook with 3 scenarios</li>
-                <li>14-day weather forecasts for planning</li>
-                <li>Timeline playback for temporal analysis</li>
-                <li>Real-time web search for current events</li>
+                <li>Operational Outlook grounded in structured evidence</li>
+                <li>Prioritization Board for selected admin areas</li>
+                <li>Flood and Drought Context overlays from Google Earth Engine</li>
+                <li>District hazard scores with visible drivers and sources</li>
                 <li>Campaign viability (GO/CAUTION/DELAY/NOGO)</li>
-                <li>Disease outbreak risk indicators</li>
-                <li>Supply chain disruption early warnings</li>
-                <li>Weather-based hazard monitoring</li>
+                <li>Chat and decision views share the same admin-level context</li>
               </ul>
             </div>
           </div>
@@ -1054,7 +1051,7 @@ const LandingPage = () => {
               margin: '0 auto',
               lineHeight: '1.7'
             }}>
-              From population analysis to outbreak prediction, all the tools humanitarian teams need in one platform
+              From uploaded administrative boundaries to auditable hazard scoring, the workspace keeps forecast, outlook, and prioritization aligned on the same evidence.
             </p>
           </div>
 
@@ -1076,15 +1073,15 @@ const LandingPage = () => {
                 ]
               },
               {
-                title: 'Disease Outbreak Risk Analysis',
+                title: 'Admin-Level Decision Views',
                 experimental: true,
-                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
-                description: 'Early warning indicators for epidemic risk based on weather and disaster conditions',
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>,
+                description: 'Forecast, operational outlook, and prioritization all use the same selected admin areas and shared hazard evidence',
                 features: [
-                  'Cholera risk assessment (flood-related)',
-                  'Malaria transmission risk indicators',
-                  'Measles outbreak vulnerability analysis',
-                  'Diarrheal disease early warnings'
+                  'Admin-level forecast scoring',
+                  'Operational Outlook with evidence-linked narrative',
+                  'Prioritization Board for selected admin areas',
+                  'Shared drivers, sources, and limitations'
                 ]
               },
               {
@@ -1100,15 +1097,15 @@ const LandingPage = () => {
                 ]
               },
               {
-                title: 'Supply Chain Forecasting',
+                title: 'Hazard Context Overlays',
                 experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>,
-                description: '7-14 day ahead supply chain disruption predictions',
+                description: 'Google Earth Engine overlays that support flood and drought screening before hazards are scored',
                 features: [
-                  'Cold chain risk assessment',
-                  'Road access disruption forecasts',
-                  'Air transport availability predictions',
-                  'Multi-hazard supply route analysis'
+                  'Flood Context from terrain and surface water baseline',
+                  'Drought Context from CHIRPS and ERA5-Land',
+                  'Overlay on top of any basemap',
+                  'Required evidence for hazard scoring'
                 ]
               },
               {
@@ -1161,12 +1158,12 @@ const LandingPage = () => {
                 title: 'Disaster Risk Monitoring',
                 experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
-                description: '14-day weather-based risk indicators for emerging hazards',
+                description: 'Admin-level hazard screening with visible drivers, readiness gates, and evidence-linked scoring',
                 features: [
-                  'Flood risk indicators from rainfall forecasts',
-                  'Drought condition monitoring',
-                  'Cyclone seasonal risk assessment',
-                  'Heatwave early warnings'
+                  'Flood, drought, and heat hazard views',
+                  'Scores withheld until required layers are enabled',
+                  'Drivers, sources, and limitations shown for every result',
+                  'Shared evidence across forecast, outlook, and prioritization'
                 ]
               },
               {
@@ -1987,24 +1984,24 @@ const LandingPage = () => {
 
             {[
               {
-                title: 'View Global Disasters & Conflicts',
-                description: 'Access live GDACS disaster data, then upload ACLED CSV exports from your ACLED account to add conflict events and filter them by country'
+                title: 'Load Live Disasters, Conflict, and Boundaries',
+                description: 'Access live GDACS disaster data, upload ACLED CSV exports from your ACLED account, and upload a shapefile with the administrative boundaries you want to analyze'
               },
               {
-                title: 'Upload Your Data & Analyze Population',
-                description: 'Import facility locations from CSV/Excel, upload shapefiles for admin boundaries, and visualize WorldPop demographic data with age-sex breakdowns'
+                title: 'Select Admin Areas and Add Context',
+                description: 'Choose the admin areas that matter, then load facilities, WorldPop population, OSM infrastructure, and optional hazard context overlays'
               },
               {
-                title: 'Automatic Multi-Layer Impact Assessment',
-                description: 'System calculates disaster proximity, security zones (0-10km, 10-25km, 25-50km, 50-100km), and population-at-risk for all uploaded facilities'
+                title: 'Enable Evidence Layers Before Forecasting',
+                description: 'Turn on Flood Context or Drought Context overlays when needed so hazard scores use the required Earth Engine evidence instead of guessing from forecast weather alone'
               },
               {
-                title: 'Get AI-Powered Forecasts & Campaign Decisions',
-                description: 'Generate experimental outbreak predictions (30 days), supply chain forecasts (7-14 days), and GO/CAUTION/DELAY/NOGO campaign viability decisions with weather integration'
+                title: 'Review Forecast, Outlook, and Prioritization',
+                description: 'Use the shared admin-level analysis pipeline to compare hazard drivers, read the Operational Outlook, and rank selected admin areas in the Prioritization Board'
               },
               {
-                title: 'Visualize Trends & Export Reports',
-                description: 'Use timeline playback (0.5x-2x speed) to replay disaster evolution, draw annotations on maps, and export HTML/PDF decision briefs for stakeholders'
+                title: 'Export and Brief Stakeholders',
+                description: 'Use the map, annotations, and decision outputs together to produce evidence-based briefings and reviewable recommendations for coordination and planning'
               }
             ].map((step, idx) => (
               <div key={idx} style={{
@@ -2315,15 +2312,11 @@ const LandingPage = () => {
             {[
               {
                 question: 'What is the Operational Outlook feature?',
-                answer: 'The Operational Outlook is an experimental AI feature that generates forward-looking humanitarian analysis with 3 scenarios (most likely, escalation, stabilization), early warning indicators, and operational implications. It helps you anticipate what\'s coming next, not just what happened.'
+                answer: 'Operational Outlook is the narrative decision layer. It explains what is changing in the selected admin areas, why those areas matter, what evidence was used, and what operational implications follow from the shared hazard analysis.'
               },
               {
                 question: 'How does WorldPop integration work?',
                 answer: 'The platform integrates Google Earth Engine to provide real-time population statistics including total population, age-sex breakdowns, and vulnerable population counts (under-5, over-60). Population heatmaps visualize demographic density across your operational area, helping identify high-impact zones for interventions.'
-              },
-              {
-                question: 'How does disease outbreak risk analysis work?',
-                answer: 'The platform provides early warning indicators for cholera, malaria, measles, and diarrheal diseases based on environmental conditions (floods, droughts, temperature, rainfall) and disaster impacts. These are directional risk indicators for planning purposes, not validated epidemiological predictions. Use them to prioritize preparedness activities and identify vulnerable areas.'
               },
               {
                 question: 'What is Campaign Viability Assessment?',
@@ -2331,7 +2324,7 @@ const LandingPage = () => {
               },
               {
                 question: 'How does weather forecast integration work?',
-                answer: 'The AI chatbot integrates 2-week weather forecasts for your operational area and uploaded admin areas. It automatically generates warnings for flood risk, disease outbreak conditions, heat stress, and cold chain risks. Ask questions like "Can I run campaigns this week?" or "Which admin areas have flood risk?"'
+                answer: 'The platform uses weather forecasts together with the admin areas from your uploaded shapefile. Forecast alone is not enough for every hazard: flood and drought scoring only run when the required evidence layers are enabled, and the outputs show drivers, sources, and limitations.'
               },
               {
                 question: 'What is Timeline Playback?',
@@ -2339,7 +2332,7 @@ const LandingPage = () => {
               },
               {
                 question: 'How does the AI use real-time web search?',
-                answer: 'The AI assistant can search the web for current humanitarian events, recent outbreak data, and breaking news to supplement its analysis. This experimental capability helps ground recommendations in current information, but results should still be reviewed by an operator before action.'
+                answer: 'The AI assistant can search the web for current humanitarian events, guidance, and breaking developments to supplement the loaded data. This is secondary to the in-app evidence and should still be reviewed by an operator before action.'
               },
               {
                 question: 'What are the drawing tools used for?',
@@ -2359,15 +2352,15 @@ const LandingPage = () => {
               },
               {
                 question: 'Can I use my own facility data?',
-                answer: 'Yes, upload any CSV or Excel file with name, latitude, and longitude columns. You can also upload shapefiles for admin boundaries to get area-level risk assessments, population statistics, and weather forecasts.'
+                answer: 'Yes. Upload any CSV or Excel file with name, latitude, and longitude columns. You can also upload shapefiles for administrative boundaries, then select the admin areas you want to analyze before running forecast, outlook, prioritization, or campaign decision workflows.'
               },
               {
                 question: 'Is my data stored on servers?',
                 answer: 'Facility data is cached locally in your browser only. No server-side storage. However, when using AI features, data is temporarily sent to OpenAI for analysis. Drawings and annotations are stored in browser local storage.'
               },
               {
-                question: 'Can the platform forecast supply chain disruptions?',
-                answer: 'Yes! The supply chain forecast analyzes cold chain risks, road access disruptions, and air transport availability 7-14 days ahead. It considers weather patterns, conflict trends, and disaster impacts to predict logistics challenges and recommend pre-positioning strategies.'
+                question: 'How do flood and drought context layers work?',
+                answer: 'Flood Context and Drought Context are Google Earth Engine overlays that you can turn on and off independently of the basemap. They act as both visual context and evidence gates for admin-level hazard scoring, so the platform can tell you when there is enough evidence to score a hazard and when there is not.'
               }
             ].map((faq, idx) => (
               <div key={idx} style={{
