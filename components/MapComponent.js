@@ -547,6 +547,7 @@ const MapComponent = ({
   onWorldPopDataChange,
   onOSMDataChange,
   onAnalysisDistrictsChange,
+  onMapLayerChange,
   selectedAnalysisDistricts = [],
   prioritizationBoard = null
 }) => {
@@ -1282,6 +1283,12 @@ const MapComponent = ({
   );
 
   useEffect(() => {
+    if (onMapLayerChange) {
+      onMapLayerChange(currentMapLayer);
+    }
+  }, [currentMapLayer, onMapLayerChange]);
+
+  useEffect(() => {
     let cancelled = false;
 
     if (currentLayer.type !== 'gee') {
@@ -1324,6 +1331,12 @@ const MapComponent = ({
       cancelled = true;
     };
   }, [currentLayer, geeBounds]);
+
+  useEffect(() => {
+    if (geeBaseLayerError && currentLayer.type === 'gee') {
+      addToast(`Earth Engine layer unavailable: ${geeBaseLayerError}`, 'warning');
+    }
+  }, [geeBaseLayerError, currentLayer.type, addToast]);
   const districtRisks = useMemo(
     () => calculateDistrictRisks(districts, visibleDisasters, visibleAcledEvents),
     [districts, visibleDisasters, visibleAcledEvents]
@@ -1723,6 +1736,7 @@ const MapComponent = ({
           hasDistricts={districts && districts.length > 0}
           showDistricts={showDistricts}
           setShowDistricts={setShowDistricts}
+          currentMapLayer={currentMapLayer}
           gdacsDiagnostics={gdacsDiagnostics}
         />
       )}
@@ -1808,7 +1822,13 @@ const MapComponent = ({
         zoomControl={true}
       >
         {/* Base map layer */}
-        {currentLayer.type === 'gee' ? (
+        {currentLayer.type === 'gee' && currentLayer.overlayOnBase ? (
+          <TileLayer
+            key="context-basemap"
+            url={MAP_LAYERS.LIGHT_MINIMAL.url}
+            attribution={MAP_LAYERS.LIGHT_MINIMAL.attribution}
+          />
+        ) : currentLayer.type === 'gee' ? (
           <TileLayer
             key={geeBaseLayerUrl || currentLayer.id}
             url={geeBaseLayerUrl || MAP_LAYERS.SATELLITE.url}
@@ -1826,6 +1846,15 @@ const MapComponent = ({
           <TileLayer
             url={currentLayer.url}
             attribution={currentLayer.attribution}
+          />
+        )}
+
+        {currentLayer.type === 'gee' && currentLayer.overlayOnBase && geeBaseLayerUrl && (
+          <TileLayer
+            key={geeBaseLayerUrl}
+            url={geeBaseLayerUrl}
+            attribution={currentLayer.attribution}
+            opacity={currentLayer.overlayOpacity || 0.6}
           />
         )}
 

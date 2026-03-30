@@ -229,6 +229,7 @@ export default function Home() {
   const [osmData, setOsmData] = useState(null);
   const [selectedAnalysisDistricts, setSelectedAnalysisDistricts] = useState([]);
   const [latestPrioritizationBoard, setLatestPrioritizationBoard] = useState(null);
+  const [enabledEvidenceLayers, setEnabledEvidenceLayers] = useState([]);
 
   // Toast notifications
   const { toasts, addToast, dismissToast } = useToast();
@@ -249,6 +250,20 @@ export default function Home() {
 
   // Operation type state (for multi-use humanitarian operations)
   const [operationType, setOperationType] = useState('');
+
+  const handleMapLayerChange = (layerId) => {
+    const evidenceLayerMap = {
+      flood_context: 'flood_context',
+      drought_context: 'drought_context'
+    };
+
+    const evidenceLayer = evidenceLayerMap[layerId];
+    if (!evidenceLayer) return;
+
+    setEnabledEvidenceLayers((prev) => (
+      prev.includes(evidenceLayer) ? prev : [...prev, evidenceLayer]
+    ));
+  };
 
   // Persist operation type to localStorage
   useEffect(() => {
@@ -2212,6 +2227,7 @@ export default function Home() {
             setOsmData(data);
           }}
           onAnalysisDistrictsChange={setSelectedAnalysisDistricts}
+          onMapLayerChange={handleMapLayerChange}
           selectedAnalysisDistricts={selectedAnalysisDistricts}
           prioritizationBoard={latestPrioritizationBoard}
         />
@@ -2231,9 +2247,11 @@ export default function Home() {
             facilities={facilities}
             disasters={filteredDisasters}
             districts={districts}
+            selectedDistricts={selectedAnalysisDistricts}
             acledData={acledData}
             selectedDistrict={selectedDistrictForForecast}
             worldPopData={worldPopData}
+            enabledEvidenceLayers={enabledEvidenceLayers}
             worldPopYear={worldPopLastFetch?.year}
             onClose={() => {
               setShowPredictions(false);

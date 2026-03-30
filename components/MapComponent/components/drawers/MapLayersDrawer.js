@@ -136,6 +136,30 @@ const MapLayersDrawer = ({
           <span>Radar Change (GEE)</span>
         </label>
 
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'flood_context' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="flood_context"
+            checked={activeMapLayer === 'flood_context'}
+            onChange={() => handleMapLayerChange('flood_context')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Flood Context (GEE)</span>
+        </label>
+
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'drought_context' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="drought_context"
+            checked={activeMapLayer === 'drought_context'}
+            onChange={() => handleMapLayerChange('drought_context')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Drought Context (GEE)</span>
+        </label>
+
         <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'recent_imagery' ? '#e3f2fd' : 'transparent'}}>
           <input
             type="radio"
@@ -195,6 +219,32 @@ const MapLayersDrawer = ({
             lineHeight: 1.5
           }}>
             Sentinel-1 radar change view. Useful in cloudy conditions and for recent surface change, but it is not photo imagery.
+          </div>
+        )}
+
+        {activeMapLayer === 'flood_context' && (
+          <div style={{
+            fontSize: '12px',
+            color: '#555',
+            backgroundColor: '#f7f7f7',
+            borderRadius: '6px',
+            padding: '10px',
+            lineHeight: 1.5
+          }}>
+            Flood evidence layer built from SRTM terrain and JRC surface water. Use this before scoring projected flood risk.
+          </div>
+        )}
+
+        {activeMapLayer === 'drought_context' && (
+          <div style={{
+            fontSize: '12px',
+            color: '#555',
+            backgroundColor: '#f7f7f7',
+            borderRadius: '6px',
+            padding: '10px',
+            lineHeight: 1.5
+          }}>
+            Drought evidence layer built from CHIRPS rainfall and ERA5-Land climate context. Use this before scoring projected drought risk.
           </div>
         )}
 

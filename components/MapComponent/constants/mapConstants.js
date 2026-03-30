@@ -49,6 +49,26 @@ export const MAP_LAYERS = {
     attribution: '&copy; <a href="https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S1_GRD">Google Earth Engine</a> / Sentinel-1',
     note: 'Recent radar change layer for cloudy conditions and flood/change detection. Not photographic imagery.'
   },
+  FLOOD_CONTEXT: {
+    id: 'flood_context',
+    name: 'Flood Context (GEE)',
+    type: 'gee',
+    dataset: 'flood_context',
+    overlayOnBase: true,
+    overlayOpacity: 0.62,
+    attribution: '&copy; <a href="https://developers.google.com/earth-engine/datasets/catalog/USGS_SRTMGL1_003">Google Earth Engine</a> / SRTM, <a href="https://developers.google.com/earth-engine/datasets/catalog/JRC_GSW1_4_GlobalSurfaceWater">JRC Global Surface Water</a>',
+    note: 'Combines terrain and long-term surface water context to identify districts more prone to flood impacts.'
+  },
+  DROUGHT_CONTEXT: {
+    id: 'drought_context',
+    name: 'Drought Context (GEE)',
+    type: 'gee',
+    dataset: 'drought_context',
+    overlayOnBase: true,
+    overlayOpacity: 0.62,
+    attribution: '&copy; <a href="https://developers.google.com/earth-engine/datasets/catalog/UCSB_CHG_CHIRPS_DAILY">Google Earth Engine</a> / CHIRPS, <a href="https://developers.google.com/earth-engine/datasets/catalog/ECMWF_ERA5_LAND_DAILY_AGGR">ERA5-Land</a>',
+    note: 'Combines recent rainfall and heat context to support drought-readiness screening before scoring districts.'
+  },
   RECENT_IMAGERY: {
     id: 'recent_imagery',
     name: 'Recent Imagery (Daily)',

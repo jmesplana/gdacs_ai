@@ -25,22 +25,38 @@ const experimentalBadgeStyle = {
   textTransform: 'uppercase',
 };
 
+function buildForecastFooterLabel(districtAnalysis, districtCount) {
+  const summarySources = districtAnalysis?.summary?.sources || [];
+  const hasGeeEvidence = summarySources.some((source) => source.includes('district summaries'));
+
+  if (hasGeeEvidence) {
+    return `District outlook uses Open-Meteo forecast plus district-level Earth Engine evidence${districtCount > 0 ? ` • ${districtCount} district${districtCount === 1 ? '' : 's'} analyzed` : ''}`;
+  }
+
+  return `District outlook uses Open-Meteo forecast plus selected districts and currently loaded context${districtCount > 0 ? ` • ${districtCount} district${districtCount === 1 ? '' : 's'} analyzed` : ''}`;
+}
+
 const PredictionDashboard = ({
   facilities,
   disasters,
   districts,
+  selectedDistricts = [],
   acledData = [],
   selectedDistrict = null, // If provided, shows district-specific forecast
+  worldPopData = {},
+  enabledEvidenceLayers = [],
   onClose
 }) => {
   const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [predictions, setPredictions] = useState(null);
-  const [activeTab, setActiveTab] = useState('disaster'); // disaster, outbreak, supply, weather
+  const [activeTab, setActiveTab] = useState('districts');
   const [locationInfo, setLocationInfo] = useState(null);
   const [facilitiesMetadata, setFacilitiesMetadata] = useState(null);
   const [weatherData, setWeatherData] = useState(null); // Store raw weather data for charts
-  const analysisDistricts = selectedDistrict ? [selectedDistrict] : districts;
+  const analysisDistricts = selectedDistrict
+    ? [selectedDistrict]
+    : (selectedDistricts.length > 0 ? selectedDistricts : districts);
   const scopedFacilities = analysisDistricts.length > 0
     ? filterFacilitiesToDistricts(facilities || [], analysisDistricts)
     : (facilities || []);
@@ -233,6 +249,11 @@ const PredictionDashboard = ({
       return;
     }
 
+    if (!analysisDistricts || analysisDistricts.length === 0) {
+      addToast('Upload or select one or more districts to generate the district outlook.', 'warning');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -341,62 +362,28 @@ const PredictionDashboard = ({
         acledEventCount: filteredAcled.length,
       });
 
-      // Count WASH facilities damaged (estimate from disasters)
-      const washDamaged = scopedDisasters?.filter(d =>
-        d.eventtype?.toLowerCase().includes('flood') ||
-        d.eventtype?.toLowerCase().includes('cyclone')
-      ).length || 0;
-
-      const healthDamaged = scopedDisasters?.filter(d =>
-        d.alertLevel === 'Red' || d.alertLevel === 'Orange'
-      ).length || 0;
-
-      // Fetch all predictions in parallel
-      const [disasterForecast, outbreakPrediction, supplyChainForecast] = await Promise.all([
-        fetch('/api/disaster-forecast', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            latitude: center.latitude,
-            longitude: center.longitude,
-            days: 7,
-          }),
-        }).then(r => r.json()),
-
-        fetch('/api/outbreak-prediction', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            latitude: center.latitude,
-            longitude: center.longitude,
-            disasters: scopedDisasters,
-            populationEstimate,
-            washFacilitiesDamaged: washDamaged,
-            healthFacilitiesDamaged: healthDamaged,
-            // Include extracted metadata
-            diseasePrevalence: metadata?.diseaseData || {},
-            washAccess: metadata?.washData?.accessAvg || 50,
-            vulnerablePopulation: metadata?.demographics?.children_u5_total || 0,
-            forecastDays: 30,
-          }),
-        }).then(r => r.json()),
-
-        fetch('/api/supply-chain-forecast', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            latitude: center.latitude,
-            longitude: center.longitude,
-            disasters: scopedDisasters,
-            forecastDays: 14,
-          }),
-        }).then(r => r.json()),
-      ]);
+      const districtHazardAnalysis = await fetch('/api/district-hazard-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          districts: analysisDistricts,
+          facilities: scopedFacilities,
+          disasters: scopedDisasters,
+          acledData: filteredAcled,
+          worldPopData,
+          enabledEvidenceLayers,
+          days: 7,
+        }),
+      }).then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || 'Failed to generate district hazard analysis');
+        }
+        return payload;
+      });
 
       setPredictions({
-        disaster: disasterForecast,
-        outbreak: outbreakPrediction,
-        supplyChain: supplyChainForecast,
+        districtAnalysis: districtHazardAnalysis,
         centerPoint: center,
       });
 
@@ -527,7 +514,7 @@ const PredictionDashboard = ({
           lineHeight: 1.5,
           fontFamily: "'Inter', sans-serif",
         }}>
-          Forecast outputs are experimental and directional. Validate with field reporting, official forecasts, and sector review before making operational decisions.
+          District hazard outputs are directional and designed for transparent review. Use the drivers, sources, and limitations shown for each district before acting.
         </div>
 
         {/* Metadata Summary Bar (if available) */}
@@ -578,22 +565,10 @@ const PredictionDashboard = ({
         }}>
           {[
             {
-              id: 'disaster',
-              label: 'Disaster Forecast',
+              id: 'districts',
+              label: 'District Outlook',
               icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>,
-              count: predictions?.disaster?.summary?.primaryThreats?.length || 0
-            },
-            {
-              id: 'outbreak',
-              label: 'Outbreak Prediction',
-              icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>,
-              count: predictions?.outbreak?.topThreats?.length || 0
-            },
-            {
-              id: 'supply',
-              label: 'Supply Chain',
-              icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 16h6v-4h-2m-4 4-6-10-6 10h12Z"></path><path d="M8 12h.01"></path><path d="M12 12h.01"></path><path d="M16 12h.01"></path></svg>,
-              count: predictions?.supplyChain?.overallAssessment?.criticalComponents?.length || 0
+              count: predictions?.districtAnalysis?.districts?.length || 0
             },
             {
               id: 'weather',
@@ -668,7 +643,7 @@ const PredictionDashboard = ({
                 <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
                 <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
               </svg>
-              <p style={{ color: 'var(--aidstack-slate-medium)', fontSize: '16px', fontFamily: "'Inter', sans-serif" }}>Analyzing weather patterns and extracting facility metadata...</p>
+              <p style={{ color: 'var(--aidstack-slate-medium)', fontSize: '16px', fontFamily: "'Inter', sans-serif" }}>Building district hazard scores and collecting auditable evidence...</p>
             </div>
           ) : !predictions ? (
             <div style={{ textAlign: 'center', padding: '60px 20px' }}>
@@ -676,9 +651,7 @@ const PredictionDashboard = ({
             </div>
           ) : (
             <>
-              {activeTab === 'disaster' && <DisasterForecastView data={predictions.disaster} getRiskColor={getRiskColor} />}
-              {activeTab === 'outbreak' && <OutbreakPredictionView data={predictions.outbreak} getRiskColor={getRiskColor} metadata={facilitiesMetadata} />}
-              {activeTab === 'supply' && <SupplyChainView data={predictions.supplyChain} getRiskColor={getRiskColor} />}
+              {activeTab === 'districts' && <DistrictHazardAnalysisView data={predictions.districtAnalysis} getRiskColor={getRiskColor} />}
               {activeTab === 'weather' && <WeatherChartView data={weatherData} locationInfo={locationInfo} />}
             </>
           )}
@@ -699,8 +672,7 @@ const PredictionDashboard = ({
               <line x1="12" y1="16" x2="12" y2="12"></line>
               <line x1="12" y1="8" x2="12.01" y2="8"></line>
             </svg>
-            Forecasts use Open-Meteo weather + facility metadata
-            {facilitiesMetadata && ` • ${facilities.length} facilities analyzed`}
+            {buildForecastFooterLabel(predictions?.districtAnalysis, analysisDistricts.length)}
           </div>
           <button
             onClick={loadPredictions}
@@ -740,6 +712,192 @@ const PredictionDashboard = ({
     </div>
   );
 };
+
+const DistrictHazardAnalysisView = ({ data, getRiskColor }) => {
+  if (!data || !Array.isArray(data.districts) || data.districts.length === 0) {
+    return <div>No district hazard analysis available</div>;
+  }
+
+  return (
+    <div style={{ fontFamily: "'Inter', sans-serif" }}>
+      {data.warnings?.length > 0 && (
+        <div style={{
+          marginBottom: '20px',
+          padding: '14px 16px',
+          background: '#FFF7ED',
+          border: '1px solid #FED7AA',
+          borderRadius: '10px',
+          color: '#9A3412',
+          fontSize: '13px',
+          lineHeight: 1.6
+        }}>
+          {data.warnings.map((warning, index) => (
+            <div key={index}>{warning}</div>
+          ))}
+        </div>
+      )}
+
+      <div style={{
+        padding: '18px',
+        background: '#F8FAFC',
+        border: '1px solid #E2E8F0',
+        borderRadius: '12px',
+        marginBottom: '20px'
+      }}>
+        <h3 style={{ margin: '0 0 10px 0', color: 'var(--aidstack-navy)', fontSize: '18px', fontWeight: 700 }}>
+          How This Was Calculated
+        </h3>
+        <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.6, marginBottom: '10px' }}>
+          {data.summary?.methodology?.map((item, index) => (
+            <div key={index}>{item}</div>
+          ))}
+        </div>
+        <div style={{ fontSize: '12px', color: '#64748B', lineHeight: 1.6 }}>
+          <strong style={{ color: 'var(--aidstack-navy)' }}>Sources:</strong> {data.summary?.sources?.join(' | ')}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+        {data.districts.map((district) => (
+          <div
+            key={district.districtId}
+            style={{
+              padding: '18px',
+              background: 'white',
+              borderRadius: '12px',
+              border: `2px solid ${getRiskColor(district.dominantHazard.level.toUpperCase())}`,
+              boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', marginBottom: '10px' }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '17px', color: 'var(--aidstack-navy)', fontWeight: 700 }}>
+                  {district.districtName}
+                </h4>
+                <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
+                  {district.timeWindow}
+                </div>
+              </div>
+              <div style={{
+                background: getRiskColor(district.dominantHazard.level.toUpperCase()),
+                color: 'white',
+                borderRadius: '999px',
+                padding: '5px 10px',
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase'
+              }}>
+                {district.dominantHazard.type} {district.dominantHazard.level}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', marginBottom: '14px' }}>
+              <MetricCard
+                label="Flood"
+                value={district.hazardAssessments?.flood?.status === 'ready' ? `${district.hazardScores.flood}/100` : 'Not ready'}
+                tone="#2563EB"
+                note={district.hazardAssessments?.flood?.status === 'ready' ? null : district.hazardAssessments?.flood?.message}
+              />
+              <MetricCard
+                label="Drought"
+                value={district.hazardAssessments?.drought?.status === 'ready' ? `${district.hazardScores.drought}/100` : 'Not ready'}
+                tone="#B45309"
+                note={district.hazardAssessments?.drought?.status === 'ready' ? null : district.hazardAssessments?.drought?.message}
+              />
+              <MetricCard
+                label="Heat"
+                value={district.hazardAssessments?.heat?.status === 'ready' ? `${district.hazardScores.heat}/100` : 'Not ready'}
+                tone="#DC2626"
+                note={district.hazardAssessments?.heat?.status === 'ready' ? null : district.hazardAssessments?.heat?.message}
+              />
+              <MetricCard label="Response Scale" value={district.responseScale} tone="#0F766E" />
+            </div>
+
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Top Drivers
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {district.drivers.length === 0 ? (
+                  <div style={{ padding: '10px 12px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', color: '#64748B' }}>
+                    No scored hazard drivers yet. Enable the required evidence layers to generate auditable district drivers.
+                  </div>
+                ) : district.drivers.slice(0, 4).map((driver) => (
+                  <div key={driver.key} style={{ padding: '10px 12px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '13px', marginBottom: '4px' }}>
+                      <strong style={{ color: 'var(--aidstack-navy)' }}>{driver.label}</strong>
+                      <span style={{ color: '#334155' }}>{driver.value}{driver.unit ? ` ${driver.unit}` : ''}</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748B' }}>
+                      Weight {Math.round(driver.weight * 100)}% • Source: {driver.source}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Exposure And Context
+              </div>
+              <div style={{ fontSize: '13px', color: '#334155', lineHeight: 1.7 }}>
+                <div>Population: {district.exposure.populationEstimate ? district.exposure.populationEstimate.toLocaleString() : 'Unknown'}</div>
+                <div>Facilities in scope: {district.exposure.facilityCount}</div>
+                <div>GDACS signals in district: {district.exposure.disasterSignalCount}</div>
+                <div>ACLED events in district: {district.exposure.securitySignalCount}</div>
+                {district.weatherSummary && (
+                  <div>Forecast rainfall: {district.weatherSummary.totalRainMm} mm total, peak {district.weatherSummary.maxDailyRainMm} mm/day</div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Why This District
+              </div>
+              <div style={{ fontSize: '13px', color: '#334155', lineHeight: 1.6 }}>
+                {district.rationale.map((line, index) => (
+                  <div key={index}>{line}</div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ paddingTop: '12px', borderTop: '1px solid #E2E8F0', fontSize: '12px', color: '#64748B', lineHeight: 1.6 }}>
+              <div><strong style={{ color: 'var(--aidstack-navy)' }}>Evidence Base:</strong> {district.evidenceBase || 'forecast-only'}</div>
+              <div><strong style={{ color: 'var(--aidstack-navy)' }}>Confidence:</strong> {district.confidence}</div>
+              {district.confidenceReasoning && (
+                <div><strong style={{ color: 'var(--aidstack-navy)' }}>Confidence Basis:</strong> {district.confidenceReasoning}</div>
+              )}
+              {district.responseScaleReasoning && (
+                <div><strong style={{ color: 'var(--aidstack-navy)' }}>Response Scale Basis:</strong> {district.responseScaleReasoning}</div>
+              )}
+              <div><strong style={{ color: 'var(--aidstack-navy)' }}>Sources used:</strong> {district.sources.join(' | ')}</div>
+              {district.limitations.map((item, index) => (
+                <div key={index}><strong style={{ color: 'var(--aidstack-navy)' }}>Limitation:</strong> {item}</div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const MetricCard = ({ label, value, tone, note = null }) => (
+  <div style={{ padding: '10px 12px', borderRadius: '10px', background: `${tone}12`, border: `1px solid ${tone}25` }}>
+    <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      {label}
+    </div>
+    <div style={{ fontSize: '18px', color: tone, fontWeight: 700 }}>
+      {value}
+    </div>
+    {note && (
+      <div style={{ fontSize: '11px', color: '#64748B', marginTop: '6px', lineHeight: 1.4 }}>
+        {note}
+      </div>
+    )}
+  </div>
+);
 
 // Disaster Forecast View Component
 const DisasterForecastView = ({ data, getRiskColor }) => {

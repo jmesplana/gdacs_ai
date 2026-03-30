@@ -22,6 +22,15 @@ const INFRASTRUCTURE_CATEGORIES = [
   { id: 'bridges', name: 'Bridges', icon: '🌉', priority: 'secondary' }
 ];
 
+function getDistrictSelectionId(district, fallbackIndex) {
+  return district?.id ?? fallbackIndex;
+}
+
+function haveSameIds(left = [], right = []) {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
 export default function OSMInfrastructureSelector({
   districts = [],
   selectedAnalysisDistricts = [],
@@ -42,17 +51,27 @@ export default function OSMInfrastructureSelector({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastCompletedLoad, setLastCompletedLoad] = useState(null);
   const districtSignature = useMemo(
-    () => districts.map((district, idx) => district.id || district.name || idx).join('|'),
+    () => districts.map((district, idx) => getDistrictSelectionId(district, idx) || district.name || idx).join('|'),
     [districts]
   );
   const selectedAnalysisDistrictIds = useMemo(
-    () => selectedAnalysisDistricts.map((district, idx) => district.id || idx),
+    () => selectedAnalysisDistricts.map((district, idx) => getDistrictSelectionId(district, idx)),
     [selectedAnalysisDistricts]
   );
   const layerCounts = useMemo(
     () => osmData?.metadata?.byLayer || osmStats?.byLayer || osmStats || {},
     [osmData, osmStats]
   );
+
+  const syncSelectionToParent = (nextSelectedDistrictIds) => {
+    if (!onSelectionChange) return;
+
+    const selectedDistrictRecords = districts.filter((district, idx) =>
+      nextSelectedDistrictIds.includes(getDistrictSelectionId(district, idx))
+    );
+
+    onSelectionChange(selectedDistrictRecords);
+  };
 
   useEffect(() => {
     if (!osmLoading && activeRequest) {
@@ -89,7 +108,9 @@ export default function OSMInfrastructureSelector({
   }, [districtSignature]);
 
   useEffect(() => {
-    setSelectedDistricts(selectedAnalysisDistrictIds);
+    setSelectedDistricts((previous) => (
+      haveSameIds(previous, selectedAnalysisDistrictIds) ? previous : selectedAnalysisDistrictIds
+    ));
   }, [selectedAnalysisDistrictIds]);
 
   useEffect(() => {
@@ -101,16 +122,6 @@ export default function OSMInfrastructureSelector({
 
     return () => clearInterval(interval);
   }, [osmLoading, requestStartedAt]);
-
-  useEffect(() => {
-    if (!onSelectionChange) return;
-
-    const selectedDistrictRecords = districts.filter((district, idx) =>
-      selectedDistricts.includes(district.id || idx)
-    );
-
-    onSelectionChange(selectedDistrictRecords);
-  }, [districts, onSelectionChange, selectedDistricts]);
 
   const estimatedTimeLabel = useMemo(() => {
     if (!activeRequest) return 'Usually 10-60 seconds depending on admin area size and selected layers.';
@@ -341,7 +352,7 @@ export default function OSMInfrastructureSelector({
           {sortedDistricts.slice(0, 100).map((district, idx) => {
             // Find the original index from the unsorted districts array
             const originalIdx = districts.findIndex(d => d === district);
-            const districtId = district.id || originalIdx;
+            const districtId = getDistrictSelectionId(district, originalIdx);
 
             return (
               <label
@@ -360,11 +371,13 @@ export default function OSMInfrastructureSelector({
                   type="checkbox"
                   checked={selectedDistricts.includes(districtId)}
                   onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedDistricts([...selectedDistricts, districtId]);
-                    } else {
-                      setSelectedDistricts(selectedDistricts.filter(id => id !== districtId));
-                    }
+                    const nextSelectedDistricts = e.target.checked
+                      ? [...selectedDistricts, districtId]
+                      : selectedDistricts.filter(id => id !== districtId);
+
+                    setSelectedDistricts(nextSelectedDistricts);
+                    syncSelectionToParent(nextSelectedDistricts);
+
                   }}
                   style={{ marginRight: '8px' }}
                 />
@@ -384,9 +397,10 @@ export default function OSMInfrastructureSelector({
             onClick={() => {
               const first10 = sortedDistricts.slice(0, Math.min(10, sortedDistricts.length)).map(d => {
                 const originalIdx = districts.findIndex(orig => orig === d);
-                return d.id || originalIdx;
+                return getDistrictSelectionId(d, originalIdx);
               });
               setSelectedDistricts(first10);
+              syncSelectionToParent(first10);
             }}
             disabled={osmLoading}
             style={{
@@ -407,9 +421,10 @@ export default function OSMInfrastructureSelector({
             onClick={() => {
               const all = sortedDistricts.map(d => {
                 const originalIdx = districts.findIndex(orig => orig === d);
-                return d.id || originalIdx;
+                return getDistrictSelectionId(d, originalIdx);
               });
               setSelectedDistricts(all);
+              syncSelectionToParent(all);
             }}
             disabled={osmLoading}
             style={{
@@ -427,7 +442,10 @@ export default function OSMInfrastructureSelector({
             Select All
           </button>
           <button
-            onClick={() => setSelectedDistricts([])}
+            onClick={() => {
+              setSelectedDistricts([]);
+              syncSelectionToParent([]);
+            }}
             disabled={osmLoading || selectedDistricts.length === 0}
             style={{
               flex: 1,

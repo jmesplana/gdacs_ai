@@ -128,12 +128,74 @@ function buildSentinel1RecentChange(ee, geometry) {
   };
 }
 
+function buildFloodContext(ee, geometry) {
+  const dem = ee.Image('USGS/SRTMGL1_003');
+  const slope = ee.Terrain.slope(dem);
+  const lowSlope = ee.Image(1).subtract(slope.divide(20).clamp(0, 1));
+  const waterOccurrence = ee.Image('JRC/GSW1_4/GlobalSurfaceWater')
+    .select('occurrence')
+    .divide(100)
+    .clamp(0, 1);
+
+  let floodContext = lowSlope.multiply(0.6).add(waterOccurrence.multiply(0.4)).rename('flood_context');
+  if (geometry) floodContext = floodContext.clip(geometry);
+
+  return {
+    image: floodContext,
+    visParams: {
+      min: 0,
+      max: 1,
+      palette: ['#fff7ed', '#fed7aa', '#fb923c', '#2563eb', '#0f172a']
+    },
+  };
+}
+
+function buildDroughtContext(ee, geometry) {
+  const chirpsCollection = ee.ImageCollection('UCSB-CHG/CHIRPS/DAILY');
+  const chirpsLatest = ee.Image(chirpsCollection.sort('system:time_start', false).first());
+  const chirpsEndDate = ee.Date(chirpsLatest.get('system:time_start')).advance(1, 'day');
+  const rainStart = chirpsEndDate.advance(-30, 'day');
+  const chirpsRain = chirpsCollection
+    .filterDate(rainStart, chirpsEndDate)
+    .select('precipitation')
+    .sum();
+
+  const era5Collection = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR');
+  const era5Latest = ee.Image(era5Collection.sort('system:time_start', false).first());
+  const era5EndDate = ee.Date(era5Latest.get('system:time_start')).advance(1, 'day');
+  const tempStart = era5EndDate.advance(-14, 'day');
+  const era5Temp = era5Collection
+    .filterDate(tempStart, era5EndDate)
+    .select('temperature_2m')
+    .mean()
+    .subtract(273.15);
+
+  const lowRain = ee.Image(1).subtract(chirpsRain.divide(120).clamp(0, 1));
+  const heatStress = era5Temp.subtract(28).divide(12).clamp(0, 1);
+
+  let droughtContext = lowRain.multiply(0.65).add(heatStress.multiply(0.35)).rename('drought_context');
+  if (geometry) droughtContext = droughtContext.clip(geometry);
+
+  return {
+    image: droughtContext,
+    visParams: {
+      min: 0,
+      max: 1,
+      palette: ['#1d4ed8', '#60a5fa', '#fef3c7', '#f59e0b', '#92400e']
+    },
+  };
+}
+
 function buildDataset(ee, dataset, geometry) {
   switch (dataset) {
     case 'sentinel2_recent_clear':
       return buildSentinel2RecentClear(ee, geometry);
     case 'sentinel1_recent_change':
       return buildSentinel1RecentChange(ee, geometry);
+    case 'flood_context':
+      return buildFloodContext(ee, geometry);
+    case 'drought_context':
+      return buildDroughtContext(ee, geometry);
     default:
       throw new Error(`Unsupported dataset: ${dataset}`);
   }

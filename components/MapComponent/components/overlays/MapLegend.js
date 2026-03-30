@@ -13,9 +13,30 @@ const MapLegend = ({
   hasDistricts = false,
   showDistricts,
   setShowDistricts,
+  currentMapLayer = 'street',
   gdacsDiagnostics = null
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
+  const showHazardContextLegend = currentMapLayer === 'drought_context' || currentMapLayer === 'flood_context';
+  const contextLegendTitle = currentMapLayer === 'drought_context' ? 'DROUGHT CONTEXT' : 'FLOOD CONTEXT';
+  const contextLegendDescription = currentMapLayer === 'drought_context'
+    ? 'Blue tones indicate wetter or lower-stress conditions. Yellow to brown tones indicate drier and warmer context.'
+    : 'Light tones indicate lower flood susceptibility. Darker blue tones indicate flatter terrain and stronger surface-water context.';
+  const contextLegendItems = currentMapLayer === 'drought_context'
+    ? [
+        { color: '#1d4ed8', label: 'Lower drought stress' },
+        { color: '#60a5fa', label: 'Mild drought signal' },
+        { color: '#fef3c7', label: 'Transition zone' },
+        { color: '#f59e0b', label: 'Elevated drought context' },
+        { color: '#92400e', label: 'Highest drought context' }
+      ]
+    : [
+        { color: '#fff7ed', label: 'Lower flood context' },
+        { color: '#fed7aa', label: 'Mild flood context' },
+        { color: '#fb923c', label: 'Moderate flood context' },
+        { color: '#2563eb', label: 'High flood context' },
+        { color: '#0f172a', label: 'Highest flood context' }
+      ];
   return (
     <div style={{
       position: 'absolute',
@@ -185,6 +206,43 @@ const MapLegend = ({
             </svg>
             DISASTER EVENT TYPES
           </div>
+
+          {showHazardContextLegend && (
+            <>
+              <div style={{
+                marginBottom: '10px',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                color: '#424242',
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: '#f5f5f5',
+                padding: '6px 10px',
+                borderRadius: '4px'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                  <path d="M4 19h16"></path>
+                  <path d="M4 15h16"></path>
+                  <path d="M4 11h16"></path>
+                  <path d="M4 7h16"></path>
+                </svg>
+                {contextLegendTitle}
+              </div>
+
+              <div style={{ marginBottom: '10px', fontSize: '12px', color: '#475569', lineHeight: 1.5 }}>
+                {contextLegendDescription}
+              </div>
+
+              <div style={{ marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {contextLegendItems.map((item) => (
+                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: '#334155' }}>
+                    <div style={{ width: '18px', height: '18px', borderRadius: '4px', backgroundColor: item.color, border: '1px solid rgba(15,23,42,0.12)', marginRight: '8px' }} />
+                    <span>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '15px' }}>
             <div style={{
