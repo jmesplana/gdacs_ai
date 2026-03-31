@@ -85,13 +85,23 @@ async function fetchWeatherData(latitude, longitude, days = 7) {
     });
 
     if (!response.ok) {
-      throw new Error(`Weather API returned ${response.status}`);
+      let message = `Weather API returned ${response.status}`;
+      try {
+        const errorPayload = await response.json();
+        if (errorPayload?.message) {
+          message += `: ${errorPayload.message}`;
+        }
+      } catch (_) {
+        // Ignore JSON parse failures on error responses.
+      }
+      console.warn('Weather fetch unavailable:', message);
+      return null;
     }
 
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('Weather fetch error:', error);
+    console.warn('Weather fetch error:', error?.message || error);
     return null;
   }
 }
