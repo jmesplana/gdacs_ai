@@ -230,6 +230,7 @@ export default function Home() {
   const [selectedAnalysisDistricts, setSelectedAnalysisDistricts] = useState([]);
   const [latestPrioritizationBoard, setLatestPrioritizationBoard] = useState(null);
   const [enabledEvidenceLayers, setEnabledEvidenceLayers] = useState([]);
+  const canUseDistrictDecisionTools = districts.length > 0 && selectedAnalysisDistricts.length > 0;
 
   // Toast notifications
   const { toasts, addToast, dismissToast } = useToast();
@@ -1797,16 +1798,16 @@ export default function Home() {
               {/* Operational Outlook Button */}
               <button
                 onClick={() => setShowOperationalOutlook(true)}
-                disabled={!filteredDisasters.length && !impactedFacilities.length}
+                disabled={!canUseDistrictDecisionTools}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  backgroundColor: (!filteredDisasters.length && !impactedFacilities.length) ? 'var(--aidstack-slate-light)' : 'var(--aidstack-orange)',
+                  backgroundColor: !canUseDistrictDecisionTools ? 'var(--aidstack-slate-light)' : 'var(--aidstack-orange)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
                   padding: '8px 12px',
-                  cursor: (!filteredDisasters.length && !impactedFacilities.length) ? 'not-allowed' : 'pointer',
+                  cursor: !canUseDistrictDecisionTools ? 'not-allowed' : 'pointer',
                   fontSize: '14px',
                   fontWeight: 600,
                   fontFamily: "'Inter', sans-serif"
@@ -1822,16 +1823,16 @@ export default function Home() {
               {/* Prediction Dashboard Button */}
               <button
                 onClick={() => setShowPredictions(true)}
-                disabled={!filteredDisasters.length}
+                disabled={!canUseDistrictDecisionTools}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  backgroundColor: !filteredDisasters.length ? 'var(--aidstack-slate-light)' : 'var(--aidstack-navy)',
+                  backgroundColor: !canUseDistrictDecisionTools ? 'var(--aidstack-slate-light)' : 'var(--aidstack-navy)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
                   padding: '8px 12px',
-                  cursor: !filteredDisasters.length ? 'not-allowed' : 'pointer',
+                  cursor: !canUseDistrictDecisionTools ? 'not-allowed' : 'pointer',
                   fontSize: '14px',
                   fontWeight: 600,
                   fontFamily: "'Inter', sans-serif"
@@ -1850,16 +1851,16 @@ export default function Home() {
 
               <button
                 onClick={() => setShowPrioritizationBoard(true)}
-                disabled={!districts.length || !selectedAnalysisDistricts.length}
+                disabled={!canUseDistrictDecisionTools}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  backgroundColor: (!districts.length || !selectedAnalysisDistricts.length) ? 'var(--aidstack-slate-light)' : '#0f766e',
+                  backgroundColor: !canUseDistrictDecisionTools ? 'var(--aidstack-slate-light)' : '#0f766e',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
                   padding: '8px 12px',
-                  cursor: (!districts.length || !selectedAnalysisDistricts.length) ? 'not-allowed' : 'pointer',
+                  cursor: !canUseDistrictDecisionTools ? 'not-allowed' : 'pointer',
                   fontSize: '14px',
                   fontWeight: 600,
                   fontFamily: "'Inter', sans-serif"
@@ -2197,11 +2198,14 @@ export default function Home() {
           onAcledConfigChange={handleAcledConfigChange}
           operationType={operationType}
           onOperationTypeChange={setOperationType}
+          canUseDistrictDecisionTools={canUseDistrictDecisionTools}
           onDistrictClick={(district) => {
+            if (!canUseDistrictDecisionTools) return;
             setSelectedDistrictForForecast(district);
             setShowPredictions(true);
           }}
           onDistrictOutlookClick={(district) => {
+            if (!canUseDistrictDecisionTools) return;
             setSelectedDistrictForOutlook(district);
             setShowOperationalOutlook(true);
           }}
@@ -2253,6 +2257,7 @@ export default function Home() {
             disasters={filteredDisasters}
             acledData={acledData}
             districts={districts}
+            selectedDistricts={selectedAnalysisDistricts}
             selectedDistrict={selectedDistrictForOutlook}
             worldPopData={worldPopData}
             worldPopYear={worldPopLastFetch?.year}

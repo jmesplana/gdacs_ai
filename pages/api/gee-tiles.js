@@ -220,16 +220,21 @@ async function handler(req, res) {
     const ee = require('@google/earthengine');
     const geometry = buildGeometry(ee, bounds);
     const { image, visParams } = buildDataset(ee, dataset, geometry);
+    const visualizationImage = image.visualize(visParams);
 
     const mapId = await new Promise((resolve, reject) => {
-      image.getMapId(visParams, (result, error) => {
+      visualizationImage.getMapId({}, (mapIdResult, error) => {
         if (error) {
           reject(new Error(typeof error === 'string' ? error : JSON.stringify(error)));
         } else {
-          resolve(result);
+          resolve(mapIdResult);
         }
       });
     });
+
+    if (!mapId?.urlFormat && !mapId?.mapid) {
+      throw new Error('Earth Engine did not return a valid map identifier.');
+    }
 
     const tileUrl = mapId.urlFormat || `https://earthengine.googleapis.com/v1alpha/${mapId.mapid}/tiles/{z}/{x}/{y}`;
 

@@ -542,6 +542,7 @@ const MapComponent = ({
   districtAvailableFields = [],
   districtLabelField = null,
   onDistrictLabelFieldChange,
+  canUseDistrictDecisionTools = false,
   onDistrictClick,
   onDistrictOutlookClick,
   onWorldPopDataChange,
@@ -2164,7 +2165,7 @@ const MapComponent = ({
                 });
 
                 // Add action buttons if handlers provided
-                if (onDistrictClick || onDistrictOutlookClick) {
+                if (canUseDistrictDecisionTools && (onDistrictClick || onDistrictOutlookClick)) {
                   popupContent += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">`;
 
                   // View Forecast button
@@ -2275,7 +2276,7 @@ const MapComponent = ({
                 }
 
                 // Add click event listeners for popup buttons
-                if (onAnalysisDistrictsChange || onDistrictClick || onDistrictOutlookClick) {
+                if (onAnalysisDistrictsChange || (canUseDistrictDecisionTools && (onDistrictClick || onDistrictOutlookClick))) {
                   layer.on('popupopen', () => {
                     if (onAnalysisDistrictsChange) {
                       const selectBtn = document.getElementById(`district-select-btn-${feature.id}`);
@@ -2301,7 +2302,7 @@ const MapComponent = ({
                     }
 
                     // Forecast button handler
-                    if (onDistrictClick) {
+                    if (canUseDistrictDecisionTools && onDistrictClick) {
                       const forecastBtn = document.getElementById(`district-forecast-btn-${feature.id}`);
                       if (forecastBtn) {
                         forecastBtn.onclick = () => {
@@ -2314,7 +2315,7 @@ const MapComponent = ({
                     }
 
                     // Outlook button handler
-                    if (onDistrictOutlookClick) {
+                    if (canUseDistrictDecisionTools && onDistrictOutlookClick) {
                       const outlookBtn = document.getElementById(`district-outlook-btn-${feature.id}`);
                       if (outlookBtn) {
                         outlookBtn.onclick = () => {

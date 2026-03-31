@@ -79,8 +79,8 @@ async function handler(req, res) {
     disasters = [],
     acledData = [],
     districts = [],
-    predictions = null, // Optional: predictions from disaster-forecast, outbreak-prediction, supply-chain-forecast
     districtHazardAnalysis = null,
+    supportingAssessments = null,
     selectedDistrict = null, // Optional: name of single admin level being analyzed
     worldPopData = {},
     worldPopYear = null,
@@ -134,7 +134,17 @@ async function handler(req, res) {
     }
 
     // Build context from available data
-    let context = buildAnalysisContext(facilities, disasters, acledData, districts, predictions, webSearchResults, country, selectedDistrict);
+    let context = buildAnalysisContext(
+      facilities,
+      disasters,
+      acledData,
+      districts,
+      districtHazardAnalysis,
+      supportingAssessments,
+      webSearchResults,
+      country,
+      selectedDistrict
+    );
 
     if (districtHazardAnalysis?.districts?.length > 0) {
       context += '\n\n' + formatDistrictHazardAnalysisForContext(districtHazardAnalysis);
@@ -160,12 +170,12 @@ async function handler(req, res) {
       disasters: disasters.length,
       acledEvents: acledData.length,
       districts: districts.length,
-      hasPredictions: !!predictions,
       country: country,
       hasWebSearch: !!webSearchResults,
       hasOSMData: !!(osmData && osmData.features && osmData.features.length > 0),
       osmFeatures: osmData?.features?.length || 0,
       hasDistrictHazardAnalysis: !!(districtHazardAnalysis?.districts?.length > 0),
+      hasLogisticsAssessment: !!supportingAssessments?.logistics,
       analysisLevel: selectedDistrict ? 'admin' : 'country',
       selectedAdmin: selectedDistrict
     });
@@ -229,11 +239,72 @@ function formatDistrictHazardAnalysisForContext(districtHazardAnalysis = null) {
     if (district.rationale?.length) {
       lines.push(`   Why: ${district.rationale.slice(0, 3).join(' | ')}`);
     }
+    if (district.hazardAssessments) {
+      const flood = district.hazardAssessments.flood;
+      const drought = district.hazardAssessments.drought;
+      const heat = district.hazardAssessments.heat;
+
+      if (flood) {
+        lines.push(`   Flood readiness: ${flood.status}${flood.message ? ` - ${flood.message}` : ''}`);
+      }
+      if (drought) {
+        lines.push(`   Drought readiness: ${drought.status}${drought.message ? ` - ${drought.message}` : ''}`);
+      }
+      if (heat) {
+        lines.push(`   Heat readiness: ${heat.status}${heat.message ? ` - ${heat.message}` : ''}`);
+      }
+    }
+    if (district.limitations?.length) {
+      lines.push(`   Limitations: ${district.limitations.slice(0, 3).join(' | ')}`);
+    }
   });
 
   if (districtHazardAnalysis.summary?.sources?.length) {
     lines.push('');
     lines.push(`Sources: ${districtHazardAnalysis.summary.sources.join(' | ')}`);
+  }
+
+  if (districtHazardAnalysis.warnings?.length) {
+    lines.push('');
+    lines.push('Warnings:');
+    districtHazardAnalysis.warnings.forEach((warning) => {
+      lines.push(`- ${warning}`);
+    });
+  }
+
+  return lines.join('\n');
+}
+
+function formatAssessmentAvailabilityForContext(districtHazardAnalysis = null, supportingAssessments = null) {
+  const lines = ['## Assessment Availability and Limitations', ''];
+
+  if (!districtHazardAnalysis && !supportingAssessments) {
+    lines.push('- No scoped hazard or logistics assessments were available for this analysis.');
+    return lines.join('\n');
+  }
+
+  const districts = districtHazardAnalysis?.districts || [];
+  const floodReadyCount = districts.filter((district) => district.hazardAssessments?.flood?.status === 'ready').length;
+  const droughtReadyCount = districts.filter((district) => district.hazardAssessments?.drought?.status === 'ready').length;
+  const heatReadyCount = districts.filter((district) => district.hazardAssessments?.heat?.status === 'ready').length;
+
+  if (districts.length > 0) {
+    lines.push(`- Flood assessment readiness: ${floodReadyCount}/${districts.length} districts ready`);
+    lines.push(`- Drought assessment readiness: ${droughtReadyCount}/${districts.length} districts ready`);
+    lines.push(`- Heat assessment readiness: ${heatReadyCount}/${districts.length} districts ready`);
+  }
+
+  if (supportingAssessments?.logistics) {
+    lines.push('- OSM-backed logistics assessment is available for the current scope.');
+  } else {
+    lines.push('- No OSM-backed logistics assessment was available for the current scope. Do not infer road, fuel, or air access conditions as assessed facts.');
+  }
+
+  if (districtHazardAnalysis?.warnings?.length) {
+    lines.push('- Current analysis warnings:');
+    districtHazardAnalysis.warnings.forEach((warning) => {
+      lines.push(`  * ${warning}`);
+    });
   }
 
   return lines.join('\n');
@@ -302,7 +373,7 @@ async function performWebSearch(query) {
 /**
  * Build analysis context from available data
  */
-function buildAnalysisContext(facilities, disasters, acledData, districts, predictions, webSearchResults, country, selectedDistrict) {
+function buildAnalysisContext(facilities, disasters, acledData, districts, districtHazardAnalysis, supportingAssessments, webSearchResults, country, selectedDistrict) {
   let context = '# CURRENT SITUATION DATA\n\n';
 
   // Add analysis level indicator
@@ -610,41 +681,20 @@ function buildAnalysisContext(facilities, disasters, acledData, districts, predi
     context += '\n';
   }
 
-  // Predictions (if available)
-  if (predictions) {
-    context += `## Predictive Analysis\n\n`;
+  if (districtHazardAnalysis) {
+    context += `${formatAssessmentAvailabilityForContext(districtHazardAnalysis, supportingAssessments)}\n\n`;
+  }
 
-    if (predictions.disaster) {
-      context += `### Disaster Forecast\n`;
-      if (predictions.disaster.flood) {
-        context += `- Flood Risk: ${predictions.disaster.flood.riskLevel} (${predictions.disaster.flood.probability}% probability)\n`;
-      }
-      if (predictions.disaster.drought) {
-        context += `- Drought Risk: ${predictions.disaster.drought.riskLevel}\n`;
-      }
-      if (predictions.disaster.cyclone) {
-        context += `- Cyclone Risk: ${predictions.disaster.cyclone.riskLevel}\n`;
-      }
-      context += '\n';
-    }
-
-    if (predictions.outbreak) {
-      context += `### Disease Outbreak Predictions\n`;
-      Object.entries(predictions.outbreak).forEach(([disease, data]) => {
-        if (data.risk) {
-          context += `- ${disease}: ${data.risk} risk (${data.probability}% probability)\n`;
-        }
-      });
-      context += '\n';
-    }
-
-    if (predictions.supplyChain) {
-      context += `### Supply Chain Assessment\n`;
-      context += `- Cold Chain Risk: ${predictions.supplyChain.coldChain?.riskLevel || 'Unknown'}\n`;
-      context += `- Road Access Risk: ${predictions.supplyChain.roadAccess?.riskLevel || 'Unknown'}\n`;
-      context += `- Air Transport Risk: ${predictions.supplyChain.airTransport?.riskLevel || 'Unknown'}\n`;
-      context += '\n';
-    }
+  if (supportingAssessments?.logistics) {
+    const logistics = supportingAssessments.logistics;
+    context += `## Logistics Assessment (OSM-backed)\n`;
+    context += `- Access Score: ${logistics.accessScore ?? 'Unknown'}\n`;
+    context += `- Rating: ${logistics.rating || 'Unknown'}\n`;
+    context += `- Summary: ${logistics.summary || 'No summary available'}\n`;
+    context += `- Road network status: ${logistics.roadNetwork?.assessmentStatus || 'Unknown'}\n`;
+    context += `- Fuel access status: ${logistics.fuelAccess?.assessmentStatus || 'Unknown'}\n`;
+    context += `- Air access status: ${logistics.airAccess?.assessmentStatus || 'Unknown'}\n`;
+    context += '\n';
   }
 
   return context;
@@ -699,13 +749,17 @@ ${isAdminLevel ? `**ANALYSIS SCOPE**: You are analyzing a SINGLE administrative 
 7. **Include timeframes for each scenario** (e.g., "Most Likely (next 2-4 weeks)", "Escalation (within 1-2 months)")
 8. **Quantify uncertainties** with specific data gaps (e.g., "Limited data on ${geoTerm} water infrastructure" not just "uncertainties remain")
 9. **Explicitly mention web search findings** in Situation Overview or Key Signals if available
+10. **Do not present unsupported predictive outputs as facts.** If the context says a hazard is "not ready", "missing required layers", or "missing evidence data", state that clearly and do not convert it into a factual risk statement.
+11. **Do not discuss disease outbreak risk unless the context explicitly includes assessed disease evidence or observed surveillance data.**
+12. **Do not discuss logistics conditions as assessed facts unless the context explicitly includes an OSM-backed logistics assessment.**
+13. **Prioritize district hazard warnings, readiness, evidence base, and limitations** over any weaker signal when they conflict.
 
 Do not simply summarize events. Focus on explaining **what humanitarian impacts are likely to occur next and why**, and how they may affect response operations in ${analysisScope}.
 
 Use the following structure:
 
 **1. Situation Overview**
-Briefly describe the current situation in the affected area, including disaster events, conflict trends, and infrastructure status.
+Briefly describe the current situation in the affected area, including disaster events, conflict trends, infrastructure status, and any important evidence limitations.
 
 **2. Key Signals**
 Identify the most important signals from the available data sources (for example GDACS alerts, ACLED conflict events, facility risk status, operational viability or access constraints).
@@ -742,6 +796,7 @@ Highlight specific unknowns or data gaps that affect the analysis. Be concrete a
 
 Write clearly and concisely for humanitarian decision makers.
 Focus on **humanitarian impact, operational access, and likely developments**, rather than speculation.
+If a forecast dimension is not ready, say so plainly. It is better to report "flood risk not ready because Flood Context was not enabled" than to infer a flood conclusion from incomplete inputs.
 
 ---
 

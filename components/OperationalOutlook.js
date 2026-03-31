@@ -23,11 +23,51 @@ const experimentalBadgeStyle = {
   textTransform: 'uppercase',
 };
 
+function getConfidenceTone(level = 'low') {
+  const normalized = String(level || '').toLowerCase();
+  if (normalized === 'high') {
+    return { background: '#dcfce7', border: '#86efac', color: '#166534' };
+  }
+  if (normalized === 'medium') {
+    return { background: '#fef3c7', border: '#fcd34d', color: '#92400e' };
+  }
+  return { background: '#e2e8f0', border: '#cbd5e1', color: '#475569' };
+}
+
+function getOverallConfidence(districtHazardAnalysis = null, logistics = null) {
+  const districts = districtHazardAnalysis?.districts || [];
+  const confidenceScores = districts.map((district) => {
+    const level = String(district.confidence || '').toLowerCase();
+    if (level === 'high') return 3;
+    if (level === 'medium') return 2;
+    return 1;
+  });
+
+  if (logistics?.metadata?.confidence?.level) {
+    const level = String(logistics.metadata.confidence.level).toLowerCase();
+    if (level === 'high') confidenceScores.push(3);
+    else if (level === 'medium') confidenceScores.push(2);
+    else confidenceScores.push(1);
+  }
+
+  if (confidenceScores.length === 0) return 'low';
+  const average = confidenceScores.reduce((sum, score) => sum + score, 0) / confidenceScores.length;
+  if (average >= 2.6) return 'high';
+  if (average >= 1.7) return 'medium';
+  return 'low';
+}
+
+function formatCountLabel(ready, total) {
+  if (!total) return '0/0';
+  return `${ready}/${total}`;
+}
+
 const OperationalOutlook = ({
   facilities = [],
   disasters = [],
   acledData = [],
   districts = [],
+  selectedDistricts = [],
   selectedDistrict = null, // If provided, analyze only this district/admin level
   worldPopData = {},
   worldPopYear = null,
@@ -38,8 +78,10 @@ const OperationalOutlook = ({
   const [loading, setLoading] = useState(true);
   const [outlook, setOutlook] = useState(null);
   const [error, setError] = useState(null);
-  const [predictions, setPredictions] = useState(null);
-  const analysisDistricts = selectedDistrict ? [selectedDistrict] : districts;
+  const [supportingAssessments, setSupportingAssessments] = useState(null);
+  const analysisDistricts = selectedDistrict
+    ? [selectedDistrict]
+    : (selectedDistricts.length > 0 ? selectedDistricts : districts);
   const scopedFacilities = analysisDistricts.length > 0
     ? filterFacilitiesToDistricts(facilities || [], analysisDistricts)
     : (facilities || []);
@@ -55,10 +97,35 @@ const OperationalOutlook = ({
   const scopedOsmData = analysisDistricts.length > 0
     ? filterOsmDataToDistricts(osmData, analysisDistricts)
     : osmData;
+  const logisticsAssessment = supportingAssessments?.logistics || null;
+  const outlookConfidence = getOverallConfidence(supportingAssessments?.districtHazardAnalysis, logisticsAssessment);
+  const confidenceTone = getConfidenceTone(outlookConfidence);
 
   useEffect(() => {
     generateOutlook();
   }, []);
+
+  const getOsmLogisticsCoverage = () => {
+    const requestedLayers = scopedOsmData?.metadata?.requestedLayers || [];
+    const loadedLayerCounts = scopedOsmData?.metadata?.byLayer || {};
+
+    return {
+      roads:
+        requestedLayers.includes('roads') ||
+        requestedLayers.includes('bridges') ||
+        (loadedLayerCounts.road || 0) > 0 ||
+        (loadedLayerCounts.bridge || 0) > 0 ||
+        (loadedLayerCounts.roads || 0) > 0 ||
+        (loadedLayerCounts.bridges || 0) > 0,
+      fuel:
+        requestedLayers.includes('fuel') ||
+        (loadedLayerCounts.fuel || 0) > 0,
+      air:
+        requestedLayers.includes('airports') ||
+        (loadedLayerCounts.airport || 0) > 0 ||
+        (loadedLayerCounts.airports || 0) > 0
+    };
+  };
 
   const generateOutlook = async () => {
     setLoading(true);
@@ -113,80 +180,41 @@ const OperationalOutlook = ({
         console.warn('Could not fetch district hazard analysis for outlook:', err);
       }
 
-      // First, try to fetch predictions to include in the outlook
-      let predictionsData = null;
+      let nextSupportingAssessments = {
+        districtHazardAnalysis
+      };
+      const logisticsCoverage = getOsmLogisticsCoverage();
+      const canAssessLogistics = scopedOsmData?.features?.length > 0 && (logisticsCoverage.roads || logisticsCoverage.fuel || logisticsCoverage.air);
 
-      // Get center point for predictions
-      if (scopedFacilities.length > 0 || analysisDistricts.length > 0) {
-        const centerPoint = getCenterPoint();
-
-        // Fetch disaster forecast
+      if (canAssessLogistics) {
         try {
-          const disasterForecastRes = await fetch('/api/disaster-forecast', {
+          const logisticsRes = await fetch('/api/logistics-assessment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              latitude: centerPoint.latitude,
-              longitude: centerPoint.longitude,
-              days: 14
-            })
-          });
-
-          if (disasterForecastRes.ok) {
-            const disasterData = await disasterForecastRes.json();
-            predictionsData = { ...predictionsData, disaster: disasterData };
-          }
-        } catch (err) {
-          console.warn('Could not fetch disaster forecast:', err);
-        }
-
-        // Fetch outbreak prediction if we have facility/population data
-        if (scopedFacilities.length > 0) {
-          try {
-            const outbreakRes = await fetch('/api/outbreak-prediction', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                latitude: centerPoint.latitude,
-                longitude: centerPoint.longitude,
-                disasters: scopedDisasters,
-                populationEstimate: scopedFacilities.length * 10000, // Rough estimate
-                forecastDays: 30
-              })
-            });
-
-            if (outbreakRes.ok) {
-              const outbreakData = await outbreakRes.json();
-              predictionsData = { ...predictionsData, outbreak: outbreakData.predictions };
-            }
-          } catch (err) {
-            console.warn('Could not fetch outbreak prediction:', err);
-          }
-        }
-
-        // Fetch supply chain forecast
-        try {
-          const supplyChainRes = await fetch('/api/supply-chain-forecast', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              latitude: centerPoint.latitude,
-              longitude: centerPoint.longitude,
+              osmData: scopedOsmData,
               disasters: scopedDisasters,
-              forecastDays: 14
+              facilities: scopedFacilities,
+              acledEvents: filteredAcledData,
+              options: {}
             })
           });
 
-          if (supplyChainRes.ok) {
-            const supplyChainData = await supplyChainRes.json();
-            predictionsData = { ...predictionsData, supplyChain: supplyChainData };
+          if (logisticsRes.ok) {
+            const logisticsPayload = await logisticsRes.json();
+            nextSupportingAssessments = {
+              ...nextSupportingAssessments,
+              logistics: logisticsPayload.data
+            };
+          } else {
+            console.warn('Could not fetch logistics assessment for outlook');
           }
         } catch (err) {
-          console.warn('Could not fetch supply chain forecast:', err);
+          console.warn('Could not fetch logistics assessment for outlook:', err);
         }
       }
 
-      setPredictions(predictionsData);
+      setSupportingAssessments(nextSupportingAssessments);
 
       // Generate operational outlook with filtered data
       const response = await fetch('/api/operational-outlook', {
@@ -197,8 +225,8 @@ const OperationalOutlook = ({
           disasters: scopedDisasters,
           acledData: filteredAcledData, // Filtered to analysis area bounds
           districts: analysisDistricts, // Either single district or all districts
-          predictions: predictionsData,
           districtHazardAnalysis,
+          supportingAssessments: nextSupportingAssessments,
           selectedDistrict: selectedDistrict ? selectedDistrict.name : null, // Signal to API if this is admin-level analysis
           worldPopData: scopedWorldPopData,
           worldPopYear: worldPopYear || null,
@@ -352,6 +380,20 @@ const OperationalOutlook = ({
     URL.revokeObjectURL(url);
   };
 
+  const districtHazardAnalysis = supportingAssessments?.districtHazardAnalysis || null;
+  const hazardDistricts = districtHazardAnalysis?.districts || [];
+  const floodReadyCount = hazardDistricts.filter((district) => district.hazardAssessments?.flood?.status === 'ready').length;
+  const droughtReadyCount = hazardDistricts.filter((district) => district.hazardAssessments?.drought?.status === 'ready').length;
+  const heatReadyCount = hazardDistricts.filter((district) => district.hazardAssessments?.heat?.status === 'ready').length;
+  const evidenceSources = Array.from(new Set([
+    ...(districtHazardAnalysis?.summary?.sources || []),
+    ...(hazardDistricts.flatMap((district) => district.sources || [])),
+    ...(logisticsAssessment?.metadata?.confidence?.availableSignals || [])
+  ]));
+  const assessmentWarnings = [
+    ...(districtHazardAnalysis?.warnings || [])
+  ];
+
   return (
     <div style={{
       position: 'fixed',
@@ -464,6 +506,206 @@ const OperationalOutlook = ({
         }}>
           This outlook is experimental and intended as a planning aid. Confirm key assumptions with current field data, official advisories, and operational judgment.
         </div>
+
+        {!loading && (districtHazardAnalysis || logisticsAssessment) && (
+          <div style={{
+            padding: '18px 24px',
+            background: '#f8fafc',
+            borderBottom: '1px solid #e2e8f0'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              flexWrap: 'wrap',
+              marginBottom: '12px'
+            }}>
+              <div style={{
+                fontSize: '13px',
+                fontWeight: 700,
+                color: 'var(--aidstack-navy)'
+              }}>
+                Assessment Basis
+              </div>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: '11px',
+                fontWeight: 700,
+                background: confidenceTone.background,
+                border: `1px solid ${confidenceTone.border}`,
+                color: confidenceTone.color,
+                textTransform: 'uppercase',
+                letterSpacing: '0.03em'
+              }}>
+                Confidence: {outlookConfidence}
+              </span>
+              {districtHazardAnalysis && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  background: '#e0f2fe',
+                  border: '1px solid #7dd3fc',
+                  color: '#075985'
+                }}>
+                  Hazard scope: {hazardDistricts.length} district{hazardDistricts.length === 1 ? '' : 's'}
+                </span>
+              )}
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: '11px',
+                fontWeight: 700,
+                background: logisticsAssessment ? '#dcfce7' : '#e2e8f0',
+                border: `1px solid ${logisticsAssessment ? '#86efac' : '#cbd5e1'}`,
+                color: logisticsAssessment ? '#166534' : '#475569'
+              }}>
+                Logistics: {logisticsAssessment ? 'assessed' : 'not assessed'}
+              </span>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '10px',
+              marginBottom: '12px'
+            }}>
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Flood Ready</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>{formatCountLabel(floodReadyCount, hazardDistricts.length)}</div>
+              </div>
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Drought Ready</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>{formatCountLabel(droughtReadyCount, hazardDistricts.length)}</div>
+              </div>
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Heat Ready</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>{formatCountLabel(heatReadyCount, hazardDistricts.length)}</div>
+              </div>
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Logistics Rating</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>{logisticsAssessment?.rating || 'Not assessed'}</div>
+              </div>
+            </div>
+
+            {assessmentWarnings.length > 0 && (
+              <div style={{
+                background: '#fff7ed',
+                border: '1px solid #fed7aa',
+                borderRadius: '10px',
+                padding: '12px',
+                marginBottom: '12px'
+              }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#9a3412', marginBottom: '6px' }}>
+                  Assessment Warnings
+                </div>
+                {assessmentWarnings.map((warning, index) => (
+                  <div key={index} style={{ fontSize: '12px', color: '#9a3412', lineHeight: '1.5', marginBottom: index === assessmentWarnings.length - 1 ? 0 : '4px' }}>
+                    {warning}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {evidenceSources.length > 0 && (
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                  Sources
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {evidenceSources.slice(0, 12).map((source) => (
+                    <span key={source} style={{
+                      background: 'white',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '999px',
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      color: '#475569',
+                      fontWeight: 600
+                    }}>
+                      {source}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {hazardDistricts.length > 0 && (
+              <details style={{
+                background: 'white',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                padding: '12px'
+              }}>
+                <summary style={{ cursor: 'pointer', fontSize: '13px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>
+                  Why am I seeing this?
+                </summary>
+                <div style={{ marginTop: '12px', display: 'grid', gap: '10px' }}>
+                  {hazardDistricts.slice(0, 6).map((district) => (
+                    <div key={district.districtId} style={{
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      padding: '10px',
+                      background: '#f8fafc'
+                    }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--aidstack-navy)', marginBottom: '4px' }}>
+                        {district.districtName}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#334155', marginBottom: '4px' }}>
+                        Dominant hazard: {district.dominantHazard?.type || 'unavailable'} {typeof district.dominantHazard?.score === 'number' ? `(${district.dominantHazard.score}/100)` : '(not ready)'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#334155', marginBottom: '4px' }}>
+                        Confidence: {district.confidence || 'low'} | Evidence: {district.evidenceBase || 'limited'}
+                      </div>
+                      {district.rationale?.length > 0 && (
+                        <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5', marginBottom: '4px' }}>
+                          {district.rationale.slice(0, 3).join(' | ')}
+                        </div>
+                      )}
+                      {district.limitations?.length > 0 && (
+                        <div style={{ fontSize: '12px', color: '#64748b', lineHeight: '1.5' }}>
+                          Limits: {district.limitations.slice(0, 2).join(' | ')}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {logisticsAssessment && (
+                    <div style={{
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      padding: '10px',
+                      background: '#f8fafc'
+                    }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--aidstack-navy)', marginBottom: '4px' }}>
+                        Logistics Evidence
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#334155', marginBottom: '4px' }}>
+                        Rating: {logisticsAssessment.rating || 'Unknown'} | Access Score: {logisticsAssessment.accessScore ?? 'Unknown'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#334155', marginBottom: '4px' }}>
+                        Roads: {logisticsAssessment.roadNetwork?.assessmentStatus || 'Unknown'} | Fuel: {logisticsAssessment.fuelAccess?.assessmentStatus || 'Unknown'} | Air: {logisticsAssessment.airAccess?.assessmentStatus || 'Unknown'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
+                        {logisticsAssessment.summary || 'No logistics summary available.'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
 
         {/* Content */}
         <div style={{
