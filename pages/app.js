@@ -506,7 +506,7 @@ export default function Home() {
     
     const filtered = sourceDisasters.filter(disaster => {
       const disasterDate = getDisasterTimelineDate(disaster);
-      if (!disasterDate) return true;
+      if (!disasterDate) return false;
       return disasterDate >= cutoffDate;
     });
     
@@ -2161,6 +2161,7 @@ export default function Home() {
 
         <MapComponent
           disasters={filteredDisasters}
+          allDisasters={disasters}
           gdacsDiagnostics={gdacsDiagnostics ? {
             ...gdacsDiagnostics,
             filteredTotal: filteredDisasters.length,

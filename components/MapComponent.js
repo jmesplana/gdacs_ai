@@ -509,6 +509,7 @@ const ContextStatusBar = ({
 
 const MapComponent = ({
   disasters,
+  allDisasters = [],
   gdacsDiagnostics = null,
   facilities,
   impactedFacilities,
@@ -1640,7 +1641,7 @@ const MapComponent = ({
         setShowDistrictLabels={setShowDistrictLabels}
         onZoomToFit={handleZoomToFit}
         showZoomIndicator={showZoomIndicator}
-        disasters={disasters}
+        disasters={allDisasters.length > 0 ? allDisasters : disasters}
         dateFilter={dateFilter}
         handleDateFilterChange={handleDateFilterChange}
       />

@@ -1,5 +1,12 @@
 import React from 'react';
-import { getDisasterInfo, getAvailableDisasterTypes, getNormalizedSeverity, getNormalizedCertainty, getNormalizedUrgency } from '../../utils/disasterHelpers';
+import {
+  getDisasterInfo,
+  getAvailableDisasterTypes,
+  getNormalizedSeverity,
+  getNormalizedCertainty,
+  getNormalizedUrgency,
+  getDisasterTimelineDate
+} from '../../utils/disasterHelpers';
 
 const FilterDrawer = ({
   isOpen,
@@ -43,6 +50,16 @@ const FilterDrawer = ({
   // All possible disaster types (7 total)
   const allDisasterTypes = ['eq', 'tc', 'fl', 'vo', 'dr', 'wf', 'ts'];
   const availableTypes = getAvailableDisasterTypes(disasters);
+  const countDisastersSinceHours = (hours) => {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - hours * 60 * 60 * 1000);
+
+    return disasters.filter(disaster => {
+      const disasterDate = getDisasterTimelineDate(disaster);
+      if (!disasterDate) return false;
+      return disasterDate >= cutoff;
+    }).length;
+  };
 
   return (
     <>
@@ -992,11 +1009,7 @@ const FilterDrawer = ({
                   fontWeight: 'bold',
                   color: 'var(--aidstack-navy)'
                 }}>
-                  {disasters.filter(d => {
-                    const now = new Date();
-                    const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-                    return new Date(d.pubDate) >= cutoff;
-                  }).length}
+                  {countDisastersSinceHours(24)}
                 </span>
               </button>
 
@@ -1044,11 +1057,7 @@ const FilterDrawer = ({
                   fontWeight: 'bold',
                   color: 'var(--aidstack-navy)'
                 }}>
-                  {disasters.filter(d => {
-                    const now = new Date();
-                    const cutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000);
-                    return new Date(d.pubDate) >= cutoff;
-                  }).length}
+                  {countDisastersSinceHours(72)}
                 </span>
               </button>
 
