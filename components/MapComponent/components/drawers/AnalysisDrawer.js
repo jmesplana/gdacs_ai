@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { getDistance } from 'geolib';
 import TimestampBadge from '../TimestampBadge';
 import { useToast } from '../../../Toast';
 
@@ -19,6 +20,76 @@ const ProvenanceBadge = ({ label, tone = '#475569', background = '#f1f5f9' }) =>
     {label}
   </span>
 );
+
+const FACILITY_OSM_RADIUS_KM = 50;
+const FACILITY_ACLED_RADIUS_KM = 150;
+const MAX_ACLED_EVENTS_PER_FACILITY = 500;
+
+const getFacilityCoords = (facility) => ({
+  latitude: Number(facility?.lat ?? facility?.latitude),
+  longitude: Number(facility?.lng ?? facility?.longitude)
+});
+
+const isValidCoords = ({ latitude, longitude }) =>
+  Number.isFinite(latitude) && Number.isFinite(longitude);
+
+const buildScopedOsmData = (facility, osmData) => {
+  if (!osmData?.features?.length) return null;
+
+  const facilityCoords = getFacilityCoords(facility);
+  if (!isValidCoords(facilityCoords)) return null;
+
+  const features = osmData.features.filter((feature) => {
+    if (feature?.geometry?.type !== 'Point' || !Array.isArray(feature.geometry.coordinates)) {
+      return false;
+    }
+
+    const [longitude, latitude] = feature.geometry.coordinates;
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
+
+    const distanceKm = getDistance(facilityCoords, { latitude, longitude }) / 1000;
+    return distanceKm <= FACILITY_OSM_RADIUS_KM;
+  }).map((feature) => ({
+    type: 'Feature',
+    geometry: feature.geometry,
+    properties: {
+      category: feature.properties?.category,
+      name: feature.properties?.name,
+      osmId: feature.properties?.osmId,
+      tags: feature.properties?.tags
+    }
+  }));
+
+  return {
+    type: 'FeatureCollection',
+    features
+  };
+};
+
+const buildScopedAcledData = (facility, acledData = []) => {
+  if (!Array.isArray(acledData) || acledData.length === 0) return [];
+
+  const facilityCoords = getFacilityCoords(facility);
+  if (!isValidCoords(facilityCoords)) return [];
+
+  return acledData
+    .filter((event) => Number.isFinite(Number(event?.latitude)) && Number.isFinite(Number(event?.longitude)))
+    .map((event) => ({
+      ...event,
+      _distanceKm: getDistance(facilityCoords, {
+        latitude: Number(event.latitude),
+        longitude: Number(event.longitude)
+      }) / 1000
+    }))
+    .filter((event) => event._distanceKm <= FACILITY_ACLED_RADIUS_KM)
+    .sort((a, b) => {
+      const dateA = new Date(a.event_date || 0).getTime();
+      const dateB = new Date(b.event_date || 0).getTime();
+      return dateB - dateA;
+    })
+    .slice(0, MAX_ACLED_EVENTS_PER_FACILITY)
+    .map(({ _distanceKm, ...event }) => event);
+};
 
 const buildAssessmentConfidence = ({ impacts = [], acledEnabled, acledData = [], osmData, operationType, operationViability }) => {
   const signals = [
@@ -164,6 +235,8 @@ const AnalysisDrawer = ({
       )?.impacts || [];
 
       const disasters = impacts.map(impact => impact.disaster);
+      const scopedOsmData = buildScopedOsmData(selectedFacility, osmData);
+      const scopedAcledData = acledEnabled ? buildScopedAcledData(selectedFacility, acledData) : null;
 
       const response = await fetch('/api/campaign-viability', {
         method: 'POST',
@@ -174,10 +247,10 @@ const AnalysisDrawer = ({
           facility: selectedFacility,
           impacts: impacts,
           disasters: disasters,
-          acledData: acledEnabled ? acledData : null,
+          acledData: scopedAcledData,
           acledEnabled,
           operationType,
-          osmData: osmData
+          osmData: scopedOsmData
         }),
       });
 
@@ -597,6 +670,48 @@ const AnalysisDrawer = ({
                                   )}
                                 </div>
                               </div>
+
+                              {operationViability.securityAssessment.securityFramework?.sections?.length > 0 && (
+                                <div style={{
+                                  marginTop: '10px',
+                                  paddingTop: '10px',
+                                  borderTop: '1px solid rgba(0,0,0,0.1)'
+                                }}>
+                                  <div style={{
+                                    fontSize: '12px',
+                                    fontWeight: 'bold',
+                                    color: '#444',
+                                    marginBottom: '8px'
+                                  }}>
+                                    Operational Security Framework
+                                  </div>
+
+                                  {operationViability.securityAssessment.securityFramework.sections.map((section) => (
+                                    <div key={section.key} style={{ marginBottom: '10px' }}>
+                                      <div style={{
+                                        fontSize: '12px',
+                                        fontWeight: 'bold',
+                                        color: 'var(--aidstack-navy)',
+                                        marginBottom: '4px'
+                                      }}>
+                                        {section.title}
+                                      </div>
+
+                                      {section.items.map((item, idx) => (
+                                        <div key={`${section.key}-${idx}`} style={{
+                                          fontSize: '12px',
+                                          lineHeight: '1.5',
+                                          color: '#333',
+                                          marginBottom: '4px'
+                                        }}>
+                                          <strong>{item.label}:</strong> {item.status}
+                                          {item.detail ? ` - ${item.detail}` : ''}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
 
                               {operationViability.securityAssessment.assessment && (
                                 <div style={{

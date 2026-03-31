@@ -4,7 +4,7 @@ import { getDistance } from 'geolib';
 
 /**
  * Security Risk Assessment API
- * Analyzes security risks for campaign operations based on facility location
+ * Analyzes security risks for humanitarian operations based on facility location
  * Uses ACLED data when available, falls back to AI knowledge
  */
 export const config = {
@@ -173,22 +173,31 @@ Calculated Risk Score: ${riskScore.toFixed(1)}/100
 Determined Security Level: ${securityLevel}
 `;
 
-      const prompt = `You are a security analyst for humanitarian health campaigns. Based on this REAL ACLED conflict data, provide operational security guidance.
+      const prompt = `You are a security analyst for humanitarian health operations. Based on this REAL ACLED conflict data, provide operational security guidance.
 
 FACILITY: ${facility.name}
 LOCATION: ${facility.latitude}, ${facility.longitude}
 ${facility.country ? `COUNTRY: ${facility.country}` : ''}
 ${facility.region ? `REGION: ${facility.region}` : ''}
+${facility.type ? `FACILITY TYPE: ${facility.type}` : ''}
+${facility.description ? `FACILITY DESCRIPTION: ${facility.description}` : ''}
 
 ${acledSummary}
 
+Use this neutral humanitarian operational security checklist when framing your assessment:
+- Security: hospital and staff exposure to hostilities or military targets, building protection, banditry / hostage-taking risk, and patient safety
+- Access: evacuation time, road and checkpoint safety, transport availability, first-aid-post feasibility, and logistics constraints
+- Infrastructure: structural integrity, expansion potential, temporary structures, utilities, kitchen, laundry, residence, and warehouse
+- Personnel: local and expatriate staffing, neutrality concerns, competence, language issues, and support functions
+
 Provide:
-1. **Operational Implications**: How these incidents affect campaign operations
-2. **Specific Threats**: Based on event types and actors present
-3. **Mitigation Strategies**: Concrete security protocols needed
-4. **Movement Restrictions**: Safe times/routes based on incident patterns
-5. **Liaison Requirements**: Which actors/authorities to coordinate with
-6. **Go/No-Go Recommendation**: Can campaign proceed? Under what conditions?
+1. **Operational Security Framework**: Under headings Security, Access, Infrastructure, Personnel, say what the ACLED evidence suggests and what still needs field verification
+2. **Operational Implications**: How these incidents affect operations
+3. **Specific Threats**: Based on event types and actors present
+4. **Mitigation Strategies**: Concrete security protocols needed
+5. **Movement Restrictions**: Safe times/routes based on incident patterns
+6. **Liaison Requirements**: Which actors/authorities to coordinate with
+7. **Go/No-Go Recommendation**: Can the operation proceed? Under what conditions?
 
 Be specific and actionable. Reference the actual incident data provided.`;
 
@@ -217,6 +226,18 @@ Be specific and actionable. Reference the actual incident data provided.`;
   }
 
   // Build detailed assessment
+  const securityFramework = buildSecurityFramework({
+    facility,
+    securityLevel,
+    riskScore,
+    allNearbyIncidents,
+    incidentsByZone,
+    incidentsByType,
+    totalFatalities,
+    topActors,
+    dataSource: 'ACLED'
+  });
+
   const assessment = {
     facilityName: facility.name,
     securityLevel: securityLevel,
@@ -248,8 +269,10 @@ Be specific and actionable. Reference the actual incident data provided.`;
       incidentsByType,
       topActors,
       totalFatalities,
+      securityFramework,
       aiRecommendations
     ),
+    securityFramework,
     isAIGenerated,
     timestamp: new Date().toISOString(),
     note: `Security assessment based on ${allNearbyIncidents.length} ACLED incidents within 100km from the last 60 days.`
@@ -261,7 +284,7 @@ Be specific and actionable. Reference the actual incident data provided.`;
 /**
  * Format ACLED assessment into readable text
  */
-function formatAcledAssessment(securityLevel, totalIncidents, zones, incidentsByType, actors, fatalities, aiRecommendations) {
+function formatAcledAssessment(securityLevel, totalIncidents, zones, incidentsByType, actors, fatalities, securityFramework, aiRecommendations) {
   let assessment = `## Security Level: **${securityLevel}**\n\n`;
 
   assessment += `### ACLED Data Summary (Last 60 Days)\n\n`;
@@ -299,6 +322,17 @@ function formatAcledAssessment(securityLevel, totalIncidents, zones, incidentsBy
     });
   }
 
+  if (securityFramework?.sections?.length) {
+    assessment += `\n### Operational Security Framework\n\n`;
+    securityFramework.sections.forEach(section => {
+      assessment += `**${section.title}**\n`;
+      section.items.forEach(item => {
+        assessment += `- ${item.label}: ${item.status}${item.detail ? ` - ${item.detail}` : ''}\n`;
+      });
+      assessment += `\n`;
+    });
+  }
+
   if (aiRecommendations) {
     assessment += `\n### AI-Enhanced Operational Guidance\n\n`;
     assessment += aiRecommendations;
@@ -315,21 +349,33 @@ async function generateAIOnlyAssessment(facility) {
     apiKey: process.env.OPENAI_API_KEY,
   });
 
-  const prompt = `You are a security analyst specializing in humanitarian operations in complex environments. Analyze the security situation for health campaign operations.
+  const prompt = `You are a security analyst specializing in humanitarian operations in complex environments. Analyze the security situation for health operations.
 
 FACILITY: ${facility.name}
 LOCATION: ${facility.latitude}, ${facility.longitude}
 COUNTRY: ${facility.country || 'Unknown'}
 ${facility.region ? `REGION: ${facility.region}` : ''}
 ${facility.district ? `DISTRICT: ${facility.district}` : ''}
+${facility.type ? `FACILITY TYPE: ${facility.type}` : ''}
+${facility.description ? `FACILITY DESCRIPTION: ${facility.description}` : ''}
 
-Based on your knowledge of security situations, conflict zones, and access constraints (updated to January 2025), provide a security risk assessment:
+Use this neutral humanitarian operational security checklist when assessing the site:
+- Hospital and staff security concerns: proximity to hostilities or military targets, local environment, and likely fighting developments
+- Building type and protection: number of storeys, ground floor exposure, underground space, cellar, bomb shelter, tents, temporary structures
+- Incidence of banditry, hostage-taking, checkpoints, and criminality
+- Patient safety inside the facility and after discharge
+- Access: distance, evacuation time, roads, vehicles, air evacuation, checkpoint safety, and first-aid-post feasibility
+- Infrastructure: structural integrity, expansion potential, water, sanitation, electricity, kitchen, laundry, staff residence, warehouse
+- Personnel: availability, neutrality concerns, competence, language needs, and support staff requirements
+
+Based on your knowledge of security situations, conflict zones, and access constraints (updated to January 2025), provide a security risk assessment with these sections:
 
 1. **Security Level**: Rate as LOW, MEDIUM, HIGH, or CRITICAL
-2. **Identified Security Risks**: List specific security concerns
-3. **Operational Implications**: How these risks affect campaign operations
-4. **Mitigation Strategies**: Specific recommendations
-5. **Go/No-Go Recommendation**: Can campaigns proceed? Under what conditions?
+2. **Operational Security Framework**: Under headings Security, Access, Infrastructure, Personnel, state what is known, what is unknown, and what requires field verification
+3. **Identified Security Risks**: List specific security concerns
+4. **Operational Implications**: How these risks affect operations
+5. **Mitigation Strategies**: Specific recommendations
+6. **Go/No-Go Recommendation**: Can the operation proceed? Under what conditions?
 
 Format your response in clear sections with bullet points. Be specific and actionable.`;
 
@@ -361,14 +407,168 @@ Format your response in clear sections with bullet points. Be specific and actio
     securityLevel = 'LOW';
   }
 
+  const securityFramework = buildSecurityFramework({
+    facility,
+    securityLevel,
+    riskScore: null,
+    allNearbyIncidents: [],
+    incidentsByZone: [],
+    incidentsByType: {},
+    totalFatalities: 0,
+    topActors: [],
+    dataSource: 'AI Knowledge'
+  });
+
   return {
     facilityName: facility.name,
     securityLevel: securityLevel,
     assessment: aiResponse,
+    securityFramework,
     dataSource: 'AI Knowledge',
     isAIGenerated: true,
     timestamp: new Date().toISOString(),
     note: 'Security assessment based on AI analysis of known conflict zones. For real-time data, upload ACLED conflict data.'
+  };
+}
+
+function buildSecurityFramework({
+  facility,
+  securityLevel,
+  riskScore,
+  allNearbyIncidents = [],
+  incidentsByZone = [],
+  incidentsByType = {},
+  totalFatalities = 0,
+  topActors = [],
+  dataSource = 'AI Knowledge'
+}) {
+  const immediateZone = incidentsByZone.find(zone => zone.name === '0-10 km');
+  const nearZone = incidentsByZone.find(zone => zone.name === '10-25 km');
+  const directThreatCount = immediateZone?.incidents?.length || 0;
+  const nearbyThreatCount = nearZone?.incidents?.length || 0;
+  const hasViolentEvents = Object.entries(incidentsByType).some(([type, count]) => {
+    const normalized = String(type || '').toLowerCase();
+    return count > 0 && (
+      normalized.includes('violence') ||
+      normalized.includes('battle') ||
+      normalized.includes('explosion') ||
+      normalized.includes('remote violence') ||
+      normalized.includes('riots')
+    );
+  });
+  const buildingDescriptor = [facility.type, facility.description]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  const hasProtectedStructureHint = ['underground', 'cellar', 'shelter', 'bunker'].some(term => buildingDescriptor.includes(term));
+  const isTemporaryStructure = ['tent', 'temporary', 'prefab', 'prefabricated'].some(term => buildingDescriptor.includes(term));
+
+  return {
+    framework: 'humanitarian operational security framework',
+    dataSource,
+    sections: [
+      {
+        key: 'security',
+        title: 'Security',
+        items: [
+          {
+            label: 'Hospital and staff security',
+            status: securityLevel,
+            detail: directThreatCount > 0
+              ? `${directThreatCount} incidents within 10km and ${nearbyThreatCount} within 10-25km indicate direct exposure to hostilities.`
+              : allNearbyIncidents.length > 0
+                ? `${allNearbyIncidents.length} incidents within 100km require route and site-specific movement controls.`
+                : 'No recent ACLED incidents in the immediate vicinity; maintain routine monitoring.'
+          },
+          {
+            label: 'Building protection profile',
+            status: hasProtectedStructureHint ? 'PARTIAL' : 'UNKNOWN',
+            detail: hasProtectedStructureHint
+              ? 'Facility description suggests some protected space, but structural survivability still needs field verification.'
+              : isTemporaryStructure
+                ? 'Facility appears to rely on temporary structures, which increases blast and weather vulnerability.'
+                : 'No reliable data on storeys, hardened areas, cellar, or shelter capacity.'
+          },
+          {
+            label: 'Banditry / hostage-taking / criminal threats',
+            status: hasViolentEvents || totalFatalities > 0 ? 'ELEVATED' : 'UNKNOWN',
+            detail: topActors.length > 0
+              ? `Conflict actor presence is documented nearby. Top actors: ${topActors.slice(0, 3).map(actor => actor.actor).join(', ')}.`
+              : 'Current inputs do not specifically identify banditry or kidnapping patterns.'
+          },
+          {
+            label: 'Patient safety',
+            status: securityLevel === 'CRITICAL' || securityLevel === 'HIGH' ? 'HIGH RISK' : securityLevel === 'MEDIUM' ? 'MODERATE RISK' : 'LOW RISK',
+            detail: securityLevel === 'CRITICAL' || securityLevel === 'HIGH'
+              ? 'Patient movement, admission surge, and discharge routes should be treated as controlled-security issues.'
+              : 'Patient flow appears manageable, but discharge route safety still requires local validation.'
+          }
+        ]
+      },
+      {
+        key: 'access',
+        title: 'Access',
+        items: [
+          {
+            label: 'Distance and evacuation time',
+            status: 'UNKNOWN',
+            detail: 'Not calculated in this endpoint. Pair with logistics assessment for route distance, road condition, and medevac feasibility.'
+          },
+          {
+            label: 'Roads, checkpoints, and movement safety',
+            status: allNearbyIncidents.length > 0 ? 'REQUIRES REVIEW' : 'PARTIAL',
+            detail: allNearbyIncidents.length > 0
+              ? 'Conflict activity nearby raises checkpoint and route-security concerns; validate movement windows before deployment.'
+              : 'No incident signal here, but checkpoint risk still depends on local authorities and armed actor control.'
+          },
+          {
+            label: 'First-aid post network feasibility',
+            status: 'UNKNOWN',
+            detail: 'Requires operational design input and facility catchment mapping.'
+          }
+        ]
+      },
+      {
+        key: 'infrastructure',
+        title: 'Infrastructure',
+        items: [
+          {
+            label: 'Structural integrity and expansion potential',
+            status: facility.type || facility.description ? 'PARTIAL' : 'UNKNOWN',
+            detail: facility.type || facility.description
+              ? `Available metadata: ${[facility.type, facility.description].filter(Boolean).join(' | ')}`
+              : 'No building assessment data on integrity, expansion space, or adaptive reuse.'
+          },
+          {
+            label: 'Utilities and essential services',
+            status: 'UNKNOWN',
+            detail: 'Water, sanitation, electricity, kitchen, laundry, residence, and warehouse capacity are not captured in this endpoint.'
+          }
+        ]
+      },
+      {
+        key: 'personnel',
+        title: 'Personnel',
+        items: [
+          {
+            label: 'Local and expatriate staffing availability',
+            status: 'UNKNOWN',
+            detail: 'No staffing roster, surge profile, or support-function coverage in current facility payload.'
+          },
+          {
+            label: 'Neutrality, competence, and language support',
+            status: 'UNKNOWN',
+            detail: 'Recruitment neutrality, credentials, translators, and support staff need separate field validation.'
+          }
+        ]
+      }
+    ],
+    summary: {
+      securityLevel,
+      riskScore,
+      incidentsNearby: allNearbyIncidents.length,
+      totalFatalities
+    }
   };
 }
 
