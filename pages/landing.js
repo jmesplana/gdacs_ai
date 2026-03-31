@@ -75,8 +75,9 @@ export default function Landing() {
                 'Admin boundary shapefile analysis',
                 'District hazard analysis with auditable drivers',
                 'Operational outlook and prioritization board',
-                'Campaign viability analysis',
+                'Operation viability analysis',
                 'Flood and drought context overlays',
+                'Nighttime lights date comparison',
                 'Batch facility assessment',
                 'Interactive geospatial mapping',
                 'AI-assisted decision support'

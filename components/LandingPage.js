@@ -765,7 +765,7 @@ const LandingPage = () => {
                       marginBottom: '12px',
                       fontFamily: "'Inter', sans-serif"
                     }}>
-                      Pre-position cold-chain backup and mobile teams west of the flood corridor before road access drops.
+                      Enable Flood Context, review logistics coverage, and pre-position mobile teams west of the flood corridor before road access drops.
                     </div>
 
                     <div style={{
@@ -776,7 +776,7 @@ const LandingPage = () => {
                       color: '#475569',
                       fontFamily: "'Inter', sans-serif"
                     }}>
-                      <div>Flood escalation probability: <strong>62%</strong></div>
+                      <div>Flood readiness: <strong>Ready</strong></div>
                       <div>Conflict incidents in nearby districts: <strong>3</strong></div>
                       <div>Population in affected catchment: <strong>184K</strong></div>
                     </div>
@@ -993,7 +993,7 @@ const LandingPage = () => {
                 <li>Prioritization Board for selected admin areas</li>
                 <li>Flood and Drought Context overlays from Google Earth Engine</li>
                 <li>District hazard scores with visible drivers and sources</li>
-                <li>Campaign viability (GO/CAUTION/DELAY/NOGO)</li>
+                <li>Operation viability (GO/CAUTION/DELAY/NOGO)</li>
                 <li>Chat and decision views share the same admin-level context</li>
               </ul>
             </div>
@@ -1085,15 +1085,27 @@ const LandingPage = () => {
                 ]
               },
               {
-                title: 'Campaign Viability Assessment',
+                title: 'Operation Viability Assessment',
                 experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-                description: 'GO/CAUTION/DELAY/NOGO decisions for campaign planning',
+                description: 'GO/CAUTION/DELAY/NOGO decisions for humanitarian operations at facility or batch level',
                 features: [
                   'Multi-facility batch assessment',
-                  'Area-level campaign readiness',
+                  'Area-level operation readiness',
                   'Operation-specific risk scoring',
                   'HTML/PDF decision brief export'
+                ]
+              },
+              {
+                title: 'Nighttime Lights Compare',
+                experimental: true,
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/><path d="M4 12h16"/></svg>,
+                description: 'Compare two VIIRS monthly night-light composites with a before/after swipe directly on the map',
+                features: [
+                  'Visible month labels for both dates',
+                  'Before/after vertical swipe control',
+                  'Monthly VIIRS history through Google Earth Engine',
+                  'Supports district context and anomaly review'
                 ]
               },
               {
@@ -1169,12 +1181,12 @@ const LandingPage = () => {
               {
                 title: 'Multiple Basemap Options',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
-                description: 'Switch between satellite, terrain, and street maps',
+                description: 'Switch between standard basemaps and Earth Engine visual layers for context review',
                 features: [
                   'OpenStreetMap standard view',
                   'Satellite imagery',
                   'Terrain visualization',
-                  'Heatmap overlay toggle'
+                  'Nighttime lights with date compare'
                 ]
               },
               {
@@ -1193,7 +1205,7 @@ const LandingPage = () => {
               {
                 title: 'Export & Reporting',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
-                description: 'Generate decision briefs and campaign readiness reports',
+                description: 'Generate decision briefs and operation-readiness reports',
                 features: [
                   'HTML/PDF export',
                   'Individual facility briefs',
@@ -1318,7 +1330,7 @@ const LandingPage = () => {
                 color: '#475569',
                 marginBottom: '32px'
               }}>
-                Aidstack Disasters consolidates global disaster data, automates impact assessment, and generates AI-powered response recommendations—all in one visual interface.
+                Aidstack Disasters consolidates global disaster data, district-scoped evidence, and AI decision support in one visual interface so operators can move from raw signals to reviewable judgments faster.
               </p>
               <div style={{
                 display: 'grid',
@@ -1911,7 +1923,7 @@ const LandingPage = () => {
               },
               {
                 title: 'Program Managers',
-                description: 'Determine campaign feasibility by analyzing security and disaster risks'
+                description: 'Determine operation feasibility by analyzing security, hazard, and access risks'
               },
               {
                 title: 'Logistics Coordinators',
@@ -1989,11 +2001,11 @@ const LandingPage = () => {
               },
               {
                 title: 'Select Admin Areas and Add Context',
-                description: 'Choose the admin areas that matter, then load facilities, WorldPop population, OSM infrastructure, and optional hazard context overlays'
+                description: 'Choose the admin areas that matter, then load facilities, WorldPop population, OSM infrastructure, optional hazard context overlays, and nighttime lights when needed'
               },
               {
                 title: 'Enable Evidence Layers Before Forecasting',
-                description: 'Turn on Flood Context or Drought Context overlays when needed so hazard scores use the required Earth Engine evidence instead of guessing from forecast weather alone'
+                description: 'Turn on Flood Context, Drought Context, or Nighttime Lights when needed so the workspace can use loaded evidence instead of guessing from forecast or map context alone'
               },
               {
                 title: 'Review Forecast, Outlook, and Prioritization',
@@ -2316,11 +2328,11 @@ const LandingPage = () => {
               },
               {
                 question: 'How does WorldPop integration work?',
-                answer: 'The platform integrates Google Earth Engine to provide real-time population statistics including total population, age-sex breakdowns, and vulnerable population counts (under-5, over-60). Population heatmaps visualize demographic density across your operational area, helping identify high-impact zones for interventions.'
+                answer: 'The platform integrates Google Earth Engine to provide population statistics including total population, age-sex breakdowns, and vulnerable population counts (under-5, over-60). Population heatmaps visualize demographic density across your operational area, helping identify high-impact zones for interventions.'
               },
               {
-                question: 'What is Campaign Viability Assessment?',
-                answer: 'Campaign Viability provides GO/CAUTION/DELAY/NOGO decisions for humanitarian campaigns. You can assess individual facilities or batch-process 1000+ sites simultaneously. The system evaluates security risks, disaster impacts, accessibility, and population data to generate decision briefs exportable as HTML/PDF.'
+                question: 'What is Operation Viability Assessment?',
+                answer: 'Operation Viability provides GO/CAUTION/DELAY/NOGO decisions for humanitarian operations. You can assess individual facilities or batch-process 1000+ sites simultaneously. The system evaluates security risks, disaster impacts, accessibility, and population data to generate decision briefs exportable as HTML/PDF.'
               },
               {
                 question: 'How does weather forecast integration work?',
@@ -2344,7 +2356,7 @@ const LandingPage = () => {
               },
               {
                 question: 'Can I batch-assess multiple facilities?',
-                answer: 'Absolutely! Upload CSV files with 1000+ facilities and run batch campaign viability assessments. The system processes all sites simultaneously and generates individual decision briefs plus a system-wide readiness report, helping prioritize which locations to operate in.'
+                answer: 'Absolutely. Upload CSV files with 1000+ facilities and run batch operation-viability assessments. The system processes all sites simultaneously and generates individual decision briefs plus a system-wide readiness report, helping prioritize which locations to operate in.'
               },
               {
                 question: 'What operation types are supported?',
@@ -2352,7 +2364,11 @@ const LandingPage = () => {
               },
               {
                 question: 'Can I use my own facility data?',
-                answer: 'Yes. Upload any CSV or Excel file with name, latitude, and longitude columns. You can also upload shapefiles for administrative boundaries, then select the admin areas you want to analyze before running forecast, outlook, prioritization, or campaign decision workflows.'
+                answer: 'Yes. Upload any CSV or Excel file with name, latitude, and longitude columns. You can also upload shapefiles for administrative boundaries, then select the admin areas you want to analyze before running forecast, outlook, prioritization, or operation decision workflows.'
+              },
+              {
+                question: 'How does nighttime lights comparison work?',
+                answer: 'Switch the basemap to Nighttime Lights (GEE), turn on compare mode, and choose a before and after month. The map will show a vertical swipe line so you can compare two VIIRS monthly composites directly. The AI only uses nighttime-lights context when that layer is actually loaded.'
               },
               {
                 question: 'Is my data stored on servers?',
