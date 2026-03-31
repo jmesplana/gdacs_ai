@@ -1,11 +1,34 @@
 import React from 'react';
 import OSMInfrastructureSelector from './OSMInfrastructureSelector';
 
+function formatLayerDate(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric'
+  });
+}
+
+function formatMonthInputValue(value) {
+  if (!value) return '';
+  return value.slice(0, 7);
+}
+
 const MapLayersDrawer = ({
   isOpen,
   onClose,
   currentMapLayer,
   setCurrentMapLayer,
+  geeBaseLayerMetadata,
+  nighttimeCompareEnabled,
+  setNighttimeCompareEnabled,
+  nighttimeBeforeMonth,
+  setNighttimeBeforeMonth,
+  nighttimeAfterMonth,
+  setNighttimeAfterMonth,
+  nighttimeBeforeMetadata,
   showRoads,
   setShowRoads,
   showFloodContextLayer,
@@ -147,7 +170,14 @@ const MapLayersDrawer = ({
             onChange={() => handleMapLayerChange('nighttime_lights')}
             style={{marginRight: '10px'}}
           />
-          <span>🌙 Nighttime Lights (GEE)</span>
+          <div>
+            <div>🌙 Nighttime Lights (GEE)</div>
+            {activeMapLayer === 'nighttime_lights' && geeBaseLayerMetadata?.date && (
+              <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>
+                Data date: {formatLayerDate(geeBaseLayerMetadata.date)} {geeBaseLayerMetadata.cadence ? `(${geeBaseLayerMetadata.cadence})` : ''}
+              </div>
+            )}
+          </div>
         </label>
 
         <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'satellite' ? '#e3f2fd' : 'transparent'}}>
@@ -258,6 +288,57 @@ const MapLayersDrawer = ({
             lineHeight: 1.5
           }}>
             Near real-time NASA VIIRS imagery. Best for broad recent change and hazard context, not fine building-level damage.
+          </div>
+        )}
+
+        {activeMapLayer === 'nighttime_lights' && (
+          <div style={{
+            fontSize: '12px',
+            color: '#555',
+            backgroundColor: '#f7f7f7',
+            borderRadius: '6px',
+            padding: '10px',
+            lineHeight: 1.5
+          }}>
+            Monthly VIIRS nighttime lights. Use compare mode to inspect two months with a swipe slider.
+
+            <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+              <span style={{ fontWeight: 700, color: '#334155' }}>Compare two dates</span>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(nighttimeCompareEnabled)}
+                  onChange={(event) => setNighttimeCompareEnabled?.(event.target.checked)}
+                />
+                <span>{nighttimeCompareEnabled ? 'On' : 'Off'}</span>
+              </label>
+            </div>
+
+            {nighttimeCompareEnabled && (
+              <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontWeight: 700, color: '#334155' }}>Before</span>
+                  <input
+                    type="month"
+                    value={formatMonthInputValue(nighttimeBeforeMonth || nighttimeBeforeMetadata?.date || '')}
+                    onChange={(event) => setNighttimeBeforeMonth?.(event.target.value)}
+                    style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontWeight: 700, color: '#334155' }}>After</span>
+                  <input
+                    type="month"
+                    value={formatMonthInputValue(nighttimeAfterMonth || geeBaseLayerMetadata?.date || '')}
+                    onChange={(event) => setNighttimeAfterMonth?.(event.target.value)}
+                    style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+                  />
+                </label>
+                <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: '#64748b' }}>
+                  The map shows the selected "after" month full-frame and the "before" month on the left side of the swipe slider.
+                </div>
+              </div>
+            )}
           </div>
         )}
 

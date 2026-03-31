@@ -413,6 +413,13 @@ const formatDateFilterLabel = (dateFilter) => {
   }
 };
 
+const formatMonthLabel = (value) => {
+  if (!value) return 'Unknown';
+  const parsed = new Date(`${value}-01T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+};
+
 const ContextStatusBar = ({
   operationType,
   dateFilter,
@@ -556,6 +563,7 @@ const MapComponent = ({
   // Map refs - keep these in main component
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
+  const nighttimeCompareDragRef = useRef(false);
   const [mapInstance, setMapInstance] = useState(null);
   const { addToast } = useToast();
 
@@ -1271,7 +1279,14 @@ const MapComponent = ({
   // Get current map layer configuration
   const currentLayer = MAP_LAYERS[currentMapLayer.toUpperCase()] || MAP_LAYERS.STREET;
   const [geeBaseLayerUrl, setGeeBaseLayerUrl] = useState(null);
+  const [geeBaseLayerMetadata, setGeeBaseLayerMetadata] = useState(null);
   const [geeBaseLayerError, setGeeBaseLayerError] = useState(null);
+  const [nighttimeCompareEnabled, setNighttimeCompareEnabled] = useState(false);
+  const [nighttimeBeforeMonth, setNighttimeBeforeMonth] = useState('');
+  const [nighttimeAfterMonth, setNighttimeAfterMonth] = useState('');
+  const [nighttimeBeforeTileUrl, setNighttimeBeforeTileUrl] = useState(null);
+  const [nighttimeBeforeMetadata, setNighttimeBeforeMetadata] = useState(null);
+  const [nighttimeComparePosition, setNighttimeComparePosition] = useState(50);
   const [floodContextTileUrl, setFloodContextTileUrl] = useState(null);
   const [droughtContextTileUrl, setDroughtContextTileUrl] = useState(null);
   const [geeOverlayError, setGeeOverlayError] = useState(null);
@@ -1308,6 +1323,7 @@ const MapComponent = ({
 
     if (currentLayer.type !== 'gee') {
       setGeeBaseLayerUrl(null);
+      setGeeBaseLayerMetadata(null);
       setGeeBaseLayerError(null);
       return undefined;
     }
@@ -1320,7 +1336,8 @@ const MapComponent = ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             dataset: currentLayer.dataset,
-            bounds: geeBounds || null
+            bounds: geeBounds || null,
+            month: currentMapLayer === 'nighttime_lights' ? (nighttimeAfterMonth || null) : null
           }),
         });
 
@@ -1331,10 +1348,12 @@ const MapComponent = ({
 
         if (!cancelled) {
           setGeeBaseLayerUrl(data.tileUrl);
+          setGeeBaseLayerMetadata(data.metadata || null);
         }
       } catch (error) {
         if (!cancelled) {
           setGeeBaseLayerUrl(null);
+          setGeeBaseLayerMetadata(null);
           setGeeBaseLayerError(error.message || 'Failed to load Earth Engine imagery');
           console.error('[MapComponent] GEE baselayer error:', error);
         }
@@ -1345,7 +1364,153 @@ const MapComponent = ({
     return () => {
       cancelled = true;
     };
-  }, [currentLayer, geeBounds]);
+  }, [currentLayer, currentMapLayer, nighttimeAfterMonth, geeBounds]);
+
+  useEffect(() => {
+    if (currentMapLayer !== 'nighttime_lights') {
+      setNighttimeCompareEnabled(false);
+      setNighttimeBeforeTileUrl(null);
+      setNighttimeBeforeMetadata(null);
+      return;
+    }
+
+    if (geeBaseLayerMetadata?.date && !nighttimeAfterMonth) {
+      const afterMonth = geeBaseLayerMetadata.date.slice(0, 7);
+      const afterDate = new Date(`${afterMonth}-01T00:00:00Z`);
+      const beforeDate = new Date(afterDate);
+      beforeDate.setUTCMonth(beforeDate.getUTCMonth() - 12);
+      setNighttimeAfterMonth(afterMonth);
+      setNighttimeBeforeMonth(beforeDate.toISOString().slice(0, 7));
+    }
+  }, [currentMapLayer, geeBaseLayerMetadata, nighttimeAfterMonth]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (
+      currentMapLayer !== 'nighttime_lights' ||
+      !nighttimeCompareEnabled ||
+      !nighttimeBeforeMonth
+    ) {
+      setNighttimeBeforeTileUrl(null);
+      setNighttimeBeforeMetadata(null);
+      return undefined;
+    }
+
+    const loadNighttimeBeforeLayer = async () => {
+      try {
+        const response = await fetch('/api/gee-tiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dataset: 'nighttime_lights',
+            bounds: geeBounds || null,
+            month: nighttimeBeforeMonth
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load comparison nighttime lights layer');
+        }
+
+        if (!cancelled) {
+          setNighttimeBeforeTileUrl(data.tileUrl);
+          setNighttimeBeforeMetadata(data.metadata || null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setNighttimeBeforeTileUrl(null);
+          setNighttimeBeforeMetadata(null);
+          console.error('[MapComponent] Nighttime compare layer error:', error);
+        }
+      }
+    };
+
+    loadNighttimeBeforeLayer();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentMapLayer, nighttimeCompareEnabled, nighttimeBeforeMonth, geeBounds]);
+
+  useEffect(() => {
+    if (!mapInstance) return undefined;
+
+    const paneName = 'nighttimeCompareBeforePane';
+    const existingPane = mapInstance.getPane(paneName) || mapInstance.createPane(paneName);
+    existingPane.style.zIndex = '350';
+    existingPane.style.pointerEvents = 'none';
+    existingPane.style.position = 'absolute';
+    existingPane.style.left = '0';
+    existingPane.style.top = '0';
+    existingPane.style.width = `${nighttimeComparePosition}%`;
+    existingPane.style.height = '100%';
+    existingPane.style.overflow = 'hidden';
+    existingPane.style.clipPath = 'none';
+    existingPane.style.webkitClipPath = 'none';
+
+    return undefined;
+  }, [mapInstance, nighttimeComparePosition]);
+
+  const updateNighttimeComparePosition = (clientX) => {
+    if (!mapContainerRef.current || typeof clientX !== 'number') return;
+
+    const bounds = mapContainerRef.current.getBoundingClientRect();
+    if (!bounds.width) return;
+
+    const rawPosition = ((clientX - bounds.left) / bounds.width) * 100;
+    setNighttimeComparePosition(Math.max(0, Math.min(100, rawPosition)));
+  };
+
+  const stopNighttimeCompareDrag = () => {
+    nighttimeCompareDragRef.current = false;
+    if (mapInstance?.dragging && !mapInstance.dragging.enabled()) {
+      mapInstance.dragging.enable();
+    }
+  };
+
+  const startNighttimeCompareDrag = (event) => {
+    nighttimeCompareDragRef.current = true;
+    if (mapInstance?.dragging?.enabled()) {
+      mapInstance.dragging.disable();
+    }
+
+    const clientX = event.touches?.[0]?.clientX ?? event.clientX;
+    updateNighttimeComparePosition(clientX);
+  };
+
+  useEffect(() => {
+    if (!nighttimeCompareEnabled) {
+      stopNighttimeCompareDrag();
+      return undefined;
+    }
+
+    const handlePointerMove = (event) => {
+      if (!nighttimeCompareDragRef.current) return;
+      const clientX = event.touches?.[0]?.clientX ?? event.clientX;
+      updateNighttimeComparePosition(clientX);
+    };
+
+    const handlePointerUp = () => {
+      if (!nighttimeCompareDragRef.current) return;
+      stopNighttimeCompareDrag();
+    };
+
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+    window.addEventListener('touchmove', handlePointerMove, { passive: true });
+    window.addEventListener('touchend', handlePointerUp);
+    window.addEventListener('touchcancel', handlePointerUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove);
+      window.removeEventListener('mouseup', handlePointerUp);
+      window.removeEventListener('touchmove', handlePointerMove);
+      window.removeEventListener('touchend', handlePointerUp);
+      window.removeEventListener('touchcancel', handlePointerUp);
+      stopNighttimeCompareDrag();
+    };
+  }, [nighttimeCompareEnabled, mapInstance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1733,6 +1898,14 @@ const MapComponent = ({
         onClose={toggleMapLayersDrawer}
         currentMapLayer={currentMapLayer}
         setCurrentMapLayer={setCurrentMapLayer}
+        geeBaseLayerMetadata={geeBaseLayerMetadata}
+        nighttimeCompareEnabled={nighttimeCompareEnabled}
+        setNighttimeCompareEnabled={setNighttimeCompareEnabled}
+        nighttimeBeforeMonth={nighttimeBeforeMonth}
+        setNighttimeBeforeMonth={setNighttimeBeforeMonth}
+        nighttimeAfterMonth={nighttimeAfterMonth}
+        setNighttimeAfterMonth={setNighttimeAfterMonth}
+        nighttimeBeforeMetadata={nighttimeBeforeMetadata}
         showRoads={showRoads}
         setShowRoads={setShowRoads}
         showFloodContextLayer={showFloodContextLayer}
@@ -1918,6 +2091,15 @@ const MapComponent = ({
                 url={geeBaseLayerUrl}
                 attribution={currentLayer.attribution}
                 opacity={0.8}
+              />
+            )}
+            {currentMapLayer === 'nighttime_lights' && nighttimeCompareEnabled && nighttimeBeforeTileUrl && mapInstance && (
+              <TileLayer
+                key={`${nighttimeBeforeTileUrl}-${nighttimeBeforeMonth}`}
+                url={nighttimeBeforeTileUrl}
+                attribution={currentLayer.attribution}
+                opacity={0.8}
+                pane="nighttimeCompareBeforePane"
               />
             )}
             {/* Fallback to satellite if no GEE tiles yet */}
@@ -2661,6 +2843,92 @@ const MapComponent = ({
           );
         })}
       </MapContainer>
+
+      {currentMapLayer === 'nighttime_lights' && nighttimeCompareEnabled && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 1300,
+          pointerEvents: 'none'
+        }}>
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            left: '16px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: 'rgba(15, 23, 42, 0.82)',
+            color: 'white',
+            borderRadius: '999px',
+            padding: '6px 10px',
+            fontSize: '11px',
+            fontWeight: 700
+          }}>
+            Before: {formatMonthLabel(nighttimeBeforeMonth || nighttimeBeforeMetadata?.date?.slice?.(0, 7))}
+          </div>
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: 'rgba(15, 23, 42, 0.82)',
+            color: 'white',
+            borderRadius: '999px',
+            padding: '6px 10px',
+            fontSize: '11px',
+            fontWeight: 700
+          }}>
+            After: {formatMonthLabel(nighttimeAfterMonth || geeBaseLayerMetadata?.date?.slice?.(0, 7))}
+          </div>
+          <div
+            onMouseDown={startNighttimeCompareDrag}
+            onTouchStart={startNighttimeCompareDrag}
+            style={{
+              position: 'absolute',
+              left: `${nighttimeComparePosition}%`,
+              top: 0,
+              bottom: 0,
+              width: '36px',
+              transform: 'translateX(-50%)',
+              pointerEvents: 'auto',
+              cursor: 'ew-resize',
+              touchAction: 'none'
+            }}
+          >
+            <div style={{
+              position: 'absolute',
+              left: '50%',
+              top: 0,
+              bottom: 0,
+              width: '0',
+              borderLeft: '3px solid rgba(255,255,255,0.96)',
+              boxShadow: '0 0 0 1px rgba(15, 23, 42, 0.22), 0 0 22px rgba(15, 23, 42, 0.18)',
+              transform: 'translateX(-50%)'
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                width: '28px',
+                height: '56px',
+                background: 'rgba(15, 23, 42, 0.84)',
+                color: 'white',
+                borderRadius: '999px',
+                transform: 'translate(-50%, -50%)',
+                boxShadow: '0 8px 20px rgba(15, 23, 42, 0.24)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+                fontWeight: 700
+              }}>
+                ↔
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Chat Drawer - Kept separate due to complex context management */}
       <ChatDrawer

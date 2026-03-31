@@ -186,12 +186,17 @@ function buildDroughtContext(ee, geometry) {
   };
 }
 
-function buildNighttimeLights(ee, geometry) {
-  // Use VIIRS DNB Monthly composite - most recent available
+function buildNighttimeLights(ee, geometry, options = {}) {
+  const { month = null } = options;
   const viirs = ee.ImageCollection('NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG');
-  const latest = viirs.sort('system:time_start', false).first();
+  const selectedImage = month
+    ? viirs
+        .filterDate('2014-01-01', ee.Date(`${month}-01`).advance(1, 'month'))
+        .sort('system:time_start', false)
+        .first()
+    : viirs.sort('system:time_start', false).first();
 
-  let nightlights = latest.select('avg_rad');
+  let nightlights = selectedImage.select('avg_rad');
 
   // Mask out very low values to make dark areas transparent
   nightlights = nightlights.updateMask(nightlights.gt(0.5));
@@ -205,10 +210,15 @@ function buildNighttimeLights(ee, geometry) {
       max: 60,
       palette: ['#1e3a8a', '#3b82f6', '#60a5fa', '#fbbf24', '#fef3c7', '#ffffff']
     },
+    metadata: {
+      dateSource: selectedImage,
+      cadence: 'monthly',
+      requestedMonth: month
+    }
   };
 }
 
-function buildDataset(ee, dataset, geometry) {
+function buildDataset(ee, dataset, geometry, options = {}) {
   switch (dataset) {
     case 'sentinel2_recent_clear':
       return buildSentinel2RecentClear(ee, geometry);
@@ -219,7 +229,7 @@ function buildDataset(ee, dataset, geometry) {
     case 'drought_context':
       return buildDroughtContext(ee, geometry);
     case 'nighttime_lights':
-      return buildNighttimeLights(ee, geometry);
+      return buildNighttimeLights(ee, geometry, options);
     default:
       throw new Error(`Unsupported dataset: ${dataset}`);
   }
@@ -234,7 +244,7 @@ async function handler(req, res) {
     return res.status(503).json({ error: 'Google Earth Engine is not configured on this server.' });
   }
 
-  const { dataset, bounds } = req.body || {};
+  const { dataset, bounds, month = null } = req.body || {};
   if (!dataset) {
     return res.status(400).json({ error: 'dataset is required' });
   }
@@ -243,7 +253,7 @@ async function handler(req, res) {
     await initEE();
     const ee = require('@google/earthengine');
     const geometry = buildGeometry(ee, bounds);
-    const { image, visParams } = buildDataset(ee, dataset, geometry);
+    const { image, visParams, metadata = {} } = buildDataset(ee, dataset, geometry, { month });
     const visualizationImage = image.visualize(visParams);
 
     const mapId = await new Promise((resolve, reject) => {
@@ -262,11 +272,31 @@ async function handler(req, res) {
 
     const tileUrl = mapId.urlFormat || `https://earthengine.googleapis.com/v1alpha/${mapId.mapid}/tiles/{z}/{x}/{y}`;
 
+    let resolvedMetadata = {};
+    if (metadata?.dateSource) {
+      resolvedMetadata = await new Promise((resolve, reject) => {
+        metadata.dateSource.get('system:time_start').getInfo((value, error) => {
+          if (error) {
+            reject(new Error(typeof error === 'string' ? error : JSON.stringify(error)));
+          } else {
+            const timestamp = typeof value === 'number' ? value : null;
+            resolve({
+              timestamp,
+              date: timestamp ? new Date(timestamp).toISOString().slice(0, 10) : null,
+              cadence: metadata.cadence || null,
+              requestedMonth: metadata.requestedMonth || null
+            });
+          }
+        });
+      });
+    }
+
     return res.status(200).json({
       success: true,
       dataset,
       tileUrl,
       visParams,
+      metadata: resolvedMetadata,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Failed to generate Earth Engine tiles.' });
