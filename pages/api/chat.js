@@ -187,6 +187,12 @@ async function handler(req, res) {
 - COMPACT mode: prioritize speed, concise synthesis, and the contextual-analysis layer.
 - DEEP mode: the user is asking for evidence-heavy or detailed analysis. Use the targeted detailed context provided, cite specific event/facility details from context, and favor precision over brevity.
 
+**🗺️ MAP AND EVIDENCE LAYERS**:
+- If the context says a map or evidence layer is loaded, treat it as available data.
+- Nighttime lights means the VIIRS monthly night-lights layer is active in the workspace. You may use it as contextual evidence for population concentration, settlement footprint, infrastructure concentration, and possible electrification patterns.
+- Do NOT treat nighttime lights as direct proof of current outages, direct damage, or real-time service failure unless comparative outage evidence is explicitly provided.
+- If nighttime lights are not loaded, do not infer from them. Say they are not currently loaded and tell the user to switch the map layer to Nighttime Lights (GEE) if they want that context.
+
 ⚡ **CRITICAL RULE - DATA PRIORITY**:
 1. ALWAYS use data loaded in your context FIRST (facilities, disasters, ACLED, WorldPop population, weather)
 2. ONLY use web search for information NOT available in your context
@@ -873,6 +879,42 @@ function buildContextSummary(context) {
     }
     summary.push(`⚡ IMPORTANT: These selected districts are the user's current analysis scope.`);
     summary.push(`   For district- or admin-level questions, prioritize this selection over the full uploaded shapefile.`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  }
+
+  if (
+    context.activeMapLayer ||
+    typeof context.nighttimeLightsLoaded === 'boolean' ||
+    (Array.isArray(context.enabledEvidenceLayers) && context.enabledEvidenceLayers.length > 0)
+  ) {
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`ACTIVE MAP AND EVIDENCE LAYERS`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+
+    if (context.activeMapLayerName) {
+      summary.push(`Active map layer: ${context.activeMapLayerName}`);
+    } else if (context.activeMapLayer) {
+      summary.push(`Active map layer: ${context.activeMapLayer}`);
+    }
+
+    if (context.nighttimeLightsLoaded || context.activeMapLayer === 'nighttime_lights') {
+      summary.push(`Nighttime lights: loaded`);
+      summary.push(`Use: contextual evidence for population concentration, settlement footprint, infrastructure concentration, and broad electrification patterns.`);
+      summary.push(`Limits: do not infer real-time outages, direct damage, or service failure from this layer alone.`);
+    } else {
+      summary.push(`Nighttime lights: not loaded`);
+      summary.push(`If nighttime-light context would help, ask the user to switch the map layer to Nighttime Lights (GEE).`);
+    }
+
+    if (context.activeMapLayerNote) {
+      summary.push(`Layer note: ${context.activeMapLayerNote}`);
+    }
+
+    if (Array.isArray(context.enabledEvidenceLayers) && context.enabledEvidenceLayers.length > 0) {
+      summary.push(`Enabled evidence layers: ${context.enabledEvidenceLayers.join(', ')}`);
+    }
+
+    summary.push(`⚡ IMPORTANT: If a layer is listed here, it is loaded in the user's workspace and may be referenced with appropriate limits.`);
     summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   }
 

@@ -22,7 +22,10 @@ async function handler(req, res) {
       acledData = [],
       worldPopData = {},
       selectedDistricts = [],
-      operationType = 'general'
+      operationType = 'general',
+      nighttimeLightsLoaded = false,
+      activeMapLayerName = null,
+      activeMapLayerNote = null
     } = req.body;
     console.log('API received facility:', facility?.name);
     console.log('API received impacts count:', impacts?.length || 0);
@@ -44,7 +47,11 @@ async function handler(req, res) {
     if (process.env.OPENAI_API_KEY) {
       try {
         console.log('Generating AI analysis...');
-        const analysis = await generateAIAnalysis(facility, impacts, contextualAnalysis);
+        const analysis = await generateAIAnalysis(facility, impacts, contextualAnalysis, {
+          nighttimeLightsLoaded,
+          activeMapLayerName,
+          activeMapLayerNote
+        });
         res.status(200).json({ analysis, isAIGenerated: true });
         return;
       } catch (aiError) {
@@ -56,7 +63,11 @@ async function handler(req, res) {
     // Fallback: try a simpler OpenAI prompt if the main call failed
     if (process.env.OPENAI_API_KEY) {
       try {
-        const analysis = await generateFallbackAnalysis(facility, impacts, contextualAnalysis);
+        const analysis = await generateFallbackAnalysis(facility, impacts, contextualAnalysis, {
+          nighttimeLightsLoaded,
+          activeMapLayerName,
+          activeMapLayerNote
+        });
         res.status(200).json({ analysis, isAIGenerated: true });
         return;
       } catch (_) {}
@@ -70,7 +81,7 @@ async function handler(req, res) {
 }
 
 // Generate AI-powered facility analysis
-async function generateAIAnalysis(facility, impacts, contextualAnalysis) {
+async function generateAIAnalysis(facility, impacts, contextualAnalysis, layerContext = {}) {
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -96,6 +107,16 @@ ${impacts && impacts.length > 0 ? JSON.stringify(impacts.map(i => ({
 CONTEXTUAL ANALYSIS LAYER:
 ${JSON.stringify(contextualAnalysis, null, 2)}
 
+MAP / EVIDENCE LAYER STATUS:
+${JSON.stringify({
+  nighttimeLightsLoaded: Boolean(layerContext.nighttimeLightsLoaded),
+  activeMapLayerName: layerContext.activeMapLayerName || null,
+  activeMapLayerNote: layerContext.activeMapLayerNote || null,
+  guidance: layerContext.nighttimeLightsLoaded
+    ? 'Nighttime lights context is loaded and may be used for settlement footprint, infrastructure concentration, and broad electrification context.'
+    : 'Nighttime lights context is NOT loaded. Do not infer from nighttime lights. If that context would be useful, tell the user to switch the map layer to Nighttime Lights (GEE).'
+}, null, 2)}
+
 Provide a structured analysis with the following sections:
 1. Executive Summary - A brief overview of the facility's risk profile
 2. Vulnerability Assessment - Analysis of facility vulnerabilities based on its type, location, and features
@@ -106,6 +127,7 @@ Provide a structured analysis with the following sections:
 
 Format your response as a JSON object with these section headings as keys and detailed analysis as values. Do not use curly braces, brackets, or other JSON formatting symbols within the text content itself - provide clean, readable text for each section.
 Treat the contextual analysis layer as the primary decision baseline, then use raw facility and disaster data as supporting evidence.
+If nighttime lights are not loaded, do not make claims based on nighttime light patterns. State that the layer is not loaded and recommend switching to Nighttime Lights (GEE) if that context is needed.
 `;
 
     const response = await openai.chat.completions.create({
@@ -134,7 +156,7 @@ Treat the contextual analysis layer as the primary decision baseline, then use r
 }
 
 // Simplified fallback analysis prompt (used when primary call fails)
-async function generateFallbackAnalysis(facility, impacts, contextualAnalysis) {
+async function generateFallbackAnalysis(facility, impacts, contextualAnalysis, layerContext = {}) {
   try {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -159,6 +181,12 @@ async function generateFallbackAnalysis(facility, impacts, contextualAnalysis) {
     DISASTER EXPOSURE: ${JSON.stringify(disasterInfo, null, 2)}
 
     CONTEXTUAL ANALYSIS LAYER: ${JSON.stringify(contextualAnalysis, null, 2)}
+
+    MAP / EVIDENCE LAYER STATUS: ${JSON.stringify({
+      nighttimeLightsLoaded: Boolean(layerContext.nighttimeLightsLoaded),
+      activeMapLayerName: layerContext.activeMapLayerName || null,
+      activeMapLayerNote: layerContext.activeMapLayerNote || null
+    }, null, 2)}
     
     Provide a structured analysis with these sections:
     1. Executive Summary - Brief overview of the facility's risk profile
@@ -171,6 +199,7 @@ async function generateFallbackAnalysis(facility, impacts, contextualAnalysis) {
     Format your response as a JSON object with these section headings as keys and detailed analysis as values.
     Avoid using JSON symbols like {}, [], or quotes within your text content.
     Treat the contextual analysis layer as the primary decision baseline, then use raw facility and disaster data as supporting evidence.
+    If nighttime lights are not loaded, do not make nighttime-light claims. Instead say that context is not currently loaded and suggest switching the map to Nighttime Lights (GEE) if that evidence would help.
     `;
     
     // Call OpenAI API

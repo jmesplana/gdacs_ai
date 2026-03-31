@@ -15,6 +15,8 @@ const FilterDrawer = ({
   setShowHeatmap,
   showImpactZones,
   setShowImpactZones,
+  showDisasterIcons,
+  setShowDisasterIcons,
   showLegend,
   setShowLegend,
   showContextStatusBar,
@@ -214,6 +216,48 @@ const FilterDrawer = ({
                     position: 'absolute',
                     top: '2px',
                     left: showImpactZones ? '22px' : '2px',
+                    transition: 'left 0.3s'
+                  }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* GDACS Icon Toggle */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>GDACS Icons</span>
+                </div>
+                <div
+                  onClick={() => setShowDisasterIcons(!showDisasterIcons)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showDisasterIcons ? 'var(--aidstack-navy)' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: showDisasterIcons ? '22px' : '2px',
                     transition: 'left 0.3s'
                   }}
                   ></div>

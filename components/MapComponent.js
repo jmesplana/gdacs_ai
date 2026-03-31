@@ -606,6 +606,7 @@ const MapComponent = ({
   const {
     showHeatmap,
     showImpactZones,
+    showDisasterIcons,
     showZoomIndicator,
     showTimeline,
     showStatistics,
@@ -629,6 +630,7 @@ const MapComponent = ({
     showRoads,
     setShowHeatmap,
     setShowImpactZones,
+    setShowDisasterIcons,
     setShowZoomIndicator,
     setShowTimeline,
     setShowStatistics,
@@ -1295,10 +1297,11 @@ const MapComponent = ({
     if (onEvidenceLayersChange) {
       onEvidenceLayersChange([
         ...(showFloodContextLayer ? ['flood_context'] : []),
-        ...(showDroughtContextLayer ? ['drought_context'] : [])
+        ...(showDroughtContextLayer ? ['drought_context'] : []),
+        ...(currentMapLayer === 'nighttime_lights' ? ['nighttime_lights'] : [])
       ]);
     }
-  }, [showFloodContextLayer, showDroughtContextLayer, onEvidenceLayersChange]);
+  }, [showFloodContextLayer, showDroughtContextLayer, currentMapLayer, onEvidenceLayersChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1517,7 +1520,10 @@ const MapComponent = ({
       acledData: acledEnabled ? filteredAcledData : [],
       worldPopData,
       selectedDistricts: selectedAnalysisDistricts.map(compactDistrictForContext),
-      operationType
+      operationType,
+      nighttimeLightsLoaded: currentMapLayer === 'nighttime_lights',
+      activeMapLayerName: currentLayer?.name || null,
+      activeMapLayerNote: currentLayer?.note || null
     });
 
     setActiveDrawerTab('analysis');
@@ -1621,6 +1627,8 @@ const MapComponent = ({
         setShowHeatmap={setShowHeatmap}
         showImpactZones={showImpactZones}
         setShowImpactZones={setShowImpactZones}
+        showDisasterIcons={showDisasterIcons}
+        setShowDisasterIcons={setShowDisasterIcons}
         showLegend={showLegend}
         setShowLegend={setShowLegend}
         showContextStatusBar={showContextStatusBar}
@@ -2364,6 +2372,7 @@ const MapComponent = ({
           key={`disaster-markers-${visibleDisasters.length}-${visibleDisasters[0]?.eventId || 'none'}-${visibleDisasters[visibleDisasters.length - 1]?.eventId || 'none'}`}
           disasters={visibleDisasters}
           showImpactZones={showImpactZones}
+          showDisasterIcons={showDisasterIcons}
           showClusterCounts={showClusterCounts}
           isDarkMode={currentMapLayer === 'dark' || currentMapLayer === 'nighttime_lights'}
         />
@@ -2659,6 +2668,16 @@ const MapComponent = ({
         onClose={() => setShowChatDrawer(false)}
         onHighlightDistricts={districts && districts.length > 0 ? handleHighlightDistricts : null}
         context={{
+          activeMapLayer: currentMapLayer,
+          activeMapLayerName: currentLayer?.name || null,
+          activeMapLayerType: currentLayer?.type || 'tile',
+          activeMapLayerNote: currentLayer?.note || null,
+          nighttimeLightsLoaded: currentMapLayer === 'nighttime_lights',
+          enabledEvidenceLayers: [
+            ...(showFloodContextLayer ? ['flood_context'] : []),
+            ...(showDroughtContextLayer ? ['drought_context'] : []),
+            ...(currentMapLayer === 'nighttime_lights' ? ['nighttime_lights'] : [])
+          ],
           selectedFacility: selectedFacility,
           totalFacilities: facilities?.length || 0,
           totalImpactedFacilities: impactedFacilities?.length || 0,

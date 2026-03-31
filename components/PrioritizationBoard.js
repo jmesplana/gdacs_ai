@@ -465,7 +465,8 @@ export default function PrioritizationBoard({
         worldPopData: compactScopedWorldPop,
         osmData: compactOsmData(osmData),
         operationType,
-        districtHazardAnalysis
+        districtHazardAnalysis,
+        enabledEvidenceLayers
       });
       const requestPayload = {
         board: localBoard,
@@ -1184,6 +1185,8 @@ export default function PrioritizationBoard({
                           <div><strong>Drought:</strong> {typeof row.projectedDroughtScore === 'number' ? `${row.projectedDroughtScore}/100` : 'Not ready'}</div>
                           <div><strong>Heat:</strong> {typeof row.projectedHeatScore === 'number' ? `${row.projectedHeatScore}/100` : 'Not ready'}</div>
                           <div><strong>Confidence:</strong> {row.projectedConfidence || 'Low'}</div>
+                          <div><strong>Nighttime lights:</strong> {row.nighttimeLightsIntensity ? row.nighttimeLightsIntensity : 'Not loaded'}</div>
+                          <div><strong>Settlement context:</strong> {row.nighttimeSupportContext ? row.nighttimeSupportContext : 'Unknown'}</div>
                         </div>
 
                         <div style={{
@@ -1202,6 +1205,8 @@ export default function PrioritizationBoard({
                           <div><strong>OSM clinics:</strong> {row.clinics ?? 0}</div>
                           <div><strong>Under 5:</strong> {row.ageGroups?.under5 ? row.ageGroups.under5.toLocaleString() : 'Unknown'}</div>
                           <div><strong>60+:</strong> {row.ageGroups?.age60plus ? row.ageGroups.age60plus.toLocaleString() : 'Unknown'}</div>
+                          <div><strong>VIIRS radiance:</strong> {typeof row.nighttimeLights?.avgRadMean === 'number' ? (Math.round(row.nighttimeLights.avgRadMean * 10) / 10) : 'Unknown'}</div>
+                          <div><strong>Lit area:</strong> {typeof row.nighttimeLights?.litAreaShare === 'number' ? `${Math.round(row.nighttimeLights.litAreaShare * 100)}%` : 'Unknown'}</div>
                           <div style={{ gridColumn: '1 / -1' }}><strong>Evidence base:</strong> {row.projectedEvidenceBase || 'Limited'}</div>
                         </div>
                       </div>

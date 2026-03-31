@@ -97,6 +97,7 @@ const OperationalOutlook = ({
   const scopedOsmData = analysisDistricts.length > 0
     ? filterOsmDataToDistricts(osmData, analysisDistricts)
     : osmData;
+  const nighttimeLightsLoaded = enabledEvidenceLayers.includes('nighttime_lights');
   const logisticsAssessment = supportingAssessments?.logistics || null;
   const outlookConfidence = getOverallConfidence(supportingAssessments?.districtHazardAnalysis, logisticsAssessment);
   const confidenceTone = getConfidenceTone(outlookConfidence);
@@ -573,6 +574,20 @@ const OperationalOutlook = ({
               }}>
                 Logistics: {logisticsAssessment ? 'assessed' : 'not assessed'}
               </span>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: '11px',
+                fontWeight: 700,
+                background: nighttimeLightsLoaded ? '#dcfce7' : '#e2e8f0',
+                border: `1px solid ${nighttimeLightsLoaded ? '#86efac' : '#cbd5e1'}`,
+                color: nighttimeLightsLoaded ? '#166534' : '#475569'
+              }}>
+                Nighttime Lights: {nighttimeLightsLoaded ? 'loaded' : 'not loaded'}
+              </span>
             </div>
 
             <div style={{
@@ -597,6 +612,10 @@ const OperationalOutlook = ({
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Logistics Rating</div>
                 <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>{logisticsAssessment?.rating || 'Not assessed'}</div>
               </div>
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Nighttime Lights</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>{nighttimeLightsLoaded ? 'Loaded' : 'Not loaded'}</div>
+              </div>
             </div>
 
             {assessmentWarnings.length > 0 && (
@@ -615,6 +634,23 @@ const OperationalOutlook = ({
                     {warning}
                   </div>
                 ))}
+              </div>
+            )}
+
+            {!nighttimeLightsLoaded && (
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                borderRadius: '10px',
+                padding: '12px',
+                marginBottom: '12px'
+              }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Nighttime Lights Context
+                </div>
+                <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
+                  Nighttime Lights (GEE) is not currently loaded. If you want settlement footprint, infrastructure concentration, or broad electrification context to inform the narrative, switch the map layer to Nighttime Lights (GEE).
+                </div>
               </div>
             )}
 

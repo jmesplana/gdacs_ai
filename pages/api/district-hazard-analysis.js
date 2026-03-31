@@ -156,7 +156,7 @@ async function fetchGeeEvidenceSummaries(districts, enabledEvidenceLayers = []) 
   }
 
   const requested = new Set(enabledEvidenceLayers || []);
-  if (!requested.has('flood_context') && !requested.has('drought_context')) {
+  if (!requested.has('flood_context') && !requested.has('drought_context') && !requested.has('nighttime_lights')) {
     return { evidenceByDistrict: {}, warnings: [] };
   }
 
@@ -254,6 +254,31 @@ async function fetchGeeEvidenceSummaries(districts, enabledEvidenceLayers = []) 
       });
     } catch (error) {
       warnings.push(`Drought evidence could not be computed from GEE: ${error.message}`);
+    }
+  }
+
+  if (requested.has('nighttime_lights')) {
+    try {
+      const viirs = ee.ImageCollection('NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG');
+      const latest = ee.Image(viirs.sort('system:time_start', false).first());
+      const avgRad = latest.select('avg_rad').rename('night_lights_avg_rad');
+      const litMask = latest.select('avg_rad').gt(1.5).rename('night_lights_lit_mask');
+      const image = avgRad.addBands(litMask);
+      const result = await getRegionStats(image, featureCollection, 500);
+
+      (result.features || []).forEach((feature) => {
+        const props = feature.properties || {};
+        const districtId = props.districtId;
+        evidenceByDistrict[districtId] = {
+          ...(evidenceByDistrict[districtId] || {}),
+          nighttimeLights: {
+            avgRadMean: props.night_lights_avg_rad,
+            litAreaShare: props.night_lights_lit_mask
+          }
+        };
+      });
+    } catch (error) {
+      warnings.push(`Nighttime lights evidence could not be computed from GEE: ${error.message}`);
     }
   }
 

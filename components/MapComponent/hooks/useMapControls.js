@@ -9,6 +9,7 @@ export const useMapControls = () => {
   // Visualization toggles
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showImpactZones, setShowImpactZones] = useState(false);
+  const [showDisasterIcons, setShowDisasterIcons] = useState(true);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);
@@ -98,6 +99,7 @@ export const useMapControls = () => {
     // Visualization states
     showHeatmap,
     showImpactZones,
+    showDisasterIcons,
     showZoomIndicator,
     showTimeline,
     showStatistics,
@@ -127,6 +129,7 @@ export const useMapControls = () => {
     // Setters
     setShowHeatmap,
     setShowImpactZones,
+    setShowDisasterIcons,
     setShowZoomIndicator,
     setShowTimeline,
     setShowStatistics,

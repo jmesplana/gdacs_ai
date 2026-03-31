@@ -45,7 +45,10 @@ export const useAIAnalysis = () => {
           acledData: contextualInputs.acledData || [],
           worldPopData: contextualInputs.worldPopData || {},
           selectedDistricts: contextualInputs.selectedDistricts || [],
-          operationType: contextualInputs.operationType || 'general'
+          operationType: contextualInputs.operationType || 'general',
+          nighttimeLightsLoaded: Boolean(contextualInputs.nighttimeLightsLoaded),
+          activeMapLayerName: contextualInputs.activeMapLayerName || null,
+          activeMapLayerNote: contextualInputs.activeMapLayerNote || null
         })
       });
 

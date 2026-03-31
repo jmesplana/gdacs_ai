@@ -8,7 +8,7 @@ const geometryCacheStore = new Map(); // Cache fetched geometries across compone
 const recentGeometryFailures = new Map(); // Track failed requests to avoid immediate retries
 
 // Component to add disaster markers directly to the map
-const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true, isDarkMode = false }) => {
+const DisasterMarkers = ({ disasters, showImpactZones, showDisasterIcons = true, showClusterCounts = true, isDarkMode = false }) => {
   const map = useMap();
   const clusterGroupRef = useRef(null);
   const geometryLayersRef = useRef(new Map()); // Track geometry layers for cleanup
@@ -287,13 +287,14 @@ const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true,
         map.removeLayer(clusterGroupRef.current);
       }
 
-      clusterGroupRef.current = L.markerClusterGroup({
-        chunkedLoading: false,
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: true,
-        zoomToBoundsOnClick: true,
-        maxClusterRadius: showClusterCounts ? 50 : 22,
-        iconCreateFunction: (cluster) => {
+      if (showDisasterIcons) {
+        clusterGroupRef.current = L.markerClusterGroup({
+          chunkedLoading: false,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: true,
+          zoomToBoundsOnClick: true,
+          maxClusterRadius: showClusterCounts ? 50 : 22,
+          iconCreateFunction: (cluster) => {
             // Custom icon for disaster clusters
             const childCount = cluster.getChildCount();
 
@@ -353,10 +354,13 @@ const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true,
               </div>`,
             className: 'disaster-cluster',
             iconSize: L.point(parseInt(dimension), parseInt(dimension))
-          });
-        }
-      });
-      map.addLayer(clusterGroupRef.current);
+            });
+          }
+        });
+        map.addLayer(clusterGroupRef.current);
+      } else {
+        clusterGroupRef.current = null;
+      }
 
       disasters.forEach((disaster, index) => {
         if (disaster.latitude && disaster.longitude) {
@@ -394,15 +398,17 @@ const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true,
             iconAnchor: [22, 22]
           });
 
-          // Create a marker instead of circle
-          const marker = L.marker([lat, lng], {
-            icon: customIcon,
-            zIndexOffset: -1000, // Keep disasters below facilities
-            alertLevel: disaster.alertLevel || 'green' // Store alert level for cluster coloring
-          });
+          let marker = null;
+          if (showDisasterIcons && clusterGroupRef.current) {
+            marker = L.marker([lat, lng], {
+              icon: customIcon,
+              zIndexOffset: -1000, // Keep disasters below facilities
+              alertLevel: disaster.alertLevel || 'green' // Store alert level for cluster coloring
+            });
 
-          // Add to cluster group instead of directly to map
-          clusterGroupRef.current.addLayer(marker);
+            // Add to cluster group instead of directly to map
+            clusterGroupRef.current.addLayer(marker);
+          }
 
           // Add popup
           const popupContent = `
@@ -437,10 +443,10 @@ const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true,
             </div>
           `;
 
-          marker.bindPopup(popupContent);
-
-          // Store markers to remove on cleanup
-          markers.push(marker);
+          if (marker) {
+            marker.bindPopup(popupContent);
+            markers.push(marker);
+          }
 
           // Add a transparent circle for the impact radius
           let impactRadius = 50; // Default radius in km
@@ -667,7 +673,7 @@ const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true,
         clusterGroupRef.current = null;
       }
     };
-  }, [map, disasters, showImpactZones, showClusterCounts]);
+  }, [map, disasters, showImpactZones, showDisasterIcons, showClusterCounts]);
 
   return null;
 };
