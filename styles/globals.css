@@ -72,7 +72,7 @@ a {
 }
 
 .map-container {
-  height: calc(100vh - 180px);
+  height: calc(100vh - 160px);
   width: 100%;
   position: relative;
   margin-bottom: 5px;
@@ -83,13 +83,26 @@ a {
 
 @supports (height: 100dvh) {
   .map-container {
-    height: calc(100dvh - 180px);
+    height: calc(100dvh - 160px);
+  }
+}
+
+@media (max-width: 1200px) {
+  .map-container {
+    height: calc(100dvh - 200px);
+  }
+}
+
+@media (max-width: 768px) {
+  .map-container {
+    height: calc(100dvh - 250px);
+    border-radius: 4px;
   }
 }
 
 @media (max-width: 640px) {
   .map-container {
-    height: calc(100dvh - 120px);
+    height: calc(100dvh - 280px);
     border-radius: 4px;
   }
 }

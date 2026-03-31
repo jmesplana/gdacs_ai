@@ -27,6 +27,21 @@ export const MAP_LAYERS = {
     url: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
   },
+  DARK: {
+    id: 'dark',
+    name: 'Dark Map',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+  },
+  NIGHTTIME_LIGHTS: {
+    id: 'nighttime_lights',
+    name: 'Nighttime Lights (GEE)',
+    type: 'gee',
+    dataset: 'nighttime_lights',
+    baseLayer: 'dark', // Use dark basemap underneath
+    attribution: '&copy; <a href="https://developers.google.com/earth-engine/datasets/catalog/NOAA_VIIRS_DNB_MONTHLY_V1_VCMSLCFG">Google Earth Engine</a> / VIIRS DNB',
+    note: 'VIIRS Day/Night Band nighttime lights overlay on dark basemap - shows population centers, infrastructure, and power availability.'
+  },
   SATELLITE: {
     id: 'satellite',
     name: 'Satellite',

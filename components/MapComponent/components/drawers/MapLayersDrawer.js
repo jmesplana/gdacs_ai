@@ -126,6 +126,30 @@ const MapLayersDrawer = ({
           <span>Light Minimal (No Labels)</span>
         </label>
 
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'dark' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="dark"
+            checked={activeMapLayer === 'dark'}
+            onChange={() => handleMapLayerChange('dark')}
+            style={{marginRight: '10px'}}
+          />
+          <span>Dark Map</span>
+        </label>
+
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'nighttime_lights' ? '#e3f2fd' : 'transparent'}}>
+          <input
+            type="radio"
+            name="mapLayer"
+            value="nighttime_lights"
+            checked={activeMapLayer === 'nighttime_lights'}
+            onChange={() => handleMapLayerChange('nighttime_lights')}
+            style={{marginRight: '10px'}}
+          />
+          <span>🌙 Nighttime Lights (GEE)</span>
+        </label>
+
         <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'satellite' ? '#e3f2fd' : 'transparent'}}>
           <input
             type="radio"

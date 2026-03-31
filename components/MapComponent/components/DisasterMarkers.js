@@ -8,10 +8,17 @@ const geometryCacheStore = new Map(); // Cache fetched geometries across compone
 const recentGeometryFailures = new Map(); // Track failed requests to avoid immediate retries
 
 // Component to add disaster markers directly to the map
-const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true }) => {
+const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true, isDarkMode = false }) => {
   const map = useMap();
   const clusterGroupRef = useRef(null);
   const geometryLayersRef = useRef(new Map()); // Track geometry layers for cleanup
+
+  // Get impact zone styling based on dark mode
+  const getImpactZoneStyle = (alertColor) => ({
+    fillOpacity: isDarkMode ? 0.25 : 0.1,
+    weight: isDarkMode ? 2 : 1,
+    opacity: isDarkMode ? 0.8 : 0.5,
+  });
 
   // Helper function to fetch geometry from API
   const fetchGeometry = async (disaster) => {
@@ -552,13 +559,12 @@ const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true 
               console.error(`Not enough valid polygon coordinates: ${validPolygonCoords.length}`);
               // Fall back to circle
               const radiusInMeters = impactRadius * 1000;
+              const impactStyle = getImpactZoneStyle(alertColor);
               const circle = L.circle([lat, lng], {
                 radius: radiusInMeters,
                 color: alertColor,
                 fillColor: alertColor,
-                fillOpacity: 0.1,
-                weight: 1,
-                opacity: 0.5,
+                ...impactStyle,
                 interactive: false,
                 zIndexOffset: -2000,
                 pane: 'shadowPane'
@@ -575,12 +581,11 @@ const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true 
               // Create the actual polygon with the CAP data
               // Only create polygon if impact zones are enabled
               if (showImpactZones) {
+                const impactStyle = getImpactZoneStyle(alertColor);
                 disasterPolygon = L.polygon(validPolygonCoords, {
                   color: alertColor,
                   fillColor: alertColor,
-                  fillOpacity: 0.1,
-                  weight: 1,
-                  opacity: 0.5,
+                  ...impactStyle,
                   interactive: false, // Don't interact with the polygon
                   zIndexOffset: -2000, // Keep impact area below everything
                   pane: 'shadowPane' // Use the shadow pane which is below markers
@@ -593,13 +598,12 @@ const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true 
               // Fall back to circle on error (only if impact zones enabled)
               if (showImpactZones) {
                 const radiusInMeters = impactRadius * 1000;
+                const impactStyle = getImpactZoneStyle(alertColor);
                 const circle = L.circle([lat, lng], {
                   radius: radiusInMeters,
                   color: alertColor,
                   fillColor: alertColor,
-                  fillOpacity: 0.1,
-                  weight: 1,
-                  opacity: 0.5,
+                  ...impactStyle,
                   interactive: false,
                   zIndexOffset: -2000,
                   pane: 'shadowPane'
@@ -619,13 +623,12 @@ const DisasterMarkers = ({ disasters, showImpactZones, showClusterCounts = true 
               const radiusInMeters = impactRadius * 1000;
 
               // Create the circle
+              const impactStyle = getImpactZoneStyle(alertColor);
               const circle = L.circle([lat, lng], {
                 radius: radiusInMeters,
                 color: alertColor,
                 fillColor: alertColor,
-                fillOpacity: 0.1,
-                weight: 1,
-                opacity: 0.5,
+                ...impactStyle,
                 interactive: false, // Don't interact with the circle
                 zIndexOffset: -2000, // Keep impact radius below everything
                 pane: 'shadowPane' // Use the shadow pane which is below markers

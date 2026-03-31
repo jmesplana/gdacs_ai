@@ -1894,11 +1894,33 @@ const MapComponent = ({
       >
         {/* Base map layer */}
         {currentLayer.type === 'gee' ? (
-          <TileLayer
-            key={geeBaseLayerUrl || currentLayer.id}
-            url={geeBaseLayerUrl || MAP_LAYERS.SATELLITE.url}
-            attribution={geeBaseLayerUrl ? currentLayer.attribution : MAP_LAYERS.SATELLITE.attribution}
-          />
+          <>
+            {/* If GEE layer has a baseLayer, render it first */}
+            {currentLayer.baseLayer && MAP_LAYERS[currentLayer.baseLayer.toUpperCase()] && (
+              <TileLayer
+                key={`base-${currentLayer.baseLayer}`}
+                url={MAP_LAYERS[currentLayer.baseLayer.toUpperCase()].url}
+                attribution={MAP_LAYERS[currentLayer.baseLayer.toUpperCase()].attribution}
+              />
+            )}
+            {/* Then render the GEE layer on top */}
+            {geeBaseLayerUrl && (
+              <TileLayer
+                key={geeBaseLayerUrl}
+                url={geeBaseLayerUrl}
+                attribution={currentLayer.attribution}
+                opacity={0.8}
+              />
+            )}
+            {/* Fallback to satellite if no GEE tiles yet */}
+            {!geeBaseLayerUrl && !currentLayer.baseLayer && (
+              <TileLayer
+                key={currentLayer.id}
+                url={MAP_LAYERS.SATELLITE.url}
+                attribution={MAP_LAYERS.SATELLITE.attribution}
+              />
+            )}
+          </>
         ) : currentLayer.type === 'wms' ? (
           <WMSTileLayer
             url={currentLayer.url}
@@ -2343,6 +2365,7 @@ const MapComponent = ({
           disasters={visibleDisasters}
           showImpactZones={showImpactZones}
           showClusterCounts={showClusterCounts}
+          isDarkMode={currentMapLayer === 'dark' || currentMapLayer === 'nighttime_lights'}
         />
 
         {/* ACLED conflict event markers */}

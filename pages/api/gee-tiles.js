@@ -186,6 +186,28 @@ function buildDroughtContext(ee, geometry) {
   };
 }
 
+function buildNighttimeLights(ee, geometry) {
+  // Use VIIRS DNB Monthly composite - most recent available
+  const viirs = ee.ImageCollection('NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG');
+  const latest = viirs.sort('system:time_start', false).first();
+
+  let nightlights = latest.select('avg_rad');
+
+  // Mask out very low values to make dark areas transparent
+  nightlights = nightlights.updateMask(nightlights.gt(0.5));
+
+  if (geometry) nightlights = nightlights.clip(geometry);
+
+  return {
+    image: nightlights,
+    visParams: {
+      min: 0.5,
+      max: 60,
+      palette: ['#1e3a8a', '#3b82f6', '#60a5fa', '#fbbf24', '#fef3c7', '#ffffff']
+    },
+  };
+}
+
 function buildDataset(ee, dataset, geometry) {
   switch (dataset) {
     case 'sentinel2_recent_clear':
@@ -196,6 +218,8 @@ function buildDataset(ee, dataset, geometry) {
       return buildFloodContext(ee, geometry);
     case 'drought_context':
       return buildDroughtContext(ee, geometry);
+    case 'nighttime_lights':
+      return buildNighttimeLights(ee, geometry);
     default:
       throw new Error(`Unsupported dataset: ${dataset}`);
   }

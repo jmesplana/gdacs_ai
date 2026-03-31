@@ -2145,15 +2145,15 @@ export default function Home() {
           </div>
           
           <div style={{
-            fontSize: '13px',
-            color: '#888',
+            fontSize: '11px',
+            color: '#999',
             fontStyle: 'italic',
             textAlign: 'center',
-            marginTop: '20px',
+            marginTop: '12px',
             borderTop: '1px solid #eee',
-            paddingTop: '15px'
+            paddingTop: '8px'
           }}>
-            Developed by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--aidstack-orange)', textDecoration: 'none' }}>John Mark Esplana</a>
+            Developed by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--aidstack-orange)', textDecoration: 'none', fontWeight: '500' }}>John Mark Esplana</a>
           </div>
           </div>
         </div>
@@ -2302,18 +2302,18 @@ export default function Home() {
       </main>
       
       <footer style={{
-        padding: '12px 20px',
+        padding: '6px 20px',
         textAlign: 'center',
         borderTop: '1px solid #eaeaea',
         marginTop: '0',
         marginBottom: '0',
-        fontSize: '12px',
-        color: '#666',
+        fontSize: '10px',
+        color: '#999',
         backgroundColor: '#fafafa',
         position: 'relative',
-        bottom: '-20px'
+        bottom: '0'
       }}>
-        Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: '#2196F3', textDecoration: 'none', fontWeight: 'bold' }}>John Mark Esplana</a> | Disaster Impact Assessment Tool
+        Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--aidstack-orange)', textDecoration: 'none', fontWeight: '500' }}>John Mark Esplana</a> <span style={{color: '#ccc', margin: '0 6px'}}>|</span> <span style={{color: '#bbb'}}>Aidstack Disasters</span>
       </footer>
     </div>
     </ErrorBoundary>
