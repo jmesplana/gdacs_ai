@@ -39,7 +39,94 @@ const PrioritizationBoard = dynamic(() => import('../components/PrioritizationBo
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
 export default function Home() {
-  const loadCachedJson = (key) => {
+  const indexedDbSupported = () =>
+    typeof window !== 'undefined' && typeof window.indexedDB !== 'undefined';
+
+  const isStorageQuotaError = (error) =>
+    error?.name === 'QuotaExceededError' ||
+    error?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    error?.code === 22 ||
+    error?.code === 1014;
+
+  const openCacheDatabase = () => new Promise((resolve, reject) => {
+    if (!indexedDbSupported()) {
+      resolve(null);
+      return;
+    }
+
+    const request = window.indexedDB.open('gdacs-browser-cache', 1);
+
+    request.onerror = () => reject(request.error || new Error('Unable to open IndexedDB'));
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('cache')) {
+        db.createObjectStore('cache');
+      }
+    };
+  });
+
+  const readIndexedDbValue = async (key) => {
+    try {
+      const db = await openCacheDatabase();
+      if (!db) return null;
+
+      return await new Promise((resolve, reject) => {
+        const transaction = db.transaction('cache', 'readonly');
+        const store = transaction.objectStore('cache');
+        const request = store.get(key);
+
+        request.onsuccess = () => resolve(request.result ?? null);
+        request.onerror = () => reject(request.error || new Error(`Unable to read ${key} from IndexedDB`));
+      });
+    } catch (error) {
+      console.warn(`Unable to read ${key} from IndexedDB:`, error);
+      return null;
+    }
+  };
+
+  const writeIndexedDbValue = async (key, value) => {
+    try {
+      const db = await openCacheDatabase();
+      if (!db) {
+        return { ok: false, storage: null, persistent: false };
+      }
+
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction('cache', 'readwrite');
+        const store = transaction.objectStore('cache');
+        const request = store.put(value, key);
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error || new Error(`Unable to save ${key} to IndexedDB`));
+      });
+
+      return { ok: true, storage: 'indexedDB', persistent: true };
+    } catch (error) {
+      console.warn(`Unable to save ${key} to IndexedDB:`, error);
+      return { ok: false, storage: null, persistent: false };
+    }
+  };
+
+  const removeIndexedDbValue = async (key) => {
+    try {
+      const db = await openCacheDatabase();
+      if (!db) return;
+
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction('cache', 'readwrite');
+        const store = transaction.objectStore('cache');
+        const request = store.delete(key);
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error || new Error(`Unable to clear ${key} from IndexedDB`));
+      });
+    } catch (error) {
+      console.warn(`Unable to clear ${key} from IndexedDB:`, error);
+    }
+  };
+
+  const loadCachedJson = async (key) => {
     const sources = [
       { storage: localStorage, label: 'localStorage' },
       { storage: sessionStorage, label: 'sessionStorage' }
@@ -59,10 +146,18 @@ export default function Home() {
       }
     }
 
+    const indexedDbValue = await readIndexedDbValue(key);
+    if (indexedDbValue !== null) {
+      return {
+        value: indexedDbValue,
+        source: 'indexedDB'
+      };
+    }
+
     return { value: null, source: null };
   };
 
-  const removeCachedValue = (key) => {
+  const removeCachedValue = async (key) => {
     try {
       localStorage.removeItem(key);
     } catch (error) {
@@ -74,9 +169,11 @@ export default function Home() {
     } catch (error) {
       console.warn(`Unable to clear ${key} from sessionStorage:`, error);
     }
+
+    await removeIndexedDbValue(key);
   };
 
-  const persistCachedJson = (key, value) => {
+  const persistCachedJson = async (key, value) => {
     const serialized = JSON.stringify(value);
     const targets = [
       { storage: localStorage, label: 'localStorage', persistent: true },
@@ -97,8 +194,21 @@ export default function Home() {
         }
         return { ok: true, storage: target.label, persistent: target.persistent };
       } catch (error) {
-        console.warn(`Unable to save ${key} to ${target.label}:`, error);
+        if (!isStorageQuotaError(error)) {
+          console.warn(`Unable to save ${key} to ${target.label}:`, error);
+        }
       }
+    }
+
+    const indexedDbResult = await writeIndexedDbValue(key, value);
+    if (indexedDbResult.ok) {
+      try {
+        localStorage.removeItem(key);
+      } catch (_) {}
+      try {
+        sessionStorage.removeItem(key);
+      } catch (_) {}
+      return indexedDbResult;
     }
 
     return { ok: false, storage: null, persistent: false };
@@ -280,48 +390,61 @@ export default function Home() {
 
   // Load cached facilities and ACLED data from localStorage on mount
   useEffect(() => {
-    try {
-      // Load facilities
-      const { value: cachedFacilities, source: facilitiesCacheSource } = loadCachedJson('gdacs_facilities');
-      const { value: cachedAiFields } = loadCachedJson('gdacs_ai_analysis_fields');
+    let mounted = true;
 
-      if (cachedFacilities) {
-        if (cachedFacilities && cachedFacilities.length > 0) {
-          console.log(`Loaded ${cachedFacilities.length} facilities from ${facilitiesCacheSource || 'cache'}`);
-          setFacilities(cachedFacilities);
+    const loadCachedData = async () => {
+      try {
+        // Load facilities
+        const { value: cachedFacilities, source: facilitiesCacheSource } = await loadCachedJson('gdacs_facilities');
+        const { value: cachedAiFields } = await loadCachedJson('gdacs_ai_analysis_fields');
 
-          // Restore AI analysis fields if available
-          if (cachedAiFields) {
-            setAiAnalysisFields(cachedAiFields);
-          }
+        if (!mounted) return;
 
-          // Assess impact with cached facilities once disasters are loaded
-          if (disasters.length > 0) {
-            assessImpact(cachedFacilities);
+        if (cachedFacilities) {
+          if (cachedFacilities && cachedFacilities.length > 0) {
+            console.log(`Loaded ${cachedFacilities.length} facilities from ${facilitiesCacheSource || 'cache'}`);
+            setFacilities(cachedFacilities);
+
+            // Restore AI analysis fields if available
+            if (cachedAiFields) {
+              setAiAnalysisFields(cachedAiFields);
+            }
+
+            // Assess impact with cached facilities once disasters are loaded
+            if (disasters.length > 0) {
+              assessImpact(cachedFacilities);
+            }
           }
         }
-      }
 
-      // Load ACLED config only (data not cached due to size)
-      const cachedAcledConfig = localStorage.getItem('gdacs_acled_config');
-      if (cachedAcledConfig) {
-        try {
-          const parsedConfig = JSON.parse(cachedAcledConfig);
-          setAcledConfig(parsedConfig);
-          setAcledEnabled(parsedConfig.enabled !== undefined ? parsedConfig.enabled : true);
-          console.log('Loaded ACLED config from cache');
-        } catch (error) {
-          console.error('Error loading ACLED config:', error);
+        // Load ACLED config only (data not cached due to size)
+        const cachedAcledConfig = localStorage.getItem('gdacs_acled_config');
+        if (cachedAcledConfig) {
+          try {
+            const parsedConfig = JSON.parse(cachedAcledConfig);
+            if (!mounted) return;
+            setAcledConfig(parsedConfig);
+            setAcledEnabled(parsedConfig.enabled !== undefined ? parsedConfig.enabled : true);
+            console.log('Loaded ACLED config from cache');
+          } catch (error) {
+            console.error('Error loading ACLED config:', error);
+          }
         }
+      } catch (error) {
+        console.error('Error loading cached data:', error);
+        // Clear corrupted cache
+        await removeCachedValue('gdacs_facilities');
+        await removeCachedValue('gdacs_ai_analysis_fields');
+        await removeCachedValue('gdacs_acled_data');
+        await removeCachedValue('gdacs_acled_config');
       }
-    } catch (error) {
-      console.error('Error loading cached data:', error);
-      // Clear corrupted cache
-      removeCachedValue('gdacs_facilities');
-      removeCachedValue('gdacs_ai_analysis_fields');
-      removeCachedValue('gdacs_acled_data');
-      removeCachedValue('gdacs_acled_config');
-    }
+    };
+
+    loadCachedData();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // Update the "time since" last data refresh
@@ -526,10 +649,10 @@ export default function Home() {
   };
 
   // Handle clearing cached facility data
-  const handleClearCache = () => {
+  const handleClearCache = async () => {
     try {
-      removeCachedValue('gdacs_facilities');
-      removeCachedValue('gdacs_ai_analysis_fields');
+      await removeCachedValue('gdacs_facilities');
+      await removeCachedValue('gdacs_ai_analysis_fields');
 
       // Clear state
       setFacilities([]);
@@ -586,7 +709,7 @@ export default function Home() {
       // Parse CSV
       Papa.parse(csvData, {
         header: true,
-        complete: (results) => {
+        complete: async (results) => {
           // Validate and process ACLED data
           const validEvents = results.data.filter(event =>
             event.event_date &&
@@ -700,7 +823,7 @@ export default function Home() {
       // Parse CSV
       Papa.parse(csvData, {
         header: true,
-        complete: (results) => {
+        complete: async (results) => {
           // Validate and process facility data
           const validFacilities = results.data.filter(facility =>
             facility.name &&
@@ -734,13 +857,13 @@ export default function Home() {
           // Clear any existing sitrep when facilities change
           setSitrep('');
 
-          // Save facilities to localStorage (this will override any previous cache)
-          const facilitiesCacheResult = persistCachedJson('gdacs_facilities', validFacilities);
+          // Save facilities to browser storage using the most durable available option
+          const facilitiesCacheResult = await persistCachedJson('gdacs_facilities', validFacilities);
 
           if (columnSelections && columnSelections.aiAnalysisFields) {
-            persistCachedJson('gdacs_ai_analysis_fields', columnSelections.aiAnalysisFields);
+            await persistCachedJson('gdacs_ai_analysis_fields', columnSelections.aiAnalysisFields);
           } else {
-            removeCachedValue('gdacs_ai_analysis_fields');
+            await removeCachedValue('gdacs_ai_analysis_fields');
           }
 
           if (facilitiesCacheResult.ok) {

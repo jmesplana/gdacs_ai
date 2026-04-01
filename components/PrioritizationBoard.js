@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildPrioritizationBoard } from '../lib/prioritizationBoard';
+import {
+  filterFacilitiesToDistricts,
+  filterImpactedFacilitiesToDistricts,
+  filterItemsToDistricts,
+  getScopedWorldPopData
+} from '../lib/analysisScope';
 
 const LOCAL_WORKFLOW_KEY = 'gdacs_prioritization_workflow';
 
@@ -169,33 +175,6 @@ function compactImpactRecord(record = {}) {
         }))
       : []
   };
-}
-
-function compactWorldPopData(worldPopData = {}, selectedDistricts = []) {
-  if (!worldPopData || !selectedDistricts.length) return {};
-
-  const scoped = {};
-  selectedDistricts.forEach((district, idx) => {
-    const props = district.properties || {};
-    const keys = [
-      String(district.id || idx),
-      district.name,
-      props.ADM2_EN,
-      props.NAME_2,
-      props.NAME,
-      props.name,
-      props.district,
-      district.id || idx
-    ].filter(Boolean);
-
-    keys.forEach((key) => {
-      if (worldPopData[key] && !scoped[key]) {
-        scoped[key] = worldPopData[key];
-      }
-    });
-  });
-
-  return scoped;
 }
 
 function compactOsmData(osmData = null) {
@@ -369,6 +348,26 @@ export default function PrioritizationBoard({
   const [levelFilter, setLevelFilter] = useState('All');
   const [workflowState, setWorkflowState] = useState({});
   const [expandedAdminLevels, setExpandedAdminLevels] = useState({});
+  const scopedFacilities = useMemo(
+    () => (selectedDistricts.length > 0 ? filterFacilitiesToDistricts(facilities, selectedDistricts) : facilities),
+    [facilities, selectedDistricts]
+  );
+  const scopedImpactedFacilities = useMemo(
+    () => (selectedDistricts.length > 0 ? filterImpactedFacilitiesToDistricts(impactedFacilities, selectedDistricts) : impactedFacilities),
+    [impactedFacilities, selectedDistricts]
+  );
+  const scopedDisasters = useMemo(
+    () => (selectedDistricts.length > 0 ? filterItemsToDistricts(disasters, selectedDistricts) : disasters),
+    [disasters, selectedDistricts]
+  );
+  const scopedAcledData = useMemo(
+    () => (selectedDistricts.length > 0 ? filterItemsToDistricts(acledData, selectedDistricts) : acledData),
+    [acledData, selectedDistricts]
+  );
+  const scopedWorldPop = useMemo(
+    () => getScopedWorldPopData(worldPopData, selectedDistricts),
+    [worldPopData, selectedDistricts]
+  );
 
   useEffect(() => {
     setWorkflowState(loadWorkflowState());
@@ -379,8 +378,8 @@ export default function PrioritizationBoard({
   }, [workflowState]);
 
   useEffect(() => {
-    setActiveView(facilities.length > 0 ? 'facilities' : 'districts');
-  }, [facilities.length]);
+    setActiveView(scopedFacilities.length > 0 ? 'facilities' : 'districts');
+  }, [scopedFacilities.length]);
 
   useEffect(() => {
     if (!board?.districtRows?.length) return;
@@ -412,14 +411,14 @@ export default function PrioritizationBoard({
 
     try {
       const compactSelectedDistricts = selectedDistricts.map(compactDistrict);
-      const compactScopedWorldPop = compactWorldPopData(worldPopData, compactSelectedDistricts);
+      const compactScopedWorldPop = getScopedWorldPopData(scopedWorldPop, compactSelectedDistricts);
       const districtHazardAnalysisResponse = await fetch('/api/district-hazard-analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           districts: compactSelectedDistricts,
-          facilities: facilities.map(compactFacility),
-          disasters: disasters.map((item) => ({
+          facilities: scopedFacilities.map(compactFacility),
+          disasters: scopedDisasters.map((item) => ({
             eventType: item.eventType,
             eventName: item.eventName,
             title: item.title,
@@ -429,7 +428,7 @@ export default function PrioritizationBoard({
             severity: item.severity,
             source: item.source
           })),
-          acledData: acledData.map((item) => ({
+          acledData: scopedAcledData.map((item) => ({
             event_type: item.event_type,
             latitude: item.latitude,
             longitude: item.longitude,
@@ -442,9 +441,9 @@ export default function PrioritizationBoard({
       });
       const districtHazardAnalysis = await parseResponse(districtHazardAnalysisResponse, 'District hazard analysis');
       const localBoard = buildPrioritizationBoard({
-        facilities: facilities.map(compactFacility),
-        impactedFacilities: impactedFacilities.map(compactImpactRecord),
-        disasters: disasters.map((item) => ({
+        facilities: scopedFacilities.map(compactFacility),
+        impactedFacilities: scopedImpactedFacilities.map(compactImpactRecord),
+        disasters: scopedDisasters.map((item) => ({
           eventType: item.eventType,
           eventName: item.eventName,
           title: item.title,
@@ -454,7 +453,7 @@ export default function PrioritizationBoard({
           severity: item.severity,
           source: item.source
         })),
-        acledData: acledData.map((item) => ({
+        acledData: scopedAcledData.map((item) => ({
           event_type: item.event_type,
           latitude: item.latitude,
           longitude: item.longitude,
@@ -475,7 +474,7 @@ export default function PrioritizationBoard({
           id: district.id,
           name: district.name
         })),
-        facilities: facilities.length > 0 ? [{ loaded: true }] : []
+        facilities: scopedFacilities.length > 0 ? [{ loaded: true }] : []
       };
       const payloadJson = JSON.stringify(requestPayload);
 
@@ -513,11 +512,11 @@ export default function PrioritizationBoard({
     isOpen,
     selectedDistricts.length,
     selectedDistricts.map((district) => district.id).join('|'),
-    facilities.length,
-    impactedFacilities.length,
-    disasters.length,
-    acledData.length,
-    Object.keys(worldPopData || {}).length,
+    scopedFacilities.length,
+    scopedImpactedFacilities.length,
+    scopedDisasters.length,
+    scopedAcledData.length,
+    Object.keys(scopedWorldPop || {}).length,
     osmData?.features?.length || 0,
     operationType,
     enabledEvidenceLayers.join('|')
@@ -544,8 +543,8 @@ export default function PrioritizationBoard({
     return rows.filter((row) => levelFilter === 'All' || row.priorityLevel === levelFilter);
   }, [board, levelFilter]);
   const summaryCards = useMemo(
-    () => getSummaryCards(board, facilities, impactedFacilities),
-    [board, facilities, impactedFacilities]
+    () => getSummaryCards(board, scopedFacilities, scopedImpactedFacilities),
+    [board, scopedFacilities, scopedImpactedFacilities]
   );
 
   const areAllAdminLevelsExpanded = useMemo(() => {
