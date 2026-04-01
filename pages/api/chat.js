@@ -249,6 +249,7 @@ Your role is to:
 5. Reference specific facilities, disasters, and data from the context when relevant
 6. When asked about facilities, you MUST reference the facilities list provided in the context above
 7. When districts are actively selected in the context, answer about that selected admin area unless the user clearly asks about the full uploaded shapefile
+7a. When the user asks which district to avoid, which areas are unsafe, no-go, or highest risk, use the active district risk assessment and prioritization board first. Name the highest-risk district(s) in the current analysis scope and explain the evidence basis.
 8. **Campaign Planning Support**: When asked about campaign viability, feasibility, or "can I run a campaign at [facility]", provide guidance on:
    - Whether it's safe to proceed with health campaigns (malaria, immunization, etc.)
    - Specific risks for campaign teams and target populations
@@ -879,6 +880,29 @@ function buildContextSummary(context) {
     }
     summary.push(`⚡ IMPORTANT: These selected districts are the user's current analysis scope.`);
     summary.push(`   For district- or admin-level questions, prioritize this selection over the full uploaded shapefile.`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  }
+
+  if (context.activeDistrictSummary) {
+    const d = context.activeDistrictSummary;
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`${d.isSelectedScope ? 'ACTIVE SCOPE DISTRICT RISK ASSESSMENT' : 'CURRENT DISTRICT RISK ASSESSMENT'}`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`Admin areas in scope: ${d.totalCount}`);
+    summary.push(`Very High Risk: ${d.riskBreakdown['very-high']}`);
+    summary.push(`High Risk: ${d.riskBreakdown.high}`);
+    summary.push(`Medium Risk: ${d.riskBreakdown.medium}`);
+    summary.push(`Low Risk: ${d.riskBreakdown.low}`);
+    summary.push(`No Risk: ${d.riskBreakdown.none}`);
+
+    if (Array.isArray(d.rankedDistricts) && d.rankedDistricts.length > 0) {
+      summary.push(`Highest-risk districts in current scope:`);
+      d.rankedDistricts.slice(0, 5).forEach((district, index) => {
+        summary.push(`- ${index + 1}. ${district.name} | ${district.level} risk | score ${district.score} | ACLED ${district.acledCount} | GDACS ${district.disasterCount}`);
+      });
+    }
+
+    summary.push(`⚡ IMPORTANT: Use this active-scope district ranking when the user asks which districts to avoid, monitor, prioritize, or treat as unsafe.`);
     summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   }
 

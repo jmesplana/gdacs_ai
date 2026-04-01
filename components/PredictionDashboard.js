@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from './Toast';
+import { DecisionBadge, RiskBar, getDecisionLabel } from './DecisionSupport';
 import {
   filterFacilitiesToDistricts,
   filterItemsToDistricts
@@ -34,6 +35,22 @@ function buildForecastFooterLabel(districtAnalysis, districtCount) {
   }
 
   return `District outlook uses Open-Meteo forecast plus selected districts and currently loaded context${districtCount > 0 ? ` • ${districtCount} district${districtCount === 1 ? '' : 's'} analyzed` : ''}`;
+}
+
+function getDistrictDecisionLabel(district = {}) {
+  const score = typeof district?.dominantHazard?.score === 'number' ? district.dominantHazard.score : 0;
+  if ((district?.exposure?.securitySignalCount || 0) > 0 && String(district?.confidence || '').toLowerCase() === 'low' && score >= 70) {
+    return 'Delay';
+  }
+  return getDecisionLabel(score);
+}
+
+function getDistrictMissingEvidence(district = {}) {
+  const gaps = [];
+  if (Array.isArray(district?.limitations)) {
+    gaps.push(...district.limitations);
+  }
+  return gaps.filter(Boolean);
 }
 
 const PredictionDashboard = ({
@@ -758,126 +775,150 @@ const DistrictHazardAnalysisView = ({ data, getRiskColor }) => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-        {data.districts.map((district) => (
-          <div
-            key={district.districtId}
-            style={{
-              padding: '18px',
-              background: 'white',
-              borderRadius: '12px',
-              border: `2px solid ${getRiskColor(district.dominantHazard.level.toUpperCase())}`,
-              boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', marginBottom: '10px' }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '17px', color: 'var(--aidstack-navy)', fontWeight: 700 }}>
-                  {district.districtName}
-                </h4>
-                <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
-                  {district.timeWindow}
+        {data.districts.map((district) => {
+          const decisionLabel = getDistrictDecisionLabel(district);
+          const missingEvidence = getDistrictMissingEvidence(district);
+          return (
+            <div
+              key={district.districtId}
+              style={{
+                padding: '18px',
+                background: 'white',
+                borderRadius: '12px',
+                border: `2px solid ${getRiskColor(district.dominantHazard.level.toUpperCase())}`,
+                boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', marginBottom: '10px' }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '17px', color: 'var(--aidstack-navy)', fontWeight: 700 }}>
+                    {district.districtName}
+                  </h4>
+                  <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
+                    {district.timeWindow}
+                  </div>
+                </div>
+                <DecisionBadge label={decisionLabel} />
+              </div>
+
+              <div style={{ marginBottom: '14px' }}>
+                <RiskBar
+                  value={typeof district.dominantHazard.score === 'number' ? district.dominantHazard.score : 0}
+                  label="Current risk position"
+                  sublabel={`${district.dominantHazard.type} ${district.dominantHazard.level}${typeof district.dominantHazard.score === 'number' ? ` • ${district.dominantHazard.score}/100` : ''}`}
+                />
+              </div>
+
+              <div style={{ marginBottom: '14px', fontSize: '13px', color: '#334155', lineHeight: 1.6 }}>
+                <div><strong>Decision:</strong> {decisionLabel}</div>
+                <div style={{ marginTop: '6px' }}>
+                  <strong>What to do now:</strong> {typeof district.dominantHazard.score === 'number'
+                    ? `Use the current district signal, exposure, and evidence limits below to decide whether to monitor, prepare, or escalate.`
+                    : 'Load the missing evidence called out below before using this district for escalation decisions.'}
                 </div>
               </div>
-              <div style={{
-                background: getRiskColor(district.dominantHazard.level.toUpperCase()),
-                color: 'white',
-                borderRadius: '999px',
-                padding: '5px 10px',
-                fontSize: '11px',
-                fontWeight: 700,
-                textTransform: 'uppercase'
-              }}>
-                {district.dominantHazard.type} {district.dominantHazard.level}
-              </div>
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', marginBottom: '14px' }}>
-              <MetricCard
-                label="Flood"
-                value={district.hazardAssessments?.flood?.status === 'ready' ? `${district.hazardScores.flood}/100` : 'Not ready'}
-                tone="#2563EB"
-                note={district.hazardAssessments?.flood?.status === 'ready' ? null : district.hazardAssessments?.flood?.message}
-              />
-              <MetricCard
-                label="Drought"
-                value={district.hazardAssessments?.drought?.status === 'ready' ? `${district.hazardScores.drought}/100` : 'Not ready'}
-                tone="#B45309"
-                note={district.hazardAssessments?.drought?.status === 'ready' ? null : district.hazardAssessments?.drought?.message}
-              />
-              <MetricCard
-                label="Heat"
-                value={district.hazardAssessments?.heat?.status === 'ready' ? `${district.hazardScores.heat}/100` : 'Not ready'}
-                tone="#DC2626"
-                note={district.hazardAssessments?.heat?.status === 'ready' ? null : district.hazardAssessments?.heat?.message}
-              />
-              <MetricCard label="Response Scale" value={district.responseScale} tone="#0F766E" />
-            </div>
-
-            <div style={{ marginBottom: '14px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Top Drivers
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', marginBottom: '14px' }}>
+                <MetricCard
+                  label="Flood"
+                  value={district.hazardAssessments?.flood?.status === 'ready' ? `${district.hazardScores.flood}/100` : 'Not ready'}
+                  tone="#2563EB"
+                  note={district.hazardAssessments?.flood?.status === 'ready' ? null : district.hazardAssessments?.flood?.message}
+                />
+                <MetricCard
+                  label="Drought"
+                  value={district.hazardAssessments?.drought?.status === 'ready' ? `${district.hazardScores.drought}/100` : 'Not ready'}
+                  tone="#B45309"
+                  note={district.hazardAssessments?.drought?.status === 'ready' ? null : district.hazardAssessments?.drought?.message}
+                />
+                <MetricCard
+                  label="Heat"
+                  value={district.hazardAssessments?.heat?.status === 'ready' ? `${district.hazardScores.heat}/100` : 'Not ready'}
+                  tone="#DC2626"
+                  note={district.hazardAssessments?.heat?.status === 'ready' ? null : district.hazardAssessments?.heat?.message}
+                />
+                <MetricCard label="Response Scale" value={district.responseScale} tone="#0F766E" />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {district.drivers.length === 0 ? (
-                  <div style={{ padding: '10px 12px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', color: '#64748B' }}>
-                    No scored hazard drivers yet. Enable the required evidence layers to generate auditable district drivers.
+
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  What We Know
+                </div>
+                <div style={{ fontSize: '13px', color: '#334155', lineHeight: 1.7 }}>
+                  <div>Population: {district.exposure.populationEstimate ? district.exposure.populationEstimate.toLocaleString() : 'Unknown'}</div>
+                  <div>Facilities in scope: {district.exposure.facilityCount}</div>
+                  <div>GDACS signals in district: {district.exposure.disasterSignalCount}</div>
+                  <div>ACLED events in district: {district.exposure.securitySignalCount}</div>
+                  {district.weatherSummary && (
+                    <div>Forecast rainfall: {district.weatherSummary.totalRainMm} mm total, peak {district.weatherSummary.maxDailyRainMm} mm/day</div>
+                  )}
+                </div>
+              </div>
+
+              {missingEvidence.length > 0 && (
+                <div style={{ marginBottom: '14px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    What Is Missing
                   </div>
-                ) : district.drivers.slice(0, 4).map((driver) => (
-                  <div key={driver.key} style={{ padding: '10px 12px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '13px', marginBottom: '4px' }}>
-                      <strong style={{ color: 'var(--aidstack-navy)' }}>{driver.label}</strong>
-                      <span style={{ color: '#334155' }}>{driver.value}{driver.unit ? ` ${driver.unit}` : ''}</span>
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#64748B' }}>
-                      Weight {Math.round(driver.weight * 100)}% • Source: {driver.source}
-                    </div>
+                  <div style={{ fontSize: '13px', color: '#64748B', lineHeight: 1.7 }}>
+                    {missingEvidence.map((item, index) => (
+                      <div key={index}>{item}</div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              )}
 
-            <div style={{ marginBottom: '14px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Exposure And Context
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Why This District
+                </div>
+                <div style={{ fontSize: '13px', color: '#334155', lineHeight: 1.6 }}>
+                  {district.rationale.map((line, index) => (
+                    <div key={index}>{line}</div>
+                  ))}
+                </div>
               </div>
-              <div style={{ fontSize: '13px', color: '#334155', lineHeight: 1.7 }}>
-                <div>Population: {district.exposure.populationEstimate ? district.exposure.populationEstimate.toLocaleString() : 'Unknown'}</div>
-                <div>Facilities in scope: {district.exposure.facilityCount}</div>
-                <div>GDACS signals in district: {district.exposure.disasterSignalCount}</div>
-                <div>ACLED events in district: {district.exposure.securitySignalCount}</div>
-                {district.weatherSummary && (
-                  <div>Forecast rainfall: {district.weatherSummary.totalRainMm} mm total, peak {district.weatherSummary.maxDailyRainMm} mm/day</div>
+
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Top Drivers
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {district.drivers.length === 0 ? (
+                    <div style={{ padding: '10px 12px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', color: '#64748B' }}>
+                      No scored hazard drivers yet. Enable the required evidence layers to generate auditable district drivers.
+                    </div>
+                  ) : district.drivers.slice(0, 4).map((driver) => (
+                    <div key={driver.key} style={{ padding: '10px 12px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '13px', marginBottom: '4px' }}>
+                        <strong style={{ color: 'var(--aidstack-navy)' }}>{driver.label}</strong>
+                        <span style={{ color: '#334155' }}>{driver.value}{driver.unit ? ` ${driver.unit}` : ''}</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748B' }}>
+                        Weight {Math.round(driver.weight * 100)}% • Source: {driver.source}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ paddingTop: '12px', borderTop: '1px solid #E2E8F0', fontSize: '12px', color: '#64748B', lineHeight: 1.6 }}>
+                <div><strong style={{ color: 'var(--aidstack-navy)' }}>Evidence Base:</strong> {district.evidenceBase || 'forecast-only'}</div>
+                <div><strong style={{ color: 'var(--aidstack-navy)' }}>Confidence:</strong> {district.confidence}</div>
+                {district.confidenceReasoning && (
+                  <div><strong style={{ color: 'var(--aidstack-navy)' }}>Confidence Basis:</strong> {district.confidenceReasoning}</div>
                 )}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '12px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Why This District
-              </div>
-              <div style={{ fontSize: '13px', color: '#334155', lineHeight: 1.6 }}>
-                {district.rationale.map((line, index) => (
-                  <div key={index}>{line}</div>
+                {district.responseScaleReasoning && (
+                  <div><strong style={{ color: 'var(--aidstack-navy)' }}>Response Scale Basis:</strong> {district.responseScaleReasoning}</div>
+                )}
+                <div><strong style={{ color: 'var(--aidstack-navy)' }}>Sources used:</strong> {district.sources.join(' | ')}</div>
+                {district.limitations.map((item, index) => (
+                  <div key={index}><strong style={{ color: 'var(--aidstack-navy)' }}>Limitation:</strong> {item}</div>
                 ))}
               </div>
             </div>
-
-            <div style={{ paddingTop: '12px', borderTop: '1px solid #E2E8F0', fontSize: '12px', color: '#64748B', lineHeight: 1.6 }}>
-              <div><strong style={{ color: 'var(--aidstack-navy)' }}>Evidence Base:</strong> {district.evidenceBase || 'forecast-only'}</div>
-              <div><strong style={{ color: 'var(--aidstack-navy)' }}>Confidence:</strong> {district.confidence}</div>
-              {district.confidenceReasoning && (
-                <div><strong style={{ color: 'var(--aidstack-navy)' }}>Confidence Basis:</strong> {district.confidenceReasoning}</div>
-              )}
-              {district.responseScaleReasoning && (
-                <div><strong style={{ color: 'var(--aidstack-navy)' }}>Response Scale Basis:</strong> {district.responseScaleReasoning}</div>
-              )}
-              <div><strong style={{ color: 'var(--aidstack-navy)' }}>Sources used:</strong> {district.sources.join(' | ')}</div>
-              {district.limitations.map((item, index) => (
-                <div key={index}><strong style={{ color: 'var(--aidstack-navy)' }}>Limitation:</strong> {item}</div>
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -96,6 +96,8 @@ Return valid JSON only with this shape:
 
 Rules:
 - Stay tightly grounded in the row data.
+- Do not invent hazard, logistics, population, security, or nighttime-lights conclusions that are not already supported by the row data.
+- If the row data shows missing evidence, preserve that limitation and mention what data the operator should load next.
 - If web search adds nothing useful, say so briefly in recentContext and set recentSourceLabel/recentSourceUrl to null.
 - When web search does add useful context, always include a source URL.
 - Web context must prefer the most recent credible source available as of ${today}.

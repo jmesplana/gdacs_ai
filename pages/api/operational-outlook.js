@@ -753,10 +753,20 @@ ${isAdminLevel ? `**ANALYSIS SCOPE**: You are analyzing a SINGLE administrative 
 11. **Do not discuss disease outbreak risk unless the context explicitly includes assessed disease evidence or observed surveillance data.**
 12. **Do not discuss logistics conditions as assessed facts unless the context explicitly includes an OSM-backed logistics assessment.**
 13. **Prioritize district hazard warnings, readiness, evidence base, and limitations** over any weaker signal when they conflict.
+14. **Lead with the decision, not the description.** The first section should make it obvious whether the posture is monitor, prepare, pre-position, escalate, or delay for the selected scope.
+15. **If evidence is missing, say what data is needed.** Name the missing data source or layer explicitly (for example Flood Context, Drought Context, Nighttime Lights (GEE), OSM roads, airports, fuel, ACLED, or WorldPop).
 
 Do not simply summarize events. Focus on explaining **what humanitarian impacts are likely to occur next and why**, and how they may affect response operations in ${analysisScope}.
 
 Use the following structure:
+
+**0. Decision Summary**
+State the current decision posture for the selected scope in 2-4 sentences.
+Include:
+* current posture (monitor, prepare, pre-position, escalate, or delay)
+* the 2-3 strongest evidence-backed reasons
+* what data is still missing if that limits confidence
+* one immediate action
 
 **1. Situation Overview**
 Briefly describe the current situation in the affected area, including disaster events, conflict trends, infrastructure status, and any important evidence limitations.
@@ -797,6 +807,7 @@ Highlight specific unknowns or data gaps that affect the analysis. Be concrete a
 Write clearly and concisely for humanitarian decision makers.
 Focus on **humanitarian impact, operational access, and likely developments**, rather than speculation.
 If a forecast dimension is not ready, say so plainly. It is better to report "flood risk not ready because Flood Context was not enabled" than to infer a flood conclusion from incomplete inputs.
+If a conclusion depends on missing evidence, explicitly say what the operator should load next to improve the decision.
 
 ---
 

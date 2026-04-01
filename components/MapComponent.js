@@ -343,6 +343,79 @@ function buildAcledAggregateSummary(events = [], selectedDistricts = []) {
   };
 }
 
+function buildDistrictRiskSummary(districts = [], districtRiskIndex = {}) {
+  if (!districts || districts.length === 0) return null;
+
+  const riskCounts = {
+    'very-high': 0,
+    'high': 0,
+    'medium': 0,
+    'low': 0,
+    'none': 0
+  };
+  const samplesByRisk = {
+    'very-high': [],
+    'high': [],
+    'medium': [],
+    'low': [],
+    'none': []
+  };
+  const rankedDistricts = [];
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+
+  districts.forEach((district) => {
+    const risk = districtRiskIndex[district.id] || { level: 'none', score: 0, eventCount: 0, acledCount: 0, disasterCount: 0 };
+    riskCounts[risk.level] += 1;
+
+    const districtEntry = {
+      id: district.id,
+      name: district.name,
+      eventCount: risk.eventCount || 0,
+      acledCount: risk.acledCount || 0,
+      disasterCount: risk.disasterCount || 0,
+      score: risk.score || 0,
+      level: risk.level || 'none'
+    };
+
+    if (samplesByRisk[risk.level].length < 3) {
+      samplesByRisk[risk.level].push(districtEntry);
+    }
+
+    rankedDistricts.push(districtEntry);
+
+    if (district.bounds) {
+      minLat = Math.min(minLat, district.bounds.minLat);
+      maxLat = Math.max(maxLat, district.bounds.maxLat);
+      minLng = Math.min(minLng, district.bounds.minLng);
+      maxLng = Math.max(maxLng, district.bounds.maxLng);
+    }
+  });
+
+  rankedDistricts.sort((a, b) => {
+    if ((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
+    if ((b.acledCount || 0) !== (a.acledCount || 0)) return (b.acledCount || 0) - (a.acledCount || 0);
+    return (b.eventCount || 0) - (a.eventCount || 0);
+  });
+
+  return {
+    totalCount: districts.length,
+    geographicBounds: Number.isFinite(minLat) ? {
+      minLat: minLat.toFixed(2),
+      maxLat: maxLat.toFixed(2),
+      minLng: minLng.toFixed(2),
+      maxLng: maxLng.toFixed(2),
+      centerLat: ((minLat + maxLat) / 2).toFixed(2),
+      centerLng: ((minLng + maxLng) / 2).toFixed(2)
+    } : null,
+    riskBreakdown: riskCounts,
+    sampleDistricts: samplesByRisk,
+    rankedDistricts: rankedDistricts.slice(0, 10)
+  };
+}
+
 function extractLocationFromDistrict(district) {
   const props = district?.properties || district || {};
   const countryFields = [
@@ -1594,62 +1667,25 @@ const MapComponent = ({
   const districtSummary = useMemo(() => {
     if (!districts || districts.length === 0) return null;
 
-    const riskCounts = {
-      'very-high': 0,
-      'high': 0,
-      'medium': 0,
-      'low': 0,
-      'none': 0
-    };
-    const samplesByRisk = {
-      'very-high': [],
-      'high': [],
-      'medium': [],
-      'low': [],
-      'none': []
-    };
-    let minLat = Infinity;
-    let maxLat = -Infinity;
-    let minLng = Infinity;
-    let maxLng = -Infinity;
-
-    districts.forEach(district => {
-      const risk = districtRisks[district.id];
-      if (risk) {
-        riskCounts[risk.level]++;
-        if (samplesByRisk[risk.level].length < 3) {
-          samplesByRisk[risk.level].push({
-            name: district.name,
-            eventCount: risk.eventCount,
-            score: risk.score
-          });
-        }
-      }
-
-      if (district.bounds) {
-        minLat = Math.min(minLat, district.bounds.minLat);
-        maxLat = Math.max(maxLat, district.bounds.maxLat);
-        minLng = Math.min(minLng, district.bounds.minLng);
-        maxLng = Math.max(maxLng, district.bounds.maxLng);
-      }
-    });
-
-    return {
-      totalCount: districts.length,
+    const summary = buildDistrictRiskSummary(districts, districtRisks);
+    return summary ? {
+      ...summary,
       country: districts[0]?.country || 'Unknown',
-      region: districts[0]?.region || 'Unknown',
-      geographicBounds: Number.isFinite(minLat) ? {
-        minLat: minLat.toFixed(2),
-        maxLat: maxLat.toFixed(2),
-        minLng: minLng.toFixed(2),
-        maxLng: maxLng.toFixed(2),
-        centerLat: ((minLat + maxLat) / 2).toFixed(2),
-        centerLng: ((minLng + maxLng) / 2).toFixed(2)
-      } : null,
-      riskBreakdown: riskCounts,
-      sampleDistricts: samplesByRisk
-    };
+      region: districts[0]?.region || 'Unknown'
+    } : null;
   }, [districts, districtRisks]);
+  const activeDistrictSummary = useMemo(() => {
+    const activeDistricts = selectedAnalysisDistricts?.length ? selectedAnalysisDistricts : districts;
+    if (!activeDistricts || activeDistricts.length === 0) return null;
+
+    const summary = buildDistrictRiskSummary(activeDistricts, districtRisks);
+    return summary ? {
+      ...summary,
+      country: activeDistricts[0]?.country || 'Unknown',
+      region: activeDistricts[0]?.region || 'Unknown',
+      isSelectedScope: Boolean(selectedAnalysisDistricts?.length)
+    } : null;
+  }, [selectedAnalysisDistricts, districts, districtRisks]);
   const enrichedDistricts = useMemo(
     () => districts.map(district => {
       const risk = districtRisks[district.id] || { level: 'none', score: 0, eventCount: 0 };
@@ -2955,6 +2991,7 @@ const MapComponent = ({
           selectedAnalysisDistricts: selectedAnalysisDistricts?.map(compactDistrictForContext) || [],
           hasDistricts: districts && districts.length > 0,
           districts: districtSummary,
+          activeDistrictSummary: activeDistrictSummary,
           // Send a compact facility sample to keep chat fast
           facilities: facilities?.slice(0, 75).map(f => ({
             name: f.name,

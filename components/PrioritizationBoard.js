@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildPrioritizationBoard } from '../lib/prioritizationBoard';
+import { DecisionBadge, RiskBar, getDecisionLabel } from './DecisionSupport';
 import {
   filterFacilitiesToDistricts,
   filterImpactedFacilitiesToDistricts,
@@ -243,6 +244,30 @@ function getScoreMeaning(score) {
   if (score >= 55) return 'High near-term priority';
   if (score >= 35) return 'Moderate priority';
   return 'Low current priority';
+}
+
+function getDistrictDecision(row) {
+  if ((row?.districtRiskLevel === 'very-high' && (row?.acledCount || 0) > 0) || (row?.districtRiskScore || 0) >= 65) {
+    return 'Delay';
+  }
+  return getDecisionLabel(row?.priorityScore || 0);
+}
+
+function getDistrictKnownSignals(row) {
+  const signals = [];
+  if (row.populationEstimate) signals.push(`Population in scope: ${row.populationEstimate.toLocaleString()}`);
+  if (row.facilityCount > 0) signals.push(`Facilities in scope: ${row.facilityCount}`);
+  if ((row.disasterCount || 0) > 0) signals.push(`GDACS signals in scope: ${row.disasterCount}`);
+  if ((row.acledCount || 0) > 0) signals.push(`ACLED events in scope: ${row.acledCount}`);
+  if (typeof row.projectedHazardScore === 'number') {
+    signals.push(`Projected ${String(row.projectedHazardLabel || row.projectedHazardType || 'hazard').toLowerCase()}: ${row.projectedHazardScore}/100`);
+  }
+  if (row.projectedResponseScale) signals.push(`Response scale: ${row.projectedResponseScale}`);
+  return signals;
+}
+
+function formatOptionalPopulation(value) {
+  return value !== null && value !== undefined ? value.toLocaleString() : 'Unknown';
 }
 
 function getAdminLevelId(row) {
@@ -999,6 +1024,8 @@ export default function PrioritizationBoard({
                 const levelStyle = levelColors[row.priorityLevel] || levelColors.Monitor;
                 const adminLevelId = getAdminLevelId(row);
                 const isExpanded = !!expandedAdminLevels[adminLevelId];
+                const decisionLabel = getDistrictDecision(row);
+                const knownSignals = getDistrictKnownSignals(row);
 
                 return (
                   <div
@@ -1032,16 +1059,7 @@ export default function PrioritizationBoard({
                             {row.rank}
                           </span>
                           <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>{row.district}</h3>
-                          <span style={{
-                            background: levelStyle.bg,
-                            color: levelStyle.text,
-                            borderRadius: '999px',
-                            padding: '6px 10px',
-                            fontWeight: 800,
-                            fontSize: '12px'
-                          }}>
-                            {row.priorityLevel}
-                          </span>
+                          <DecisionBadge label={decisionLabel} />
                           <span style={{ fontSize: '13px', color: '#475569', fontWeight: 700 }}>
                             Score {row.priorityScore}/100
                           </span>
@@ -1067,20 +1085,33 @@ export default function PrioritizationBoard({
                           {getScoreMeaning(row.priorityScore)}
                         </div>
 
+                        <div style={{ marginBottom: '12px' }}>
+                          <RiskBar
+                            value={row.priorityScore}
+                            label="Current risk position"
+                            sublabel={`${row.priorityLevel} • ${row.priorityScore}/100`}
+                          />
+                        </div>
+
                         <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.55, marginBottom: isExpanded ? '10px' : 0 }}>
-                          <strong>Posture:</strong> {row.posture}
+                          <strong>Decision:</strong> {decisionLabel} | <strong>Posture:</strong> {row.posture}
                         </div>
 
                         {!isExpanded && (
-                          <div style={{ color: '#475569', fontSize: '13px', lineHeight: 1.6 }}>
-                            <strong>Next step:</strong> {renderLinkedText(row.recommendedAction || row.actions.join(' • '))}
-                          </div>
+                          <>
+                            <div style={{ color: '#475569', fontSize: '13px', lineHeight: 1.6, marginBottom: '8px' }}>
+                              <strong>Why:</strong> {renderLinkedText(row.soWhat)}
+                            </div>
+                            <div style={{ color: '#475569', fontSize: '13px', lineHeight: 1.6 }}>
+                              <strong>What to do now:</strong> {renderLinkedText(row.recommendedAction || row.actions.join(' • '))}
+                            </div>
+                          </>
                         )}
 
                         {isExpanded && (
                           <>
                             <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.6, marginBottom: '10px' }}>
-                              <strong>So what:</strong> {renderLinkedText(row.soWhat)}
+                              <strong>Why this decision:</strong> {renderLinkedText(row.soWhat)}
                             </div>
 
                             <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.6, marginBottom: '10px' }}>
@@ -1114,18 +1145,18 @@ export default function PrioritizationBoard({
                             )}
 
                             <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.55 }}>
-                              <strong>Recommended action:</strong> {renderLinkedText(row.recommendedAction || row.actions.join(' • '))}
+                              <strong>What to do now:</strong> {renderLinkedText(row.recommendedAction || row.actions.join(' • '))}
                             </div>
 
                             {row.keyGaps?.length > 0 && (
                               <div style={{ color: '#64748b', fontSize: '13px', lineHeight: 1.6, marginTop: '10px' }}>
-                                <strong>Key gaps:</strong> {row.keyGaps.join(' | ')}
+                                <strong>What is missing:</strong> {row.keyGaps.join(' | ')}
                               </div>
                             )}
 
                             {row.leadershipNote && (
                               <div style={{ color: '#475569', fontSize: '13px', lineHeight: 1.6, marginTop: '10px' }}>
-                                <strong>Leadership note:</strong> {renderLinkedText(row.leadershipNote)}
+                                <strong>What could change this decision:</strong> {renderLinkedText(row.leadershipNote)}
                               </div>
                             )}
 
@@ -1188,6 +1219,19 @@ export default function PrioritizationBoard({
                           <div><strong>Settlement context:</strong> {row.nighttimeSupportContext ? row.nighttimeSupportContext : 'Unknown'}</div>
                         </div>
 
+                        {knownSignals.length > 0 && (
+                          <div style={{
+                            marginTop: '12px',
+                            paddingTop: '12px',
+                            borderTop: '1px solid #e2e8f0',
+                            fontSize: '12px',
+                            color: '#475569',
+                            lineHeight: 1.6
+                          }}>
+                            <strong style={{ color: '#0f172a' }}>What we know:</strong> {knownSignals.join(' | ')}
+                          </div>
+                        )}
+
                         <div style={{
                           marginTop: '12px',
                           paddingTop: '12px',
@@ -1202,8 +1246,8 @@ export default function PrioritizationBoard({
                           <div><strong>Uploaded clinics:</strong> {row.uploadedClinics ?? 0}</div>
                           <div><strong>OSM hospitals:</strong> {row.hospitals ?? 0}</div>
                           <div><strong>OSM clinics:</strong> {row.clinics ?? 0}</div>
-                          <div><strong>Under 5:</strong> {row.ageGroups?.under5 ? row.ageGroups.under5.toLocaleString() : 'Unknown'}</div>
-                          <div><strong>60+:</strong> {row.ageGroups?.age60plus ? row.ageGroups.age60plus.toLocaleString() : 'Unknown'}</div>
+                          <div><strong>Under 5:</strong> {formatOptionalPopulation(row.ageGroups?.under5)}</div>
+                          <div><strong>60+:</strong> {formatOptionalPopulation(row.ageGroups?.age60plus)}</div>
                           <div><strong>VIIRS radiance:</strong> {typeof row.nighttimeLights?.avgRadMean === 'number' ? (Math.round(row.nighttimeLights.avgRadMean * 10) / 10) : 'Unknown'}</div>
                           <div><strong>Lit area:</strong> {typeof row.nighttimeLights?.litAreaShare === 'number' ? `${Math.round(row.nighttimeLights.litAreaShare * 100)}%` : 'Unknown'}</div>
                           <div style={{ gridColumn: '1 / -1' }}><strong>Evidence base:</strong> {row.projectedEvidenceBase || 'Limited'}</div>

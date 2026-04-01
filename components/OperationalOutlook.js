@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
+import { DecisionBadge, RiskBar, getDecisionLabel } from './DecisionSupport';
 import {
   filterFacilitiesToDistricts,
   filterItemsToDistricts,
@@ -60,6 +61,13 @@ function getOverallConfidence(districtHazardAnalysis = null, logistics = null) {
 function formatCountLabel(ready, total) {
   if (!total) return '0/0';
   return `${ready}/${total}`;
+}
+
+function getDistrictDecision(district = {}, logisticsAssessment = null) {
+  const dominantScore = typeof district?.dominantHazard?.score === 'number' ? district.dominantHazard.score : 0;
+  const accessScore = typeof logisticsAssessment?.accessScore === 'number' ? logisticsAssessment.accessScore : null;
+  const logisticsPenalty = accessScore !== null && accessScore < 35 ? { delay: true } : {};
+  return getDecisionLabel(dominantScore, logisticsPenalty);
 }
 
 const OperationalOutlook = ({
@@ -383,6 +391,10 @@ const OperationalOutlook = ({
 
   const districtHazardAnalysis = supportingAssessments?.districtHazardAnalysis || null;
   const hazardDistricts = districtHazardAnalysis?.districts || [];
+  const decisionDistricts = hazardDistricts
+    .slice()
+    .sort((a, b) => (b?.dominantHazard?.score || 0) - (a?.dominantHazard?.score || 0))
+    .slice(0, 4);
   const floodReadyCount = hazardDistricts.filter((district) => district.hazardAssessments?.flood?.status === 'ready').length;
   const droughtReadyCount = hazardDistricts.filter((district) => district.hazardAssessments?.drought?.status === 'ready').length;
   const heatReadyCount = hazardDistricts.filter((district) => district.hazardAssessments?.heat?.status === 'ready').length;
@@ -673,6 +685,49 @@ const OperationalOutlook = ({
                       {source}
                     </span>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {hazardDistricts.length > 0 && (
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px' }}>
+                  District decisions
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
+                  {decisionDistricts.map((district) => {
+                    const decision = getDistrictDecision(district, logisticsAssessment);
+                    const missing = Array.isArray(district.limitations) ? district.limitations.slice(0, 2) : [];
+                    return (
+                      <div key={district.districtId} style={{
+                        background: 'white',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '10px',
+                        padding: '12px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>
+                            {district.districtName}
+                          </div>
+                          <DecisionBadge label={decision} />
+                        </div>
+                        <RiskBar
+                          value={typeof district.dominantHazard?.score === 'number' ? district.dominantHazard.score : 0}
+                          label="Risk position"
+                          sublabel={`${district.dominantHazard?.type || 'Hazard'}${typeof district.dominantHazard?.score === 'number' ? ` • ${district.dominantHazard.score}/100` : ' • Not ready'}`}
+                          showScale={false}
+                        />
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#334155', lineHeight: '1.5' }}>
+                          <strong>What we know:</strong> {district.rationale?.slice(0, 2).join(' | ') || 'Limited scoped signals.'}
+                        </div>
+                        {missing.length > 0 && (
+                          <div style={{ marginTop: '6px', fontSize: '12px', color: '#64748b', lineHeight: '1.5' }}>
+                            <strong>What is missing:</strong> {missing.join(' | ')}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
