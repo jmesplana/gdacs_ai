@@ -426,7 +426,7 @@ const OperationalOutlook = ({
         borderRadius: '8px',
         width: '100%',
         maxWidth: '1200px',
-        maxHeight: '90vh',
+        maxHeight: '94vh',
         display: 'flex',
         flexDirection: 'column',
         boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
@@ -519,6 +519,79 @@ const OperationalOutlook = ({
         }}>
           This outlook is experimental and intended as a planning aid. Confirm key assumptions with current field data, official advisories, and operational judgment.
         </div>
+
+        {!loading && hazardDistricts.length > 0 && (
+          <div style={{
+            padding: '16px 24px',
+            background: 'white',
+            borderBottom: '1px solid #e2e8f0'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap',
+              marginBottom: '10px'
+            }}>
+              <div style={{
+                fontSize: '13px',
+                fontWeight: 800,
+                color: 'var(--aidstack-navy)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em'
+              }}>
+                Decision Summary
+              </div>
+              <div style={{
+                fontSize: '12px',
+                color: '#64748b',
+                fontWeight: 600
+              }}>
+                Top districts in the current analysis scope
+              </div>
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: '12px'
+            }}>
+              {decisionDistricts.map((district) => {
+                const decision = getDistrictDecision(district, logisticsAssessment);
+                const missing = Array.isArray(district.limitations) ? district.limitations.slice(0, 2) : [];
+                return (
+                  <div key={district.districtId} style={{
+                    background: '#f8fafc',
+                    border: '1px solid #dbe4f0',
+                    borderRadius: '12px',
+                    padding: '14px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>
+                        {district.districtName}
+                      </div>
+                      <DecisionBadge label={decision} />
+                    </div>
+                    <RiskBar
+                      value={typeof district.dominantHazard?.score === 'number' ? district.dominantHazard.score : 0}
+                      label="Risk position"
+                      sublabel={`${district.dominantHazard?.type || 'Hazard'}${typeof district.dominantHazard?.score === 'number' ? ` • ${district.dominantHazard.score}/100` : ' • Not ready'}`}
+                      showScale={false}
+                    />
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#334155', lineHeight: '1.5' }}>
+                      <strong>What we know:</strong> {district.rationale?.slice(0, 2).join(' | ') || 'Limited scoped signals.'}
+                    </div>
+                    {missing.length > 0 && (
+                      <div style={{ marginTop: '6px', fontSize: '12px', color: '#64748b', lineHeight: '1.5' }}>
+                        <strong>What is missing:</strong> {missing.join(' | ')}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {!loading && (districtHazardAnalysis || logisticsAssessment) && (
           <div style={{
@@ -631,47 +704,49 @@ const OperationalOutlook = ({
             </div>
 
             {assessmentWarnings.length > 0 && (
-              <div style={{
+              <details style={{
                 background: '#fff7ed',
                 border: '1px solid #fed7aa',
                 borderRadius: '10px',
                 padding: '12px',
                 marginBottom: '12px'
               }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#9a3412', marginBottom: '6px' }}>
-                  Assessment Warnings
+                <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#9a3412' }}>
+                  Assessment warnings ({assessmentWarnings.length})
+                </summary>
+                <div style={{ marginTop: '8px' }}>
+                  {assessmentWarnings.map((warning, index) => (
+                    <div key={index} style={{ fontSize: '12px', color: '#9a3412', lineHeight: '1.5', marginBottom: index === assessmentWarnings.length - 1 ? 0 : '4px' }}>
+                      {warning}
+                    </div>
+                  ))}
                 </div>
-                {assessmentWarnings.map((warning, index) => (
-                  <div key={index} style={{ fontSize: '12px', color: '#9a3412', lineHeight: '1.5', marginBottom: index === assessmentWarnings.length - 1 ? 0 : '4px' }}>
-                    {warning}
-                  </div>
-                ))}
-              </div>
+              </details>
             )}
 
             {!nighttimeLightsLoaded && (
-              <div style={{
+              <details style={{
                 background: '#f8fafc',
                 border: '1px solid #cbd5e1',
                 borderRadius: '10px',
                 padding: '12px',
                 marginBottom: '12px'
               }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                  Nighttime Lights Context
-                </div>
-                <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
+                <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                  Nighttime Lights context
+                </summary>
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
                   Nighttime Lights (GEE) is not currently loaded. If you want settlement footprint, infrastructure concentration, or broad electrification context to inform the narrative, switch the map layer to Nighttime Lights (GEE).
                 </div>
-              </div>
+              </details>
             )}
 
             {evidenceSources.length > 0 && (
-              <div style={{ marginBottom: '12px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                  Sources
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              <details style={{ marginBottom: '12px' }}>
+                <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#475569' }}>
+                  Sources ({Math.min(evidenceSources.length, 12)})
+                </summary>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
                   {evidenceSources.slice(0, 12).map((source) => (
                     <span key={source} style={{
                       background: 'white',
@@ -686,50 +761,7 @@ const OperationalOutlook = ({
                     </span>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {hazardDistricts.length > 0 && (
-              <div style={{ marginBottom: '12px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px' }}>
-                  District decisions
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
-                  {decisionDistricts.map((district) => {
-                    const decision = getDistrictDecision(district, logisticsAssessment);
-                    const missing = Array.isArray(district.limitations) ? district.limitations.slice(0, 2) : [];
-                    return (
-                      <div key={district.districtId} style={{
-                        background: 'white',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '10px',
-                        padding: '12px'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>
-                            {district.districtName}
-                          </div>
-                          <DecisionBadge label={decision} />
-                        </div>
-                        <RiskBar
-                          value={typeof district.dominantHazard?.score === 'number' ? district.dominantHazard.score : 0}
-                          label="Risk position"
-                          sublabel={`${district.dominantHazard?.type || 'Hazard'}${typeof district.dominantHazard?.score === 'number' ? ` • ${district.dominantHazard.score}/100` : ' • Not ready'}`}
-                          showScale={false}
-                        />
-                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#334155', lineHeight: '1.5' }}>
-                          <strong>What we know:</strong> {district.rationale?.slice(0, 2).join(' | ') || 'Limited scoped signals.'}
-                        </div>
-                        {missing.length > 0 && (
-                          <div style={{ marginTop: '6px', fontSize: '12px', color: '#64748b', lineHeight: '1.5' }}>
-                            <strong>What is missing:</strong> {missing.join(' | ')}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              </details>
             )}
 
             {hazardDistricts.length > 0 && (
