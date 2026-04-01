@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import Papa from 'papaparse';
@@ -6,6 +6,11 @@ import { ToastContainer, useToast } from '../components/Toast';
 import OnboardingModal from '../components/OnboardingModal';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { getDisasterTimelineDate } from '../components/MapComponent/utils/disasterHelpers';
+import {
+  filterFacilitiesToDistricts,
+  filterImpactedFacilitiesToDistricts,
+  getScopedWorldPopData
+} from '../lib/analysisScope';
 
 // Import components with dynamic loading (no SSR) for Leaflet compatibility
 const MapComponent = dynamic(() => import('../components/MapComponent'), {
@@ -35,6 +40,226 @@ const OperationalOutlook = dynamic(() => import('../components/OperationalOutloo
 const PrioritizationBoard = dynamic(() => import('../components/PrioritizationBoard'), {
   ssr: false,
 });
+
+const matrixTone = {
+  ready: { text: '#166534', background: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.22)' },
+  partial: { text: '#92400e', background: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.24)' },
+  blocked: { text: '#6b7280', background: 'rgba(107, 114, 128, 0.10)', border: 'rgba(107, 114, 128, 0.20)' }
+};
+
+function formatCompactCount(value) {
+  if (value === null || value === undefined) return 'Unknown';
+  return Number(value).toLocaleString();
+}
+
+function OperationalContextBar({
+  selectedAnalysisDistricts = [],
+  districts = [],
+  facilities = [],
+  impactedFacilities = [],
+  worldPopData = {},
+  latestPrioritizationBoard = null,
+  enabledEvidenceLayers = [],
+  acledEnabled = true,
+  acledData = [],
+  osmData = null,
+  canUseDistrictDecisionTools = false
+}) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const media = window.matchMedia('(max-width: 768px)');
+    const sync = () => {
+      setIsMobile(media.matches);
+      setDetailsOpen(!media.matches);
+    };
+
+    sync();
+    media.addEventListener?.('change', sync);
+    return () => media.removeEventListener?.('change', sync);
+  }, []);
+
+  const facilitiesInScope = useMemo(
+    () => selectedAnalysisDistricts.length > 0
+      ? filterFacilitiesToDistricts(facilities, selectedAnalysisDistricts)
+      : facilities,
+    [facilities, selectedAnalysisDistricts]
+  );
+
+  const impactedFacilitiesInScope = useMemo(
+    () => selectedAnalysisDistricts.length > 0
+      ? filterImpactedFacilitiesToDistricts(impactedFacilities, selectedAnalysisDistricts)
+      : impactedFacilities,
+    [impactedFacilities, selectedAnalysisDistricts]
+  );
+
+  const scopedWorldPopData = useMemo(
+    () => selectedAnalysisDistricts.length > 0
+      ? getScopedWorldPopData(worldPopData, selectedAnalysisDistricts)
+      : worldPopData,
+    [worldPopData, selectedAnalysisDistricts]
+  );
+
+  const scopedPopulation = useMemo(
+    () => Object.values(scopedWorldPopData || {}).reduce((sum, entry) => {
+      const value = Number(entry?.total || entry?.ageGroups?.total || 0);
+      return sum + (Number.isFinite(value) ? value : 0);
+    }, 0),
+    [scopedWorldPopData]
+  );
+
+  const hasAgeBreakdown = useMemo(
+    () => Object.values(scopedWorldPopData || {}).some((entry) => entry?.ageGroups && Object.keys(entry.ageGroups).length > 0),
+    [scopedWorldPopData]
+  );
+
+  const safeFacilitiesCount = Math.max(0, facilitiesInScope.length - impactedFacilitiesInScope.length);
+  const osmLayerCount = (osmData?.metadata?.requestedLayers || []).length > 0
+    ? osmData.metadata.requestedLayers.length
+    : Object.keys(osmData?.metadata?.byLayer || {}).filter((layer) => (osmData.metadata.byLayer[layer] || 0) > 0).length;
+  const topDistrict = latestPrioritizationBoard?.districtRows?.[0] || null;
+  const scopeLabel = selectedAnalysisDistricts.length > 0
+    ? `${selectedAnalysisDistricts.length} selected admin area${selectedAnalysisDistricts.length === 1 ? '' : 's'}`
+    : `${districts.length} uploaded admin area${districts.length === 1 ? '' : 's'} loaded`;
+
+  const workflowItems = [
+    { label: '1. Forecast', status: canUseDistrictDecisionTools ? 'ready' : 'blocked', detail: canUseDistrictDecisionTools ? 'facts layer ready' : 'select admin areas' },
+    { label: '2. Outlook', status: canUseDistrictDecisionTools ? 'ready' : 'blocked', detail: canUseDistrictDecisionTools ? 'narrative layer ready' : 'select admin areas' },
+    { label: '3. Decision', status: canUseDistrictDecisionTools ? 'ready' : 'blocked', detail: canUseDistrictDecisionTools ? 'prioritization ready' : 'select admin areas' }
+  ];
+
+  const evidenceItems = [
+    { label: 'Flood', status: enabledEvidenceLayers.includes('flood_context') ? 'ready' : 'blocked', detail: enabledEvidenceLayers.includes('flood_context') ? 'enabled' : 'load Flood Context' },
+    { label: 'Drought', status: enabledEvidenceLayers.includes('drought_context') ? 'ready' : 'blocked', detail: enabledEvidenceLayers.includes('drought_context') ? 'enabled' : 'load Drought Context' },
+    { label: 'Nighttime', status: enabledEvidenceLayers.includes('nighttime_lights') ? 'ready' : 'blocked', detail: enabledEvidenceLayers.includes('nighttime_lights') ? 'loaded' : 'switch to Nighttime Lights' },
+    { label: 'Security', status: acledEnabled && acledData.length > 0 ? 'ready' : 'blocked', detail: acledEnabled && acledData.length > 0 ? `${acledData.length} ACLED events` : 'upload or enable ACLED' },
+    { label: 'Logistics', status: osmLayerCount > 0 ? 'ready' : 'blocked', detail: osmLayerCount > 0 ? `${osmLayerCount} OSM layer${osmLayerCount === 1 ? '' : 's'}` : 'load roads, airports, fuel' },
+    { label: 'Population', status: scopedPopulation > 0 ? (hasAgeBreakdown ? 'ready' : 'partial') : 'blocked', detail: scopedPopulation > 0 ? (hasAgeBreakdown ? 'total + age breakdown' : 'total only') : 'load WorldPop' }
+  ];
+
+  const summaryItems = isMobile
+    ? [
+        { label: scopeLabel, tone: '#1f2937', background: 'rgba(248, 250, 252, 0.95)', border: 'rgba(148, 163, 184, 0.18)' },
+        { label: `Top risk: ${topDistrict?.district || 'None'}`, tone: '#1f2937', background: 'rgba(248, 250, 252, 0.95)', border: 'rgba(148, 163, 184, 0.18)' },
+        canUseDistrictDecisionTools
+          ? { label: 'Analysis ready', tone: '#166534', background: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.22)' }
+          : { label: 'Select admin areas to analyze', tone: '#1d4ed8', background: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.22)' }
+      ]
+    : [
+        { label: scopeLabel, tone: '#1f2937', background: 'rgba(248, 250, 252, 0.95)', border: 'rgba(148, 163, 184, 0.18)' },
+        { label: `Population: ${scopedPopulation > 0 ? formatCompactCount(scopedPopulation) : 'Unknown'}`, tone: '#1f2937', background: 'rgba(248, 250, 252, 0.95)', border: 'rgba(148, 163, 184, 0.18)' },
+        { label: `Top risk: ${topDistrict?.district || 'None'}`, tone: '#1f2937', background: 'rgba(248, 250, 252, 0.95)', border: 'rgba(148, 163, 184, 0.18)' },
+        canUseDistrictDecisionTools
+          ? { label: 'Analysis ready', tone: '#166534', background: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.22)' }
+          : { label: 'Select admin areas to analyze', tone: '#1d4ed8', background: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.22)' }
+      ];
+
+  return (
+    <div style={{
+      background: 'white',
+      border: '1px solid rgba(27, 58, 92, 0.10)',
+      borderRadius: '14px',
+      boxShadow: '0 10px 26px rgba(15, 23, 42, 0.08)',
+      padding: isMobile ? '10px 12px' : '12px 14px',
+      marginTop: '12px',
+      marginBottom: '12px'
+    }}>
+      <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', flex: '1 1 560px' }}>
+          {summaryItems.map((item) => (
+            <span key={item.label} style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '7px 10px',
+              borderRadius: '999px',
+              fontSize: '12px',
+              fontWeight: 700,
+              color: item.tone,
+              background: item.background,
+              border: `1px solid ${item.border}`
+            }}>
+              {item.label}
+            </span>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((open) => !open)}
+          style={{
+            border: 'none',
+            borderRadius: '999px',
+            background: 'rgba(27, 58, 92, 0.08)',
+            color: 'var(--aidstack-navy)',
+            padding: '8px 12px',
+            fontSize: '12px',
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          {detailsOpen ? 'Hide details' : 'View details'}
+        </button>
+      </div>
+
+      {detailsOpen && (
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(220px, 1fr))', gap: '10px', marginTop: '12px' }}>
+          <div style={{ padding: '10px 12px', borderRadius: '12px', background: 'rgba(248,250,252,0.95)', border: '1px solid rgba(148,163,184,0.16)' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b', marginBottom: '8px' }}>
+              Analysis Workflow
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {workflowItems.map((item) => {
+                const tone = matrixTone[item.status];
+                return (
+                  <span key={item.label} style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '7px 10px',
+                    borderRadius: '999px',
+                    border: `1px solid ${tone.border}`,
+                    background: tone.background,
+                    color: tone.text,
+                    fontSize: '12px',
+                    fontWeight: 700
+                  }}>
+                    {item.label}: {item.detail}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{ padding: '10px 12px', borderRadius: '12px', background: 'rgba(248,250,252,0.95)', border: '1px solid rgba(148,163,184,0.16)' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b', marginBottom: '8px' }}>
+              Evidence Readiness
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {evidenceItems.map((item) => {
+                const tone = matrixTone[item.status];
+                return (
+                  <span key={item.label} style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '7px 10px',
+                    borderRadius: '999px',
+                    border: `1px solid ${tone.border}`,
+                    background: tone.background,
+                    color: tone.text,
+                    fontSize: '12px',
+                    fontWeight: 700
+                  }}>
+                    {item.label}: {item.detail}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
@@ -1767,119 +1992,154 @@ export default function Home() {
           
           <div className="data-summary" style={{
             display: 'flex',
+            flexWrap: 'wrap',
             alignItems: 'center',
-            gap: '20px',
+            gap: '10px',
             justifyContent: 'space-between',
             width: '100%'
           }}>
             <div style={{
               display: 'flex',
+              flexWrap: 'wrap',
               alignItems: 'center',
-              gap: '20px'
+              gap: '8px'
             }}>
               <div style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
+                gap: '8px',
                 backgroundColor: 'var(--aidstack-light-gray)',
-                padding: '8px 14px',
-                borderRadius: '6px',
-                border: '1px solid var(--aidstack-slate-light)'
+                padding: '7px 10px',
+                borderRadius: '999px',
+                border: '1px solid var(--aidstack-slate-light)',
+                fontFamily: "'Inter', sans-serif"
               }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginRight: '8px'
+                <span style={{
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  color: 'var(--aidstack-navy)'
                 }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}>
-                    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
-                    <line x1="8" y1="2" x2="8" y2="18"></line>
-                    <line x1="16" y1="6" x2="16" y2="22"></line>
-                  </svg>
-                  <span style={{fontWeight: 600, fontSize: '14px', color: 'var(--aidstack-navy)', fontFamily: "'Inter', sans-serif"}}>
-                    {filteredDisasters.length} Disasters
-                  </span>
-                </div>
-                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                  {filteredDisasters.length} disasters
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{
                     backgroundColor: 'var(--color-error)',
                     color: 'white',
-                    fontWeight: 600,
-                    fontSize: '11px',
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    fontFamily: "'Inter', sans-serif"
-                  }}>{filteredDisasters.filter(d =>
-                    (d.alertLevel?.toLowerCase() === 'red') ||
-                    (d.severity?.toLowerCase()?.includes('extreme')) ||
-                    (d.severity?.toLowerCase()?.includes('severe'))).length}</span>
-
+                    fontWeight: 700,
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    borderRadius: '999px'
+                  }}>
+                    {filteredDisasters.filter(d =>
+                      (d.alertLevel?.toLowerCase() === 'red') ||
+                      (d.severity?.toLowerCase()?.includes('extreme')) ||
+                      (d.severity?.toLowerCase()?.includes('severe'))).length}
+                  </span>
                   <span style={{
                     backgroundColor: 'var(--aidstack-orange)',
                     color: 'white',
-                    fontWeight: 600,
-                    fontSize: '11px',
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    fontFamily: "'Inter', sans-serif"
-                  }}>{filteredDisasters.filter(d =>
-                    (d.alertLevel?.toLowerCase() === 'orange') ||
-                    (d.severity?.toLowerCase()?.includes('moderate'))).length}</span>
-
+                    fontWeight: 700,
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    borderRadius: '999px'
+                  }}>
+                    {filteredDisasters.filter(d =>
+                      (d.alertLevel?.toLowerCase() === 'orange') ||
+                      (d.severity?.toLowerCase()?.includes('moderate'))).length}
+                  </span>
                   <span style={{
                     backgroundColor: 'var(--color-success)',
                     color: 'white',
-                    fontWeight: 600,
-                    fontSize: '11px',
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    fontFamily: "'Inter', sans-serif"
-                  }}>{filteredDisasters.filter(d =>
-                    (d.alertLevel?.toLowerCase() === 'green') ||
-                    (d.severity?.toLowerCase()?.includes('minor')) ||
-                    (!d.alertLevel && !d.severity)).length}</span>
+                    fontWeight: 700,
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    borderRadius: '999px'
+                  }}>
+                    {filteredDisasters.filter(d =>
+                      (d.alertLevel?.toLowerCase() === 'green') ||
+                      (d.severity?.toLowerCase()?.includes('minor')) ||
+                      (!d.alertLevel && !d.severity)).length}
+                  </span>
                 </div>
               </div>
-              
               <div style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
+                gap: '8px',
                 backgroundColor: 'var(--aidstack-light-gray)',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                border: '1px solid var(--aidstack-slate-light)'
+                padding: '7px 10px',
+                borderRadius: '999px',
+                border: '1px solid var(--aidstack-slate-light)',
+                fontFamily: "'Inter', sans-serif"
               }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '5px'}}>
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>
-                <span style={{fontWeight: 600, fontSize: '14px', color: 'var(--aidstack-navy)', marginRight: '5px', fontFamily: "'Inter', sans-serif"}}>
-                  {facilities.length} Facilities:
+                <span style={{
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  color: 'var(--aidstack-navy)'
+                }}>
+                  {facilities.length} facilities
                 </span>
-                <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{
                     backgroundColor: 'var(--color-error)',
                     color: 'white',
-                    fontWeight: 600,
-                    fontSize: '12px',
+                    fontWeight: 700,
+                    fontSize: '10px',
                     padding: '2px 6px',
-                    borderRadius: '4px',
-                    fontFamily: "'Inter', sans-serif"
-                  }}>{impactedFacilities.length} Impacted</span>
-
+                    borderRadius: '999px'
+                  }}>
+                    {impactedFacilities.length} impacted
+                  </span>
                   <span style={{
                     backgroundColor: 'var(--color-success)',
                     color: 'white',
-                    fontWeight: 600,
-                    fontSize: '12px',
+                    fontWeight: 700,
+                    fontSize: '10px',
                     padding: '2px 6px',
-                    borderRadius: '4px',
-                    fontFamily: "'Inter', sans-serif"
-                  }}>{facilities.length - impactedFacilities.length} Safe</span>
+                    borderRadius: '999px'
+                  }}>
+                    {facilities.length - impactedFacilities.length} safe
+                  </span>
                 </div>
               </div>
+              {lastUpdated && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: '#f5f5f5',
+                  padding: '7px 10px',
+                  borderRadius: '999px',
+                  border: '1px solid var(--aidstack-slate-light)',
+                  fontSize: '12px',
+                  color: '#475569',
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: 600
+                }}>
+                  Updated {new Intl.DateTimeFormat('en-US', {
+                    month: 'short',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                  }).format(lastUpdated)}
+                  {timeSinceUpdate && (
+                    <span style={{
+                      padding: '1px 6px',
+                      borderRadius: '999px',
+                      fontSize: '10px',
+                      backgroundColor: timeSinceUpdate.includes('hour') || timeSinceUpdate.includes('day') ? '#ffebee' : '#e8f5e9',
+                      color: timeSinceUpdate.includes('hour') || timeSinceUpdate.includes('day') ? '#d32f2f' : '#2e7d32',
+                      fontWeight: 700
+                    }}>
+                      {timeSinceUpdate}
+                    </span>
+                  )}
+                </span>
+              )}
             </div>
-            
-            <div style={{ display: 'flex', gap: '10px' }}>
+
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <button
                 onClick={handleRefreshData}
                 disabled={loading.disasters}
@@ -1917,7 +2177,7 @@ export default function Home() {
                 )}
                 {loading.disasters ? 'Refreshing...' : 'Refresh Data'}
               </button>
-              
+
               {/* Operational Outlook Button */}
               <button
                 onClick={() => setShowOperationalOutlook(true)}
@@ -1940,7 +2200,7 @@ export default function Home() {
                   <circle cx="12" cy="12" r="10"></circle>
                   <polyline points="12 6 12 12 16 14"></polyline>
                 </svg>
-                Operational Outlook
+                2. Operational Outlook
               </button>
 
               {/* Prediction Dashboard Button */}
@@ -1969,7 +2229,7 @@ export default function Home() {
                   <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
                   <line x1="12" y1="22.08" x2="12" y2="12"></line>
                 </svg>
-                View Forecast
+                1. View Forecast
               </button>
 
               <button
@@ -1993,51 +2253,27 @@ export default function Home() {
                   <path d="M3 3v18h18"></path>
                   <path d="M7 14l4-4 3 3 5-7"></path>
                 </svg>
-                Prioritization Board
+                3. Prioritization Board
+              </button>
+              <button
+                onClick={() => setShowHelp(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: 'white',
+                  color: 'var(--aidstack-navy)',
+                  border: '1px solid var(--aidstack-slate-light)',
+                  borderRadius: '4px',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  fontFamily: "'Inter', sans-serif"
+                }}
+              >
+                Help
               </button>
             </div>
-            
-            {/* Last Updated indicator */}
-            {lastUpdated && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: '10px',
-                color: '#666',
-                backgroundColor: '#f5f5f5',
-                padding: '3px 8px',
-                borderRadius: '4px'
-              }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '4px'}}>
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-                <div>
-                  <span style={{ fontWeight: 'medium' }}>
-                    Updated: {new Intl.DateTimeFormat('en-US', {
-                      month: 'short',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true
-                    }).format(lastUpdated)}
-                  </span>
-                  {timeSinceUpdate && (
-                    <span style={{ 
-                      marginLeft: '4px', 
-                      backgroundColor: timeSinceUpdate.includes('hour') || timeSinceUpdate.includes('day') ? '#ffebee' : '#e8f5e9',
-                      padding: '1px 4px',
-                      borderRadius: '8px',
-                      fontSize: '9px',
-                      color: timeSinceUpdate.includes('hour') || timeSinceUpdate.includes('day') ? '#d32f2f' : '#2e7d32',
-                      fontWeight: 'bold'
-                    }}>
-                      {timeSinceUpdate}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -2280,7 +2516,19 @@ export default function Home() {
           </div>
           </div>
         </div>
-        
+        <OperationalContextBar
+          selectedAnalysisDistricts={selectedAnalysisDistricts}
+          districts={districts}
+          facilities={facilities}
+          impactedFacilities={impactedFacilities}
+          worldPopData={worldPopData}
+          latestPrioritizationBoard={latestPrioritizationBoard}
+          enabledEvidenceLayers={enabledEvidenceLayers}
+          acledEnabled={acledEnabled}
+          acledData={acledData}
+          osmData={osmData}
+          canUseDistrictDecisionTools={canUseDistrictDecisionTools}
+        />
 
         <MapComponent
           disasters={filteredDisasters}
