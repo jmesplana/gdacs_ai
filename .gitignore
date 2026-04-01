@@ -1,3 +1,6 @@
+# codex
+.codex
+
 # dependencies
 /node_modules
 /.pnp
@@ -79,4 +82,4 @@ logs/
 
 # Temporary files
 tmp/
-temp/
+temp/.codex
