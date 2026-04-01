@@ -2178,31 +2178,6 @@ export default function Home() {
                 {loading.disasters ? 'Refreshing...' : 'Refresh Data'}
               </button>
 
-              {/* Operational Outlook Button */}
-              <button
-                onClick={() => setShowOperationalOutlook(true)}
-                disabled={!canUseDistrictDecisionTools}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  backgroundColor: !canUseDistrictDecisionTools ? 'var(--aidstack-slate-light)' : 'var(--aidstack-orange)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  padding: '8px 12px',
-                  cursor: !canUseDistrictDecisionTools ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  fontFamily: "'Inter', sans-serif"
-                }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-                2. Operational Outlook
-              </button>
-
               {/* Prediction Dashboard Button */}
               <button
                 onClick={() => setShowPredictions(true)}
@@ -2230,6 +2205,31 @@ export default function Home() {
                   <line x1="12" y1="22.08" x2="12" y2="12"></line>
                 </svg>
                 1. View Forecast
+              </button>
+
+              {/* Operational Outlook Button */}
+              <button
+                onClick={() => setShowOperationalOutlook(true)}
+                disabled={!canUseDistrictDecisionTools}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: !canUseDistrictDecisionTools ? 'var(--aidstack-slate-light)' : 'var(--aidstack-orange)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '8px 12px',
+                  cursor: !canUseDistrictDecisionTools ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  fontFamily: "'Inter', sans-serif"
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                2. Operational Outlook
               </button>
 
               <button
