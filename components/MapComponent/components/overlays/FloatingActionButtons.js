@@ -6,7 +6,9 @@ const FloatingActionButtons = ({
   drawingEnabled,
   onDrawClick,
   annotationMode,
+  freehandMode,
   onAddAnnotation,
+  onToggleFreehand,
   drawingColor,
   setDrawingColor,
   onUndoDrawing,
@@ -267,6 +269,31 @@ const FloatingActionButtons = ({
                 title={`Select ${color}`}
               />
             ))}
+          </div>
+          <div style={{
+            display: 'flex',
+            gap: '6px',
+            marginBottom: '8px'
+          }}>
+            <button
+              type="button"
+              onClick={onToggleFreehand}
+              title="Freehand Draw"
+              style={{
+                width: '100%',
+                padding: '6px 8px',
+                backgroundColor: freehandMode ? 'var(--aidstack-orange)' : 'white',
+                color: freehandMode ? 'white' : 'var(--aidstack-navy)',
+                border: `1px solid ${freehandMode ? 'var(--aidstack-orange)' : 'var(--aidstack-slate-light)'}`,
+                borderRadius: '4px',
+                fontSize: '11px',
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              {freehandMode ? 'Freehand Active' : 'Freehand'}
+            </button>
           </div>
           <div style={{
             display: 'flex',

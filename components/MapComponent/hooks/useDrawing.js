@@ -9,13 +9,22 @@ export const useDrawing = () => {
   const [drawingColor, setDrawingColor] = useState('#FF0000');
   const [drawings, setDrawings] = useState([]);
   const [annotationMode, setAnnotationMode] = useState(false);
+  const [freehandMode, setFreehandMode] = useState(false);
 
   const drawControlRef = useRef(null);
   const drawnItemsRef = useRef(null);
 
   const toggleDrawing = useCallback(() => {
-    setDrawingEnabled(prev => !prev);
-    setAnnotationMode(false);
+    setDrawingEnabled(prev => {
+      const nextEnabled = !prev;
+
+      if (!nextEnabled) {
+        setAnnotationMode(false);
+        setFreehandMode(false);
+      }
+
+      return nextEnabled;
+    });
   }, []);
 
   const setColor = useCallback((color) => {
@@ -25,16 +34,19 @@ export const useDrawing = () => {
   const clearAllDrawings = useCallback(() => {
     if (drawnItemsRef.current) {
       drawnItemsRef.current.clearLayers();
-      setDrawings([]);
     }
+
+    setDrawings([]);
   }, []);
 
   const undoLastDrawing = useCallback(() => {
     if (drawings.length > 0) {
       const lastDrawing = drawings[drawings.length - 1];
+
       if (lastDrawing.layer && drawnItemsRef.current) {
         drawnItemsRef.current.removeLayer(lastDrawing.layer);
       }
+
       setDrawings(prev => prev.slice(0, -1));
     }
   }, [drawings]);
@@ -45,7 +57,14 @@ export const useDrawing = () => {
 
   const toggleAnnotationMode = useCallback(() => {
     setDrawingEnabled(true);
+    setFreehandMode(false);
     setAnnotationMode(prev => !prev);
+  }, []);
+
+  const toggleFreehandMode = useCallback(() => {
+    setDrawingEnabled(true);
+    setAnnotationMode(false);
+    setFreehandMode(prev => !prev);
   }, []);
 
   return {
@@ -54,12 +73,14 @@ export const useDrawing = () => {
     drawingColor,
     drawings,
     annotationMode,
+    freehandMode,
     drawControlRef,
     drawnItemsRef,
 
     // Handlers
     toggleDrawing,
     toggleAnnotationMode,
+    toggleFreehandMode,
     setColor,
     clearAllDrawings,
     undoLastDrawing,

@@ -39,7 +39,9 @@ const HamburgerMenu = ({
   drawingEnabled,
   onDrawClick,
   annotationMode,
+  freehandMode,
   onAddAnnotation,
+  onToggleFreehand,
   drawingColor,
   setDrawingColor,
   onUndoDrawing,
@@ -350,6 +352,32 @@ const HamburgerMenu = ({
                       title={`Select ${color}`}
                     />
                   ))}
+                </div>
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  marginBottom: '10px'
+                }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleFreehand();
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      backgroundColor: freehandMode ? 'var(--aidstack-orange)' : 'white',
+                      color: freehandMode ? 'white' : 'var(--aidstack-navy)',
+                      border: `1px solid ${freehandMode ? 'var(--aidstack-orange)' : 'var(--aidstack-slate-light)'}`,
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontFamily: "'Inter', sans-serif",
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {freehandMode ? 'Freehand Active' : 'Freehand Draw'}
+                  </button>
                 </div>
                 <div style={{
                   display: 'flex',

@@ -540,10 +540,12 @@ const MapComponent = ({
     drawingColor,
     drawings,
     annotationMode,
+    freehandMode,
     drawControlRef,
     drawnItemsRef,
     toggleDrawing,
     toggleAnnotationMode,
+    toggleFreehandMode,
     setColor: setDrawingColor,
     clearAllDrawings,
     undoLastDrawing,
@@ -1648,7 +1650,9 @@ const MapComponent = ({
         drawingEnabled={drawingEnabled}
         onDrawClick={toggleDrawing}
         annotationMode={annotationMode}
+        freehandMode={freehandMode}
         onAddAnnotation={toggleAnnotationMode}
+        onToggleFreehand={toggleFreehandMode}
         drawingColor={drawingColor}
         setDrawingColor={setDrawingColor}
         onUndoDrawing={undoLastDrawing}
@@ -1668,7 +1672,9 @@ const MapComponent = ({
         drawingEnabled={drawingEnabled}
         onDrawClick={toggleDrawing}
         annotationMode={annotationMode}
+        freehandMode={freehandMode}
         onAddAnnotation={toggleAnnotationMode}
+        onToggleFreehand={toggleFreehandMode}
         drawingColor={drawingColor}
         setDrawingColor={setDrawingColor}
         onUndoDrawing={undoLastDrawing}
@@ -2494,6 +2500,7 @@ const MapComponent = ({
           enabled={drawingEnabled}
           color={drawingColor}
           annotationMode={annotationMode}
+          freehandMode={freehandMode}
           drawControlRef={drawControlRef}
           drawnItemsRef={drawnItemsRef}
           drawings={drawings}

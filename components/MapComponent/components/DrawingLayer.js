@@ -43,11 +43,36 @@ const applyAnnotationPresentation = (layer, text, color) => {
   );
 };
 
+const applyFreehandPresentation = (layer, color) => {
+  if (!layer?.setStyle) return;
+
+  layer.setStyle({
+    color,
+    weight: 3,
+    opacity: 0.85,
+    lineCap: 'round',
+    lineJoin: 'round'
+  });
+  layer.freehandColor = color;
+};
+
 // Leaflet.draw component for drawing functionality
-const DrawingLayer = ({ enabled, color, annotationMode, drawControlRef, drawnItemsRef, drawings, setDrawings }) => {
+const DrawingLayer = ({
+  enabled,
+  color,
+  annotationMode,
+  freehandMode,
+  drawControlRef,
+  drawnItemsRef,
+  drawings,
+  setDrawings
+}) => {
   const map = useMap();
   const controlAddedRef = useRef(false);
   const annotationClickHandlerRef = useRef(null);
+  const freehandStrokeRef = useRef(null);
+  const freehandPointsRef = useRef([]);
+  const isFreehandDrawingRef = useRef(false);
 
   const promptForAnnotation = () => {
     const text = window.prompt('Add a map note');
@@ -98,6 +123,7 @@ const DrawingLayer = ({ enabled, color, annotationMode, drawControlRef, drawnIte
       layer,
       color,
       type: 'annotation',
+      source: 'leaflet-draw',
       annotationText: text
     };
 
@@ -175,7 +201,8 @@ const DrawingLayer = ({ enabled, color, annotationMode, drawControlRef, drawnIte
           id: Date.now(),
           layer: layer,
           color: color,
-          type: e.layerType
+          type: e.layerType,
+          source: 'leaflet-draw'
         };
 
         setDrawings(prev => [...prev, newDrawing]);
@@ -236,6 +263,82 @@ const DrawingLayer = ({ enabled, color, annotationMode, drawControlRef, drawnIte
       map.getContainer().style.cursor = '';
     };
   }, [map, enabled, annotationMode, color, setDrawings]);
+
+  useEffect(() => {
+    if (!map) return undefined;
+
+    const finishFreehandStroke = () => {
+      if (!isFreehandDrawingRef.current) return;
+
+      map.dragging.enable();
+      isFreehandDrawingRef.current = false;
+
+      const stroke = freehandStrokeRef.current;
+      const points = freehandPointsRef.current;
+
+      freehandStrokeRef.current = null;
+      freehandPointsRef.current = [];
+
+      if (!stroke) return;
+
+      if (points.length < 2) {
+        drawnItemsRef.current?.removeLayer(stroke);
+        return;
+      }
+
+      const newDrawing = {
+        id: Date.now(),
+        layer: stroke,
+        color,
+        type: 'freehand',
+        source: 'leaflet-draw'
+      };
+
+      setDrawings(prev => [...prev, newDrawing]);
+    };
+
+    const handleMouseDown = (event) => {
+      if (!enabled || !freehandMode || annotationMode) return;
+
+      isFreehandDrawingRef.current = true;
+      freehandPointsRef.current = [event.latlng];
+
+      const stroke = L.polyline([event.latlng], {
+        color,
+        weight: 3,
+        opacity: 0.85,
+        lineCap: 'round',
+        lineJoin: 'round'
+      });
+
+      freehandStrokeRef.current = stroke;
+      drawnItemsRef.current.addLayer(stroke);
+      map.dragging.disable();
+    };
+
+    const handleMouseMove = (event) => {
+      if (!isFreehandDrawingRef.current || !freehandStrokeRef.current) return;
+
+      freehandPointsRef.current = [...freehandPointsRef.current, event.latlng];
+      freehandStrokeRef.current.setLatLngs(freehandPointsRef.current);
+    };
+
+    map.on('mousedown', handleMouseDown);
+    map.on('mousemove', handleMouseMove);
+    map.on('mouseup', finishFreehandStroke);
+    map.on('mouseout', finishFreehandStroke);
+
+    return () => {
+      map.off('mousedown', handleMouseDown);
+      map.off('mousemove', handleMouseMove);
+      map.off('mouseup', finishFreehandStroke);
+      map.off('mouseout', finishFreehandStroke);
+
+      if (map.dragging && !map.dragging.enabled()) {
+        map.dragging.enable();
+      }
+    };
+  }, [map, enabled, freehandMode, annotationMode, color, drawnItemsRef, setDrawings]);
 
   // Update drawing colors when color changes
   useEffect(() => {
@@ -309,6 +412,10 @@ const DrawingLayer = ({ enabled, color, annotationMode, drawControlRef, drawnIte
           drawing.annotationText || drawing.layer.annotationText || 'Map note',
           drawing.color || color
         );
+      }
+
+      if (drawing.type === 'freehand' && drawing.layer && drawing.color) {
+        applyFreehandPresentation(drawing.layer, drawing.color);
       }
     });
   }, [drawings, color]);
