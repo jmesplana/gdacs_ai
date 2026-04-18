@@ -8,6 +8,34 @@ import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 
+const FACILITY_MARKER_CATEGORIES = new Set([
+  'hospital',
+  'clinic',
+  'school',
+  'water',
+  'power',
+  'fuel',
+  'pharmacy',
+  'airport'
+]);
+
+const getIconSymbol = (category) => {
+  const symbols = {
+    hospital: '🏥',
+    clinic: '⚕️',
+    school: '🏫',
+    road: '🛣️',
+    bridge: '🌉',
+    water: '💧',
+    power: '⚡',
+    fuel: '⛽',
+    pharmacy: '💊',
+    airport: '✈️',
+  };
+
+  return symbols[category] || '📍';
+};
+
 const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer, showClusterCounts = true }) => {
   const map = useMap();
   const clusterGroupRef = useRef(null);
@@ -96,10 +124,55 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer, showCl
     let pointCount = 0;
     let lineCount = 0;
     let polygonCount = 0;
+    let centroidMarkerCount = 0;
+
+    const addInfrastructureMarker = (lat, lng, feature, popupContent, isCentroid = false) => {
+      const { category, color } = feature.properties;
+
+      if (isNaN(lat) || isNaN(lng)) {
+        console.warn('Invalid coordinates for OSM feature:', feature);
+        return;
+      }
+
+      const size = isCentroid ? 28 : 32;
+      const iconHtml = `
+        <div style="
+          position: relative;
+          width: ${size}px;
+          height: ${size}px;
+          background-color: ${color};
+          border-radius: 50%;
+          border: 2px solid white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: ${isCentroid ? 14 : 16}px;
+        ">
+          ${getIconSymbol(category)}
+        </div>
+      `;
+
+      const customIcon = L.divIcon({
+        html: iconHtml,
+        className: `osm-marker osm-${category}${isCentroid ? ' osm-area-marker' : ''}`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        popupAnchor: [0, -(size / 2)]
+      });
+
+      const marker = L.marker([lat, lng], {
+        icon: customIcon,
+        zIndexOffset: isCentroid ? -450 : -500,
+      });
+
+      marker.bindPopup(popupContent);
+      clusterGroupRef.current.addLayer(marker);
+    };
 
     // Add features based on geometry type
     visibleFeatures.forEach((feature, index) => {
-      const { name, category, tags, color, icon } = feature.properties;
+      const { name, category, tags, color } = feature.properties;
       const geometryType = feature.geometry.type;
 
       // Build popup content (shared for all geometry types)
@@ -173,67 +246,7 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer, showCl
       if (geometryType === 'Point') {
         pointCount++;
         const [lng, lat] = feature.geometry.coordinates;
-
-        // Skip invalid coordinates
-        if (isNaN(lat) || isNaN(lng)) {
-          console.warn('Invalid coordinates for OSM feature:', feature);
-          return;
-        }
-
-        // Get emoji/Unicode icon for category
-        const getIconSymbol = (cat) => {
-          const symbols = {
-            hospital: '🏥',
-            clinic: '⚕️',
-            school: '🏫',
-            road: '🛣️',
-            bridge: '🌉',
-            water: '💧',
-            power: '⚡',
-            fuel: '⛽',
-            pharmacy: '💊',
-            airport: '✈️',
-          };
-          return symbols[cat] || '📍';
-        };
-
-        // Create custom icon
-        const iconHtml = `
-          <div style="
-            position: relative;
-            width: 32px;
-            height: 32px;
-            background-color: ${color};
-            border-radius: 50%;
-            border: 2px solid white;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-          ">
-            ${getIconSymbol(category)}
-          </div>
-        `;
-
-        const customIcon = L.divIcon({
-          html: iconHtml,
-          className: `osm-marker osm-${category}`,
-          iconSize: [32, 32],
-          iconAnchor: [16, 16],
-          popupAnchor: [0, -16]
-        });
-
-        // Create marker
-        const marker = L.marker([lat, lng], {
-          icon: customIcon,
-          zIndexOffset: -500, // Below facilities but above disasters
-        });
-
-        marker.bindPopup(popupContent);
-
-        // Add to cluster group
-        clusterGroupRef.current.addLayer(marker);
+        addInfrastructureMarker(lat, lng, feature, popupContent);
 
       } else if (geometryType === 'LineString') {
         lineCount++;
@@ -270,10 +283,16 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer, showCl
 
         // Add to line layer group
         lineLayerGroupRef.current.addLayer(polygon);
+
+        if (FACILITY_MARKER_CATEGORIES.has(category)) {
+          const center = polygon.getBounds().getCenter();
+          addInfrastructureMarker(center.lat, center.lng, feature, popupContent, true);
+          centroidMarkerCount++;
+        }
       }
     });
 
-    console.log(`Rendered ${pointCount} points, ${lineCount} lines, ${polygonCount} polygons`);
+    console.log(`Rendered ${pointCount} points, ${lineCount} lines, ${polygonCount} polygons, ${centroidMarkerCount} area markers`);
 
     // Cleanup function
     return () => {

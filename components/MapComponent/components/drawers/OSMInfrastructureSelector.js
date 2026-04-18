@@ -22,6 +22,33 @@ const INFRASTRUCTURE_CATEGORIES = [
   { id: 'bridges', name: 'Bridges', icon: '🌉', priority: 'secondary' }
 ];
 
+const CATEGORY_RESULT_KEYS = {
+  hospitals: ['hospital', 'clinic'],
+  schools: ['school'],
+  roads: ['road'],
+  bridges: ['bridge'],
+  water: ['water'],
+  power: ['power'],
+  fuel: ['fuel'],
+  pharmacies: ['pharmacy'],
+  airports: ['airport'],
+};
+
+function getCategoryResultKeys(categoryId) {
+  return CATEGORY_RESULT_KEYS[categoryId] || [categoryId];
+}
+
+function getCategoryFeatureCount(layerCounts = {}, categoryId) {
+  return getCategoryResultKeys(categoryId).reduce(
+    (total, resultKey) => total + (layerCounts?.[resultKey] || 0),
+    0
+  );
+}
+
+function isCategoryVisible(osmLayerVisibility = {}, categoryId) {
+  return getCategoryResultKeys(categoryId).some(resultKey => osmLayerVisibility[resultKey] !== false);
+}
+
 function getDistrictSelectionId(district, fallbackIndex) {
   return district?.id ?? fallbackIndex;
 }
@@ -50,6 +77,7 @@ export default function OSMInfrastructureSelector({
   const [requestStartedAt, setRequestStartedAt] = useState(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastCompletedLoad, setLastCompletedLoad] = useState(null);
+  const [searchFilter, setSearchFilter] = useState('');
   const districtSignature = useMemo(
     () => districts.map((district, idx) => getDistrictSelectionId(district, idx) || district.name || idx).join('|'),
     [districts]
@@ -77,7 +105,7 @@ export default function OSMInfrastructureSelector({
     if (!osmLoading && activeRequest) {
       const loadedBreakdown = activeRequest.categoryIds.map(categoryId => {
         const category = INFRASTRUCTURE_CATEGORIES.find(item => item.id === categoryId);
-        const featureCount = layerCounts?.[categoryId] || 0;
+        const featureCount = getCategoryFeatureCount(layerCounts, categoryId);
         return {
           id: categoryId,
           name: category?.name || categoryId,
@@ -155,10 +183,20 @@ export default function OSMInfrastructureSelector({
     return nameA.localeCompare(nameB);
   });
 
-  const handleLoadData = () => {
+  // Filter districts based on search text
+  const filteredDistricts = searchFilter.trim()
+    ? sortedDistricts.filter(d => {
+        const name = (d.name || '').toLowerCase();
+        const search = searchFilter.toLowerCase();
+        return name.includes(search);
+      })
+    : sortedDistricts;
+
+  const handleLoadData = async () => {
     console.log('🔘 Load button clicked!', {
       selectedDistricts: selectedDistricts.length,
-      selectedCategories: selectedCategories.length
+      selectedCategories: selectedCategories.length,
+      selectedDistrictIds: selectedDistricts
     });
 
     if (selectedDistricts.length === 0 || selectedCategories.length === 0) {
@@ -170,14 +208,28 @@ export default function OSMInfrastructureSelector({
       selectedDistricts.includes(d.id || idx)
     );
 
-    console.log('📦 Districts to load:', districtsToLoad.map(d => d.name || 'Unnamed'));
-    console.log('📦 Categories to load:', selectedCategories);
+    console.log('📦 Districts to load:', districtsToLoad.map(d => ({
+      id: d.id,
+      name: d.name || 'Unnamed'
+    })));
+    console.log('📦 Full district objects:', districtsToLoad);
+    const categoriesToLoad = selectedCategories.filter(
+      categoryId => !loadedCategories.includes(categoryId)
+    );
+
+    console.log('📦 Categories to load:', categoriesToLoad);
+
+    if (categoriesToLoad.length === 0) {
+      console.warn('⚠️ Cannot load: selected categories are already loaded');
+      setSelectedCategories([]);
+      return;
+    }
 
     setActiveRequest({
       districtCount: selectedDistricts.length,
-      categoryCount: selectedCategories.length,
-      categoryIds: selectedCategories,
-      categoryNames: selectedCategories
+      categoryCount: categoriesToLoad.length,
+      categoryIds: categoriesToLoad,
+      categoryNames: categoriesToLoad
         .map(categoryId => INFRASTRUCTURE_CATEGORIES.find(category => category.id === categoryId)?.name || categoryId)
     });
     setLastCompletedLoad(null);
@@ -186,16 +238,28 @@ export default function OSMInfrastructureSelector({
 
     if (onLoadOSM) {
       console.log('✅ Calling onLoadOSM callback...');
-      onLoadOSM(districtsToLoad, selectedCategories);
+      try {
+        await onLoadOSM(districtsToLoad, categoriesToLoad);
+        setSelectedCategories([]);
+      } catch (error) {
+        console.error('❌ OSM load callback failed:', error);
+      }
     } else {
       console.error('❌ onLoadOSM callback is not defined!');
     }
   };
 
   // Get loaded categories
-  const loadedCategories = layerCounts
-    ? Object.keys(layerCounts).filter(cat => layerCounts[cat] > 0)
-    : [];
+  const loadedCategories = INFRASTRUCTURE_CATEGORIES
+    .map(category => category.id)
+    .filter(categoryId => getCategoryFeatureCount(layerCounts, categoryId) > 0);
+  const remainingCategories = INFRASTRUCTURE_CATEGORIES
+    .map(category => category.id)
+    .filter(categoryId => !loadedCategories.includes(categoryId));
+  const pendingCategories = selectedCategories.filter(
+    categoryId => !loadedCategories.includes(categoryId)
+  );
+  const pendingCategoryCount = pendingCategories.length;
 
   // Debug logging
   console.log('🔍 OSMInfrastructureSelector render:', {
@@ -337,11 +401,29 @@ export default function OSMInfrastructureSelector({
           )}
         </div>
         <div style={{ fontSize: '11px', color: '#666', marginBottom: '10px' }}>
-          Choose which admin areas to load ({sortedDistricts.length} available):
+          Choose which admin areas to load ({sortedDistricts.length} total, {filteredDistricts.length} shown):
         </div>
 
+        {/* Search Box */}
+        <input
+          type="text"
+          placeholder="🔍 Search admin areas by name..."
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            fontSize: '12px',
+            border: '1px solid #d1d5db',
+            borderRadius: '4px',
+            marginBottom: '10px',
+            outline: 'none',
+            boxSizing: 'border-box'
+          }}
+        />
+
         <div style={{
-          maxHeight: '140px',
+          maxHeight: '240px',
           overflowY: 'auto',
           border: '1px solid #ddd',
           borderRadius: '4px',
@@ -349,60 +431,61 @@ export default function OSMInfrastructureSelector({
           padding: '4px',
           marginBottom: '10px'
         }}>
-          {sortedDistricts.slice(0, 100).map((district, idx) => {
-            // Find the original index from the unsorted districts array
-            const originalIdx = districts.findIndex(d => d === district);
-            const districtId = getDistrictSelectionId(district, originalIdx);
-
-            return (
-              <label
-                key={districtId}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '6px 8px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  borderBottom: idx < Math.min(99, sortedDistricts.length - 1) ? '1px solid #f0f0f0' : 'none',
-                  backgroundColor: selectedDistricts.includes(districtId) ? '#e3f2fd' : 'transparent'
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedDistricts.includes(districtId)}
-                  onChange={(e) => {
-                    const nextSelectedDistricts = e.target.checked
-                      ? [...selectedDistricts, districtId]
-                      : selectedDistricts.filter(id => id !== districtId);
-
-                    setSelectedDistricts(nextSelectedDistricts);
-                    syncSelectionToParent(nextSelectedDistricts);
-
-                  }}
-                  style={{ marginRight: '8px' }}
-                />
-                <span>{district.name || `Admin Area ${originalIdx + 1}`}</span>
-              </label>
-            );
-          })}
-          {sortedDistricts.length > 100 && (
-            <div style={{ padding: '8px', fontSize: '11px', color: '#666', textAlign: 'center', backgroundColor: '#fafafa' }}>
-              Showing first 100 of {sortedDistricts.length} admin areas
+          {filteredDistricts.length === 0 ? (
+            <div style={{ padding: '16px', fontSize: '12px', color: '#666', textAlign: 'center' }}>
+              No admin areas match "{searchFilter}"
             </div>
+          ) : (
+            filteredDistricts.map((district, idx) => {
+              // Find the original index from the unsorted districts array
+              const originalIdx = districts.findIndex(d => d === district);
+              const districtId = getDistrictSelectionId(district, originalIdx);
+
+              return (
+                <label
+                  key={districtId}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '6px 8px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    borderBottom: idx < filteredDistricts.length - 1 ? '1px solid #f0f0f0' : 'none',
+                    backgroundColor: selectedDistricts.includes(districtId) ? '#e3f2fd' : 'transparent'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedDistricts.includes(districtId)}
+                    onChange={(e) => {
+                      const nextSelectedDistricts = e.target.checked
+                        ? [...selectedDistricts, districtId]
+                        : selectedDistricts.filter(id => id !== districtId);
+
+                      setSelectedDistricts(nextSelectedDistricts);
+                      syncSelectionToParent(nextSelectedDistricts);
+
+                    }}
+                    style={{ marginRight: '8px' }}
+                  />
+                  <span>{district.name || `Admin Area ${originalIdx + 1}`}</span>
+                </label>
+              );
+            })
           )}
         </div>
 
         <div style={{ display: 'flex', gap: '6px' }}>
           <button
             onClick={() => {
-              const first10 = sortedDistricts.slice(0, Math.min(10, sortedDistricts.length)).map(d => {
+              const first10 = filteredDistricts.slice(0, Math.min(10, filteredDistricts.length)).map(d => {
                 const originalIdx = districts.findIndex(orig => orig === d);
                 return getDistrictSelectionId(d, originalIdx);
               });
               setSelectedDistricts(first10);
               syncSelectionToParent(first10);
             }}
-            disabled={osmLoading}
+            disabled={osmLoading || filteredDistricts.length === 0}
             style={{
               flex: 1,
               padding: '6px',
@@ -411,35 +494,11 @@ export default function OSMInfrastructureSelector({
               borderRadius: '4px',
               background: 'white',
               color: '#3b82f6',
-              cursor: osmLoading ? 'not-allowed' : 'pointer',
+              cursor: (osmLoading || filteredDistricts.length === 0) ? 'not-allowed' : 'pointer',
               fontWeight: 500
             }}
           >
-            Select First 10
-          </button>
-          <button
-            onClick={() => {
-              const all = sortedDistricts.map(d => {
-                const originalIdx = districts.findIndex(orig => orig === d);
-                return getDistrictSelectionId(d, originalIdx);
-              });
-              setSelectedDistricts(all);
-              syncSelectionToParent(all);
-            }}
-            disabled={osmLoading}
-            style={{
-              flex: 1,
-              padding: '6px',
-              fontSize: '11px',
-              border: '1px solid #10b981',
-              borderRadius: '4px',
-              background: 'white',
-              color: '#10b981',
-              cursor: osmLoading ? 'not-allowed' : 'pointer',
-              fontWeight: 500
-            }}
-          >
-            Select All
+            Select Visible
           </button>
           <button
             onClick={() => {
@@ -491,6 +550,7 @@ export default function OSMInfrastructureSelector({
           {INFRASTRUCTURE_CATEGORIES.map(category => {
             const isSelected = selectedCategories.includes(category.id);
             const isLoaded = loadedCategories.includes(category.id);
+            const isSelectable = selectedDistricts.length > 0 && !isLoaded && !osmLoading;
 
             return (
               <label
@@ -499,7 +559,7 @@ export default function OSMInfrastructureSelector({
                   display: 'flex',
                   alignItems: 'center',
                   padding: '8px',
-                  cursor: selectedDistricts.length === 0 ? 'not-allowed' : 'pointer',
+                  cursor: isSelectable ? 'pointer' : 'not-allowed',
                   borderRadius: '4px',
                   backgroundColor: isLoaded ? '#ecfdf5' : (isSelected ? '#e3f2fd' : 'white'),
                   border: '1px solid ' + (isLoaded ? '#10b981' : (isSelected ? '#3b82f6' : '#e5e7eb')),
@@ -511,18 +571,15 @@ export default function OSMInfrastructureSelector({
                   type="checkbox"
                   checked={isSelected || isLoaded}
                   onChange={(e) => {
-                    if (selectedDistricts.length > 0) {
-                      if (e.target.checked) {
-                        setSelectedCategories(prev => Array.from(new Set([...prev, category.id])));
-                      } else {
-                        setSelectedCategories(prev => prev.filter(id => id !== category.id));
-                        if (isLoaded && onClearCategory) {
-                          onClearCategory(category.id);
-                        }
-                      }
+                    if (!isSelectable) return;
+
+                    if (e.target.checked) {
+                      setSelectedCategories(prev => Array.from(new Set([...prev, category.id])));
+                    } else {
+                      setSelectedCategories(prev => prev.filter(id => id !== category.id));
                     }
                   }}
-                  disabled={selectedDistricts.length === 0 || osmLoading}
+                  disabled={!isSelectable}
                   style={{ marginRight: '6px' }}
                 />
                 <span style={{ marginRight: '4px' }}>{category.icon}</span>
@@ -536,11 +593,11 @@ export default function OSMInfrastructureSelector({
         </div>
 
         {/* Quick select buttons */}
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
           <button
             onClick={() => {
               const critical = INFRASTRUCTURE_CATEGORIES
-                .filter(c => c.priority === 'critical')
+                .filter(c => c.priority === 'critical' && !loadedCategories.includes(c.id))
                 .map(c => c.id);
               setSelectedCategories(critical);
             }}
@@ -560,10 +617,25 @@ export default function OSMInfrastructureSelector({
             Critical Only
           </button>
           <button
+            onClick={() => setSelectedCategories(remainingCategories)}
+            disabled={osmLoading || selectedDistricts.length === 0 || remainingCategories.length === 0}
+            style={{
+              padding: '6px',
+              fontSize: '11px',
+              border: '1px solid #10b981',
+              borderRadius: '4px',
+              background: 'white',
+              color: '#059669',
+              cursor: (osmLoading || selectedDistricts.length === 0 || remainingCategories.length === 0) ? 'not-allowed' : 'pointer',
+              fontWeight: 500
+            }}
+          >
+            Select Remaining
+          </button>
+          <button
             onClick={() => setSelectedCategories([])}
             disabled={osmLoading || selectedCategories.length === 0}
             style={{
-              flex: 1,
               padding: '6px',
               fontSize: '11px',
               border: '1px solid #ddd',
@@ -579,7 +651,12 @@ export default function OSMInfrastructureSelector({
 
         {selectedCategories.length > 0 && (
           <div style={{ marginTop: '8px', fontSize: '11px', color: '#059669', fontWeight: 500 }}>
-            ✓ {selectedCategories.length} {selectedCategories.length === 1 ? 'category' : 'categories'} selected
+            ✓ {pendingCategoryCount} new {pendingCategoryCount === 1 ? 'category' : 'categories'} selected
+          </div>
+        )}
+        {loadedCategories.length > 0 && remainingCategories.length > 0 && (
+          <div style={{ marginTop: '6px', fontSize: '11px', color: '#6b7280' }}>
+            {loadedCategories.length} loaded, {remainingCategories.length} available to add
           </div>
         )}
       </div>
@@ -587,7 +664,7 @@ export default function OSMInfrastructureSelector({
       {/* Load Button */}
       <button
         onClick={handleLoadData}
-        disabled={osmLoading || selectedDistricts.length === 0 || selectedCategories.length === 0}
+        disabled={osmLoading || selectedDistricts.length === 0 || pendingCategoryCount === 0}
         style={{
           width: '100%',
           padding: '14px',
@@ -595,11 +672,11 @@ export default function OSMInfrastructureSelector({
           fontWeight: 600,
           border: 'none',
           borderRadius: '6px',
-          background: (osmLoading || selectedDistricts.length === 0 || selectedCategories.length === 0)
+          background: (osmLoading || selectedDistricts.length === 0 || pendingCategoryCount === 0)
             ? '#ccc'
             : 'linear-gradient(135deg, var(--aidstack-orange) 0%, #ff6b35 100%)',
           color: 'white',
-          cursor: (osmLoading || selectedDistricts.length === 0 || selectedCategories.length === 0) ? 'not-allowed' : 'pointer',
+          cursor: (osmLoading || selectedDistricts.length === 0 || pendingCategoryCount === 0) ? 'not-allowed' : 'pointer',
           marginBottom: '16px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           transition: 'all 0.2s'
@@ -611,10 +688,10 @@ export default function OSMInfrastructureSelector({
             : 'Loading Infrastructure Data...'
         ) : selectedDistricts.length === 0 ? (
           'Select Admin Areas to Continue'
-        ) : selectedCategories.length === 0 ? (
-          'Select Infrastructure Types to Continue'
+        ) : pendingCategoryCount === 0 ? (
+          loadedCategories.length > 0 ? 'Select More Infrastructure Types to Add' : 'Select Infrastructure Types to Continue'
         ) : (
-          `Load ${selectedCategories.length} ${selectedCategories.length === 1 ? 'Type' : 'Types'} for ${selectedDistricts.length} ${selectedDistricts.length === 1 ? 'Admin Area' : 'Admin Areas'}`
+          `Load ${pendingCategoryCount} ${pendingCategoryCount === 1 ? 'Type' : 'Types'} for ${selectedDistricts.length} ${selectedDistricts.length === 1 ? 'Admin Area' : 'Admin Areas'}`
         )}
       </button>
 
@@ -640,8 +717,8 @@ export default function OSMInfrastructureSelector({
             const categoryDef = INFRASTRUCTURE_CATEGORIES.find(c => c.id === categoryId);
             if (!categoryDef) return null;
 
-            const count = layerCounts?.[categoryId] || 0;
-            const isVisible = osmLayerVisibility[categoryId] !== false;
+            const count = getCategoryFeatureCount(layerCounts, categoryId);
+            const isVisible = isCategoryVisible(osmLayerVisibility, categoryId);
 
             return (
               <div

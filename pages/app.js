@@ -11,6 +11,19 @@ import {
   filterImpactedFacilitiesToDistricts,
   getScopedWorldPopData
 } from '../lib/analysisScope';
+import {
+  saveDistricts,
+  loadDistricts,
+  saveWorldPop,
+  loadWorldPop,
+  saveOSMData,
+  loadOSMData,
+  saveACLEDData,
+  loadACLEDData,
+  saveConfig,
+  loadConfig,
+  clearAllData
+} from '../lib/dataStore';
 
 // Import components with dynamic loading (no SSR) for Leaflet compatibility
 const MapComponent = dynamic(() => import('../components/MapComponent'), {
@@ -38,6 +51,10 @@ const OperationalOutlook = dynamic(() => import('../components/OperationalOutloo
 });
 
 const PrioritizationBoard = dynamic(() => import('../components/PrioritizationBoard'), {
+  ssr: false,
+});
+
+const StorageStatusPanel = dynamic(() => import('../components/StorageStatusPanel'), {
   ssr: false,
 });
 
@@ -672,6 +689,189 @@ export default function Home() {
     };
   }, []);
 
+  // ==================== NEW: Load cached data from IndexedDB on mount ====================
+
+  // Load districts from IndexedDB
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCachedDistricts = async () => {
+      try {
+        const cachedDistricts = await loadDistricts();
+        if (!mounted) return;
+
+        if (cachedDistricts && cachedDistricts.length > 0) {
+          setDistricts(cachedDistricts);
+          setDistrictRawData(cachedDistricts);
+
+          // Extract available fields from first district
+          if (cachedDistricts[0]?.properties) {
+            const fields = Object.keys(cachedDistricts[0].properties);
+            setDistrictAvailableFields(fields);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading cached districts:', error);
+      }
+    };
+
+    loadCachedDistricts();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Load WorldPop data from IndexedDB
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCachedWorldPop = async () => {
+      try {
+        const cachedWorldPop = await loadWorldPop();
+        if (!mounted) return;
+
+        if (cachedWorldPop && Object.keys(cachedWorldPop).length > 0) {
+          setWorldPopData(cachedWorldPop);
+        }
+      } catch (error) {
+        console.error('Error loading cached WorldPop data:', error);
+      }
+    };
+
+    loadCachedWorldPop();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Load OSM data from IndexedDB
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCachedOSM = async () => {
+      try {
+        const cachedOSM = await loadOSMData();
+        if (!mounted) return;
+
+        if (cachedOSM) {
+          setOsmData(cachedOSM);
+        }
+      } catch (error) {
+        console.error('Error loading cached OSM data:', error);
+      }
+    };
+
+    loadCachedOSM();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Load ACLED data from IndexedDB
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCachedACLED = async () => {
+      try {
+        const cachedACLED = await loadACLEDData();
+        if (!mounted) return;
+
+        if (cachedACLED && cachedACLED.length > 0) {
+          setAcledData(cachedACLED);
+        }
+      } catch (error) {
+        console.error('Error loading cached ACLED data:', error);
+      }
+    };
+
+    loadCachedACLED();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Load selected districts and enabled layers from IndexedDB
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCachedConfig = async () => {
+      try {
+        const [cachedSelectedDistricts, cachedEnabledLayers] = await Promise.all([
+          loadConfig('selectedDistricts'),
+          loadConfig('enabledLayers')
+        ]);
+
+        if (!mounted) return;
+
+        if (cachedSelectedDistricts && cachedSelectedDistricts.length > 0) {
+          setSelectedAnalysisDistricts(cachedSelectedDistricts);
+        }
+
+        if (cachedEnabledLayers && cachedEnabledLayers.length > 0) {
+          setEnabledEvidenceLayers(cachedEnabledLayers);
+        }
+      } catch (error) {
+        console.error('Error loading cached config:', error);
+      }
+    };
+
+    loadCachedConfig();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // ==================== NEW: Save data to IndexedDB when it changes ====================
+
+  // Save districts to IndexedDB when they change
+  useEffect(() => {
+    if (districts.length > 0) {
+      saveDistricts(districts);
+    }
+  }, [districts]);
+
+  // Save WorldPop data to IndexedDB when it changes
+  useEffect(() => {
+    if (Object.keys(worldPopData).length > 0) {
+      saveWorldPop(worldPopData);
+    }
+  }, [worldPopData]);
+
+  // Save OSM data to IndexedDB when it changes
+  useEffect(() => {
+    if (osmData) {
+      saveOSMData(osmData);
+    }
+  }, [osmData]);
+
+  // Save ACLED data to IndexedDB when it changes
+  useEffect(() => {
+    if (acledData.length > 0) {
+      saveACLEDData(acledData);
+    }
+  }, [acledData]);
+
+  // Save selected districts to IndexedDB when they change
+  useEffect(() => {
+    if (selectedAnalysisDistricts.length > 0) {
+      saveConfig('selectedDistricts', selectedAnalysisDistricts);
+    }
+  }, [selectedAnalysisDistricts]);
+
+  // Save enabled layers to IndexedDB when they change
+  useEffect(() => {
+    if (enabledEvidenceLayers.length > 0) {
+      saveConfig('enabledLayers', enabledEvidenceLayers);
+    }
+  }, [enabledEvidenceLayers]);
+
+  // ==================== END: IndexedDB persistence hooks ====================
+
   // Update the "time since" last data refresh
   useEffect(() => {
     if (!lastUpdated) return;
@@ -876,10 +1076,14 @@ export default function Home() {
   // Handle clearing cached facility data
   const handleClearCache = async () => {
     try {
+      // Clear existing facility data (localStorage/sessionStorage/IndexedDB)
       await removeCachedValue('gdacs_facilities');
       await removeCachedValue('gdacs_ai_analysis_fields');
 
-      // Clear state
+      // Clear new IndexedDB data stores
+      await clearAllData();
+
+      // Clear all state
       setFacilities([]);
       setImpactedFacilities([]);
       setImpactStatistics(null);
@@ -887,8 +1091,15 @@ export default function Home() {
       setSitrep('');
       setSelectedFacility(null);
       setRecommendations(null);
+      setDistricts([]);
+      setDistrictRawData([]);
+      setWorldPopData({});
+      setOsmData(null);
+      setAcledData([]);
+      setSelectedAnalysisDistricts([]);
+      setEnabledEvidenceLayers([]);
 
-      addToast('Facility data cleared.', 'success');
+      addToast('All cached data cleared.', 'success');
     } catch (error) {
       console.error('Error clearing cache:', error);
       addToast('Failed to clear cache. Please try again.', 'error');
@@ -2671,7 +2882,7 @@ export default function Home() {
           }
         `}</style>
       </main>
-      
+
       <footer style={{
         padding: '6px 20px',
         textAlign: 'center',
@@ -2686,6 +2897,9 @@ export default function Home() {
       }}>
         Created by <a href="https://github.com/jmesplana" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--aidstack-orange)', textDecoration: 'none', fontWeight: '500' }}>John Mark Esplana</a> <span style={{color: '#ccc', margin: '0 6px'}}>|</span> <span style={{color: '#bbb'}}>Aidstack Disasters</span>
       </footer>
+
+      {/* Storage status panel */}
+      <StorageStatusPanel onClear={handleClearCache} />
     </div>
     </ErrorBoundary>
   )

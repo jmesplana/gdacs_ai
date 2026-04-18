@@ -28,7 +28,7 @@ const OVERPASS_ENDPOINTS = [
 const MAX_BOUNDARY_AREA_KM2 = 10000; // Subdivide if larger
 const CACHE_TTL_HOURS = 24;
 const OVERPASS_TIMEOUT_MS = 45000;
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 1;
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -66,11 +66,15 @@ module.exports = async function handler(req, res) {
   const cacheKey = generateCacheKey(boundary, layers, options);
   const cached = await getCachedOSM(cacheKey);
   if (cached && !options.forceRefresh) {
-    console.log('OSM cache hit:', cacheKey);
-    return res.status(200).json({
-      success: true,
-      data: { ...cached, metadata: { ...cached.metadata, cached: true } }
-    });
+    if ((cached.features || []).length > 0) {
+      console.log('OSM cache hit:', cacheKey);
+      return res.status(200).json({
+        success: true,
+        data: { ...cached, metadata: { ...cached.metadata, cached: true } }
+      });
+    }
+
+    console.log('OSM cache contained empty result, refetching:', cacheKey);
   }
 
   try {
@@ -100,19 +104,25 @@ module.exports = async function handler(req, res) {
     // Execute queries (sequential to avoid overwhelming Overpass API)
     const allFeatures = [];
     const errors = [];
+    let successfulSubdivisions = 0;
+    let failedSubdivisions = 0;
 
     for (const subBoundary of subdivisions) {
       try {
-        const features = await queryOverpassWithRetry(subBoundary, layers, options);
+        const result = await queryOverpassByLayer(subBoundary, layers, options);
+        const features = result.features || [];
         allFeatures.push(...features);
+        errors.push(...(result.errors || []));
+        successfulSubdivisions += 1;
       } catch (err) {
         console.error('Subdivision query failed:', err.message);
-        errors.push({ boundary: subBoundary, error: err.message });
+        failedSubdivisions += 1;
+        errors.push({ scope: 'subdivision', error: err.message });
       }
     }
 
     // If all subdivisions failed, try to return stale cache
-    if (errors.length === subdivisions.length) {
+    if (successfulSubdivisions === 0) {
       const staleCache = await getCachedOSM(cacheKey, true);
       if (staleCache) {
         console.log('All queries failed, returning stale cache');
@@ -122,17 +132,58 @@ module.exports = async function handler(req, res) {
           warning: 'Using cached data due to query failure'
         });
       }
-      throw new Error('All OSM queries failed');
+
+      const error = new Error(`All OSM queries failed: ${summarizeErrors(errors)}`);
+      error.code = 'QUERY_FAILED';
+      throw error;
     }
 
     // Log partial success
-    if (errors.length > 0) {
-      console.log(`⚠️ Partial success: ${allFeatures.length} features from ${subdivisions.length - errors.length}/${subdivisions.length} subdivisions`);
+    if (failedSubdivisions > 0 || errors.length > 0) {
+      console.log(`⚠️ Partial success: ${allFeatures.length} features from ${successfulSubdivisions}/${subdivisions.length} subdivisions`);
     }
 
-    // Check if we got any features
+    const warnings = [];
+
+    if (failedSubdivisions > 0) {
+      warnings.push(`Loaded partial OSM data: ${successfulSubdivisions} of ${subdivisions.length} subdivisions succeeded.`);
+    }
+
+    if (errors.length > 0) {
+      warnings.push(`Some OSM layer queries failed: ${summarizeErrors(errors)}`);
+    }
+
+    // Empty Overpass results are valid for sparse districts or narrow layer selections.
     if (allFeatures.length === 0) {
-      throw new Error('No OSM features retrieved');
+      warnings.push('No matching OSM infrastructure features were found for the selected area and layers.');
+
+      const emptyResponse = {
+        type: 'FeatureCollection',
+        features: [],
+        metadata: {
+          queryTime: Date.now() - startTime,
+          totalFeatures: 0,
+          byLayer: {},
+          requestedLayers: layers,
+          boundingBox: calculateBoundingBox(boundary),
+          querySubdivisions: subdivisions.length,
+          cached: false,
+          timestamp: new Date().toISOString(),
+          partialFailures: errors.length,
+          warnings,
+          roadsTrimmed: 0,
+          originalRoadCount: 0,
+          returnedRoadCount: 0
+        }
+      };
+
+      console.log(`OSM query complete: no matching features in ${Date.now() - startTime}ms`);
+
+      return res.status(200).json({
+        success: true,
+        data: emptyResponse,
+        warning: warnings.join(' ')
+      });
     }
 
     // Deduplicate features (same OSM ID might appear in multiple subdivisions)
@@ -144,11 +195,6 @@ module.exports = async function handler(req, res) {
     // Categorize and format
     const categorized = categorizeInfrastructure(filtered);
     const optimized = optimizeInfrastructureResponse(categorized);
-    const warnings = [];
-
-    if (errors.length > 0) {
-      warnings.push(`Loaded partial OSM data: ${subdivisions.length - errors.length} of ${subdivisions.length} subdivisions succeeded.`);
-    }
 
     if (optimized.metadata.roadsTrimmed > 0) {
       warnings.push(`Road results were reduced for performance: returned ${optimized.metadata.returnedRoadCount.toLocaleString()} of ${optimized.metadata.originalRoadCount.toLocaleString()} road features.`);
@@ -211,6 +257,99 @@ module.exports = async function handler(req, res) {
 }
 
 /**
+ * Query each requested layer separately so expensive categories do not fail the
+ * entire district load.
+ */
+async function queryOverpassByLayer(boundary, layers, options) {
+  if (layers.length === 1) {
+    try {
+      const features = await queryLayerWithFallback(boundary, layers[0], options);
+      return { features, errors: [] };
+    } catch (error) {
+      console.error(`OSM layer failed (${layers[0]}):`, error.message);
+      return {
+        features: [],
+        errors: [{ scope: 'layer', layer: layers[0], error: error.message }]
+      };
+    }
+  }
+
+  const features = [];
+  const errors = [];
+
+  for (const layer of layers) {
+    try {
+      console.log(`Querying OSM layer: ${layer}`);
+      const layerFeatures = await queryLayerWithFallback(boundary, layer, options);
+      features.push(...layerFeatures);
+    } catch (error) {
+      console.error(`OSM layer failed (${layer}):`, error.message);
+      errors.push({ scope: 'layer', layer, error: error.message });
+    }
+  }
+
+  if (errors.length === layers.length) {
+    throw new Error(`All OSM layer queries failed: ${summarizeErrors(errors)}`);
+  }
+
+  return { features, errors };
+}
+
+async function queryLayerWithFallback(boundary, layer, options) {
+  const layerOptions = {
+    ...options,
+    maxFeatures: getLayerMaxFeatures(layer, options.maxFeatures),
+    useCenterOnly: shouldUseCenterOutput(layer)
+  };
+
+  try {
+    return await queryOverpassWithRetry(boundary, [layer], layerOptions);
+  } catch (error) {
+    if (layerOptions.useBboxOnly) throw error;
+
+    console.warn(`Retrying OSM layer with bbox fallback (${layer}):`, error.message);
+    return queryOverpassWithRetry(boundary, [layer], {
+      ...layerOptions,
+      useBboxOnly: true,
+      useCenterOnly: shouldUseCenterOutput(layer)
+    });
+  }
+}
+
+function getLayerMaxFeatures(layer, requestedMaxFeatures = 5000) {
+  const layerLimits = {
+    roads: 1500,
+    schools: 1000,
+    water: 1000,
+    hospitals: 700,
+    pharmacies: 700,
+    fuel: 700,
+    power: 500,
+    bridges: 500,
+    airports: 300
+  };
+
+  return Math.min(requestedMaxFeatures, layerLimits[layer] || 700);
+}
+
+function shouldUseCenterOutput(layer) {
+  return !['roads', 'bridges'].includes(layer);
+}
+
+function summarizeErrors(errors = []) {
+  const uniqueMessages = Array.from(new Set(
+    errors
+      .map(item => {
+        const prefix = item.layer ? `${item.layer}: ` : '';
+        return `${prefix}${item.error || item.message || String(item)}`;
+      })
+      .filter(Boolean)
+  ));
+
+  return uniqueMessages.slice(0, 3).join('; ') || 'Unknown Overpass error';
+}
+
+/**
  * Query Overpass API with automatic retry and endpoint failover
  */
 async function queryOverpassWithRetry(boundary, layers, options, retries = 0) {
@@ -225,9 +364,13 @@ async function queryOverpassWithRetry(boundary, layers, options, retries = 0) {
 
     const response = await fetch(endpoint, {
       method: 'POST',
-      body: query,
+      body: `data=${encodeURIComponent(query)}`,
       signal: controller.signal,
-      headers: { 'Content-Type': 'text/plain' }
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        'User-Agent': 'gdacs-facilities-ai/0.1'
+      }
     });
 
     clearTimeout(timeout);
@@ -245,7 +388,11 @@ async function queryOverpassWithRetry(boundary, layers, options, retries = 0) {
         error.code = 'OVERPASS_TIMEOUT';
         throw error;
       }
-      throw new Error(`HTTP ${response.status}`);
+
+      // Capture response body for better debugging
+      const responseText = await response.text().catch(() => 'Unable to read response body');
+      console.error(`Overpass HTTP ${response.status} error:`, responseText.slice(0, 200));
+      throw new Error(`HTTP ${response.status}: ${responseText.slice(0, 100)}`);
     }
 
     const contentType = response.headers.get('content-type') || '';

@@ -5,6 +5,23 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 
+const OSM_RESULT_CATEGORIES = {
+  hospitals: ['hospital', 'clinic'],
+  schools: ['school'],
+  roads: ['road'],
+  bridges: ['bridge'],
+  water: ['water'],
+  power: ['power'],
+  fuel: ['fuel'],
+  pharmacies: ['pharmacy'],
+  airports: ['airport'],
+};
+
+const OSM_STORAGE_KEY = 'osmData';
+function getResultCategories(categoryId) {
+  return OSM_RESULT_CATEGORIES[categoryId] || [categoryId];
+}
+
 function areBoundariesEqual(boundaryA, boundaryB) {
   if (!boundaryA || !boundaryB) return false;
 
@@ -59,12 +76,15 @@ function mergeOsmData(existingData, incomingData) {
 function removeOsmCategoryData(existingData, categoryId) {
   if (!existingData) return null;
 
+  const categoriesToRemove = getResultCategories(categoryId);
   const remainingFeatures = (existingData.features || []).filter(
-    feature => feature.properties?.category !== categoryId
+    feature => !categoriesToRemove.includes(feature.properties?.category)
   );
   const existingLayers = existingData.metadata?.byLayer || {};
   const nextByLayer = { ...existingLayers };
-  delete nextByLayer[categoryId];
+  categoriesToRemove.forEach(category => {
+    delete nextByLayer[category];
+  });
 
   const nextRequestedLayers = (existingData.metadata?.requestedLayers || []).filter(
     layer => layer !== categoryId
@@ -129,48 +149,21 @@ export function useOSMInfrastructure() {
     osmBoundaryRef.current = osmBoundary;
   }, [osmBoundary]);
 
-  // Load from localStorage on mount
+  // Clear legacy OSM browser cache on mount. Full OSM payloads can exceed browser storage quota.
   useEffect(() => {
     try {
-      const cached = localStorage.getItem('osmData');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        const age = Date.now() - new Date(parsed.timestamp).getTime();
-
-        if (age < 24 * 60 * 60 * 1000) { // 24h
-          setOsmData(parsed.data);
-          setOsmStats(parsed.stats);
-          setOsmTimestamp(parsed.timestamp);
-          setOsmBoundary(parsed.boundary);
-          setOsmWarning(parsed.warning || parsed.data?.metadata?.warnings?.join(' ') || null);
-          console.log('Loaded OSM data from cache:', parsed.stats);
-        } else {
-          localStorage.removeItem('osmData');
-        }
-      }
+      localStorage.removeItem(OSM_STORAGE_KEY);
     } catch (err) {
-      console.warn('Failed to load cached OSM data:', err);
+      console.warn('Failed to clear legacy OSM browser cache:', err);
     }
   }, []);
 
-  // Save to localStorage when data changes
+  // Do not persist OSM data in browser storage. Keep features in memory for the current session.
   useEffect(() => {
     if (osmData) {
-      try {
-        localStorage.setItem('osmData', JSON.stringify({
-          data: osmData,
-          stats: osmStats,
-          timestamp: osmTimestamp,
-          boundary: osmBoundary,
-          warning: osmWarning
-        }));
-      } catch (err) {
-        console.warn('Failed to cache OSM data:', err);
-        // Quota exceeded - clear old data
-        localStorage.removeItem('osmData');
-      }
+      localStorage.removeItem(OSM_STORAGE_KEY);
     }
-  }, [osmData, osmStats, osmTimestamp, osmBoundary, osmWarning]);
+  }, [osmData]);
 
   // Sanitize boundary to remove circular references
   const sanitizeBoundary = (boundary) => {
@@ -237,9 +230,9 @@ export function useOSMInfrastructure() {
       console.log('✅ Fetching OSM infrastructure for boundary:', cleanBoundary);
       console.log('✅ Categories to fetch:', layersToFetch);
 
-      // Add timeout to fetch request (60 seconds)
+      // OSM requests may query several selected infrastructure layers in sequence.
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
 
       const response = await fetch('/api/osm-infrastructure', {
         method: 'POST',
@@ -261,8 +254,20 @@ export function useOSMInfrastructure() {
       console.log('📡 Response status:', response.status);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        const errorMsg = `API error (${response.status}): ${errorText.substring(0, 100)}`;
+        let errorMsg = `API error (${response.status})`;
+
+        try {
+          const errorPayload = await response.json();
+          const serverMessage = errorPayload.error?.message || errorPayload.message;
+          const serverDetails = errorPayload.error?.details;
+          errorMsg = serverDetails
+            ? `${errorMsg}: ${serverMessage} (${serverDetails})`
+            : `${errorMsg}: ${serverMessage || 'Unknown OSM API error'}`;
+        } catch (_) {
+          const errorText = await response.text().catch(() => '');
+          errorMsg = `${errorMsg}: ${errorText.substring(0, 300) || 'Unknown OSM API error'}`;
+        }
+
         setOsmError(errorMsg);
         console.error('❌ OSM API error:', errorMsg);
         return null;
@@ -283,6 +288,7 @@ export function useOSMInfrastructure() {
 
         const currentOsmData = osmDataRef.current;
         const currentBoundary = osmBoundaryRef.current;
+        const incomingFeatureCount = result.data?.features?.length || 0;
         const shouldMergeWithExisting =
           Boolean(options.mergeWithExisting) || (
             selectedCategories &&
@@ -291,6 +297,13 @@ export function useOSMInfrastructure() {
             currentOsmData &&
             areBoundariesEqual(currentBoundary, cleanBoundary)
           );
+
+        if (incomingFeatureCount === 0 && currentOsmData) {
+          const warning = result.warning || result.data?.metadata?.warnings?.join(' ') || 'No matching OSM infrastructure features were found for the selected area and layers.';
+          setOsmWarning(warning);
+          console.warn('⚠️ OSM request returned no new features; preserving existing OSM data');
+          return currentOsmData;
+        }
 
         const nextData = shouldMergeWithExisting
           ? mergeOsmData(currentOsmData, result.data)
@@ -313,7 +326,7 @@ export function useOSMInfrastructure() {
       let errorMsg = 'Failed to fetch OSM infrastructure data';
 
       if (err.name === 'AbortError') {
-        errorMsg = 'Request timeout - OSM data fetch took too long (>60s)';
+        errorMsg = 'Request timeout - OSM data fetch took too long (>120s)';
         console.error('⏱️ OSM fetch timeout');
       } else {
         console.error('❌ OSM fetch error:', err);
@@ -349,7 +362,7 @@ export function useOSMInfrastructure() {
     setOsmWarning(null);
     osmDataRef.current = null;
     osmBoundaryRef.current = null;
-    localStorage.removeItem('osmData');
+    localStorage.removeItem(OSM_STORAGE_KEY);
     console.log('OSM data cleared');
   }, []);
 
@@ -366,7 +379,7 @@ export function useOSMInfrastructure() {
         setOsmWarning(null);
         osmDataRef.current = null;
         osmBoundaryRef.current = null;
-        localStorage.removeItem('osmData');
+        localStorage.removeItem(OSM_STORAGE_KEY);
         return null;
       }
 
@@ -396,10 +409,18 @@ export function useOSMInfrastructure() {
 
   // Toggle layer visibility on map
   const toggleLayerVisibility = useCallback((layer) => {
-    setOsmLayerVisibility(prev => ({
-      ...prev,
-      [layer]: !prev[layer]
-    }));
+    const categories = getResultCategories(layer);
+
+    setOsmLayerVisibility(prev => {
+      const shouldShow = categories.some(category => prev[category] === false);
+      const next = { ...prev };
+
+      categories.forEach(category => {
+        next[category] = shouldShow;
+      });
+
+      return next;
+    });
   }, []);
 
   // Toggle all OSM layers

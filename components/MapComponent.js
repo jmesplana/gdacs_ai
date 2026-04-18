@@ -684,7 +684,6 @@ const MapComponent = ({
     showOSMLayer,
     fetchOSMInfrastructure,
     refreshOSM,
-    clearOSM,
     clearOSMCategory,
     toggleLayer,
     toggleLayerVisibility,
@@ -1830,7 +1829,7 @@ const MapComponent = ({
           console.log('🚀 onLoadOSM called!', {
             districtsCount: selectedDistricts?.length,
             categoriesCount: selectedCategories?.length,
-            districts: selectedDistricts,
+            districts: selectedDistricts?.map(d => d.name || 'Unnamed'),
             categories: selectedCategories
           });
 
@@ -1843,10 +1842,13 @@ const MapComponent = ({
             return;
           }
 
-          clearOSM();
-
+          // Load each district sequentially with clear logging
           for (let index = 0; index < districtsWithGeometry.length; index += 1) {
             const district = districtsWithGeometry[index];
+            const districtName = district.name || district.properties?.name || district.properties?.NAME || `District ${index + 1}`;
+
+            console.log(`📍 Loading OSM data for: ${districtName} (${index + 1}/${districtsWithGeometry.length})`);
+
             await fetchOSMInfrastructure(district.geometry, selectedCategories, {
               mergeWithExisting: index > 0
             });
