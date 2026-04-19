@@ -5,6 +5,7 @@ const WorldPopDrawer = ({
   isOpen,
   onClose,
   districts = [],
+  selectedDistricts = [],
   worldPopData = {},
   isLoading = false,
   error = null,
@@ -20,6 +21,7 @@ const WorldPopDrawer = ({
 }) => {
   const [selectedYear, setSelectedYear] = useState(2020);
   const [selectedDataType, setSelectedDataType] = useState('total');
+  const [loadAllDistricts, setLoadAllDistricts] = useState(false);
 
   const country = extractCountryFromDistricts(districts);
   const hasData = Object.keys(worldPopData).length > 0;
@@ -28,7 +30,12 @@ const WorldPopDrawer = ({
     : 0;
 
   const handleFetch = () => {
-    fetchWorldPopData(districts, selectedYear, selectedDataType);
+    const districtsToLoad = loadAllDistricts ? districts : selectedDistricts;
+    if (!loadAllDistricts && selectedDistricts.length === 0) {
+      // Show error if trying to load selected districts but none are selected
+      return;
+    }
+    fetchWorldPopData(districtsToLoad, selectedYear, selectedDataType);
   };
 
   const sortedDistricts = hasData
@@ -115,6 +122,28 @@ const WorldPopDrawer = ({
                 </div>
               </div>
 
+              {/* District selection toggle */}
+              <div style={{ marginBottom: '12px', padding: '10px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '6px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={loadAllDistricts}
+                    onChange={() => setLoadAllDistricts(!loadAllDistricts)}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <div style={{ fontSize: '12px', color: '#1E40AF' }}>
+                    <div style={{ fontWeight: 600 }}>Load all districts</div>
+                    <div style={{ fontSize: '11px', marginTop: '2px', opacity: 0.8 }}>
+                      {loadAllDistricts
+                        ? `Loading population for all ${districts.length} districts`
+                        : selectedDistricts.length > 0
+                          ? `Loading population for ${selectedDistricts.length} selected district${selectedDistricts.length > 1 ? 's' : ''} only`
+                          : 'No districts selected - select districts on the map first'}
+                    </div>
+                  </div>
+                </label>
+              </div>
+
               {/* Geographic scope toggle */}
               <div style={{ marginBottom: '12px', padding: '10px', background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '6px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
@@ -135,19 +164,25 @@ const WorldPopDrawer = ({
                 </label>
               </div>
 
+              {!loadAllDistricts && selectedDistricts.length === 0 && (
+                <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '6px', padding: '10px', fontSize: '12px', color: '#92400E', marginBottom: '12px' }}>
+                  Select one or more districts on the map first, or check "Load all districts" above.
+                </div>
+              )}
+
               <button
                 onClick={handleFetch}
-                disabled={isLoading}
+                disabled={isLoading || (!loadAllDistricts && selectedDistricts.length === 0)}
                 style={{
                   width: '100%',
                   padding: '9px',
-                  background: isLoading ? '#94A3B8' : 'var(--aidstack-navy, #1B3A5C)',
+                  background: (isLoading || (!loadAllDistricts && selectedDistricts.length === 0)) ? '#94A3B8' : 'var(--aidstack-navy, #1B3A5C)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '7px',
                   fontSize: '13px',
                   fontWeight: 600,
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  cursor: (isLoading || (!loadAllDistricts && selectedDistricts.length === 0)) ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',

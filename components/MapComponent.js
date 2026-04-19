@@ -308,7 +308,7 @@ function compactDistrictForContext(district = {}, index = 0) {
 }
 
 const LARGE_DISTRICT_COUNT = 80;
-const MAX_DISTRICT_LABELS = 60;
+const MAX_DISTRICT_LABELS = 300; // Increased to support larger datasets
 
 function buildAcledAggregateSummary(events = [], selectedDistricts = []) {
   const scopedEvents = selectedDistricts.length > 0
@@ -2176,14 +2176,15 @@ const MapComponent = ({
                 const riskLevel = feature.properties.riskLevel || 'none';
                 const isHighlighted = highlightedDistricts.includes(feature.id);
                 const isSelected = selectedAnalysisDistrictIds.has(feature.id);
+                const hasSelection = selectedAnalysisDistrictIds.size > 0;
 
                 return {
-                  color: isHighlighted ? '#FF6B35' : (isSelected ? '#0f766e' : getBorderColor(riskLevel)),
-                  weight: isHighlighted ? 4 : (isSelected ? 4 : 3),
-                  opacity: isHighlighted ? 1 : 1, // Changed from 0.8 to 1 for fully visible borders
-                  fillColor: getRiskColor(riskLevel),
+                  color: isHighlighted ? '#FF6B35' : (isSelected ? '#FFFF00' : getBorderColor(riskLevel)), // Yellow border for selected
+                  weight: isHighlighted ? 4 : (isSelected ? 5 : 3), // Thicker border for selected
+                  opacity: isHighlighted ? 1 : (hasSelection && !isSelected ? 0.3 : 1), // Dim non-selected borders when something is selected
+                  fillColor: getRiskColor(riskLevel), // Keep original risk color
                   fillOpacity: showDistrictRiskFill
-                    ? (isHighlighted ? 0.7 : (isSelected ? 0.65 : (riskLevel === 'none' ? 0.2 : 0.5)))
+                    ? (isHighlighted ? 0.7 : (isSelected ? 0.7 : (hasSelection ? 0.15 : (riskLevel === 'none' ? 0.2 : 0.5)))) // Dim non-selected fills, keep selected bright
                     : 0,
                   className: isHighlighted ? 'highlighted-district' : ''
                 };
@@ -2912,6 +2913,7 @@ const MapComponent = ({
         isOpen={showWorldPopDrawer}
         onClose={() => setShowWorldPopDrawer(false)}
         districts={districts}
+        selectedDistricts={selectedAnalysisDistricts}
         worldPopData={worldPopData}
         isLoading={worldPopLoading}
         error={worldPopError}
