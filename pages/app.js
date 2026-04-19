@@ -58,6 +58,10 @@ const StorageStatusPanel = dynamic(() => import('../components/StorageStatusPane
   ssr: false,
 });
 
+const TrendAnalysisDashboard = dynamic(() => import('../components/TrendAnalysisDashboard'), {
+  ssr: false,
+});
+
 const matrixTone = {
   ready: { text: '#166534', background: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.22)' },
   partial: { text: '#92400e', background: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.24)' },
@@ -549,6 +553,7 @@ export default function Home() {
   const [showPredictions, setShowPredictions] = useState(false); // Prediction dashboard visibility
   const [showOperationalOutlook, setShowOperationalOutlook] = useState(false); // Operational outlook dashboard visibility
   const [showPrioritizationBoard, setShowPrioritizationBoard] = useState(false); // Prioritization board visibility
+  const [showTrendAnalysis, setShowTrendAnalysis] = useState(false); // Trend analysis dashboard visibility
   const [completeReport, setCompleteReport] = useState(null); // Store combined AI report
   const [lastUpdated, setLastUpdated] = useState(null); // Track when data was last updated
   const [timeSinceUpdate, setTimeSinceUpdate] = useState(''); // Human-readable time since last update
@@ -2466,6 +2471,31 @@ export default function Home() {
                 </svg>
                 3. Prioritization Board
               </button>
+
+              {/* Trend Analysis Button */}
+              <button
+                onClick={() => setShowTrendAnalysis(true)}
+                disabled={!canUseDistrictDecisionTools}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: !canUseDistrictDecisionTools ? 'var(--aidstack-slate-light)' : '#7c3aed',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '8px 12px',
+                  cursor: !canUseDistrictDecisionTools ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  fontFamily: "'Inter', sans-serif"
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                4. Trend Analysis
+              </button>
+
               <button
                 onClick={() => setShowHelp(true)}
                 style={{
@@ -2872,6 +2902,18 @@ export default function Home() {
               setShowPrioritizationBoard(false);
               handleFacilitySelect(facility);
             }}
+          />
+        )}
+
+        {/* Trend Analysis Dashboard */}
+        {showTrendAnalysis && (
+          <TrendAnalysisDashboard
+            districts={districts}
+            selectedDistricts={selectedAnalysisDistricts}
+            facilities={facilities}
+            acledData={acledEnabled ? acledData : []}
+            disasters={filteredDisasters.length > 0 ? filteredDisasters : disasters}
+            onClose={() => setShowTrendAnalysis(false)}
           />
         )}
 

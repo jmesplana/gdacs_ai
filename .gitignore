@@ -83,3 +83,6 @@ logs/
 # Temporary files
 tmp/
 temp/.codex
+
+# Internal progress tracking (not for public repo)
+PALANTIR_PROGRESS.md
