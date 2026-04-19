@@ -39,28 +39,73 @@ export default function TrendAnalysisDashboard({
     setError(null);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || '';
+      // Process ALL data client-side to avoid 413 payload errors
+      const {
+        aggregateAcledByTime,
+        aggregateDisastersByTime,
+        calculateFacilityRiskTrends,
+        calculateDistrictComparison,
+        getSummaryMetrics
+      } = await import('../lib/trendAnalysis');
 
-      // Optimize payload - only send selected districts (not all districts)
-      // This reduces payload size significantly
-      const response = await fetch(`${baseUrl}/api/trends`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          selectedDistricts,
-          facilities,
-          acledData,
-          disasters,
-          timeWindowDays: timeWindow
-        })
-      });
+      // Calculate summary metrics
+      const summary = getSummaryMetrics(
+        selectedDistricts,
+        facilities || [],
+        acledData || [],
+        disasters || [],
+        timeWindow
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch trend analysis');
-      }
+      // Calculate ACLED trends
+      const acledTrends = aggregateAcledByTime(
+        acledData || [],
+        selectedDistricts,
+        'daily',
+        timeWindow
+      );
 
-      const data = await response.json();
+      // Calculate facility risk trends
+      const facilityRiskTrends = calculateFacilityRiskTrends(
+        facilities || [],
+        disasters || [],
+        acledData || [],
+        selectedDistricts,
+        timeWindow
+      );
+
+      // Calculate disaster trends
+      const disasterTrends = aggregateDisastersByTime(
+        disasters || [],
+        selectedDistricts,
+        'weekly'
+      );
+
+      // Calculate district comparison
+      const districtComparison = calculateDistrictComparison(
+        selectedDistricts,
+        facilities || [],
+        acledData || [],
+        disasters || [],
+        timeWindow
+      );
+
+      // Build warnings array
+      const warnings = [];
+      if (!acledTrends) warnings.push(`No ACLED data in the last ${timeWindow} days for selected districts`);
+      if (!facilityRiskTrends) warnings.push('No facility data available for selected districts');
+      if (!disasterTrends) warnings.push(`No disaster data in the last ${timeWindow} days for selected districts`);
+
+      const data = {
+        success: true,
+        summary,
+        acledTrends,
+        facilityRiskTrends,
+        disasterTrends,
+        districtComparison,
+        warnings: warnings.length > 0 ? warnings : null
+      };
+
       setTrendData(data);
 
       // Fetch AI narrative after trend data is loaded
