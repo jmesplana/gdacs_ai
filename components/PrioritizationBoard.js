@@ -1110,15 +1110,34 @@ export default function PrioritizationBoard({
 
                         {isExpanded && (
                           <>
-                            <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.6, marginBottom: '10px' }}>
-                              <strong>Why this decision:</strong> {renderLinkedText(row.soWhat)}
+                            <div style={{
+                              background: '#fef3c7',
+                              border: '2px solid #f59e0b',
+                              borderRadius: '10px',
+                              padding: '14px 16px',
+                              marginBottom: '14px'
+                            }}>
+                              <div style={{ color: '#92400e', fontSize: '12px', fontWeight: 800, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                ⚡ Why this decision
+                              </div>
+                              <div style={{ color: '#0f172a', fontSize: '15px', lineHeight: 1.7, fontWeight: 600 }}>
+                                {renderLinkedText(row.soWhat)}
+                              </div>
                             </div>
 
                             <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.6, marginBottom: '10px' }}>
                               <strong>Projected hazard:</strong>{' '}
-                              {typeof row.projectedHazardScore === 'number'
-                                ? `${row.projectedHazardLabel || row.projectedHazardType} ${row.projectedHazardLevel} (${row.projectedHazardScore}/100)`
-                                : 'Not ready'}
+                              <span style={{
+                                background: typeof row.projectedHazardScore === 'number' && row.projectedHazardScore >= 50 ? '#fee2e2' : '#f1f5f9',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                color: typeof row.projectedHazardScore === 'number' && row.projectedHazardScore >= 50 ? '#991b1b' : '#334155'
+                              }}>
+                                {typeof row.projectedHazardScore === 'number'
+                                  ? `${row.projectedHazardLabel || row.projectedHazardType} ${row.projectedHazardLevel} (${row.projectedHazardScore}/100)`
+                                  : 'Not ready'}
+                              </span>
                             </div>
 
                             {row.projectedHazardSummary && (
@@ -1144,19 +1163,52 @@ export default function PrioritizationBoard({
                               </div>
                             )}
 
-                            <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.55 }}>
-                              <strong>What to do now:</strong> {renderLinkedText(row.recommendedAction || row.actions.join(' • '))}
+                            <div style={{
+                              background: '#dcfce7',
+                              border: '2px solid #16a34a',
+                              borderRadius: '10px',
+                              padding: '14px 16px',
+                              marginBottom: '14px'
+                            }}>
+                              <div style={{ color: '#166534', fontSize: '12px', fontWeight: 800, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                ✓ What to do now
+                              </div>
+                              <div style={{ color: '#0f172a', fontSize: '15px', lineHeight: 1.7, fontWeight: 600 }}>
+                                {renderLinkedText(row.recommendedAction || row.actions.join(' • '))}
+                              </div>
                             </div>
 
                             {row.keyGaps?.length > 0 && (
-                              <div style={{ color: '#64748b', fontSize: '13px', lineHeight: 1.6, marginTop: '10px' }}>
-                                <strong>What is missing:</strong> {row.keyGaps.join(' | ')}
+                              <div style={{
+                                background: '#fff7ed',
+                                border: '1px solid #fed7aa',
+                                borderRadius: '8px',
+                                padding: '12px 14px',
+                                marginBottom: '10px'
+                              }}>
+                                <div style={{ color: '#9a3412', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>
+                                  ⚠️ What is missing
+                                </div>
+                                <div style={{ color: '#9a3412', fontSize: '13px', lineHeight: 1.6 }}>
+                                  {row.keyGaps.join(' | ')}
+                                </div>
                               </div>
                             )}
 
                             {row.leadershipNote && (
-                              <div style={{ color: '#475569', fontSize: '13px', lineHeight: 1.6, marginTop: '10px' }}>
-                                <strong>What could change this decision:</strong> {renderLinkedText(row.leadershipNote)}
+                              <div style={{
+                                background: '#ede9fe',
+                                border: '1px solid #c4b5fd',
+                                borderRadius: '8px',
+                                padding: '12px 14px',
+                                marginBottom: '10px'
+                              }}>
+                                <div style={{ color: '#5b21b6', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>
+                                  🔄 What could change this decision
+                                </div>
+                                <div style={{ color: '#5b21b6', fontSize: '13px', lineHeight: 1.6 }}>
+                                  {renderLinkedText(row.leadershipNote)}
+                                </div>
                               </div>
                             )}
 
