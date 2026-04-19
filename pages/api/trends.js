@@ -22,7 +22,6 @@ async function handler(req, res) {
 
   try {
     const {
-      districts = [],
       selectedDistricts = [],
       facilities = [],
       acledData = [],
@@ -33,10 +32,6 @@ async function handler(req, res) {
     // Validation
     if (!Array.isArray(selectedDistricts) || selectedDistricts.length === 0) {
       return res.status(400).json({ error: 'At least one district must be selected' });
-    }
-
-    if (!Array.isArray(districts) || districts.length === 0) {
-      return res.status(400).json({ error: 'Districts data is required' });
     }
 
     // Check if at least one data source is available

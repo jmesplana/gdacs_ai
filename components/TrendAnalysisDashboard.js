@@ -40,11 +40,13 @@ export default function TrendAnalysisDashboard({
 
     try {
       const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || '';
+
+      // Optimize payload - only send selected districts (not all districts)
+      // This reduces payload size significantly
       const response = await fetch(`${baseUrl}/api/trends`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          districts,
           selectedDistricts,
           facilities,
           acledData,
