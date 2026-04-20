@@ -106,3 +106,25 @@ WORLDPOP_REMAINING_WORK.md
 aidstack-brand-guide.md
 medium-post-draft.md
 product_roadmap.md
+
+# Video implementation documentation (Claude-generated, not needed for runtime)
+LINKEDIN_VIDEO_GUIDE.md
+VIDEO_IMPLEMENTATION_SUMMARY.md
+QUICKSTART_VIDEO.md
+FILES_CREATED.md
+INTRO_VIDEO_SETUP.md
+EMBEDDED_INTRO_SUMMARY.md
+FULLSCREEN_FEATURE.md
+PLAYBACK_IMPROVEMENTS.md
+LINKEDIN_SHARING_GUIDE.md
+GITIGNORE_UPDATE.md
+
+# Video recording scripts (optional development tools, not runtime dependencies)
+scripts/record-demo.sh
+scripts/create-placeholder-video.sh
+scripts/create-poster.sh
+
+# Video assets (placeholder/demo files, not needed for production)
+public/videos/aidstack-demo.mp4
+public/videos/aidstack-demo-poster.jpg
+public/videos/README.md

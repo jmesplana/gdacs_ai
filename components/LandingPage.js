@@ -1,8 +1,56 @@
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const LandingPage = () => {
   const [openFaq, setOpenFaq] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
+
+  // Handle ESC key to exit fullscreen
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isFullscreen]);
+
+  // Slow down iframe content after it loads
+  useEffect(() => {
+    const slowDownIframe = (iframeId) => {
+      const iframe = document.getElementById(iframeId);
+      if (!iframe) return;
+
+      const slowDownVideo = () => {
+        try {
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+          const videos = iframeDoc.querySelectorAll('video');
+          videos.forEach(video => {
+            video.playbackRate = 0.75; // Slow down to 75% speed
+          });
+        } catch (e) {
+          // Cross-origin restriction, can't access iframe content
+          console.log('Cannot slow down video due to cross-origin restrictions');
+        }
+      };
+
+      iframe.addEventListener('load', slowDownVideo);
+      // Try immediately in case already loaded
+      slowDownVideo();
+
+      return () => iframe.removeEventListener('load', slowDownVideo);
+    };
+
+    const cleanup1 = slowDownIframe('intro-iframe-embed');
+    const cleanup2 = slowDownIframe('intro-iframe-fullscreen');
+
+    return () => {
+      cleanup1?.();
+      cleanup2?.();
+    };
+  }, [isFullscreen]);
   const experimentalBadgeStyle = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -28,6 +76,10 @@ const LandingPage = () => {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.5; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
         @keyframes pulse0 {
           0%, 100% { transform: translate(-50%, -50%) scale(1); }
@@ -841,6 +893,370 @@ const LandingPage = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Video Demo Section */}
+      <section style={{
+        padding: '80px 20px',
+        background: 'linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%)',
+        position: 'relative'
+      }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: '#FFF7ED',
+              border: '1px solid #FED7AA',
+              borderRadius: '20px',
+              padding: '6px 14px',
+              marginBottom: '20px'
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              <span style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: '13px',
+                fontWeight: 700,
+                color: '#9A3412',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase'
+              }}>
+                See It In Action
+              </span>
+            </div>
+            <h2 style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontWeight: 700,
+              fontSize: '42px',
+              color: '#1A365D',
+              marginBottom: '16px',
+              letterSpacing: '-0.02em'
+            }}>
+              Watch How It Works
+            </h2>
+            <p style={{
+              fontSize: '18px',
+              lineHeight: '1.7',
+              color: '#64748B',
+              maxWidth: '600px',
+              margin: '0 auto'
+            }}>
+              From uploading boundaries to getting AI-powered operational recommendations in seconds
+            </p>
+          </div>
+
+          <div style={{
+            position: 'relative',
+            maxWidth: '960px',
+            margin: '0 auto'
+          }}>
+            <div style={{
+              position: 'relative',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              boxShadow: '0 25px 70px rgba(26, 54, 93, 0.15)',
+              background: '#0A0F1A',
+              aspectRatio: '16 / 9'
+            }}>
+              <iframe
+                id="intro-iframe-embed"
+                src={hasUserInteracted ? "/intro.html" : "about:blank"}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none',
+                  display: 'block',
+                  borderRadius: '16px',
+                  opacity: hasUserInteracted ? 1 : 0,
+                  transition: 'opacity 0.5s ease'
+                }}
+                title="Aidstack Disasters Interactive Demo"
+                allow="autoplay; fullscreen"
+              />
+
+              {/* Play overlay - shows before user interaction */}
+              {!hasUserInteracted && (
+                <div
+                  onClick={() => setHasUserInteracted(true)}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(135deg, #1A365D 0%, #2D5A7B 100%)',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #2D5A7B 0%, #1A365D 100%)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #1A365D 0%, #2D5A7B 100%)';
+                  }}
+                >
+                  <div style={{
+                    textAlign: 'center',
+                    color: 'white'
+                  }}>
+                    <div style={{
+                      width: '100px',
+                      height: '100px',
+                      borderRadius: '50%',
+                      background: 'rgba(255, 107, 53, 0.95)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 20px',
+                      boxShadow: '0 8px 32px rgba(255, 107, 53, 0.4)',
+                      transition: 'transform 0.3s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                    >
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                      </svg>
+                    </div>
+                    <div style={{
+                      fontFamily: "'Space Grotesk', sans-serif",
+                      fontSize: '24px',
+                      fontWeight: 700,
+                      marginBottom: '8px'
+                    }}>
+                      Watch Interactive Demo
+                    </div>
+                    <div style={{
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: '16px',
+                      color: 'rgba(255, 255, 255, 0.8)'
+                    }}>
+                      Click to play
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Fullscreen button */}
+              <button
+                onClick={() => setIsFullscreen(true)}
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  right: '20px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '8px',
+                  padding: '10px 16px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  fontFamily: "'Inter', sans-serif",
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.3s ease',
+                  zIndex: 10
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = 'rgba(255, 107, 53, 0.9)';
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(255, 107, 53, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'rgba(0, 0, 0, 0.7)';
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = 'none';
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                </svg>
+                Fullscreen
+              </button>
+            </div>
+          </div>
+
+          {/* Fullscreen Modal */}
+          {isFullscreen && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(10, 15, 26, 0.98)',
+                backdropFilter: 'blur(10px)',
+                zIndex: 9999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px',
+                animation: 'fadeIn 0.3s ease'
+              }}
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setIsFullscreen(false);
+              }}
+            >
+              <div style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: '1400px',
+                height: '90vh',
+                background: '#0A0F1A',
+                borderRadius: '16px',
+                overflow: 'hidden',
+                boxShadow: '0 25px 100px rgba(0, 0, 0, 0.5)'
+              }}>
+                <iframe
+                  id="intro-iframe-fullscreen"
+                  src="/intro.html"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    display: 'block'
+                  }}
+                  title="Aidstack Disasters Interactive Demo - Fullscreen"
+                  allow="autoplay; fullscreen"
+                />
+
+                {/* Close button */}
+                <button
+                  onClick={() => setIsFullscreen(false)}
+                  style={{
+                    position: 'absolute',
+                    top: '20px',
+                    right: '20px',
+                    background: 'rgba(0, 0, 0, 0.8)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '50%',
+                    width: '44px',
+                    height: '44px',
+                    color: 'white',
+                    fontSize: '24px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.3s ease',
+                    zIndex: 10
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = 'rgba(239, 68, 68, 0.9)';
+                    e.target.style.transform = 'scale(1.1) rotate(90deg)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = 'rgba(0, 0, 0, 0.8)';
+                    e.target.style.transform = 'scale(1) rotate(0deg)';
+                  }}
+                  aria-label="Close fullscreen"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+
+                {/* Exit fullscreen hint */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: '20px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '20px',
+                  padding: '8px 16px',
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  fontSize: '13px',
+                  fontFamily: "'Inter', sans-serif",
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <kbd style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: 600
+                  }}>ESC</kbd>
+                  or click outside to exit fullscreen
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '12px',
+            marginTop: '32px',
+            flexWrap: 'wrap'
+          }}>
+            <Link href="/app">
+              <button style={{
+                background: '#FF6B35',
+                color: 'white',
+                border: 'none',
+                padding: '14px 32px',
+                borderRadius: '10px',
+                fontSize: '16px',
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 16px rgba(255, 107, 53, 0.3)'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 6px 20px rgba(255, 107, 53, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 4px 16px rgba(255, 107, 53, 0.3)';
+              }}
+              >
+                Try It Now →
+              </button>
+            </Link>
+            <a href="https://github.com/jmesplana/gdacs_ai" target="_blank" rel="noopener noreferrer">
+              <button style={{
+                background: 'white',
+                color: '#1A365D',
+                border: '2px solid #E2E8F0',
+                padding: '14px 32px',
+                borderRadius: '10px',
+                fontSize: '16px',
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.borderColor = '#CBD5E1';
+                e.target.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.borderColor = '#E2E8F0';
+                e.target.style.transform = 'translateY(0)';
+              }}
+              >
+                View Source Code
+              </button>
+            </a>
           </div>
         </div>
       </section>
