@@ -56,6 +56,7 @@ __pycache__/
 *.cpg
 *.geojson
 *.json.gz
+*.pdf
 
 # Exceptions - allow sample/example data
 !public/sample_facilities.csv
