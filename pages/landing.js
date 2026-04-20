@@ -4,8 +4,8 @@ import LandingPage from '../components/LandingPage';
 export default function Landing() {
   const siteUrl = 'https://disasters.aidstack.ai';
   const title = 'Aidstack Disasters - AI-Powered Humanitarian Intelligence Platform';
-  const description = 'Admin-level humanitarian analysis from uploaded boundary shapefiles. Combine GDACS, ACLED, WorldPop, OSM, and Earth Engine hazard context in one auditable workspace for forecast, operational outlook, and prioritization.';
-  const keywords = 'humanitarian technology, disaster response, GDACS, ACLED, WorldPop, Google Earth Engine, admin boundary analysis, prioritization board, operational outlook, emergency response platform, humanitarian operations, conflict mapping, population data';
+  const description = 'Admin-level humanitarian analysis from uploaded boundary shapefiles. Combine GDACS, ACLED, WorldPop, OSM infrastructure, Earth Engine hazard context, and temporal trend analysis in one auditable workspace for forecast, operational outlook, and prioritization.';
+  const keywords = 'humanitarian technology, disaster response, GDACS, ACLED, WorldPop, Google Earth Engine, admin boundary analysis, prioritization board, operational outlook, emergency response platform, humanitarian operations, conflict mapping, population data, OSM infrastructure, logistics assessment, trend analysis, temporal patterns';
 
   return (
     <>
@@ -80,7 +80,10 @@ export default function Landing() {
                 'Nighttime lights date comparison',
                 'Batch facility assessment',
                 'Interactive geospatial mapping',
-                'AI-assisted decision support'
+                'AI-assisted decision support',
+                'OSM infrastructure integration and logistics assessment',
+                'Temporal trend analysis and pattern detection',
+                'Multi-tier caching for offline capability'
               ]
             })
           }}

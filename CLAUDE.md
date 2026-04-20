@@ -47,7 +47,7 @@ Optional environment variables:
   - `components/MapComponent/components/overlays/` — Map overlays: `FloatingActionButtons`, `HamburgerMenu`, `MapLegend`, `TimelineScrubber`, `CampaignDashboard`
   - `components/MapComponent/components/` — Map layers: `AcledMarkers`, `DisasterMarkers`, `DrawingLayer`, `HeatmapLayer`, `TimelineVisualization`, `OSMInfrastructureLayer`
   - `components/MapComponent/utils/` — Geospatial helpers: `disasterHelpers`, `fileHelpers`, `mapHelpers`, `osmHelpers`
-- Other major components: `PredictionDashboard.js`, `OperationalOutlook.js`, `LandingPage.js`, `ShapefileUploader.js`, `SitrepGenerator.js`
+- Other major components: `PredictionDashboard.js`, `TrendAnalysisDashboard.js`, `OperationalOutlook.js`, `LandingPage.js`, `ShapefileUploader.js`, `SitrepGenerator.js`
 
 **State management**: Local `useState` throughout — no Redux/Zustand. `pages/app.js` owns top-level state and passes down via props.
 
@@ -68,6 +68,7 @@ Key routes:
 - `pages/api/prioritization-board.js` — Area-scoped facility/district ranking with multi-layer context
 - `pages/api/district-hazard-analysis.js` — District-level hazard analysis framework
 - `pages/api/export-brief.js` — Exportable decision briefs
+- `pages/api/trends.js` — Trend analysis with temporal patterns across ACLED, disasters, and facility risk (25MB body limit, client-side processing to avoid 413 errors)
 
 Other AI endpoints (all rate-limited): `analysis.js`, `campaign-viability.js`, `campaign-viability-batch.js`, `disaster-forecast.js`, `district-campaign-viability.js`, `operation-viability.js`, `outbreak-prediction.js`, `recommendations.js`, `security-assessment.js`, `sitrep.js`, `supply-chain-forecast.js`, `weather-forecast.js`
 
@@ -88,6 +89,7 @@ Other AI endpoints (all rate-limited): `analysis.js`, `campaign-viability.js`, `
 - `lib/contextualAnalysis.js` — Contextual analysis helpers for multi-layer enrichment
 - `lib/logisticsHelpers.js` — Logistics assessment utilities (road access, infrastructure scoring)
 - `lib/prioritizationBoard.js` — Prioritization scoring logic with confidence modeling
+- `lib/trendAnalysis.js` — Temporal trend analysis: ACLED event aggregation, disaster timelines, facility risk trends, district comparisons
 
 ### Data Flow
 
@@ -147,16 +149,26 @@ Returns ranked actions with confidence scores
 (Gracefully degrades when optional layers missing)
 ```
 
+**Trend Analysis Dashboard**:
+```
+Requires: uploaded districts + selected analysis area
+        ↓
+Client-side processing to avoid payload errors:
+  - ACLED event trends over time
+  - Disaster timeline visualization
+  - Facility risk score trends
+  - District comparison tables
+        ↓
+Optional AI narrative generation (GPT-4o)
+Configurable time window (7/30/90 days)
+```
+
 ### Configuration
 
 - `config/operationTypes.js` — Defines operation type categories and their analysis templates
 - `config/predictionConfig.js` — Prediction model configuration
 - `next.config.js` — Rewrites `/api/gdacs-feed` → `https://gdacs.org/xml/rss.xml`; marks `@google/earthengine` as server-only
 - `vercel.json` — Custom timeouts/memory: `process-shapefile.js` (60s/3GB), `worldpop-stats.js` (120s/1GB)
-
-## Custom Slash Commands
-
-- `/brand-aidstack` — Apply Aidstack branding to components and pages using official brand guidelines
 
 ## Recent Architecture Changes
 
@@ -205,3 +217,4 @@ From `PRODUCTION_ROADMAP.md` (as of March 2026):
 - **ACLED handling**: ACLED data is optional throughout the app. Not cached in browser due to file size. All analysis features work without ACLED but provide lower-confidence results
 - **Internal API calls**: Always use `APP_BASE_URL` environment variable for API-to-API calls to avoid hardcoding localhost
 - **Error handling**: Client-facing errors should be generic. Never expose `error.message` directly in API responses (leaks implementation details)
+- **Large payload handling**: For endpoints that process large datasets (ACLED, facilities, districts), prefer client-side processing over API POST to avoid 413 payload errors. See `TrendAnalysisDashboard.js` for the pattern: import analysis functions client-side and process data locally, only calling API for AI narrative generation

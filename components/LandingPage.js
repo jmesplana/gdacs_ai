@@ -1073,6 +1073,19 @@ const LandingPage = () => {
                 ]
               },
               {
+                title: 'OSM Infrastructure & Logistics',
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+                description: 'OpenStreetMap infrastructure data integration for logistics and access assessment with confidence scoring',
+                features: [
+                  'Auto-loads when districts are uploaded',
+                  '8+ infrastructure categories (hospitals, schools, roads, bridges, water, power, fuel, airports)',
+                  'Logistics and access assessment',
+                  'Route safety analysis',
+                  'Infrastructure coverage scoring',
+                  'Multi-tier caching (Redis + localStorage)'
+                ]
+              },
+              {
                 title: 'Admin-Level Decision Views',
                 experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>,
@@ -1082,6 +1095,20 @@ const LandingPage = () => {
                   'Operational Outlook with evidence-linked narrative',
                   'Prioritization Board for selected admin areas',
                   'Shared drivers, sources, and limitations'
+                ]
+              },
+              {
+                title: 'Trend Analysis Dashboard',
+                experimental: true,
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+                description: 'Temporal pattern analysis across disasters, conflict events, and facility risk over configurable time windows',
+                features: [
+                  'ACLED event trends over time',
+                  'Disaster timeline visualization',
+                  'Facility risk score trends',
+                  'District comparison tables',
+                  'AI-powered narrative insights',
+                  'Configurable time windows (7/30/90 days)'
                 ]
               },
               {
