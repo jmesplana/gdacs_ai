@@ -84,5 +84,24 @@ logs/
 tmp/
 temp/.codex
 
-# Internal progress tracking (not for public repo)
+# Internal documentation and progress tracking (not for public repo)
+# Keep only README.md and CLAUDE.md in the repo
+APP_HUB_ARCHITECTURE.md
+CHATBOT_WEATHER_INTEGRATION.md
+GDACS_API_MIGRATION.md
+IMMUNIZATION_USE_CASE.md
+INTEGRATION_EXAMPLE_OSM_SELECTIVE_LOADING.md
+MULTI_OPERATION_REFACTOR.md
+OPERATIONAL_OUTLOOK.md
+OSM_INTEGRATION_PROGRESS.md
+OSM_SELECTIVE_LOADING_IMPLEMENTATION.md
 PALANTIR_PROGRESS.md
+PREDICTIVE_ANALYTICS.md
+PRODUCTION_ROADMAP.md
+WEATHER_INTEGRATION_COMPLETE.md
+WEB_SEARCH_FEATURE.md
+WORLDPOP_INTEGRATION_PLAN.md
+WORLDPOP_REMAINING_WORK.md
+aidstack-brand-guide.md
+medium-post-draft.md
+product_roadmap.md
