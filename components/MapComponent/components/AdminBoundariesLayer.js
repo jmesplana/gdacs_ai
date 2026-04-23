@@ -122,10 +122,6 @@ export default function AdminBoundariesLayer({
   };
 
   const getFill = (feature, riskLevel) => {
-    if (datasetStyle?.mode === ADMIN_FILL_MODES.NONE) {
-      return { color: getRiskColor(riskLevel), opacity: 0 };
-    }
-
     if (datasetStyle?.mode === ADMIN_FILL_MODES.DATASET) {
       const metric = getDatasetMetric(feature.id);
       if (!metric) {
@@ -141,6 +137,7 @@ export default function AdminBoundariesLayer({
       };
     }
 
+    // For NONE or RISK mode, use risk-based coloring and respect showDistrictRiskFill toggle
     return {
       color: getRiskColor(riskLevel),
       opacity: showDistrictRiskFill ? null : 0
@@ -163,12 +160,18 @@ export default function AdminBoundariesLayer({
           ? (isHighlighted ? 0.7 : (isSelected ? 0.7 : (hasSelection ? 0.15 : (riskLevel === 'none' ? 0.2 : 0.5))))
           : fill.opacity;
 
+        // If showDistrictRiskFill is false and not in DATASET mode, respect the toggle
+        const isFillDisabled = !showDistrictRiskFill && datasetStyle?.mode !== ADMIN_FILL_MODES.DATASET;
+        const finalFillOpacity = isFillDisabled
+          ? 0
+          : (isHighlighted ? Math.max(baseFillOpacity, 0.7) : (isSelected ? Math.max(baseFillOpacity, 0.7) : baseFillOpacity));
+
         return {
           color: isHighlighted ? '#FF6B35' : (isSelected ? '#FFFF00' : getRiskBorderColor(riskLevel)),
           weight: isHighlighted ? 4 : (isSelected ? 5 : 3),
           opacity: isHighlighted ? 1 : (hasSelection && !isSelected ? 0.3 : 1),
           fillColor: fill.color,
-          fillOpacity: isHighlighted ? Math.max(baseFillOpacity, 0.7) : (isSelected ? Math.max(baseFillOpacity, 0.7) : baseFillOpacity),
+          fillOpacity: finalFillOpacity,
           className: isHighlighted ? 'highlighted-district' : ''
         };
       }}
