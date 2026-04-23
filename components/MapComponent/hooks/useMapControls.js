@@ -1,5 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import { isFullscreenActive } from '../utils/mapHelpers';
+import {
+  ADMIN_CLASSIFICATION_METHODS,
+  ADMIN_FILL_MODES,
+  ADMIN_METRIC_MEANINGS,
+  NO_DATA_STYLES
+} from '../utils/adminDatasetStyling';
 
 /**
  * Custom hook for managing all map control states (drawers, overlays, etc.)
@@ -22,6 +28,12 @@ export const useMapControls = () => {
   const [showFloodContextLayer, setShowFloodContextLayer] = useState(false);
   const [showDroughtContextLayer, setShowDroughtContextLayer] = useState(false);
   const [showDistrictRiskFill, setShowDistrictRiskFill] = useState(true);
+  const [adminFillMode, setAdminFillMode] = useState(ADMIN_FILL_MODES.RISK);
+  const [adminMetricField, setAdminMetricField] = useState('');
+  const [adminMetricMeaning, setAdminMetricMeaning] = useState(ADMIN_METRIC_MEANINGS.WORSE_HIGH);
+  const [adminClassification, setAdminClassification] = useState(ADMIN_CLASSIFICATION_METHODS.QUANTILE);
+  const [adminClassCount, setAdminClassCount] = useState(5);
+  const [adminNoDataStyle, setAdminNoDataStyle] = useState(NO_DATA_STYLES.TRANSPARENT);
   const [showLabels, setShowLabels] = useState(true);
   const [showDistrictLabels, setShowDistrictLabels] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -112,6 +124,12 @@ export const useMapControls = () => {
     showFloodContextLayer,
     showDroughtContextLayer,
     showDistrictRiskFill,
+    adminFillMode,
+    adminMetricField,
+    adminMetricMeaning,
+    adminClassification,
+    adminClassCount,
+    adminNoDataStyle,
     showLabels,
     showDistrictLabels,
     isFullscreen,
@@ -142,6 +160,12 @@ export const useMapControls = () => {
     setShowFloodContextLayer,
     setShowDroughtContextLayer,
     setShowDistrictRiskFill,
+    setAdminFillMode,
+    setAdminMetricField,
+    setAdminMetricMeaning,
+    setAdminClassification,
+    setAdminClassCount,
+    setAdminNoDataStyle,
     setShowLabels,
     setShowDistrictLabels,
     setIsFullscreen,

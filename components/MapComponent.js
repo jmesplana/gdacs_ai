@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
-import { MapContainer, TileLayer, WMSTileLayer, CircleMarker, Marker as ReactLeafletMarker, Popup, Tooltip, GeoJSON } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, CircleMarker, Marker as ReactLeafletMarker, Popup, Tooltip } from 'react-leaflet';
 import MarkerClusterGroup from '@changey/react-leaflet-markercluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -32,6 +32,7 @@ import {
 } from './MapComponent/components';
 import OSMInfrastructureLayer from './MapComponent/components/OSMInfrastructureLayer';
 import LogisticsOverlaysLayer from './MapComponent/components/LogisticsOverlaysLayer';
+import AdminBoundariesLayer from './MapComponent/components/AdminBoundariesLayer';
 import { calculateBounds } from '../utils/worldpopHelpers';
 
 import {
@@ -71,6 +72,13 @@ import {
   zoomToFilteredEvents,
   toggleFullscreen
 } from './MapComponent/utils';
+import {
+  ADMIN_FILL_MODES,
+  buildDatasetColorScale,
+  getNumericFields,
+  suggestMetricMeaning
+} from './MapComponent/utils/adminDatasetStyling';
+import { buildAdminDatasetJoin } from './MapComponent/utils/adminDatasetJoin';
 
 import buildWeatherContext from '../utils/weatherContextBuilder';
 // import { WORLDPOP_TILE_LAYERS } from '../utils/worldpopHelpers'; // Not needed - using GEE tiles
@@ -580,6 +588,12 @@ const MapComponent = ({
     showFloodContextLayer,
     showDroughtContextLayer,
     showDistrictRiskFill,
+    adminFillMode,
+    adminMetricField,
+    adminMetricMeaning,
+    adminClassification,
+    adminClassCount,
+    adminNoDataStyle,
     showLabels,
     showDistrictLabels,
     isFullscreen,
@@ -604,6 +618,12 @@ const MapComponent = ({
     setShowFloodContextLayer,
     setShowDroughtContextLayer,
     setShowDistrictRiskFill,
+    setAdminFillMode,
+    setAdminMetricField,
+    setAdminMetricMeaning,
+    setAdminClassification,
+    setAdminClassCount,
+    setAdminNoDataStyle,
     setShowLabels,
     setShowDistrictLabels,
     setIsFullscreen,
@@ -1528,6 +1548,78 @@ const MapComponent = ({
     () => calculateDistrictRisks(districts, visibleDisasters, visibleAcledEvents),
     [districts, visibleDisasters, visibleAcledEvents]
   );
+  const adminNumericFields = useMemo(
+    () => getNumericFields(facilities),
+    [facilities]
+  );
+  const selectedAdminMetric = useMemo(
+    () => adminNumericFields.find((item) => item.field === adminMetricField) || null,
+    [adminNumericFields, adminMetricField]
+  );
+  useEffect(() => {
+    if (adminFillMode !== ADMIN_FILL_MODES.DATASET) return;
+    if (!adminNumericFields.length) return;
+    if (adminMetricField && adminNumericFields.some((item) => item.field === adminMetricField)) return;
+
+    const nextField = adminNumericFields[0];
+    setAdminMetricField(nextField.field);
+    setAdminMetricMeaning(nextField.suggestedMeaning || suggestMetricMeaning(nextField.field));
+  }, [adminFillMode, adminMetricField, adminNumericFields, setAdminMetricField, setAdminMetricMeaning]);
+  const adminDatasetJoin = useMemo(
+    () => {
+      if (adminFillMode !== ADMIN_FILL_MODES.DATASET || !adminMetricField) {
+        return {
+          byDistrictId: {},
+          matchedRows: 0,
+          unmatchedRows: 0,
+          matchedDistricts: 0,
+          totalRows: facilities?.length || 0
+        };
+      }
+
+      return buildAdminDatasetJoin(facilities, districts, adminMetricField);
+    },
+    [adminFillMode, facilities, districts, adminMetricField]
+  );
+  const adminMetricValues = useMemo(
+    () => Object.values(adminDatasetJoin.byDistrictId || {})
+      .map((entry) => entry?.aggregated?.[adminMetricField]?.value)
+      .filter((value) => Number.isFinite(value)),
+    [adminDatasetJoin, adminMetricField]
+  );
+  const adminDatasetScale = useMemo(
+    () => buildDatasetColorScale(adminMetricValues, {
+      classCount: adminClassCount,
+      meaning: adminMetricMeaning,
+      classification: adminClassification,
+      isPercent: Boolean(selectedAdminMetric?.isPercent)
+    }),
+    [adminMetricValues, adminClassCount, adminMetricMeaning, adminClassification, selectedAdminMetric]
+  );
+  const adminDatasetStyle = useMemo(
+    () => ({
+      mode: adminFillMode,
+      metricField: adminMetricField,
+      byDistrictId: adminDatasetJoin.byDistrictId,
+      noDataStyle: adminNoDataStyle,
+      scale: adminDatasetScale,
+      isPercent: Boolean(selectedAdminMetric?.isPercent),
+      legend: adminFillMode === ADMIN_FILL_MODES.DATASET ? adminDatasetScale.legend : [],
+      legendKey: `${adminMetricField}-${adminMetricMeaning}-${adminClassification}-${adminClassCount}-${adminMetricValues.length}-${adminMetricValues[0] || 0}-${adminMetricValues[adminMetricValues.length - 1] || 0}`
+    }),
+    [
+      adminFillMode,
+      adminMetricField,
+      adminDatasetJoin,
+      adminNoDataStyle,
+      adminDatasetScale,
+      selectedAdminMetric,
+      adminMetricMeaning,
+      adminClassification,
+      adminClassCount,
+      adminMetricValues
+    ]
+  );
   const selectedAnalysisDistrictIds = useMemo(
     () => new Set((selectedAnalysisDistricts || []).map(district => district.id)),
     [selectedAnalysisDistricts]
@@ -1740,6 +1832,21 @@ const MapComponent = ({
         districtAvailableFields={districtAvailableFields}
         districtLabelField={districtLabelField}
         onDistrictLabelFieldChange={onDistrictLabelFieldChange}
+        adminNumericFields={adminNumericFields}
+        adminFillMode={adminFillMode}
+        setAdminFillMode={setAdminFillMode}
+        adminMetricField={adminMetricField}
+        setAdminMetricField={setAdminMetricField}
+        adminMetricMeaning={adminMetricMeaning}
+        setAdminMetricMeaning={setAdminMetricMeaning}
+        adminClassification={adminClassification}
+        setAdminClassification={setAdminClassification}
+        adminClassCount={adminClassCount}
+        setAdminClassCount={setAdminClassCount}
+        adminNoDataStyle={adminNoDataStyle}
+        setAdminNoDataStyle={setAdminNoDataStyle}
+        adminDatasetJoinSummary={adminDatasetJoin}
+        adminDatasetLegend={adminDatasetStyle.legend}
         selectedAnalysisDistricts={selectedAnalysisDistricts}
         onFileUpload={(file) => {
           console.log('File selected:', file);
@@ -1898,6 +2005,10 @@ const MapComponent = ({
           setShowDistricts={setShowDistricts}
           currentMapLayer={currentMapLayer}
           gdacsDiagnostics={gdacsDiagnostics}
+          adminFillMode={adminFillMode}
+          adminDatasetLegend={adminDatasetStyle.legend}
+          adminMetricField={adminMetricField}
+          adminDatasetJoinSummary={adminDatasetJoin}
         />
       )}
 
@@ -2096,364 +2207,27 @@ const MapComponent = ({
           map.on('click', handleMapClick);
         }} />
 
-        {/* District boundaries layer - use single GeoJSON for better performance */}
-        {showDistricts && districts && districts.length > 0 && (() => {
-          console.log(`Rendering ${districts.length} districts on map`);
-
-          // Risk level colors (nice gradient)
-          const getRiskColor = (level) => {
-            switch (level) {
-              case 'very-high': return '#d32f2f'; // Deep Red
-              case 'high': return '#f57c00'; // Deep Orange
-              case 'medium': return '#fbc02d'; // Yellow/Amber
-              case 'low': return '#7cb342'; // Light Green
-              case 'none':
-              default: return '#89CFF0'; // Light Blue (default)
-            }
-          };
-
-          const getBorderColor = (level) => {
-            switch (level) {
-              case 'very-high': return '#b71c1c';
-              case 'high': return '#e65100';
-              case 'medium': return '#f9a825';
-              case 'low': return '#558b2f';
-              case 'none':
-              default: return '#2D5A7B';
-            }
-          };
-
-          // Create a FeatureCollection from all districts
-          const featureCollection = {
-            type: 'FeatureCollection',
-            features: displayDistricts
-              .filter(d => {
-                if (!d.displayGeometry) {
-                  console.warn('District missing geometry:', d.name);
-                  return false;
-                }
-                return true;
-              })
-              .map(district => {
-                const risk = districtRisks[district.id] || { level: 'none', score: 0, eventCount: 0 };
-                return {
-                  type: 'Feature',
-                  properties: {
-                    country: district.country,
-                    region: district.region,
-                    population: district.population,
-                    riskLevel: risk.level,
-                    riskScore: risk.score,
-                    eventCount: risk.eventCount,
-                    ...district.properties,
-                    name: district.name, // must come after spread so remapped label always wins
-                  },
-                  geometry: district.displayGeometry,
-                  id: district.id
-                };
-              })
-          };
-
-          console.log(`Created FeatureCollection with ${featureCollection.features.length} features`);
-          console.log('Sample district with risk:', featureCollection.features[0]?.properties);
-
-          // Debug: Check coordinate ranges
-          if (featureCollection.features.length > 0) {
-            const firstFeature = featureCollection.features[0];
-            const coords = firstFeature.geometry?.coordinates;
-            console.log('First feature geometry type:', firstFeature.geometry?.type);
-            console.log('First few coordinates:', JSON.stringify(coords).substring(0, 200));
-            console.log('District bounds:', districts[0]?.bounds);
-          }
-
-          return (
-            <GeoJSON
-              key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistricts.length}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-field-${districtLabelField}`}
-              data={featureCollection}
-              pane="overlayPane"
-              interactive={true}
-              style={(feature) => {
-                const riskLevel = feature.properties.riskLevel || 'none';
-                const isHighlighted = highlightedDistricts.includes(feature.id);
-                const isSelected = selectedAnalysisDistrictIds.has(feature.id);
-                const hasSelection = selectedAnalysisDistrictIds.size > 0;
-
-                return {
-                  color: isHighlighted ? '#FF6B35' : (isSelected ? '#FFFF00' : getBorderColor(riskLevel)), // Yellow border for selected
-                  weight: isHighlighted ? 4 : (isSelected ? 5 : 3), // Thicker border for selected
-                  opacity: isHighlighted ? 1 : (hasSelection && !isSelected ? 0.3 : 1), // Dim non-selected borders when something is selected
-                  fillColor: getRiskColor(riskLevel), // Keep original risk color
-                  fillOpacity: showDistrictRiskFill
-                    ? (isHighlighted ? 0.7 : (isSelected ? 0.7 : (hasSelection ? 0.15 : (riskLevel === 'none' ? 0.2 : 0.5)))) // Dim non-selected fills, keep selected bright
-                    : 0,
-                  className: isHighlighted ? 'highlighted-district' : ''
-                };
-              }}
-              onEachFeature={(feature, layer) => {
-                const props = feature.properties;
-
-                // Build popup HTML with all available properties
-                const displayName = props.name || props.NAME || props.DISTRICT || props.District || 'Unnamed Admin Area';
-
-                // Risk level display
-                const riskLevel = props.riskLevel || 'none';
-                const riskScore = props.riskScore || 0;
-                const eventCount = props.eventCount || 0;
-
-                const getRiskLabel = (level) => {
-                  switch (level) {
-                    case 'very-high': return 'VERY HIGH';
-                    case 'high': return 'HIGH';
-                    case 'medium': return 'MEDIUM';
-                    case 'low': return 'LOW';
-                    case 'none':
-                    default: return 'NO RISK';
-                  }
-                };
-
-                const getRiskBadgeColor = (level) => {
-                  switch (level) {
-                    case 'very-high': return '#d32f2f';
-                    case 'high': return '#f57c00';
-                    case 'medium': return '#fbc02d';
-                    case 'low': return '#7cb342';
-                    case 'none':
-                    default: return '#90a4ae';
-                  }
-                };
-
-                let popupContent = `
-                  <div style="font-family: 'Inter', sans-serif; max-width: 300px;">
-                    <h4 style="margin: 0 0 10px 0; color: var(--aidstack-navy); font-size: 16px; border-bottom: 2px solid #2D5A7B; padding-bottom: 6px;">
-                      ${displayName}
-                    </h4>
-                `;
-
-                // Add risk level badge
-                if (eventCount > 0) {
-                  popupContent += `
-                    <div style="margin: 10px 0; padding: 10px; background: ${getRiskBadgeColor(riskLevel)}; color: white; border-radius: 6px; text-align: center;">
-                      <div style="font-size: 12px; font-weight: 600; margin-bottom: 4px;">RISK LEVEL</div>
-                      <div style="font-size: 18px; font-weight: bold;">${getRiskLabel(riskLevel)}</div>
-                      <div style="font-size: 11px; margin-top: 4px; opacity: 0.9;">${eventCount} event${eventCount > 1 ? 's' : ''} detected (Score: ${riskScore})</div>
-                    </div>
-                  `;
-                }
-
-                const isSelectedForAnalysis = selectedAnalysisDistrictIds.has(feature.id);
-                if (onAnalysisDistrictsChange) {
-                  popupContent += `
-                    <button
-                      id="district-select-btn-${feature.id}"
-                      style="
-                        width: 100%;
-                        margin-top: 10px;
-                        padding: 10px 12px;
-                        background: ${isSelectedForAnalysis ? '#0f766e' : '#ffffff'};
-                        color: ${isSelectedForAnalysis ? '#ffffff' : '#0f766e'};
-                        border: 1px solid #0f766e;
-                        border-radius: 6px;
-                        font-size: 13px;
-                        font-weight: 700;
-                        cursor: pointer;
-                        font-family: 'Inter', sans-serif;
-                      "
-                    >
-                      ${isSelectedForAnalysis ? 'Remove From Analysis Scope' : 'Select For Analysis'}
-                    </button>
-                  `;
-                }
-
-                // Add all non-null properties (excluding geometry-related and risk-related ones)
-                const excludeKeys = ['name', 'NAME', 'geometry', 'bounds', 'riskLevel', 'riskScore', 'eventCount'];
-                Object.entries(props).forEach(([key, value]) => {
-                  if (value && !excludeKeys.includes(key)) {
-                    // Format the key to be more readable
-                    const formattedKey = key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim();
-                    const capitalizedKey = formattedKey.charAt(0).toUpperCase() + formattedKey.slice(1);
-
-                    // Format the value
-                    let formattedValue = value;
-                    if (typeof value === 'number' && value > 1000) {
-                      formattedValue = value.toLocaleString();
-                    }
-
-                    popupContent += `
-                      <p style="margin: 6px 0; font-size: 13px;">
-                        <strong style="color: #666;">${capitalizedKey}:</strong> ${formattedValue}
-                      </p>
-                    `;
-                  }
-                });
-
-                // Add action buttons if handlers provided
-                if (canUseDistrictDecisionTools && (onDistrictClick || onDistrictOutlookClick)) {
-                  popupContent += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">`;
-
-                  // View Forecast button
-                  if (onDistrictClick) {
-                    popupContent += `
-                      <button
-                        id="district-forecast-btn-${feature.id}"
-                        style="
-                          padding: 10px 12px;
-                          background: var(--aidstack-navy);
-                          color: white;
-                          border: none;
-                          border-radius: 6px;
-                          font-size: 13px;
-                          font-weight: 600;
-                          cursor: pointer;
-                          display: flex;
-                          align-items: center;
-                          justify-content: center;
-                          gap: 6px;
-                          font-family: 'Inter', sans-serif;
-                          transition: background 0.2s;
-                        "
-                        onmouseover="this.style.background='#2D5A7B'"
-                        onmouseout="this.style.background='var(--aidstack-navy)'"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                          <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                        </svg>
-                        Forecast
-                      </button>
-                    `;
-                  }
-
-                  // Operational Outlook button
-                  if (onDistrictOutlookClick) {
-                    popupContent += `
-                      <button
-                        id="district-outlook-btn-${feature.id}"
-                        style="
-                          padding: 10px 12px;
-                          background: var(--aidstack-orange);
-                          color: white;
-                          border: none;
-                          border-radius: 6px;
-                          font-size: 13px;
-                          font-weight: 600;
-                          cursor: pointer;
-                          display: flex;
-                          align-items: center;
-                          justify-content: center;
-                          gap: 6px;
-                          font-family: 'Inter', sans-serif;
-                          transition: background 0.2s;
-                        "
-                        onmouseover="this.style.background='#E55A2B'"
-                        onmouseout="this.style.background='var(--aidstack-orange)'"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <polyline points="12 6 12 12 16 14"></polyline>
-                        </svg>
-                        Outlook
-                      </button>
-                    `;
-                  }
-
-                  popupContent += `</div>`;
-                }
-
-                popupContent += '</div>';
-
-                layer.bindPopup(popupContent);
-
-                // Add zoom-dependent label (tooltip) if showDistrictLabels is true
-                if (allowDistrictLabels && mapInstance) {
-                  const minZoom = 7;
-
-                  layer.bindTooltip(displayName, {
-                    permanent: true,
-                    direction: 'center',
-                    className: 'district-label',
-                    opacity: 0.9
-                  });
-
-                  // closeTooltip() is a no-op during onEachFeature because the tooltip
-                  // DOM hasn't been created yet. Use the layer 'add' event instead, which
-                  // fires after the layer is actually rendered on the map.
-                  layer.on('add', () => {
-                    if (mapInstance.getZoom() < minZoom) {
-                      layer.closeTooltip();
-                    }
-                  });
-
-                  const onZoomEnd = () => {
-                    const zoom = mapInstance.getZoom();
-                    if (zoom >= minZoom) {
-                      layer.openTooltip();
-                    } else {
-                      layer.closeTooltip();
-                    }
-                  };
-
-                  mapInstance.on('zoomend', onZoomEnd);
-                  layer._zoomEndHandler = onZoomEnd;
-                }
-
-                // Add click event listeners for popup buttons
-                if (onAnalysisDistrictsChange || (canUseDistrictDecisionTools && (onDistrictClick || onDistrictOutlookClick))) {
-                  layer.on('popupopen', () => {
-                    if (onAnalysisDistrictsChange) {
-                      const selectBtn = document.getElementById(`district-select-btn-${feature.id}`);
-                      if (selectBtn) {
-                        selectBtn.onclick = () => {
-                          const fullDistrict = districts.find(d => d.id === feature.id);
-                          if (!fullDistrict) return;
-
-                          const nextSelectedDistricts = selectedAnalysisDistrictIds.has(feature.id)
-                            ? selectedAnalysisDistricts.filter(district => district.id !== feature.id)
-                            : [...selectedAnalysisDistricts, fullDistrict];
-
-                          onAnalysisDistrictsChange(nextSelectedDistricts);
-                          addToast(
-                            selectedAnalysisDistrictIds.has(feature.id)
-                              ? `${displayName} removed from analysis scope.`
-                              : `${displayName} added to analysis scope.`,
-                            'success'
-                          );
-                          layer.closePopup();
-                        };
-                      }
-                    }
-
-                    // Forecast button handler
-                    if (canUseDistrictDecisionTools && onDistrictClick) {
-                      const forecastBtn = document.getElementById(`district-forecast-btn-${feature.id}`);
-                      if (forecastBtn) {
-                        forecastBtn.onclick = () => {
-                          const fullDistrict = districts.find(d => d.id === feature.id);
-                          if (fullDistrict) {
-                            onDistrictClick(fullDistrict);
-                          }
-                        };
-                      }
-                    }
-
-                    // Outlook button handler
-                    if (canUseDistrictDecisionTools && onDistrictOutlookClick) {
-                      const outlookBtn = document.getElementById(`district-outlook-btn-${feature.id}`);
-                      if (outlookBtn) {
-                        outlookBtn.onclick = () => {
-                          const fullDistrict = districts.find(d => d.id === feature.id);
-                          if (fullDistrict) {
-                            onDistrictOutlookClick(fullDistrict);
-                          }
-                        };
-                      }
-                    }
-                  });
-                }
-              }}
-            />
-          );
-        })()}
+        {/* District boundaries layer */}
+        {showDistricts && districts && districts.length > 0 && (
+          <AdminBoundariesLayer
+            districts={districts}
+            displayDistricts={displayDistricts}
+            districtRisks={districtRisks}
+            highlightedDistricts={highlightedDistricts}
+            selectedAnalysisDistricts={selectedAnalysisDistricts}
+            selectedAnalysisDistrictIds={selectedAnalysisDistrictIds}
+            onAnalysisDistrictsChange={onAnalysisDistrictsChange}
+            canUseDistrictDecisionTools={canUseDistrictDecisionTools}
+            onDistrictClick={onDistrictClick}
+            onDistrictOutlookClick={onDistrictOutlookClick}
+            mapInstance={mapInstance}
+            allowDistrictLabels={allowDistrictLabels}
+            showDistrictRiskFill={showDistrictRiskFill}
+            visibleDisasters={visibleDisasters}
+            visibleAcledEvents={visibleAcledEvents}
+            datasetStyle={adminDatasetStyle}
+          />
+        )}
 
         {/* Heatmap layer */}
         {showHeatmap && <HeatmapLayer disasters={visibleDisasters} />}

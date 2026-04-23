@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import ShapefileUploader from '../../../ShapefileUploader';
 import CollapsibleSection from './CollapsibleSection';
+import AdminStyleControls from './AdminStyleControls';
 
 const FacilityDrawer = ({
   isOpen,
@@ -30,7 +31,22 @@ const FacilityDrawer = ({
   setShowDistrictLabels,
   districtAvailableFields = [],
   districtLabelField = null,
-  onDistrictLabelFieldChange
+  onDistrictLabelFieldChange,
+  adminNumericFields = [],
+  adminFillMode = 'risk',
+  setAdminFillMode = () => {},
+  adminMetricField = '',
+  setAdminMetricField = () => {},
+  adminMetricMeaning = 'worse_high',
+  setAdminMetricMeaning = () => {},
+  adminClassification = 'quantile',
+  setAdminClassification = () => {},
+  adminClassCount = 5,
+  setAdminClassCount = () => {},
+  adminNoDataStyle = 'transparent',
+  setAdminNoDataStyle = () => {},
+  adminDatasetJoinSummary,
+  adminDatasetLegend = []
 }) => {
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -277,6 +293,28 @@ const FacilityDrawer = ({
                   </span>
                 </label>
               </div>
+            )}
+
+            {districts.length > 0 && (
+              <AdminStyleControls
+                districts={districts}
+                facilities={facilities}
+                numericFields={adminNumericFields}
+                adminFillMode={adminFillMode}
+                setAdminFillMode={setAdminFillMode}
+                adminMetricField={adminMetricField}
+                setAdminMetricField={setAdminMetricField}
+                adminMetricMeaning={adminMetricMeaning}
+                setAdminMetricMeaning={setAdminMetricMeaning}
+                adminClassification={adminClassification}
+                setAdminClassification={setAdminClassification}
+                adminClassCount={adminClassCount}
+                setAdminClassCount={setAdminClassCount}
+                adminNoDataStyle={adminNoDataStyle}
+                setAdminNoDataStyle={setAdminNoDataStyle}
+                datasetJoinSummary={adminDatasetJoinSummary}
+                legend={adminDatasetLegend}
+              />
             )}
           </CollapsibleSection>
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ADMIN_FILL_MODES, RISK_COLORS } from '../../utils/adminDatasetStyling';
 
 const MapLegend = ({
   showLegend,
@@ -14,7 +15,11 @@ const MapLegend = ({
   showDistricts,
   setShowDistricts,
   currentMapLayer = 'street',
-  gdacsDiagnostics = null
+  gdacsDiagnostics = null,
+  adminFillMode = ADMIN_FILL_MODES.RISK,
+  adminDatasetLegend = [],
+  adminMetricField = '',
+  adminDatasetJoinSummary = null
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const showHazardContextLegend = currentMapLayer === 'drought_context' || currentMapLayer === 'flood_context';
@@ -187,6 +192,73 @@ const MapLegend = ({
 
           {!isMinimized && (
             <>
+
+          {hasDistricts && showDistricts && (
+            <>
+              <div style={{
+                marginBottom: '10px',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                color: '#424242',
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: '#f5f5f5',
+                padding: '6px 10px',
+                borderRadius: '4px'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                  <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+                  <line x1="8" y1="2" x2="8" y2="18"></line>
+                  <line x1="16" y1="6" x2="16" y2="22"></line>
+                </svg>
+                ADMIN FILL
+              </div>
+
+              {adminFillMode === ADMIN_FILL_MODES.DATASET && adminDatasetLegend.length > 0 ? (
+                <div style={{ marginBottom: '15px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>
+                    {adminMetricField || 'Uploaded data'}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {adminDatasetLegend.map((item) => (
+                      <div key={`${item.color}-${item.label}`} style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: '#334155' }}>
+                        <div style={{ width: '18px', height: '16px', borderRadius: '4px', backgroundColor: item.color, border: '1px solid rgba(15,23,42,0.14)', marginRight: '8px' }} />
+                        <span>{item.label}</span>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: '#64748b' }}>
+                      <div style={{ width: '18px', height: '16px', borderRadius: '4px', backgroundColor: '#cbd5e1', border: '1px solid rgba(15,23,42,0.14)', marginRight: '8px', opacity: 0.7 }} />
+                      <span>No data</span>
+                    </div>
+                  </div>
+                  {adminDatasetJoinSummary && (
+                    <div style={{ marginTop: '8px', fontSize: '11px', color: '#64748b' }}>
+                      {adminDatasetJoinSummary.matchedRows} of {adminDatasetJoinSummary.totalRows} uploaded rows matched {adminDatasetJoinSummary.matchedDistricts} admin areas
+                    </div>
+                  )}
+                </div>
+              ) : adminFillMode === ADMIN_FILL_MODES.RISK ? (
+                <div style={{ marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {[
+                    { level: 'none', label: 'No risk' },
+                    { level: 'low', label: 'Low' },
+                    { level: 'medium', label: 'Medium' },
+                    { level: 'high', label: 'High' },
+                    { level: 'very-high', label: 'Very high' }
+                  ].map((item) => (
+                    <div key={item.level} style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: '#334155' }}>
+                      <div style={{ width: '18px', height: '16px', borderRadius: '4px', backgroundColor: RISK_COLORS[item.level], border: '1px solid rgba(15,23,42,0.14)', marginRight: '8px' }} />
+                      <span>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ marginBottom: '15px', fontSize: '12px', color: '#64748b' }}>
+                  Admin fill is off.
+                </div>
+              )}
+            </>
+          )}
 
           <div style={{
             marginBottom: '10px',

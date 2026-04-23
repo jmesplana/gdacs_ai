@@ -78,7 +78,22 @@ const UnifiedDrawer = ({
   // District label field selection
   districtAvailableFields,
   districtLabelField,
-  onDistrictLabelFieldChange
+  onDistrictLabelFieldChange,
+  adminNumericFields = [],
+  adminFillMode,
+  setAdminFillMode,
+  adminMetricField,
+  setAdminMetricField,
+  adminMetricMeaning,
+  setAdminMetricMeaning,
+  adminClassification,
+  setAdminClassification,
+  adminClassCount,
+  setAdminClassCount,
+  adminNoDataStyle,
+  setAdminNoDataStyle,
+  adminDatasetJoinSummary,
+  adminDatasetLegend = []
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -435,6 +450,21 @@ const UnifiedDrawer = ({
               districtAvailableFields={districtAvailableFields}
               districtLabelField={districtLabelField}
               onDistrictLabelFieldChange={onDistrictLabelFieldChange}
+              adminNumericFields={adminNumericFields}
+              adminFillMode={adminFillMode}
+              setAdminFillMode={setAdminFillMode}
+              adminMetricField={adminMetricField}
+              setAdminMetricField={setAdminMetricField}
+              adminMetricMeaning={adminMetricMeaning}
+              setAdminMetricMeaning={setAdminMetricMeaning}
+              adminClassification={adminClassification}
+              setAdminClassification={setAdminClassification}
+              adminClassCount={adminClassCount}
+              setAdminClassCount={setAdminClassCount}
+              adminNoDataStyle={adminNoDataStyle}
+              setAdminNoDataStyle={setAdminNoDataStyle}
+              adminDatasetJoinSummary={adminDatasetJoinSummary}
+              adminDatasetLegend={adminDatasetLegend}
             />
           )}
 

@@ -482,6 +482,34 @@ export default function Home() {
     }
   };
 
+  const shouldSkipCacheRestore = () => {
+    try {
+      return new URLSearchParams(window.location.search).has('skipCache');
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const scheduleCacheRestore = (callback, delay = 800) => {
+    if (typeof window === 'undefined') return () => {};
+
+    let idleId = null;
+    const timeoutId = window.setTimeout(() => {
+      if ('requestIdleCallback' in window) {
+        idleId = window.requestIdleCallback(callback, { timeout: 2500 });
+      } else {
+        callback();
+      }
+    }, delay);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (idleId !== null && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId);
+      }
+    };
+  };
+
   const buildImpactFacilitiesPayload = (facilityData) => {
     return facilityData.map((facility) => ({
       name: facility.name,
@@ -687,10 +715,15 @@ export default function Home() {
       }
     };
 
-    loadCachedData();
+    const cancelRestore = scheduleCacheRestore(() => {
+      if (!shouldSkipCacheRestore()) {
+        loadCachedData();
+      }
+    }, 1000);
 
     return () => {
       mounted = false;
+      cancelRestore();
     };
   }, []);
 
@@ -720,10 +753,15 @@ export default function Home() {
       }
     };
 
-    loadCachedDistricts();
+    const cancelRestore = scheduleCacheRestore(() => {
+      if (!shouldSkipCacheRestore()) {
+        loadCachedDistricts();
+      }
+    }, 1200);
 
     return () => {
       mounted = false;
+      cancelRestore();
     };
   }, []);
 
@@ -744,10 +782,15 @@ export default function Home() {
       }
     };
 
-    loadCachedWorldPop();
+    const cancelRestore = scheduleCacheRestore(() => {
+      if (!shouldSkipCacheRestore()) {
+        loadCachedWorldPop();
+      }
+    }, 1600);
 
     return () => {
       mounted = false;
+      cancelRestore();
     };
   }, []);
 
@@ -768,10 +811,15 @@ export default function Home() {
       }
     };
 
-    loadCachedOSM();
+    const cancelRestore = scheduleCacheRestore(() => {
+      if (!shouldSkipCacheRestore()) {
+        loadCachedOSM();
+      }
+    }, 1800);
 
     return () => {
       mounted = false;
+      cancelRestore();
     };
   }, []);
 
@@ -792,10 +840,15 @@ export default function Home() {
       }
     };
 
-    loadCachedACLED();
+    const cancelRestore = scheduleCacheRestore(() => {
+      if (!shouldSkipCacheRestore()) {
+        loadCachedACLED();
+      }
+    }, 2000);
 
     return () => {
       mounted = false;
+      cancelRestore();
     };
   }, []);
 
@@ -824,10 +877,15 @@ export default function Home() {
       }
     };
 
-    loadCachedConfig();
+    const cancelRestore = scheduleCacheRestore(() => {
+      if (!shouldSkipCacheRestore()) {
+        loadCachedConfig();
+      }
+    }, 2200);
 
     return () => {
       mounted = false;
+      cancelRestore();
     };
   }, []);
 
