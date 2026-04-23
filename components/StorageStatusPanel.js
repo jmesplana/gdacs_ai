@@ -30,7 +30,7 @@ export default function StorageStatusPanel({ onClear }) {
   };
 
   const handleClearCache = async () => {
-    if (!window.confirm('Clear all cached data? This will remove districts, WorldPop, OSM, ACLED, facilities, and all settings.')) {
+    if (!window.confirm('Clear all cached data? This will remove districts, WorldPop, OSM, ACLED, sites, and all settings.')) {
       return;
     }
 

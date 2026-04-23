@@ -2139,14 +2139,14 @@ const MapComponent = ({
                 return {
                   type: 'Feature',
                   properties: {
-                    name: district.name,
                     country: district.country,
                     region: district.region,
                     population: district.population,
                     riskLevel: risk.level,
                     riskScore: risk.score,
                     eventCount: risk.eventCount,
-                    ...district.properties
+                    ...district.properties,
+                    name: district.name, // must come after spread so remapped label always wins
                   },
                   geometry: district.displayGeometry,
                   id: district.id
@@ -2650,7 +2650,7 @@ const MapComponent = ({
                           width: '100%'
                         }}
                       >
-                        {hasSelectedAnalysisDistricts ? 'Analyze Facility' : 'Select Districts First'}
+                        {hasSelectedAnalysisDistricts ? 'Analyze Site' : 'Select Districts First'}
                       </button>
                     </div>
                   </Popup>
@@ -2745,7 +2745,7 @@ const MapComponent = ({
                       width: '100%'
                     }}
                   >
-                    {hasSelectedAnalysisDistricts ? 'Analyze Facility' : 'Select Districts First'}
+                    {hasSelectedAnalysisDistricts ? 'Analyze Site' : 'Select Districts First'}
                   </button>
                 </div>
               </Popup>
@@ -3089,7 +3089,7 @@ const MapComponent = ({
             }}>
               {loading
                 ? 'Fetching the latest disaster events from GDACS.'
-                : 'Upload facility data or load live disasters to get started'}
+                : 'Upload site data or load live disasters to get started'}
             </div>
             <button
               onClick={() => {

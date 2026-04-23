@@ -440,7 +440,7 @@ const FilterDrawer = ({
                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                     <polyline points="9 22 9 12 15 12 15 22"></polyline>
                   </svg>
-                  <span style={{ fontWeight: 'bold' }}>Facilities Layer</span>
+                  <span style={{ fontWeight: 'bold' }}>Sites Layer</span>
                 </div>
                 <div
                   onClick={() => setShowFacilitiesLayer(!showFacilitiesLayer)}
@@ -522,7 +522,7 @@ const FilterDrawer = ({
                     <path d="M9 9l12-2"></path>
                     <path d="M3 11l6-1v8l-6 1z"></path>
                   </svg>
-                  <span style={{ fontWeight: 'bold' }}>Facility Labels</span>
+                  <span style={{ fontWeight: 'bold' }}>Site Labels</span>
                 </div>
                 <div
                   onClick={() => setShowLabels(!showLabels)}
@@ -689,7 +689,7 @@ const FilterDrawer = ({
                   </div>
 
                   <div style={{ marginBottom: '8px' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#333' }}>Facility Status:</div>
+                    <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#333' }}>Site Status:</div>
                     <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
                       <div style={{
                         width: '12px',
@@ -698,7 +698,7 @@ const FilterDrawer = ({
                         borderRadius: '50%',
                         marginRight: '8px'
                       }}></div>
-                      <span>Safe facility</span>
+                      <span>Safe site</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                       <div style={{
@@ -708,7 +708,7 @@ const FilterDrawer = ({
                         borderRadius: '50%',
                         marginRight: '8px'
                       }}></div>
-                      <span>Impacted facility</span>
+                      <span>Impacted site</span>
                     </div>
                   </div>
 

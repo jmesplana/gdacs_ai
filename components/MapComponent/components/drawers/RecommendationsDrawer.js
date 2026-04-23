@@ -31,7 +31,7 @@ const RecommendationsDrawer = ({
   useEffect(() => {
     if (!loading) { setProgressMsg(''); return; }
     const msgs = [
-      'Assessing facility risks...',
+      'Assessing site risks...',
       'Reviewing disaster context...',
       'Generating response guidance...',
       'Compiling recommendations...',
@@ -150,7 +150,7 @@ const RecommendationsDrawer = ({
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
                 <ProvenanceBadge
-                  label="Observed: facility + disaster context"
+                  label="Observed: site + disaster context"
                   tone="#1d4ed8"
                   background="rgba(59, 130, 246, 0.12)"
                 />

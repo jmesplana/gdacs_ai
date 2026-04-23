@@ -62,7 +62,7 @@ const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, o
 
   return (
     <div>
-      <h2>Facility Management</h2>
+      <h2>Site Management</h2>
       
       <div 
         className={`file-upload ${dragActive ? 'active' : ''}`}
@@ -86,19 +86,19 @@ const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, o
       </div>
       
       {loading && (
-        <div className="loading">Processing facilities...</div>
+        <div className="loading">Processing sites...</div>
       )}
       
       <div className="facility-stats">
-        <h3>Facility Statistics</h3>
-        <p>Total Facilities: {facilities.length}</p>
+        <h3>Site Statistics</h3>
+        <p>Total Sites: {facilities.length}</p>
         <p>Impacted: {impactedFacilities.length}</p>
 
         {facilities.length > 0 && onClearCache && (
           <div style={{ marginTop: '15px' }}>
             <button
               onClick={() => {
-                if (window.confirm('Are you sure you want to clear all cached facility data? This will remove all uploaded facilities and you will need to re-upload them.')) {
+                if (window.confirm('Are you sure you want to clear all cached site data? This will remove all uploaded sites and you will need to re-upload them.')) {
                   onClearCache();
                 }
               }}
@@ -122,7 +122,7 @@ const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, o
               Clear Cached Data
             </button>
             <p style={{ fontSize: '11px', color: '#666', marginTop: '6px', fontStyle: 'italic' }}>
-              💾 Facilities are automatically saved to browser cache
+              💾 Sites are automatically saved to browser cache
             </p>
           </div>
         )}
@@ -130,7 +130,7 @@ const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, o
       
       {facilities.length > 0 && (
         <div className="facility-list">
-          <h3>Uploaded Facilities</h3>
+          <h3>Uploaded Sites</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -176,7 +176,7 @@ const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, o
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.setAttribute('href', url);
-            a.setAttribute('download', 'sample_facilities.csv');
+            a.setAttribute('download', 'sample_sites.csv');
             a.click();
           }}
         >

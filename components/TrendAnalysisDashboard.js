@@ -93,7 +93,7 @@ export default function TrendAnalysisDashboard({
       // Build warnings array
       const warnings = [];
       if (!acledTrends) warnings.push(`No ACLED data in the last ${timeWindow} days for selected districts`);
-      if (!facilityRiskTrends) warnings.push('No facility data available for selected districts');
+      if (!facilityRiskTrends) warnings.push('No site data available for selected districts');
       if (!disasterTrends) warnings.push(`No disaster data in the last ${timeWindow} days for selected districts`);
 
       const data = {
@@ -333,7 +333,7 @@ export default function TrendAnalysisDashboard({
             },
             {
               id: 'facilities',
-              label: 'Facilities',
+              label: 'Sites',
               icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
             },
             {
@@ -482,7 +482,7 @@ export default function TrendAnalysisDashboard({
                   marginBottom: '16px',
                   fontFamily: "'Space Grotesk', sans-serif"
                 }}>
-                  Facility Analysis
+                  Site Analysis
                 </div>
 
                 {/* Facility Stats */}
@@ -509,7 +509,7 @@ export default function TrendAnalysisDashboard({
                       color: '#64748b',
                       fontFamily: "'Inter', sans-serif"
                     }}>
-                      Facilities being monitored in {trendData.summary.selectedArea}
+                      Sites being monitored in {trendData.summary.selectedArea}
                     </div>
                   </div>
                 )}
@@ -518,13 +518,13 @@ export default function TrendAnalysisDashboard({
                 {trendData.facilityRiskTrends ? (
                   <FacilityRiskChart
                     data={trendData.facilityRiskTrends}
-                    title="Facility Risk Distribution Over Time"
+                    title="Site Risk Distribution Over Time"
                   />
                 ) : (
                   <EmptyState
                     icon="🏥"
-                    title="No Facility Risk Data"
-                    message="Risk levels are calculated during impact assessment. Run an impact assessment to see facility risk trends."
+                    title="No Site Risk Data"
+                    message="Risk levels are calculated during impact assessment. Run an impact assessment to see site risk trends."
                   />
                 )}
               </>

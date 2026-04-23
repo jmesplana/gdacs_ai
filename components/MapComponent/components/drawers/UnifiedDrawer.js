@@ -157,7 +157,7 @@ const UnifiedDrawer = ({
   if (hasDistricts) availableNow.push('district-based risk review');
   if (hasAcled) availableNow.push('security filtering');
   if (hasWorldPop) availableNow.push('population analysis');
-  if (hasFacilities) availableNow.push('facility impact analysis');
+  if (hasFacilities) availableNow.push('site impact analysis');
 
   const logisticsReadiness = [hasDistricts, hasAcled || hasFacilities].filter(Boolean).length;
 
@@ -327,7 +327,7 @@ const UnifiedDrawer = ({
               {[
                 { label: 'Admin boundaries', loaded: hasDistricts },
                 { label: 'Analysis scope', loaded: selectedDistrictCount > 0, value: selectedDistrictCount > 0 ? `${selectedDistrictCount} selected` : 'None selected' },
-                { label: 'Facilities', loaded: hasFacilities },
+                { label: 'Sites', loaded: hasFacilities },
                 { label: 'ACLED', loaded: hasAcled },
                 { label: 'WorldPop', loaded: hasWorldPop }
               ].map((item) => (
@@ -386,7 +386,7 @@ const UnifiedDrawer = ({
               }}>
                 {availableNow.length > 0
                   ? `You can work with ${availableNow.join(', ')} using your current data.`
-                  : 'Load any data source to start analyzing context. Facilities are optional.'}
+                  : 'Load any data source to start analyzing context. Sites are optional.'}
               </div>
               <div style={{
                 fontSize: '12px',
@@ -468,7 +468,7 @@ const UnifiedDrawer = ({
                   <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 16px' }}>
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                   </svg>
-                  <p>Select a facility to view AI analysis</p>
+                  <p>Select a site to view AI analysis</p>
                 </div>
               )}
             </div>

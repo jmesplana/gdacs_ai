@@ -24,7 +24,7 @@ const computeDashboardConfidence = ({ districts, facilities, disasters, acledEna
     { label: 'Disaster data', available: disasters.length > 0 },
     { label: 'Security context', available: acledEnabled && acledData.length > 0 },
     { label: 'Population data', available: Object.keys(worldPopData || {}).length > 0 },
-    { label: mode === 'district' ? 'Facility context' : 'Facility list', available: facilities.length > 0 }
+    { label: mode === 'district' ? 'Site context' : 'Site list', available: facilities.length > 0 }
   ];
 
   const availableCount = signals.filter(signal => signal.available).length;
@@ -319,10 +319,10 @@ const CampaignDashboard = ({
           resourceNeeds.push(`Increase ACT/RDT stock by ${dashboardData.resourceNeeds.actIncrease}% for malaria surge`);
         }
         if (dashboardData.resourceNeeds.securityProtocols > 0) {
-          resourceNeeds.push(`${dashboardData.resourceNeeds.securityProtocols} ${dashboardData.resourceNeeds.securityProtocols > 1 ? 'facilities require' : 'facility requires'} enhanced security measures`);
+          resourceNeeds.push(`${dashboardData.resourceNeeds.securityProtocols} ${dashboardData.resourceNeeds.securityProtocols > 1 ? 'sites require' : 'site requires'} enhanced security measures`);
         }
         if (dashboardData.resourceNeeds.facilitiesNeedingAlternatives?.length > 0) {
-          resourceNeeds.push(`${dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length} ${dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length > 1 ? 'facilities need' : 'facility needs'} alternative approaches`);
+          resourceNeeds.push(`${dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length} ${dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length > 1 ? 'sites need' : 'site needs'} alternative approaches`);
         }
       }
 
@@ -446,7 +446,7 @@ const CampaignDashboard = ({
         }}>
           <span style={metricPillStyle}>{item.riskLevel === 'none' ? 'ACLED: none' : `ACLED: ${item.riskLevel} (${item.eventCount})`}</span>
           <span style={metricPillStyle}>{item.disasterCount} disaster{item.disasterCount === 1 ? '' : 's'}</span>
-          <span style={metricPillStyle}>{item.totalFacilities} facilities</span>
+          <span style={metricPillStyle}>{item.totalFacilities} sites</span>
           {item.totalFacilities > 0 && <span style={metricPillStyle}>{item.impactedFacilities} impacted</span>}
         </div>
       </div>
@@ -597,7 +597,7 @@ const CampaignDashboard = ({
                     out of 100
                   </div>
                   <div style={{ fontSize: '13px', marginTop: '10px', opacity: 0.8 }}>
-                    {dashboardData.assessed} of {dashboardData.totalFacilities} facilities assessed
+                    {dashboardData.assessed} of {dashboardData.totalFacilities} sites assessed
                   </div>
                 </div>
               )}
@@ -605,7 +605,7 @@ const CampaignDashboard = ({
               {/* Districts/Facilities by Decision */}
               <div style={{ marginBottom: '25px' }}>
                 <h4 style={{ fontSize: '16px', marginBottom: '15px', color: 'var(--aidstack-navy)' }}>
-                  {dashboardData.mode === 'district' ? 'Admin Area Status Breakdown' : 'Facility Status Breakdown'}
+                  {dashboardData.mode === 'district' ? 'Admin Area Status Breakdown' : 'Site Status Breakdown'}
                 </h4>
 
                 {dashboardData.mode === 'district' && (
@@ -629,7 +629,7 @@ const CampaignDashboard = ({
                       color: '#4b5563',
                       lineHeight: '1.6'
                     }}>
-                      Area decisions combine ACLED security risk, active GDACS disasters, facility impact inside each uploaded admin area, and operation-specific disaster sensitivity for {opConfig.name.toLowerCase()}.
+                      Area decisions combine ACLED security risk, active GDACS disasters, site impact inside each uploaded admin area, and operation-specific disaster sensitivity for {opConfig.name.toLowerCase()}.
                     </div>
                     <div style={{
                       marginTop: '10px',
@@ -765,7 +765,7 @@ const CampaignDashboard = ({
                             <span>{risk.factor}</span>
                           </div>
                           <div style={{ fontSize: '12px', color: '#666' }}>
-                            Affects {risk.count} {risk.count === 1 ? 'facility' : 'facilities'}
+                            Affects {risk.count} {risk.count === 1 ? 'site' : 'sites'}
                           </div>
                         </div>
                         <div style={{
@@ -831,7 +831,7 @@ const CampaignDashboard = ({
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 'bold', color: '#1976D2' }}>Security Protocols</div>
                         <div style={{ fontSize: '13px', color: '#555' }}>
-                          {dashboardData.resourceNeeds.securityProtocols} {dashboardData.resourceNeeds.securityProtocols > 1 ? 'facilities require' : 'facility requires'} enhanced security measures
+                          {dashboardData.resourceNeeds.securityProtocols} {dashboardData.resourceNeeds.securityProtocols > 1 ? 'sites require' : 'site requires'} enhanced security measures
                         </div>
                       </div>
                     </div>
@@ -843,7 +843,7 @@ const CampaignDashboard = ({
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 'bold', color: '#1976D2' }}>Alternative Strategies</div>
                         <div style={{ fontSize: '13px', color: '#555' }}>
-                          {dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length} {dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length > 1 ? 'facilities need' : 'facility needs'} alternative approaches
+                          {dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length} {dashboardData.resourceNeeds.facilitiesNeedingAlternatives.length > 1 ? 'sites need' : 'site needs'} alternative approaches
                         </div>
                       </div>
                     </div>

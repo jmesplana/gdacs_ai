@@ -9,7 +9,7 @@ const SitrepGenerator = ({ sitrep, loading, onGenerate, hasImpactedFacilities, d
     if (!loading) { setProgressMsg(''); return; }
     const msgs = [
       'Analyzing disaster impacts...',
-      'Reviewing facility exposure...',
+      'Reviewing site exposure...',
       'Compiling situation data...',
       'Drafting situation report...',
       'Almost done...'
@@ -28,7 +28,7 @@ const SitrepGenerator = ({ sitrep, loading, onGenerate, hasImpactedFacilities, d
       
       {!hasImpactedFacilities ? (
         <div>
-          <p>No impacted facilities detected. Upload facilities and assess impact first.</p>
+          <p>No impacted sites detected. Upload sites and assess impact first.</p>
         </div>
       ) : (
         <div>

@@ -78,7 +78,7 @@ export default function Landing() {
                 'Operation viability analysis',
                 'Flood and drought context overlays',
                 'Nighttime lights date comparison',
-                'Batch facility assessment',
+                'Batch site assessment',
                 'Interactive geospatial mapping',
                 'AI-assisted decision support',
                 'OSM infrastructure integration and logistics assessment',

@@ -84,8 +84,8 @@ export const useFileUpload = (addToast) => {
       }
     } catch (error) {
       console.error('Error processing data:', error);
-      if (addToast) addToast('Error processing facility data. Please check your file and column selections.', 'error');
-      else console.error('Error processing facility data. Please check your file and column selections.');
+      if (addToast) addToast('Error processing site data. Please check your file and column selections.', 'error');
+      else console.error('Error processing site data. Please check your file and column selections.');
     }
   }, [fileData, selectedColumns]);
 

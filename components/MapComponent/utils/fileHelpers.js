@@ -100,7 +100,7 @@ export const convertFacilitiesToCSV = (facilities, columnMapping) => {
  * @param {string} csvContent - CSV content
  * @param {string} filename - Filename for download
  */
-export const downloadCSV = (csvContent, filename = 'facilities.csv') => {
+export const downloadCSV = (csvContent, filename = 'sites.csv') => {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);

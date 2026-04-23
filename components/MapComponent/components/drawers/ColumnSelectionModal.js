@@ -47,7 +47,7 @@ const ColumnSelectionModal = ({
           borderBottom: '1px solid #eee',
           paddingBottom: '10px'
         }}>
-          <h3 style={{ margin: 0, color: 'var(--aidstack-navy)' }}>Configure Facility Data</h3>
+          <h3 style={{ margin: 0, color: 'var(--aidstack-navy)' }}>Configure Site Data</h3>
           <button
             onClick={onClose}
             style={{
@@ -61,8 +61,8 @@ const ColumnSelectionModal = ({
         </div>
 
         <p style={{ marginBottom: '20px', fontSize: '14px', color: '#666' }}>
-          Select which columns from your Excel file correspond to facility information.
-          This helps us correctly map and analyze your facility data.
+          Select which columns from your Excel file correspond to site information.
+          This helps us correctly map and analyze your site data.
         </p>
 
         {/* Required Fields */}
@@ -71,7 +71,7 @@ const ColumnSelectionModal = ({
 
           <div style={{ marginBottom: '15px' }}>
             <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold' }}>
-              Facility Name Column:
+              Site Name Column:
             </label>
             <select
               value={selectedColumns.name}
@@ -198,7 +198,7 @@ const ColumnSelectionModal = ({
               Fields to Display on Map:
             </label>
             <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
-              Select columns that should be shown when clicking on a facility
+              Select columns that should be shown when clicking on a site
             </p>
             <div style={{
               display: 'flex',

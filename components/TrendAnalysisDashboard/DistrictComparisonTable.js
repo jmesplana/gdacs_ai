@@ -73,14 +73,14 @@ export default function DistrictComparisonTable({ data }) {
       <EmptyState
         icon="📊"
         title="No District Data Available"
-        message="Upload district boundaries and facilities to see comparison data"
+        message="Upload district boundaries and sites to see comparison data"
       />
     );
   }
 
   const columns = [
     { key: 'district', label: 'District', align: 'left' },
-    { key: 'facilities', label: 'Facilities', align: 'center' },
+    { key: 'facilities', label: 'Sites', align: 'center' },
     { key: 'acledEvents', label: 'ACLED Events', align: 'center' },
     { key: 'disasters', label: 'Disasters', align: 'center' },
     { key: 'riskScore', label: 'Risk Score', align: 'center' }

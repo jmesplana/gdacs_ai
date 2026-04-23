@@ -368,7 +368,7 @@ function DistrictCardCompact({ row, onExpand, onViewFacility }) {
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '13px', color: '#64748b' }}>
-            <span><strong>{row.facilityCount}</strong> facilities</span>
+            <span><strong>{row.facilityCount}</strong> sites</span>
             <span><strong>{row.acledCount || 0}</strong> security events</span>
             <span><strong>{row.disasterCount || 0}</strong> GDACS</span>
             {row.populationEstimate && (
@@ -618,7 +618,7 @@ function DistrictCardExpanded({ row, onCollapse, onViewFacility }) {
             gap: '12px',
             fontSize: '13px'
           }}>
-            <div><strong>Facilities:</strong> {row.facilityCount}</div>
+            <div><strong>Sites:</strong> {row.facilityCount}</div>
             <div><strong>Population:</strong> {row.populationEstimate ? row.populationEstimate.toLocaleString() : 'Unknown'}</div>
             <div><strong>GDACS:</strong> {row.disasterCount ?? 0}</div>
             <div><strong>ACLED:</strong> {row.acledCount ?? 0}</div>
@@ -658,12 +658,12 @@ function getSummaryCards(board, facilities, impactedFacilities) {
       { label: 'Admin Areas', value: board?.summary?.selectedAreaCount || 0, tone: '#1d4ed8' },
       { label: 'Urgent Areas', value: board?.districtRows?.filter((row) => row.priorityLevel === 'Urgent').length || 0, tone: '#dc2626' },
       { label: 'High Areas', value: board?.districtRows?.filter((row) => row.priorityLevel === 'High').length || 0, tone: '#ea580c' },
-      { label: 'Facility Data', value: 'Not Loaded', tone: '#0f766e' }
+      { label: 'Site Data', value: 'Not Loaded', tone: '#0f766e' }
     ];
   }
 
   return [
-    { label: 'Facilities', value: board?.summary?.totalFacilities || facilities.length, tone: '#1d4ed8' },
+    { label: 'Sites', value: board?.summary?.totalFacilities || facilities.length, tone: '#1d4ed8' },
     { label: 'Urgent', value: board?.summary?.urgentFacilities || 0, tone: '#dc2626' },
     { label: 'High', value: board?.summary?.highFacilities || 0, tone: '#ea580c' },
     { label: 'Impacted', value: board?.summary?.impactedFacilities || impactedFacilities.length, tone: '#0f766e' }

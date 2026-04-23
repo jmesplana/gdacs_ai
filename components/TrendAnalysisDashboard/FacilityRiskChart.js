@@ -23,14 +23,14 @@ ChartJS.register(
   Filler
 );
 
-export default function FacilityRiskChart({ data, title = 'Facility Risk Distribution Over Time' }) {
+export default function FacilityRiskChart({ data, title = 'Site Risk Distribution Over Time' }) {
   // Handle null or empty data
   if (!data || !data.daily || data.daily.length === 0) {
     return (
       <EmptyState
         icon="📊"
         title="No Risk Data Available"
-        message="Upload facilities and analyze disasters to see risk distribution over time"
+        message="Upload sites and analyze disasters to see risk distribution over time"
       />
     );
   }
@@ -173,7 +173,7 @@ export default function FacilityRiskChart({ data, title = 'Facility Risk Distrib
         },
         title: {
           display: true,
-          text: 'Number of Facilities',
+          text: 'Number of Sites',
           font: {
             family: "'Inter', sans-serif",
             size: 12,
@@ -222,7 +222,7 @@ export default function FacilityRiskChart({ data, title = 'Facility Risk Distrib
             fontFamily: "'Inter', sans-serif",
             fontWeight: 500
           }}>
-            Total: {data.totalFacilities} facilities
+            Total: {data.totalFacilities} sites
           </div>
         )}
       </div>

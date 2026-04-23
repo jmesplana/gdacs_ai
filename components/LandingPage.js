@@ -409,7 +409,7 @@ const LandingPage = () => {
             }}>
               {[
                 { number: 'Admin-First', label: 'Analysis Workflow' },
-                { number: '1000+', label: 'Facility Assessments' },
+                { number: '1000+', label: 'Site Assessments' },
                 { number: 'Auditable', label: 'Hazard Evidence' }
               ].map((item, idx) => (
                 <div key={idx} style={{
@@ -515,7 +515,7 @@ const LandingPage = () => {
                       color: '#64748B',
                       fontFamily: "'Inter', sans-serif"
                     }}>
-                      Live hazards with facility impact context
+                      Live hazards with site impact context
                     </div>
                   </div>
                 </div>
@@ -721,7 +721,7 @@ const LandingPage = () => {
                     color: '#475569',
                     fontFamily: "'Inter', sans-serif"
                   }}>
-                    34 facilities within the current hazard corridor. Priority admin areas are highlighted for the next 72 hours.
+                    34 sites within the current hazard corridor. Priority admin areas are highlighted for the next 72 hours.
                   </div>
                 </div>
 
@@ -765,7 +765,7 @@ const LandingPage = () => {
                       marginBottom: '14px'
                     }}>
                       {[
-                        { label: 'Facilities', value: '34', color: '#EF4444' },
+                        { label: 'Sites', value: '34', color: '#EF4444' },
                         { label: 'Areas', value: '5', color: '#F97316' },
                         { label: 'Risk', value: 'High', color: '#7C3AED' }
                       ].map((item) => (
@@ -1362,7 +1362,7 @@ const LandingPage = () => {
                 lineHeight: '1.8',
                 paddingLeft: '20px'
               }}>
-                <li>Upload facilities via CSV or Excel</li>
+                <li>Upload sites via CSV or Excel</li>
                 <li>Upload shapefiles for admin boundaries</li>
                 <li>Select admin areas before running analysis</li>
                 <li>Scope all analysis to the uploaded boundaries</li>
@@ -1517,11 +1517,11 @@ const LandingPage = () => {
                 title: 'Trend Analysis Dashboard',
                 experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
-                description: 'Temporal pattern analysis across disasters, conflict events, and facility risk over configurable time windows',
+                description: 'Temporal pattern analysis across disasters, conflict events, and site risk over configurable time windows',
                 features: [
                   'ACLED event trends over time',
                   'Disaster timeline visualization',
-                  'Facility risk score trends',
+                  'Site risk score trends',
                   'District comparison tables',
                   'AI-powered narrative insights',
                   'Configurable time windows (7/30/90 days)'
@@ -1531,9 +1531,9 @@ const LandingPage = () => {
                 title: 'Operation Viability Assessment',
                 experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-                description: 'GO/CAUTION/DELAY/NOGO decisions for humanitarian operations at facility or batch level',
+                description: 'GO/CAUTION/DELAY/NOGO decisions for humanitarian operations at site or batch level',
                 features: [
-                  'Multi-facility batch assessment',
+                  'Multi-site batch assessment',
                   'Area-level operation readiness',
                   'Operation-specific risk scoring',
                   'HTML/PDF decision brief export'
@@ -1651,7 +1651,7 @@ const LandingPage = () => {
                 description: 'Generate decision briefs and operation-readiness reports',
                 features: [
                   'HTML/PDF export',
-                  'Individual facility briefs',
+                  'Individual site briefs',
                   'System-wide readiness reports',
                   'Custom report templates'
                 ]
@@ -1754,7 +1754,7 @@ const LandingPage = () => {
                 color: '#475569',
                 marginBottom: '20px'
               }}>
-                Humanitarian organizations struggle to quickly assess which of their facilities are at risk when disasters strike. Manual monitoring across multiple data sources wastes critical response time.
+                Humanitarian organizations struggle to quickly assess which of their sites are at risk when disasters strike. Manual monitoring across multiple data sources wastes critical response time.
               </p>
             </div>
             <div>
@@ -1808,7 +1808,7 @@ const LandingPage = () => {
                     color: '#FF6B35',
                     marginBottom: '8px'
                   }}>1,000+</div>
-                  <div style={{ fontSize: '14px', color: '#475569' }}>Facilities Assessed</div>
+                  <div style={{ fontSize: '14px', color: '#475569' }}>Sites Assessed</div>
                 </div>
                 <div style={{
                   background: 'white',
@@ -2100,7 +2100,7 @@ const LandingPage = () => {
               {
                 step: '1',
                 title: 'Upload Your Data',
-                description: 'Any CSV with lat/long: facilities, vaccination sites, warehouses, disease cases, etc.',
+                description: 'Any CSV with lat/long: sites, vaccination posts, warehouses, disease cases, etc.',
                 icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               },
               {
@@ -2191,7 +2191,7 @@ const LandingPage = () => {
             }}>
               {[
                 {
-                  label: 'Facilities',
+                  label: 'Sites',
                   shape: 'square',
                   colors: [
                     { label: 'Safe', color: '#4CAF50' },
@@ -2362,7 +2362,7 @@ const LandingPage = () => {
               },
               {
                 title: 'Emergency Response Teams',
-                description: 'Prioritize which facilities need immediate assistance during multi-disaster events'
+                description: 'Prioritize which sites need immediate assistance during multi-disaster events'
               },
               {
                 title: 'Program Managers',
@@ -2444,7 +2444,7 @@ const LandingPage = () => {
               },
               {
                 title: 'Select Admin Areas and Add Context',
-                description: 'Choose the admin areas that matter, then load facilities, WorldPop population, OSM infrastructure, optional hazard context overlays, and nighttime lights when needed'
+                description: 'Choose the admin areas that matter, then load sites, WorldPop population, OSM infrastructure, optional hazard context overlays, and nighttime lights when needed'
               },
               {
                 title: 'Enable Evidence Layers Before Forecasting',
@@ -2775,7 +2775,7 @@ const LandingPage = () => {
               },
               {
                 question: 'What is Operation Viability Assessment?',
-                answer: 'Operation Viability provides GO/CAUTION/DELAY/NOGO decisions for humanitarian operations. You can assess individual facilities or batch-process 1000+ sites simultaneously. The system evaluates security risks, disaster impacts, accessibility, and population data to generate decision briefs exportable as HTML/PDF.'
+                answer: 'Operation Viability provides GO/CAUTION/DELAY/NOGO decisions for humanitarian operations. You can assess individual sites or batch-process 1000+ sites simultaneously. The system evaluates security risks, disaster impacts, accessibility, and population data to generate decision briefs exportable as HTML/PDF.'
               },
               {
                 question: 'How does weather forecast integration work?',
@@ -2795,18 +2795,18 @@ const LandingPage = () => {
               },
               {
                 question: 'How does security risk scoring work with ACLED data?',
-                answer: 'Download an ACLED CSV export using your ACLED account, upload it into the app, and then filter the uploaded events by country. The platform uses those uploaded conflict events to create proximity zones (0-10km, 10-25km, 25-50km, 50-100km) around facilities and classify security levels based on incident type, recency, and proximity.'
+                answer: 'Download an ACLED CSV export using your ACLED account, upload it into the app, and then filter the uploaded events by country. The platform uses those uploaded conflict events to create proximity zones (0-10km, 10-25km, 25-50km, 50-100km) around sites and classify security levels based on incident type, recency, and proximity.'
               },
               {
-                question: 'Can I batch-assess multiple facilities?',
-                answer: 'Absolutely. Upload CSV files with 1000+ facilities and run batch operation-viability assessments. The system processes all sites simultaneously and generates individual decision briefs plus a system-wide readiness report, helping prioritize which locations to operate in.'
+                question: 'Can I batch-assess multiple sites?',
+                answer: 'Absolutely. Upload CSV files with 1000+ sites and run batch operation-viability assessments. The system processes all sites simultaneously and generates individual decision briefs plus a system-wide readiness report, helping prioritize which locations to operate in.'
               },
               {
                 question: 'What operation types are supported?',
                 answer: 'Pre-configured templates exist for Immunization, Cholera/OCV, Malaria Control, WASH, Mental Health & Psychosocial Support, Nutrition/RUTF Distribution, and Disease Surveillance. Each template has operation-specific risk factors and decision criteria.'
               },
               {
-                question: 'Can I use my own facility data?',
+                question: 'Can I use my own site data?',
                 answer: 'Yes. Upload any CSV or Excel file with name, latitude, and longitude columns. You can also upload shapefiles for administrative boundaries, then select the admin areas you want to analyze before running forecast, outlook, prioritization, or operation decision workflows.'
               },
               {
@@ -2815,7 +2815,7 @@ const LandingPage = () => {
               },
               {
                 question: 'Is my data stored on servers?',
-                answer: 'Facility data is cached locally in your browser only. No server-side storage. However, when using AI features, data is temporarily sent to OpenAI for analysis. Drawings and annotations are stored in browser local storage.'
+                answer: 'Site data is cached locally in your browser only. No server-side storage. However, when using AI features, data is temporarily sent to OpenAI for analysis. Drawings and annotations are stored in browser local storage.'
               },
               {
                 question: 'How do flood and drought context layers work?',
@@ -2890,7 +2890,7 @@ const LandingPage = () => {
             color: '#475569',
             marginBottom: '40px'
           }}>
-            Start monitoring global disasters and protecting your facilities today
+            Start monitoring global disasters and protecting your sites today
           </p>
           <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link href="/app">

@@ -256,7 +256,7 @@ function getDistrictDecision(row) {
 function getDistrictKnownSignals(row) {
   const signals = [];
   if (row.populationEstimate) signals.push(`Population in scope: ${row.populationEstimate.toLocaleString()}`);
-  if (row.facilityCount > 0) signals.push(`Facilities in scope: ${row.facilityCount}`);
+  if (row.facilityCount > 0) signals.push(`Sites in scope: ${row.facilityCount}`);
   if ((row.disasterCount || 0) > 0) signals.push(`GDACS signals in scope: ${row.disasterCount}`);
   if ((row.acledCount || 0) > 0) signals.push(`ACLED events in scope: ${row.acledCount}`);
   if (typeof row.projectedHazardScore === 'number') {
@@ -338,12 +338,12 @@ function getSummaryCards(board, facilities, impactedFacilities) {
       { label: 'Admin Areas', value: board?.summary?.selectedAreaCount || 0, tone: '#1d4ed8' },
       { label: 'Urgent Areas', value: board?.districtRows?.filter((row) => row.priorityLevel === 'Urgent').length || 0, tone: '#dc2626' },
       { label: 'High Areas', value: board?.districtRows?.filter((row) => row.priorityLevel === 'High').length || 0, tone: '#ea580c' },
-      { label: 'Facility Data', value: 'Not Loaded', tone: '#0f766e' }
+      { label: 'Site Data', value: 'Not Loaded', tone: '#0f766e' }
     ];
   }
 
   return [
-    { label: 'Facilities', value: board?.summary?.totalFacilities || facilities.length, tone: '#1d4ed8' },
+    { label: 'Sites', value: board?.summary?.totalFacilities || facilities.length, tone: '#1d4ed8' },
     { label: 'Urgent', value: board?.summary?.urgentFacilities || 0, tone: '#dc2626' },
     { label: 'High', value: board?.summary?.highFacilities || 0, tone: '#ea580c' },
     { label: 'Impacted', value: board?.summary?.impactedFacilities || impactedFacilities.length, tone: '#0f766e' }
@@ -778,7 +778,7 @@ export default function PrioritizationBoard({
 
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <SectionTab active={activeView === 'facilities'} onClick={() => setActiveView('facilities')} label="Facilities" count={board?.facilityRows?.length || facilities.length} />
+              <SectionTab active={activeView === 'facilities'} onClick={() => setActiveView('facilities')} label="Sites" count={board?.facilityRows?.length || facilities.length} />
               <SectionTab active={activeView === 'districts'} onClick={() => setActiveView('districts')} label="Admin Levels" count={board?.districtRows?.length || 0} />
             </div>
 
@@ -845,8 +845,8 @@ export default function PrioritizationBoard({
               {visibleFacilities.length === 0 && (
                 <div style={{ background: 'white', borderRadius: '12px', padding: '24px', color: '#64748b' }}>
                   {board?.summary?.hasFacilityData
-                    ? 'No facilities match the current filter.'
-                    : 'No facility dataset is loaded for this area. Switch to the Admin Levels view for area-based prioritization.'}
+                    ? 'No sites match the current filter.'
+                    : 'No site dataset is loaded for this area. Switch to the Admin Levels view for area-based prioritization.'}
                 </div>
               )}
 
@@ -882,7 +882,7 @@ export default function PrioritizationBoard({
                             {row.rank}
                           </span>
                           <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>
-                            {row.facility?.name || 'Unnamed facility'}
+                            {row.facility?.name || 'Unnamed site'}
                           </h3>
                           <span style={{
                             background: levelStyle.bg,
@@ -921,7 +921,7 @@ export default function PrioritizationBoard({
                         }}>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px', fontSize: '13px' }}>
                             <div><strong>Admin level:</strong> {row.district}</div>
-                            <div><strong>Facility type:</strong> {row.facilityType === 'Unspecified' ? 'Not provided' : row.facilityType}</div>
+                            <div><strong>Site type:</strong> {row.facilityType === 'Unspecified' ? 'Not provided' : row.facilityType}</div>
                             <div><strong>Hazard signals:</strong> {row.impactSummary.impactCount}</div>
                             <div><strong>Nearby ACLED (50 km):</strong> {row.securitySummary.nearbyCount}</div>
                             <div><strong>Nearest hazard:</strong> {row.impactSummary.nearestDistance !== null ? `${row.impactSummary.nearestDistance.toFixed(1)} km` : 'None'}</div>
@@ -1255,7 +1255,7 @@ export default function PrioritizationBoard({
                           fontSize: '13px',
                           color: '#334155'
                         }}>
-                          <div><strong>Loaded facilities:</strong> {row.facilityCount}</div>
+                          <div><strong>Loaded sites:</strong> {row.facilityCount}</div>
                           <div><strong>Urgent:</strong> {row.urgentCount}</div>
                           <div><strong>Highest score:</strong> {row.highestPriorityScore}</div>
                           <div><strong>Population:</strong> {row.populationEstimate ? row.populationEstimate.toLocaleString() : 'Unknown'}</div>
@@ -1320,7 +1320,7 @@ export default function PrioritizationBoard({
                 fontSize: '12px',
                 lineHeight: 1.6
               }}>
-                Uploaded hospitals and clinics come from your loaded facility file when the facility type contains "hospital" or "clinic". OSM hospitals and clinics come from loaded OSM health infrastructure inside this admin area. Projected hazard fields come from the shared district hazard analysis using the active forecast and any enabled GEE evidence layers.
+                Uploaded hospitals and clinics come from your loaded site file when the site type contains "hospital" or "clinic". OSM hospitals and clinics come from loaded OSM health infrastructure inside this admin area. Projected hazard fields come from the shared district hazard analysis using the active forecast and any enabled GEE evidence layers.
               </div>
             </div>
           )}

@@ -80,7 +80,7 @@ const StatisticsPanel = ({ statistics }) => {
             borderRight: '1px solid #eee',
             padding: '0 10px'
           }}>
-            <div style={{ fontSize: '12px', color: '#666' }}>FACILITIES</div>
+            <div style={{ fontSize: '12px', color: '#666' }}>SITES</div>
             <div style={{
               fontSize: '20px',
               fontWeight: 'bold',
@@ -148,7 +148,7 @@ const StatisticsPanel = ({ statistics }) => {
                   <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Type</th>
                   <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Severity</th>
                   <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Impact Area</th>
-                  <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Facilities</th>
+                  <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Sites</th>
                 </tr>
               </thead>
               <tbody>
@@ -230,7 +230,7 @@ const StatisticsPanel = ({ statistics }) => {
                   {overlap.disasters[0]} + {overlap.disasters[1]}
                 </div>
                 <div style={{ color: '#555' }}>
-                  Impacting {overlap.facilities.length} {overlap.facilities.length === 1 ? 'facility' : 'facilities'}:
+                  Impacting {overlap.facilities.length} {overlap.facilities.length === 1 ? 'site' : 'sites'}:
                 </div>
                 <div style={{
                   display: 'flex',

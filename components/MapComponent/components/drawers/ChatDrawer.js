@@ -465,7 +465,7 @@ const ChatDrawer = ({
   const getSuggestedQuestions = () => {
     const baseQuestions = [
       "How will the current disasters affect ongoing health campaigns?",
-      "Which facilities should we prioritize for immunization programs?"
+      "Which sites should we prioritize for immunization programs?"
     ];
 
     if (context?.hasDistricts) {

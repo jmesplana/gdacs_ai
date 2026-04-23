@@ -262,7 +262,7 @@ const PredictionDashboard = ({
   const loadPredictions = async () => {
     const center = getCenterPoint();
     if (!center) {
-      addToast('No location data available. Please upload facilities or ensure disasters are loaded.', 'error');
+      addToast('No location data available. Please upload sites or ensure disasters are loaded.', 'error');
       return;
     }
 
@@ -566,7 +566,7 @@ const PredictionDashboard = ({
             )}
             {facilitiesMetadata.healthFacilities > 0 && (
               <div>
-                <strong style={{ color: 'var(--aidstack-navy)' }}>Health Facilities:</strong>{' '}
+                <strong style={{ color: 'var(--aidstack-navy)' }}>Health Sites:</strong>{' '}
                 <span style={{ color: '#64748B' }}>{facilitiesMetadata.healthFacilities}</span>
               </div>
             )}
@@ -846,7 +846,7 @@ const DistrictHazardAnalysisView = ({ data, getRiskColor }) => {
                 </div>
                 <div style={{ fontSize: '13px', color: '#334155', lineHeight: 1.7 }}>
                   <div>Population: {district.exposure.populationEstimate ? district.exposure.populationEstimate.toLocaleString() : 'Unknown'}</div>
-                  <div>Facilities in scope: {district.exposure.facilityCount}</div>
+                  <div>Sites in scope: {district.exposure.facilityCount}</div>
                   <div>GDACS signals in district: {district.exposure.disasterSignalCount}</div>
                   <div>ACLED events in district: {district.exposure.securitySignalCount}</div>
                   {district.weatherSummary && (
@@ -1149,13 +1149,13 @@ const OutbreakPredictionView = ({ data, getRiskColor, metadata }) => {
               <line x1="12" y1="16" x2="12" y2="12"></line>
               <line x1="12" y1="8" x2="12.01" y2="8"></line>
             </svg>
-            <strong>Facility Data Incorporated</strong>
+            <strong>Site Data Incorporated</strong>
           </div>
           <div>
             Analysis includes {metadata.totalPopulation > 0 && `population data (${metadata.totalPopulation.toLocaleString()}), `}
             {metadata.diseaseData.malariaAvg && `malaria prevalence (${metadata.diseaseData.malariaAvg.toFixed(1)}%), `}
             {metadata.washData.accessAvg && `WASH access (${metadata.washData.accessAvg.toFixed(0)}%), `}
-            and {metadata.healthFacilities} health facilities from your uploaded data.
+            and {metadata.healthFacilities} health sites from your uploaded data.
           </div>
         </div>
       )}

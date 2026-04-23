@@ -109,7 +109,7 @@ const FacilityDrawer = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.setAttribute('href', url);
-    a.setAttribute('download', 'sample_facilities.csv');
+    a.setAttribute('download', 'sample_sites.csv');
     a.click();
   };
 
@@ -126,10 +126,10 @@ const FacilityDrawer = ({
       ['Distribution Center D', 19.4326, -99.1332, 'Latin American distribution hub', 'Distribution', 500, 'High', '2023-07-12', '555-567-8901', 'Full emergency supplies']
     ];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
-    XLSX.utils.book_append_sheet(wb, ws, 'Facilities');
+    XLSX.utils.book_append_sheet(wb, ws, 'Sites');
 
     // Generate and download the Excel file
-    XLSX.writeFile(wb, 'sample_facilities.xlsx');
+    XLSX.writeFile(wb, 'sample_sites.xlsx');
   };
 
   const handleAcledUploadClick = () => {
@@ -171,7 +171,7 @@ const FacilityDrawer = ({
             Start with any data source
           </div>
           <div style={{ fontSize: '13px', color: '#475569', lineHeight: '1.6' }}>
-            Facilities are optional. You can analyze administrative areas with boundaries only, add ACLED for security context, load WorldPop for population, or enrich the map with OSM infrastructure.
+            Sites are optional. You can analyze administrative areas with boundaries only, add ACLED for security context, load WorldPop for population, or enrich the map with OSM infrastructure.
           </div>
         </div>
 
@@ -282,7 +282,7 @@ const FacilityDrawer = ({
 
           {/* Facilities Section */}
           <CollapsibleSection
-            title="Facilities"
+            title="Sites"
             icon={
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -295,7 +295,7 @@ const FacilityDrawer = ({
           >
             <div style={{ margin: '8px 0 20px 0', textAlign: 'center' }}>
               <div style={{ fontSize: '13px', color: '#666', marginBottom: '14px', lineHeight: '1.6', textAlign: 'left' }}>
-                Upload facilities when you want site-level impact analysis, marker labels, or facility-specific AI recommendations.
+                Upload sites when you want site-level impact analysis, marker labels, or site-specific AI recommendations.
               </div>
               <div
                 onClick={handleFileUploadClick}
@@ -326,7 +326,7 @@ const FacilityDrawer = ({
                     <line x1="12" y1="3" x2="12" y2="15"></line>
                   </svg>
                 </div>
-                <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#2E7D32' }}>Upload Facility Data</div>
+                <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#2E7D32' }}>Upload Site Data</div>
                 <div style={{ fontSize: '13px', color: '#666' }}>
                   CSV or Excel files (.csv, .xlsx, .xls)
                 </div>
@@ -352,11 +352,11 @@ const FacilityDrawer = ({
               {facilities.length > 0 && onClearCache && (
                 <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #eee' }}>
                   <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px', textAlign: 'center' }}>
-                    💾 {facilities.length} {facilities.length === 1 ? 'facility' : 'facilities'} cached in browser
+                    💾 {facilities.length} {facilities.length === 1 ? 'site' : 'sites'} cached in browser
                   </p>
                   <button
                     onClick={() => {
-                      if (window.confirm('Are you sure you want to clear all cached facility data? You will need to re-upload your facilities.')) {
+                      if (window.confirm('Are you sure you want to clear all cached site data? You will need to re-upload your sites.')) {
                         onClearCache();
                       }
                     }}
@@ -420,7 +420,7 @@ const FacilityDrawer = ({
                     fontWeight: '600',
                     color: showLabels ? '#2e7d32' : '#666'
                   }}>
-                    Show Facility Labels on Map
+                    Show Site Labels on Map
                   </span>
                 </label>
               </div>
@@ -445,7 +445,7 @@ const FacilityDrawer = ({
                     </svg>
                     <input
                       type="text"
-                      placeholder="Search facilities..."
+                      placeholder="Search sites..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       style={{
@@ -571,7 +571,7 @@ const FacilityDrawer = ({
                     fontFamily: 'Inter, sans-serif'
                   }}>
                     <span>
-                      <strong>{filteredAndSortedFacilities.length}</strong> {filteredAndSortedFacilities.length === 1 ? 'facility' : 'facilities'} found
+                      <strong>{filteredAndSortedFacilities.length}</strong> {filteredAndSortedFacilities.length === 1 ? 'site' : 'sites'} found
                     </span>
                     <button
                       onClick={() => {
@@ -605,7 +605,7 @@ const FacilityDrawer = ({
             }}>
               {facilities.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>
-                  No facilities uploaded yet.
+                  No sites uploaded yet.
                 </div>
               ) : filteredAndSortedFacilities.length === 0 ? (
                 <div style={{
@@ -615,7 +615,7 @@ const FacilityDrawer = ({
                   borderRadius: '8px',
                   color: '#666'
                 }}>
-                  No facilities match your search criteria.
+                  No sites match your search criteria.
                 </div>
               ) : (
                 filteredAndSortedFacilities.map((facility, index) => {
@@ -1194,7 +1194,7 @@ const FacilityDrawer = ({
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
               <polyline points="9 22 9 12 15 12 15 22"></polyline>
             </svg>
-            Facility Management
+            Site Management
           </h3>
           <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
         </div>

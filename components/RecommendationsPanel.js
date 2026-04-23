@@ -5,7 +5,7 @@ const RecommendationsPanel = ({ facility, recommendations, loading, isAIGenerate
   useEffect(() => {
     if (!loading) { setProgressMsg(''); return; }
     const msgs = [
-      'Assessing facility risks...',
+      'Assessing site risks...',
       'Reviewing disaster context...',
       'Generating response guidance...',
       'Compiling recommendations...',
@@ -256,7 +256,7 @@ const RecommendationsPanel = ({ facility, recommendations, loading, isAIGenerate
           })}
         </div>
       ) : (
-        <p>Select an impacted facility to generate AI-powered recommendations.</p>
+        <p>Select an impacted site to generate AI-powered recommendations.</p>
       )}
       
       <style jsx>{`

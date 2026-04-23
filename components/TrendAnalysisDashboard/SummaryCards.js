@@ -24,7 +24,7 @@ export default function SummaryCards({ summary, trends }) {
   // Facility trend card
   if (summary?.dataAvailable?.facilities) {
     cards.push({
-      title: 'Facilities',
+      title: 'Sites',
       value: summary.currentPeriod?.facilities || 0,
       change: 0,
       changeLabel: 'Monitoring',

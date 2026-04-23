@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 const STEPS = [
   {
     icon: '📂',
-    title: 'Upload your facility data',
+    title: 'Upload your site data',
     description: 'Prepare a CSV with columns: name, latitude, longitude. Add any extra columns (population, coverage_rate, facility_type) for richer AI analysis. Open the Data Hub drawer to upload.',
     cta: 'Download CSV template',
     ctaAction: 'template',
@@ -23,7 +23,7 @@ const STEPS = [
   {
     icon: '🎯',
     title: 'Assess campaign viability',
-    description: 'Get GO/CAUTION/DELAY/NOGO decisions for each facility or administrative area. Batch-assess 1000+ facilities at once to prioritize safe operations and identify high-risk areas.',
+    description: 'Get GO/CAUTION/DELAY/NOGO decisions for each site or administrative area. Batch-assess 1000+ sites at once to prioritize safe operations and identify high-risk areas.',
     cta: null,
   },
   {
@@ -35,7 +35,7 @@ const STEPS = [
   {
     icon: '🤖',
     title: 'Chat, analyze & export reports',
-    description: 'Click any facility marker for AI recommendations. Use the chatbot with real-time web search to ask questions. Generate Situation Reports and export decision briefs as HTML/PDF.',
+    description: 'Click any site marker for AI recommendations. Use the chatbot with real-time web search to ask questions. Generate Situation Reports and export decision briefs as HTML/PDF.',
     cta: null,
   },
 ];
@@ -67,7 +67,7 @@ export default function OnboardingModal({ onClose }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'facility_template.csv';
+      a.download = 'site_template.csv';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

@@ -93,7 +93,7 @@ const buildScopedAcledData = (facility, acledData = []) => {
 
 const buildAssessmentConfidence = ({ impacts = [], acledEnabled, acledData = [], osmData, operationType, operationViability }) => {
   const signals = [
-    { label: 'Facility impact data', available: impacts.length > 0 },
+    { label: 'Site impact data', available: impacts.length > 0 },
     { label: 'Security context', available: acledEnabled && acledData.length > 0 },
     { label: 'OSM infrastructure', available: Boolean(osmData?.features?.length) },
     { label: 'Operation type', available: Boolean(operationType) },
@@ -143,7 +143,7 @@ const AnalysisDrawer = ({
     if (!analysisLoading) { setProgressMsg(''); return; }
     const msgs = [
       'Fetching disaster data...',
-      'Assessing facility exposure...',
+      'Assessing site exposure...',
       'Running AI analysis...',
       'Compiling risk profile...',
       'Almost done...'
@@ -370,7 +370,7 @@ const AnalysisDrawer = ({
                       </div>
                     </div>
                     <div style={{ fontSize: '12px', color: '#475569', lineHeight: 1.5 }}>
-                      Facility analysis is strongest when impact, security, infrastructure, and operation context are all present.
+                      Site analysis is strongest when impact, security, infrastructure, and operation context are all present.
                     </div>
                     {confidence.missingSignals.length > 0 && (
                       <div style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
@@ -390,7 +390,7 @@ const AnalysisDrawer = ({
                 <h2 style={{margin: '0 0 10px 0', fontSize: '18px'}}>{selectedFacility.name}</h2>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
                   <ProvenanceBadge
-                    label="Observed: facility + disaster exposure"
+                    label="Observed: site + disaster exposure"
                     tone="#1d4ed8"
                     background="rgba(59, 130, 246, 0.12)"
                   />
@@ -956,7 +956,7 @@ const AnalysisDrawer = ({
                               <div style={{ fontSize: '12px', color: '#64748b' }}>
                                 {recommendationsTimestamp && hasCurrentRecommendations
                                   ? `Updated ${new Date(recommendationsTimestamp).toLocaleString()}`
-                                  : 'Generated for the selected facility'}
+                                  : 'Generated for the selected site'}
                               </div>
                             </div>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1044,7 +1044,7 @@ const AnalysisDrawer = ({
                             </div>
                           ) : (
                             <div style={{ color: '#475569', lineHeight: '1.6' }}>
-                              Recommendations will appear here for the selected facility.
+                              Recommendations will appear here for the selected site.
                             </div>
                           )}
                         </div>
@@ -1056,7 +1056,7 @@ const AnalysisDrawer = ({
             </div>
           ) : (
             <div style={{textAlign: 'center', padding: '40px 0', color: '#666'}}>
-              Select a facility to analyze its disaster risk profile
+              Select a site to analyze its disaster risk profile
             </div>
           )}
       </div>
@@ -1081,7 +1081,7 @@ const AnalysisDrawer = ({
               <line x1="6" y1="6" x2="6" y2="6"></line>
               <line x1="6" y1="18" x2="6" y2="18"></line>
             </svg>
-            AI Facility Analysis
+            AI Site Analysis
           </h3>
           <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
         </div>

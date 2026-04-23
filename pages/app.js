@@ -1289,7 +1289,7 @@ export default function Home() {
           });
 
           if (validFacilities.length === 0) {
-            addToast('No valid facilities found. Ensure your CSV has name, latitude, and longitude columns.', 'error');
+            addToast('No valid sites found. Ensure your CSV has name, latitude, and longitude columns.', 'error');
             return;
           }
 
@@ -1310,11 +1310,11 @@ export default function Home() {
           if (facilitiesCacheResult.ok) {
             console.log(`Facilities cached to ${facilitiesCacheResult.storage}`);
             if (!facilitiesCacheResult.persistent) {
-              addToast('Facility data is too large for persistent browser storage. It will remain available until this tab is closed.', 'warning');
+              addToast('Site data is too large for persistent browser storage. It will remain available until this tab is closed.', 'warning');
             }
           } else {
             console.error('Facility data could not be cached in browser storage');
-            addToast('Facility data loaded, but the file is too large to cache in the browser. It will need to be re-uploaded after refresh.', 'warning');
+            addToast('Site data loaded, but the file is too large to cache in the browser. It will need to be re-uploaded after refresh.', 'warning');
           }
 
           // Update facilities and immediately assess impact
@@ -1328,7 +1328,7 @@ export default function Home() {
       });
     } catch (error) {
       console.error('Error processing facility upload:', error);
-      addToast('Failed to process facility data. Please try again.', 'error');
+      addToast('Failed to process site data. Please try again.', 'error');
     }
   };
 
@@ -1428,7 +1428,7 @@ export default function Home() {
       applyImpactAssessmentResult(facilityData, data, disastersToAssess);
     } catch (error) {
       console.error('Error assessing impact:', error);
-      addToast('Failed to assess facility impact. Please try again.', 'error');
+      addToast('Failed to assess site impact. Please try again.', 'error');
     } finally {
       assessImpactRef.current = false;
       setLoading(prev => ({ ...prev, impact: false }));
@@ -1702,8 +1702,8 @@ export default function Home() {
       // Executive Summary Section
       reportContent += `# EXECUTIVE SUMMARY\n\n`;
       reportContent += `## Key Statistics\n`;
-      reportContent += `- **Total Facilities Monitored:** ${facilities.length}\n`;
-      reportContent += `- **Facilities Potentially Impacted:** ${impactedFacilities.length} (${Math.round((impactedFacilities.length/facilities.length)*100)}% of total)\n`;
+      reportContent += `- **Total Sites Monitored:** ${facilities.length}\n`;
+      reportContent += `- **Sites Potentially Impacted:** ${impactedFacilities.length} (${Math.round((impactedFacilities.length/facilities.length)*100)}% of total)\n`;
       reportContent += `- **Total Active Disasters:** ${disasters.length}\n`;
       reportContent += `- **Active Disaster Alert Levels:** ${
         filteredDisasters.filter(d => 
@@ -1788,7 +1788,7 @@ export default function Home() {
           });
         });
         
-        reportContent += `## ${fullName} (${totalFacilitiesForDisaster} facilities)\n`;
+        reportContent += `## ${fullName} (${totalFacilitiesForDisaster} sites)\n`;
         
         // List facilities by country, then by facility type
         Object.entries(countriesMap).forEach(([country, facilityTypesMap]) => {
@@ -1798,10 +1798,10 @@ export default function Home() {
             totalFacilitiesForCountry += facilities.length;
           });
           
-          reportContent += `### ${country} (${totalFacilitiesForCountry} facilities)\n`;
+          reportContent += `### ${country} (${totalFacilitiesForCountry} sites)\n`;
           
           Object.entries(facilityTypesMap).forEach(([facilityType, facilities]) => {
-            reportContent += `#### ${facilityType} Facilities (${facilities.length})\n`;
+            reportContent += `#### ${facilityType} Sites (${facilities.length})\n`;
             
             facilities.forEach(facility => {
               // Include all available facility metadata
@@ -1832,45 +1832,45 @@ export default function Home() {
       const highPriorityRecommendations = {
         "EQ": [
           "Immediately check structural integrity of all buildings in earthquake-affected regions",
-          "Initiate communication with all facilities in affected areas; prioritize those without response",
-          "Deploy assessment teams to facilities reporting damage or with no communication",
+          "Initiate communication with all sites in affected areas; prioritize those without response",
+          "Deploy assessment teams to sites reporting damage or with no communication",
           "Prepare temporary housing and supplies for displaced personnel"
         ],
         "TC": [
-          "Evacuate personnel from facilities in the direct path of tropical cyclones",
+          "Evacuate personnel from sites in the direct path of tropical cyclones",
           "Secure all equipment and materials that could become projectiles in high winds",
           "Pre-position emergency supplies before landfall at safe locations",
-          "Maintain hourly communication with facilities during storm passage when safe"
+          "Maintain hourly communication with sites during storm passage when safe"
         ],
         "FL": [
-          "Move essential equipment and supplies to higher floors in flood-prone facilities",
+          "Move essential equipment and supplies to higher floors in flood-prone sites",
           "Establish evacuation routes that avoid flood-prone roads and bridges",
-          "Deploy water pumping equipment to critical facilities",
-          "Establish decontamination protocols for facilities after floodwaters recede"
+          "Deploy water pumping equipment to critical sites",
+          "Establish decontamination protocols for sites after floodwaters recede"
         ],
         "VO": [
-          "Monitor air quality at all facilities within volcanic ash fallout zones",
-          "Distribute respiratory protection equipment to affected facilities",
+          "Monitor air quality at all sites within volcanic ash fallout zones",
+          "Distribute respiratory protection equipment to affected sites",
           "Clear ash from rooftops to prevent structural collapse",
           "Establish protocols for safe ash removal and disposal"
         ],
         "DR": [
-          "Implement water conservation measures at all facilities in drought-affected regions",
+          "Implement water conservation measures at all sites in drought-affected regions",
           "Secure additional water supplies for critical operations",
-          "Prioritize facilities with highest water dependency for assistance",
+          "Prioritize sites with highest water dependency for assistance",
           "Deploy water quality testing kits to monitor deteriorating water sources"
         ],
         "WF": [
-          "Establish defensible space around facilities in wildfire-prone areas",
+          "Establish defensible space around sites in wildfire-prone areas",
           "Prepare evacuation plans with multiple exit routes",
-          "Monitor air quality and provide filtration systems for affected facilities",
-          "Pre-position firefighting equipment at high-risk facilities"
+          "Monitor air quality and provide filtration systems for affected sites",
+          "Pre-position firefighting equipment at high-risk sites"
         ],
         "TS": [
-          "Evacuate all coastal facilities in tsunami warning zones immediately",
+          "Evacuate all coastal sites in tsunami warning zones immediately",
           "Position emergency response teams at safe elevations near tsunami-prone areas",
           "Establish clear tsunami evacuation routes with marked safe zones",
-          "Prepare for potential contamination from seawater inundation of facilities"
+          "Prepare for potential contamination from seawater inundation of sites"
         ]
       };
       
@@ -1879,9 +1879,9 @@ export default function Home() {
         reportContent += `## ${fullName} Priority Response Actions\n`;
         
         // Add high-priority recommendations for this disaster type
-        const recommendations = highPriorityRecommendations[disasterType] || 
-          ["Conduct rapid assessment of all affected facilities", 
-           "Establish communication protocols with affected facilities", 
+        const recommendations = highPriorityRecommendations[disasterType] ||
+          ["Conduct rapid assessment of all affected sites",
+           "Establish communication protocols with affected sites",
            "Prepare emergency resources for deployment"];
         
         recommendations.forEach(rec => {
@@ -1898,8 +1898,8 @@ export default function Home() {
           .sort((a, b) => b.impacts.length - a.impacts.length)
           .slice(0, Math.min(5, impactedFacilities.length));
         
-        reportContent += `# HIGHEST PRIORITY FACILITIES\n\n`;
-        reportContent += `The following facilities are affected by multiple disasters or high-severity events and require immediate attention:\n\n`;
+        reportContent += `# HIGHEST PRIORITY SITES\n\n`;
+        reportContent += `The following sites are affected by multiple disasters or high-severity events and require immediate attention:\n\n`;
         
         criticalFacilities.forEach((impact, index) => {
           const facility = impact.facility;
@@ -1920,19 +1920,19 @@ export default function Home() {
       // Add resource allocation guidance
       reportContent += `# RESOURCE ALLOCATION GUIDANCE\n\n`;
       reportContent += `## Personnel Deployment Priorities\n`;
-      reportContent += `- Deploy assessment teams to ${Math.min(10, impactedFacilities.length)} highest priority facilities first\n`;
-      reportContent += `- Establish forward command posts in areas with clusters of affected facilities\n`;
+      reportContent += `- Deploy assessment teams to ${Math.min(10, impactedFacilities.length)} highest priority sites first\n`;
+      reportContent += `- Establish forward command posts in areas with clusters of affected sites\n`;
       reportContent += `- Rotate personnel working in extreme conditions every 12 hours\n\n`;
       
       reportContent += `## Equipment & Supply Distribution\n`;
-      reportContent += `- Pre-position emergency supplies at strategic locations to serve multiple affected facilities\n`;
-      reportContent += `- Prioritize communication equipment for facilities in areas with infrastructure damage\n`;
-      reportContent += `- Allocate temporary power generation to facilities with critical operations\n\n`;
+      reportContent += `- Pre-position emergency supplies at strategic locations to serve multiple affected sites\n`;
+      reportContent += `- Prioritize communication equipment for sites in areas with infrastructure damage\n`;
+      reportContent += `- Allocate temporary power generation to sites with critical operations\n\n`;
       
       reportContent += `## Communication Protocol\n`;
-      reportContent += `- Establish hourly check-ins with facilities in red alert zones\n`;
-      reportContent += `- Implement twice-daily situation reports from all affected facilities\n`;
-      reportContent += `- Maintain dedicated communication channels for highest priority facilities\n\n`;
+      reportContent += `- Establish hourly check-ins with sites in red alert zones\n`;
+      reportContent += `- Implement twice-daily situation reports from all affected sites\n`;
+      reportContent += `- Maintain dedicated communication channels for highest priority sites\n\n`;
       
       // Add contact information section
       reportContent += `# EMERGENCY CONTACT INFORMATION\n\n`;
@@ -1953,7 +1953,7 @@ export default function Home() {
           .slice(0, Math.min(5, impactedFacilities.length));
         
         if (criticalFacilities.length > 0) {
-          reportContent += `# DETAILED RECOMMENDATIONS FOR CRITICAL FACILITIES\n\n`;
+          reportContent += `# DETAILED RECOMMENDATIONS FOR CRITICAL SITES\n\n`;
           
           // Get detailed recommendations for these critical facilities only
           for (const impact of criticalFacilities) {
@@ -2041,7 +2041,7 @@ export default function Home() {
     if (disasterTypes.includes('Earthquake')) {
       return 'Conduct structural assessment and establish emergency shelter';
     } else if (disasterTypes.includes('Tropical Cyclone')) {
-      return 'Secure facility and prepare for evacuation if in direct path';
+      return 'Secure site and prepare for evacuation if in direct path';
     } else if (disasterTypes.includes('Flood')) {
       return 'Move critical equipment to higher ground and monitor water levels';
     } else if (disasterTypes.includes('Tsunami')) {
@@ -2149,7 +2149,7 @@ export default function Home() {
     <div className="container">
       <Head>
         <title>Aidstack Disasters - Real-time Disaster Intelligence Platform</title>
-        <meta name="description" content="Intelligence for impact workers: Monitor global disasters, assess facility impacts, predict disease outbreaks, and optimize humanitarian operations with AI-powered real-time analysis" />
+        <meta name="description" content="Intelligence for impact workers: Monitor global disasters, assess site impacts, predict disease outbreaks, and optimize humanitarian operations with AI-powered real-time analysis" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="robots" content="noindex" />
         <link rel="icon" type="image/svg+xml" href="/images/gdacs/warning.svg" />
@@ -2293,7 +2293,7 @@ export default function Home() {
                   fontSize: '12px',
                   color: 'var(--aidstack-navy)'
                 }}>
-                  {facilities.length} facilities
+                  {facilities.length} sites
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{
@@ -2599,13 +2599,13 @@ export default function Home() {
             <h3 style={{ fontSize: '16px', color: 'var(--aidstack-orange)', marginBottom: '10px', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}>Problems This Tool Solves</h3>
             <ul style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', paddingLeft: '20px' }}>
               <li style={{ marginBottom: '8px' }}>
-                <strong>Scattered Information:</strong> Consolidates disaster data and facility locations in one visual interface
+                <strong>Scattered Information:</strong> Consolidates disaster data and site locations in one visual interface
               </li>
               <li style={{ marginBottom: '8px' }}>
-                <strong>Manual Assessment:</strong> Automatically identifies which facilities are at risk from active disasters
+                <strong>Manual Assessment:</strong> Automatically identifies which sites are at risk from active disasters
               </li>
               <li style={{ marginBottom: '8px' }}>
-                <strong>Response Planning:</strong> Generates AI-powered recommendations specific to each facility and disaster type
+                <strong>Response Planning:</strong> Generates AI-powered recommendations specific to each site and disaster type
               </li>
               <li style={{ marginBottom: '8px' }}>
                 <strong>Situation Reporting:</strong> Creates comprehensive reports for stakeholders with a single click
@@ -2618,16 +2618,16 @@ export default function Home() {
             <h3 style={{ fontSize: '16px', color: 'var(--aidstack-orange)', marginBottom: '10px', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}>Key Features</h3>
             <ul style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', paddingLeft: '20px' }}>
               <li style={{ marginBottom: '8px' }}>
-                <strong>Interactive Map:</strong> Visualize disasters and facilities globally
+                <strong>Interactive Map:</strong> Visualize disasters and sites globally
               </li>
               <li style={{ marginBottom: '8px' }}>
-                <strong>Facility Upload:</strong> Import your facilities from CSV/Excel files
+                <strong>Site Upload:</strong> Import your sites from CSV/Excel files
               </li>
               <li style={{ marginBottom: '8px' }}>
-                <strong>Automated Impact Assessment:</strong> Identify which facilities are affected by disasters
+                <strong>Automated Impact Assessment:</strong> Identify which sites are affected by disasters
               </li>
               <li style={{ marginBottom: '8px' }}>
-                <strong>AI Analysis:</strong> Get personalized risk analysis for any facility
+                <strong>AI Analysis:</strong> Get personalized risk analysis for any site
               </li>
               <li style={{ marginBottom: '8px' }}>
                 <strong>Smart Recommendations:</strong> Receive specific action items based on disaster type
@@ -2646,9 +2646,9 @@ export default function Home() {
             <h3 style={{ fontSize: '16px', color: 'var(--aidstack-orange)', marginBottom: '10px', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}>How To Use This Tool</h3>
             
             <div style={{ marginBottom: '12px' }}>
-              <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>1. Upload Your Facilities</h4>
+              <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>1. Upload Your Sites</h4>
               <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
-                Click the <strong>Facilities</strong> button on the right side of the map. Upload a CSV or Excel file with your facility locations (must include name, latitude, and longitude columns).
+                Click the <strong>Sites</strong> button on the right side of the map. Upload a CSV or Excel file with your site locations (must include name, latitude, and longitude columns).
               </p>
             </div>
             
@@ -2662,28 +2662,28 @@ export default function Home() {
             <div style={{ marginBottom: '12px' }}>
               <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>3. Assess Impact</h4>
               <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
-                Once facilities are uploaded, the system automatically identifies which are in the impact radius of active disasters.
+                Once sites are uploaded, the system automatically identifies which are in the impact radius of active disasters.
               </p>
             </div>
             
             <div style={{ marginBottom: '12px' }}>
-              <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>4. Analyze Facilities</h4>
+              <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>4. Analyze Sites</h4>
               <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
-                Click on a facility marker, then select <strong>Analyze with AI</strong> to get a detailed risk assessment.
+                Click on a site marker, then select <strong>Analyze with AI</strong> to get a detailed risk assessment.
               </p>
             </div>
             
             <div style={{ marginBottom: '12px' }}>
               <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>5. Get Recommendations</h4>
               <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
-                Click <strong>View Recommendations</strong> to receive specific action items tailored to the facility and disasters affecting it.
+                Click <strong>View Recommendations</strong> to receive specific action items tailored to the site and disasters affecting it.
               </p>
             </div>
             
             <div style={{ marginBottom: '12px' }}>
               <h4 style={{ fontSize: '14px', color: '#333', marginBottom: '5px' }}>6. Generate Report</h4>
               <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', marginBottom: '5px' }}>
-                Click the <strong>Sitrep</strong> button to create a comprehensive situation report for all impacted facilities.
+                Click the <strong>Sitrep</strong> button to create a comprehensive situation report for all impacted sites.
               </p>
             </div>
             
@@ -2700,13 +2700,13 @@ export default function Home() {
             <h3 style={{ fontSize: '16px', color: 'var(--aidstack-orange)', marginBottom: '10px', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}>Use Cases</h3>
             <ul style={{ fontSize: '14px', lineHeight: '1.5', color: '#555', paddingLeft: '20px' }}>
               <li style={{ marginBottom: '8px' }}>
-                <strong>Emergency Response:</strong> Quickly identify which facilities need immediate assistance during a disaster
+                <strong>Emergency Response:</strong> Quickly identify which sites need immediate assistance during a disaster
               </li>
               <li style={{ marginBottom: '8px' }}>
-                <strong>Business Continuity:</strong> Prepare specific action plans for facilities at risk
+                <strong>Business Continuity:</strong> Prepare specific action plans for sites at risk
               </li>
               <li style={{ marginBottom: '8px' }}>
-                <strong>Risk Assessment:</strong> Evaluate which facilities might be impacted by developing situations
+                <strong>Risk Assessment:</strong> Evaluate which sites might be impacted by developing situations
               </li>
               <li style={{ marginBottom: '8px' }}>
                 <strong>Executive Briefing:</strong> Generate professional reports for leadership teams

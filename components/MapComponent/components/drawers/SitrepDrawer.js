@@ -20,7 +20,7 @@ const SitrepDrawer = ({
     if (!sitrepLoading) { setProgressMsg(''); return; }
     const msgs = [
       'Analyzing disaster impacts...',
-      'Reviewing facility exposure...',
+      'Reviewing site exposure...',
       'Compiling situation data...',
       'Drafting situation report...',
       'Almost done...'
