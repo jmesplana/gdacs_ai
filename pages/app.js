@@ -68,6 +68,8 @@ const matrixTone = {
   blocked: { text: '#6b7280', background: 'rgba(107, 114, 128, 0.10)', border: 'rgba(107, 114, 128, 0.20)' }
 };
 
+const IMPACT_ASSESSMENT_REMOTE_PAYLOAD_LIMIT_BYTES = 3_500_000;
+
 function formatCompactCount(value) {
   if (value === null || value === undefined) return 'Unknown';
   return Number(value).toLocaleString();
@@ -541,6 +543,15 @@ export default function Home() {
       event_date: item.event_date,
       fatalities: item.fatalities
     }));
+  };
+
+  const runImpactAssessmentLocally = async (requestPayload, facilityData, disastersToAssess) => {
+    console.log('Impact assessment: running locally to avoid oversized deployment payload');
+    const { runImpactAssessment } = await import('../lib/impactAssessment');
+    const data = runImpactAssessment(requestPayload);
+    lastImpactPayloadRef.current = JSON.stringify(requestPayload);
+    lastImpactResultRef.current = data;
+    applyImpactAssessmentResult(facilityData, data, disastersToAssess);
   };
 
   const sanitizeDistrictLabel = (value, fallback = '') => {
@@ -1472,15 +1483,36 @@ export default function Home() {
         return;
       }
 
-      const response = await fetch('/api/impact_assessment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: payloadJson,
-      });
-      
-      const data = await parseApiResponse(response, 'Impact assessment');
+      if (payloadJson.length > IMPACT_ASSESSMENT_REMOTE_PAYLOAD_LIMIT_BYTES) {
+        await runImpactAssessmentLocally(requestPayload, facilityData, disastersToAssess);
+        return;
+      }
+
+      let data;
+
+      try {
+        const response = await fetch('/api/impact_assessment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: payloadJson,
+        });
+
+        if (response.status === 413) {
+          await runImpactAssessmentLocally(requestPayload, facilityData, disastersToAssess);
+          return;
+        }
+
+        data = await parseApiResponse(response, 'Impact assessment');
+      } catch (error) {
+        if (String(error?.message || '').includes('status 413')) {
+          await runImpactAssessmentLocally(requestPayload, facilityData, disastersToAssess);
+          return;
+        }
+        throw error;
+      }
+
       lastImpactPayloadRef.current = payloadJson;
       lastImpactResultRef.current = data;
       applyImpactAssessmentResult(facilityData, data, disastersToAssess);
