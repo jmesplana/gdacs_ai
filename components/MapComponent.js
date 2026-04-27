@@ -1895,7 +1895,7 @@ const MapComponent = ({
 
       {/* Hamburger Menu - high-level workspace and analysis actions */}
       <HamburgerMenu
-        onControlPanelClick={toggleUnifiedDrawer}
+        onControlPanelClick={() => openUnifiedDrawer('facilities')}
         onFilterClick={toggleFilterDrawer}
         onCampaignDashboardClick={() => setShowCampaignDashboard(true)}
         onLogisticsClick={handleLogisticsAssessment}
@@ -1920,6 +1920,7 @@ const MapComponent = ({
       />
 
       <FloatingActionButtons
+        onDataHubClick={() => openUnifiedDrawer('facilities')}
         onLayersClick={toggleMapLayersDrawer}
         onFilterClick={toggleFilterDrawer}
         drawingEnabled={drawingEnabled}

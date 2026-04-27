@@ -120,7 +120,7 @@ const UnifiedDrawer = ({
   const tabs = [
     {
       id: 'facilities',
-      label: 'Context',
+      label: 'Data Hub',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
@@ -132,7 +132,7 @@ const UnifiedDrawer = ({
     },
     {
       id: 'analysis',
-      label: 'Analysis',
+      label: 'Site Analysis',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
@@ -213,7 +213,7 @@ const UnifiedDrawer = ({
               fontFamily: "'Space Grotesk', sans-serif",
               margin: 0
             }}>
-              Workspace
+              {activeTab === 'facilities' ? 'Data Hub' : 'Workspace'}
             </h3>
             <button
               className="drawer-close"
@@ -333,6 +333,36 @@ const UnifiedDrawer = ({
             borderBottom: '1px solid #E5E7EB',
             background: '#F8FAFC'
           }}>
+            {activeTab === 'facilities' && (
+              <div style={{
+                background: 'linear-gradient(135deg, #fff7ed 0%, #ffffff 100%)',
+                border: '1px solid #fed7aa',
+                borderRadius: '12px',
+                padding: '14px 16px',
+                marginBottom: '12px'
+              }}>
+                <div style={{
+                  fontSize: '11px',
+                  color: '#9a3412',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  fontWeight: 700,
+                  fontFamily: "'Inter', sans-serif",
+                  marginBottom: '6px'
+                }}>
+                  Start Here
+                </div>
+                <div style={{
+                  fontSize: '14px',
+                  color: '#7c2d12',
+                  lineHeight: '1.6',
+                  fontFamily: "'Inter', sans-serif"
+                }}>
+                  Upload sites, admin boundaries, and evidence layers here first. Analysis, logistics, and reports become useful after your data is loaded.
+                </div>
+              </div>
+            )}
+
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',

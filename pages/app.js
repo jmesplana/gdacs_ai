@@ -2455,10 +2455,10 @@ export default function Home() {
                   backgroundColor: loading.disasters ? 'var(--aidstack-slate-light)' : 'var(--aidstack-navy)',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '4px',
-                  padding: '8px 12px',
+                  borderRadius: '999px',
+                  padding: '7px 11px',
                   cursor: loading.disasters ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
+                  fontSize: '12px',
                   fontWeight: 600,
                   fontFamily: "'Inter', sans-serif"
                 }}
@@ -2494,10 +2494,10 @@ export default function Home() {
                   backgroundColor: !canUseDistrictDecisionTools ? 'var(--aidstack-slate-light)' : 'var(--aidstack-navy)',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '4px',
-                  padding: '8px 12px',
+                  borderRadius: '999px',
+                  padding: '7px 11px',
                   cursor: !canUseDistrictDecisionTools ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
+                  fontSize: '12px',
                   fontWeight: 600,
                   fontFamily: "'Inter', sans-serif"
                 }}
@@ -2510,7 +2510,7 @@ export default function Home() {
                   <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
                   <line x1="12" y1="22.08" x2="12" y2="12"></line>
                 </svg>
-                1. View Forecast
+                Forecast
               </button>
 
               {/* Operational Outlook Button */}
@@ -2523,10 +2523,10 @@ export default function Home() {
                   backgroundColor: !canUseDistrictDecisionTools ? 'var(--aidstack-slate-light)' : 'var(--aidstack-orange)',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '4px',
-                  padding: '8px 12px',
+                  borderRadius: '999px',
+                  padding: '7px 11px',
                   cursor: !canUseDistrictDecisionTools ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
+                  fontSize: '12px',
                   fontWeight: 600,
                   fontFamily: "'Inter', sans-serif"
                 }}
@@ -2535,7 +2535,7 @@ export default function Home() {
                   <circle cx="12" cy="12" r="10"></circle>
                   <polyline points="12 6 12 12 16 14"></polyline>
                 </svg>
-                2. Operational Outlook
+                Outlook
               </button>
 
               <button
@@ -2547,10 +2547,10 @@ export default function Home() {
                   backgroundColor: !canUseDistrictDecisionTools ? 'var(--aidstack-slate-light)' : '#0f766e',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '4px',
-                  padding: '8px 12px',
+                  borderRadius: '999px',
+                  padding: '7px 11px',
                   cursor: !canUseDistrictDecisionTools ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
+                  fontSize: '12px',
                   fontWeight: 600,
                   fontFamily: "'Inter', sans-serif"
                 }}
@@ -2559,7 +2559,7 @@ export default function Home() {
                   <path d="M3 3v18h18"></path>
                   <path d="M7 14l4-4 3 3 5-7"></path>
                 </svg>
-                3. Prioritization Board
+                Prioritization
               </button>
 
               {/* Trend Analysis Button */}
@@ -2572,10 +2572,10 @@ export default function Home() {
                   backgroundColor: !canUseDistrictDecisionTools ? 'var(--aidstack-slate-light)' : '#7c3aed',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '4px',
-                  padding: '8px 12px',
+                  borderRadius: '999px',
+                  padding: '7px 11px',
                   cursor: !canUseDistrictDecisionTools ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
+                  fontSize: '12px',
                   fontWeight: 600,
                   fontFamily: "'Inter', sans-serif"
                 }}
@@ -2583,7 +2583,7 @@ export default function Home() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
                   <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                 </svg>
-                4. Trend Analysis
+                Trends
               </button>
 
               <button
@@ -2594,10 +2594,10 @@ export default function Home() {
                   backgroundColor: 'white',
                   color: 'var(--aidstack-navy)',
                   border: '1px solid var(--aidstack-slate-light)',
-                  borderRadius: '4px',
-                  padding: '8px 12px',
+                  borderRadius: '999px',
+                  padding: '7px 11px',
                   cursor: 'pointer',
-                  fontSize: '14px',
+                  fontSize: '12px',
                   fontWeight: 600,
                   fontFamily: "'Inter', sans-serif"
                 }}

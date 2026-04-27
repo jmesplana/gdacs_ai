@@ -1,6 +1,7 @@
 import { DRAWING_COLORS } from '../../constants/mapConstants';
 
 const FloatingActionButtons = ({
+  onDataHubClick,
   onLayersClick,
   onFilterClick,
   drawingEnabled,
@@ -20,6 +21,49 @@ const FloatingActionButtons = ({
 }) => {
   return (
     <>
+      {onDataHubClick && (
+        <button
+          type="button"
+          onClick={onDataHubClick}
+          title="Open Data Hub"
+          style={{
+            position: 'absolute',
+            top: '76px',
+            right: '20px',
+            zIndex: 1500,
+            background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+            color: 'var(--aidstack-navy)',
+            border: '2px solid rgba(15, 23, 42, 0.10)',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.3s ease',
+            width: '48px',
+            height: '48px',
+            padding: '0'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.borderColor = 'var(--aidstack-orange)';
+            e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.16)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.10)';
+            e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
+          }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+        </button>
+      )}
+
       {/* Layers FAB - map-native access similar to consumer maps */}
       {onLayersClick && (
         <button
@@ -28,7 +72,7 @@ const FloatingActionButtons = ({
           title="Map Layers"
           style={{
             position: 'absolute',
-            top: '76px',
+            top: '132px',
             right: '20px',
             zIndex: 1500,
             backgroundColor: 'white',
@@ -68,7 +112,7 @@ const FloatingActionButtons = ({
           title="Filters"
           style={{
             position: 'absolute',
-            top: '132px',
+            top: '188px',
             right: '20px',
             zIndex: 1500,
             backgroundColor: 'white',
@@ -180,7 +224,7 @@ const FloatingActionButtons = ({
         title={drawingEnabled ? "Hide Drawing Tools" : "Show Drawing Tools"}
         style={{
           position: 'absolute',
-          top: '188px',
+          top: '244px',
           right: '20px',
           zIndex: 1500,
           backgroundColor: drawingEnabled ? 'var(--aidstack-orange)' : 'white',
@@ -226,7 +270,7 @@ const FloatingActionButtons = ({
       {drawingEnabled && (
         <div style={{
           position: 'absolute',
-          top: '244px',
+          top: '300px',
           right: '20px',
           backgroundColor: 'white',
           borderRadius: '8px',

@@ -1,7 +1,4 @@
 import { useState } from 'react';
-import { DRAWING_COLORS } from '../../constants/mapConstants';
-import OperationTypeSelector from '../../../OperationTypeSelector';
-import { getOperationType } from '../../../../config/operationTypes';
 
 const sectionLabelStyle = {
   padding: '10px 16px 6px',
@@ -31,35 +28,14 @@ const menuButtonBaseStyle = {
 };
 
 const HamburgerMenu = ({
-  onControlPanelClick,
-  onFilterClick,
-  onCampaignDashboardClick,
   onLogisticsClick,
   onHelpClick,
-  drawingEnabled,
-  onDrawClick,
-  annotationMode,
-  freehandMode,
-  onAddAnnotation,
-  onToggleFreehand,
-  drawingColor,
-  setDrawingColor,
-  onUndoDrawing,
-  onClearDrawings,
-  drawingsCount,
-  operationType,
-  onOperationTypeChange,
   playbackEnabled,
   onPlaybackClick,
   logisticsEnabled = false,
   hasDistricts = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [showDrawingTools, setShowDrawingTools] = useState(false);
-  const hasOperationType = Boolean(operationType);
-
-  // Get operation config for dynamic labels
-  const opConfig = getOperationType(operationType);
 
   const handleMenuClick = (callback) => {
     callback();
@@ -185,68 +161,7 @@ const HamburgerMenu = ({
               animation: 'slideDown 0.2s ease-out'
             }}
           >
-            {/* Operation Type Selector */}
-            <div style={{
-              padding: '12px 16px',
-              backgroundColor: '#fbfbfc',
-              borderBottom: '1px solid #f0f0f0'
-            }}>
-              <div style={{
-                marginBottom: '8px',
-                fontSize: '11px',
-                fontWeight: 600,
-                color: '#6b7280',
-                textTransform: 'uppercase',
-                fontFamily: "'Inter', sans-serif",
-                display: 'flex',
-                alignItems: 'center',
-                letterSpacing: '0.04em'
-              }}>
-                <span style={{ display: 'flex', alignItems: 'center' }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', color: 'var(--aidstack-teal)' }}>
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                  </svg>
-                  Operation Type
-                </span>
-              </div>
-              <OperationTypeSelector
-                selectedType={operationType}
-                onTypeChange={onOperationTypeChange}
-                compact={true}
-              />
-            </div>
-
-            <div style={sectionLabelStyle}>Setup</div>
-            {renderMenuButton({
-              onClick: () => handleMenuClick(onControlPanelClick),
-              label: 'Workspace',
-              icon: (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                  <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                </svg>
-              )
-            })}
-
             <div style={sectionLabelStyle}>Analysis</div>
-            {renderMenuButton({
-              onClick: () => handleMenuClick(onCampaignDashboardClick),
-              label: hasOperationType ? `${opConfig.name} Dashboard` : 'Operation Dashboard',
-              icon: (
-                <>
-                  {hasOperationType && <span style={{ fontSize: '18px' }}>{opConfig.icon}</span>}
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-                    <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-                  </svg>
-                </>
-              ),
-              disabled: !hasOperationType,
-              title: hasOperationType ? `${opConfig.name} dashboard` : 'Select an operation type first'
-            })}
             {renderMenuButton({
               onClick: () => handleMenuClick(onLogisticsClick),
               label: 'Logistics Assessment',
@@ -279,181 +194,6 @@ const HamburgerMenu = ({
               activeBackground: 'rgba(0, 186, 188, 0.10)',
               activeTextColor: 'var(--aidstack-teal)'
             })}
-
-            {/* Draw Tools */}
-            <button
-              onClick={() => {
-                onDrawClick();
-                setShowDrawingTools(!showDrawingTools);
-              }}
-              style={{
-                width: '100%',
-                padding: '16px 20px',
-                backgroundColor: drawingEnabled ? 'rgba(255, 107, 53, 0.1)' : 'white',
-                border: 'none',
-                borderBottom: '1px solid #f0f0f0',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: '15px',
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontWeight: 600,
-                color: drawingEnabled ? 'var(--aidstack-orange)' : 'var(--aidstack-navy)',
-                transition: 'background-color 0.2s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = drawingEnabled ? 'rgba(255, 107, 53, 0.15)' : '#f8f9fa'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = drawingEnabled ? 'rgba(255, 107, 53, 0.1)' : 'white'}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '12px', color: 'var(--aidstack-orange)' }}>
-                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-              </svg>
-              {drawingEnabled ? 'Hide Drawing' : 'Draw on Map'}
-            </button>
-
-            {/* Drawing Tools Panel - Shows when drawing is enabled */}
-            {drawingEnabled && showDrawingTools && (
-              <div style={{
-                backgroundColor: '#f8f9fa',
-                padding: '16px',
-                borderBottom: '1px solid #f0f0f0'
-              }}>
-                <div style={{
-                  marginBottom: '12px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: 'var(--aidstack-navy)',
-                  textTransform: 'uppercase',
-                  fontFamily: "'Inter', sans-serif"
-                }}>
-                  Drawing Color
-                </div>
-                <div style={{
-                  display: 'flex',
-                  gap: '8px',
-                  flexWrap: 'wrap',
-                  marginBottom: '12px'
-                }}>
-                  {DRAWING_COLORS.map(color => (
-                    <button
-                      key={color}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDrawingColor(color);
-                      }}
-                      style={{
-                        width: '28px',
-                        height: '28px',
-                        backgroundColor: color,
-                        border: drawingColor === color ? '3px solid var(--aidstack-navy)' : '2px solid #ddd',
-                        borderRadius: '50%',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                      }}
-                      title={`Select ${color}`}
-                    />
-                  ))}
-                </div>
-                <div style={{
-                  display: 'flex',
-                  gap: '8px',
-                  marginBottom: '10px'
-                }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleFreehand();
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      backgroundColor: freehandMode ? 'var(--aidstack-orange)' : 'white',
-                      color: freehandMode ? 'white' : 'var(--aidstack-navy)',
-                      border: `1px solid ${freehandMode ? 'var(--aidstack-orange)' : 'var(--aidstack-slate-light)'}`,
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontFamily: "'Inter', sans-serif",
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {freehandMode ? 'Freehand Active' : 'Freehand Draw'}
-                  </button>
-                </div>
-                <div style={{
-                  display: 'flex',
-                  gap: '8px',
-                  marginBottom: '10px'
-                }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddAnnotation();
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      backgroundColor: annotationMode ? 'var(--aidstack-orange)' : 'white',
-                      color: annotationMode ? 'white' : 'var(--aidstack-navy)',
-                      border: `1px solid ${annotationMode ? 'var(--aidstack-orange)' : 'var(--aidstack-slate-light)'}`,
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontFamily: "'Inter', sans-serif",
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {annotationMode ? 'Click Map To Place Note' : 'Add Note'}
-                  </button>
-                </div>
-                <div style={{
-                  display: 'flex',
-                  gap: '8px'
-                }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onUndoDrawing();
-                    }}
-                    disabled={drawingsCount === 0}
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      backgroundColor: drawingsCount > 0 ? 'white' : '#e0e0e0',
-                      color: drawingsCount > 0 ? 'var(--aidstack-navy)' : '#999',
-                      border: `1px solid ${drawingsCount > 0 ? 'var(--aidstack-slate-light)' : '#ccc'}`,
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontFamily: "'Inter', sans-serif",
-                      fontWeight: 600,
-                      cursor: drawingsCount > 0 ? 'pointer' : 'not-allowed'
-                    }}
-                  >
-                    Undo
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onClearDrawings();
-                    }}
-                    disabled={drawingsCount === 0}
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      backgroundColor: drawingsCount > 0 ? '#dc2626' : '#e0e0e0',
-                      color: drawingsCount > 0 ? 'white' : '#999',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontFamily: "'Inter', sans-serif",
-                      fontWeight: 600,
-                      cursor: drawingsCount > 0 ? 'pointer' : 'not-allowed'
-                    }}
-                  >
-                    Clear All
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* Help */}
             <button
