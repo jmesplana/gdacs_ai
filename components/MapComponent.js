@@ -473,6 +473,163 @@ const formatMonthLabel = (value) => {
   return parsed.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 };
 
+const FACILITY_BASE_FIELDS = new Set(['name', 'latitude', 'longitude']);
+const FACILITY_SUMMARY_FIELDS = new Set(['refusal_reason', 'refusal_rate', 'refusal', 'target']);
+
+function normalizeFacilityFieldKey(key = '') {
+  return String(key).replace(/_\d+$/, '');
+}
+
+function getFacilityFieldValue(facility = {}, key) {
+  if (facility[key] !== undefined && facility[key] !== null && facility[key] !== '') {
+    return facility[key];
+  }
+
+  const matchingKey = Object.keys(facility).find((candidate) => normalizeFacilityFieldKey(candidate) === key && facility[candidate] !== undefined && facility[candidate] !== null && facility[candidate] !== '');
+  return matchingKey ? facility[matchingKey] : null;
+}
+
+function formatFacilityFieldLabel(key = '') {
+  return normalizeFacilityFieldKey(key)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatFacilityFieldValue(key = '', value) {
+  if (value === null || value === undefined || value === '') return '';
+
+  const normalizedKey = normalizeFacilityFieldKey(key);
+  const numericValue = Number(value);
+  const isNumeric = !Number.isNaN(numericValue);
+
+  if (normalizedKey === 'refusal_rate' && isNumeric) {
+    return `${(numericValue * 100).toFixed(1)}%`;
+  }
+
+  if (isNumeric) {
+    if (Number.isInteger(numericValue)) {
+      return numericValue.toLocaleString();
+    }
+
+    return numericValue.toLocaleString(undefined, {
+      maximumFractionDigits: 3
+    });
+  }
+
+  return String(value);
+}
+
+function buildFacilityPopupData(facility = {}) {
+  const refusalReason = getFacilityFieldValue(facility, 'refusal_reason');
+  const refusalRate = getFacilityFieldValue(facility, 'refusal_rate');
+  const refusalCount = getFacilityFieldValue(facility, 'refusal');
+  const targetCount = getFacilityFieldValue(facility, 'target');
+  const hasRefusalSummary = [refusalReason, refusalRate, refusalCount, targetCount].some(
+    (value) => value !== null && value !== undefined && value !== ''
+  );
+
+  const seenFields = new Map();
+  const detailFields = [];
+
+  Object.entries(facility).forEach(([key, value]) => {
+    const normalizedKey = normalizeFacilityFieldKey(key);
+
+    if (FACILITY_BASE_FIELDS.has(normalizedKey)) return;
+    if (value === null || value === undefined || value === '') return;
+    if (hasRefusalSummary && FACILITY_SUMMARY_FIELDS.has(normalizedKey)) return;
+
+    const formattedValue = formatFacilityFieldValue(key, value);
+    if (seenFields.get(normalizedKey) === formattedValue) return;
+
+    seenFields.set(normalizedKey, formattedValue);
+    detailFields.push({
+      key,
+      label: formatFacilityFieldLabel(key),
+      value: formattedValue
+    });
+  });
+
+  return {
+    refusalReason,
+    refusalRate: formatFacilityFieldValue('refusal_rate', refusalRate),
+    refusalCount: formatFacilityFieldValue('refusal', refusalCount),
+    targetCount: formatFacilityFieldValue('target', targetCount),
+    hasRefusalSummary,
+    detailFields
+  };
+}
+
+function FacilityPopupContent({
+  facility,
+  isImpacted,
+  markerColor,
+  hasSelectedAnalysisDistricts,
+  runFacilityAnalysis
+}) {
+  const popupData = buildFacilityPopupData(facility);
+
+  return (
+    <div style={{ minWidth: '240px' }}>
+      <h4 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>
+        {facility.name}
+      </h4>
+      <p style={{ margin: '5px 0', fontSize: '13px' }}>
+        <strong>Status:</strong>{' '}
+        <span style={{ color: markerColor, fontWeight: 'bold' }}>
+          {isImpacted ? 'IMPACTED' : 'Safe'}
+        </span>
+      </p>
+      <p style={{ margin: '5px 0', fontSize: '13px' }}>
+        <strong>Location:</strong> {facility.latitude}, {facility.longitude}
+      </p>
+      {popupData.hasRefusalSummary && (
+        <>
+          {popupData.refusalReason && (
+            <p style={{ margin: '5px 0', fontSize: '13px' }}>
+              <strong>Reason:</strong> {popupData.refusalReason}
+            </p>
+          )}
+          {(popupData.refusalCount || popupData.targetCount || popupData.refusalRate) && (
+            <p style={{ margin: '5px 0', fontSize: '13px' }}>
+              <strong>Refusals:</strong>{' '}
+              {[
+                popupData.refusalCount && popupData.targetCount
+                  ? `${popupData.refusalCount} of ${popupData.targetCount}`
+                  : popupData.refusalCount || popupData.targetCount,
+                popupData.refusalRate ? `(${popupData.refusalRate})` : null
+              ].filter(Boolean).join(' ')}
+            </p>
+          )}
+        </>
+      )}
+      {popupData.detailFields.map((field) => (
+        <p key={field.key} style={{ margin: '5px 0', fontSize: '13px' }}>
+          <strong>{field.label}:</strong> {field.value}
+        </p>
+      ))}
+      <button
+        onClick={() => runFacilityAnalysis(facility)}
+        style={{
+          marginTop: '10px',
+          padding: '8px 16px',
+          background: hasSelectedAnalysisDistricts
+            ? 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)'
+            : 'var(--aidstack-slate-light)',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: hasSelectedAnalysisDistricts ? 'pointer' : 'not-allowed',
+          fontSize: '13px',
+          fontWeight: 'bold',
+          width: '100%'
+        }}
+      >
+        {hasSelectedAnalysisDistricts ? 'Analyze Site' : 'Select Districts First'}
+      </button>
+    </div>
+  );
+}
+
 const MapComponent = ({
   disasters,
   allDisasters = [],
@@ -2384,49 +2541,13 @@ const MapComponent = ({
                     </Tooltip>
                   )}
                   <Popup>
-                    <div style={{ minWidth: '200px' }}>
-                      <h4 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>
-                        {facility.name}
-                      </h4>
-                      <p style={{ margin: '5px 0', fontSize: '13px' }}>
-                        <strong>Status:</strong>{' '}
-                        <span style={{ color: markerColor, fontWeight: 'bold' }}>
-                          {isImpacted ? 'IMPACTED' : 'Safe'}
-                        </span>
-                      </p>
-                      <p style={{ margin: '5px 0', fontSize: '13px' }}>
-                        <strong>Location:</strong> {facility.latitude}, {facility.longitude}
-                      </p>
-                      {Object.entries(facility).map(([key, value]) => {
-                        if (!['name', 'latitude', 'longitude'].includes(key) && value) {
-                          return (
-                            <p key={key} style={{ margin: '5px 0', fontSize: '13px' }}>
-                              <strong>{key}:</strong> {value}
-                            </p>
-                          );
-                        }
-                        return null;
-                      })}
-                      <button
-                        onClick={() => runFacilityAnalysis(facility)}
-                        style={{
-                          marginTop: '10px',
-                          padding: '8px 16px',
-                          background: hasSelectedAnalysisDistricts
-                            ? 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)'
-                            : 'var(--aidstack-slate-light)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: hasSelectedAnalysisDistricts ? 'pointer' : 'not-allowed',
-                          fontSize: '13px',
-                          fontWeight: 'bold',
-                          width: '100%'
-                        }}
-                      >
-                        {hasSelectedAnalysisDistricts ? 'Analyze Site' : 'Select Districts First'}
-                      </button>
-                    </div>
+                    <FacilityPopupContent
+                      facility={facility}
+                      isImpacted={isImpacted}
+                      markerColor={markerColor}
+                      hasSelectedAnalysisDistricts={hasSelectedAnalysisDistricts}
+                      runFacilityAnalysis={runFacilityAnalysis}
+                    />
                   </Popup>
                 </ReactLeafletMarker>
               );
@@ -2479,49 +2600,13 @@ const MapComponent = ({
                 </Tooltip>
               )}
               <Popup>
-                <div style={{ minWidth: '200px' }}>
-                  <h4 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>
-                    {facility.name}
-                  </h4>
-                  <p style={{ margin: '5px 0', fontSize: '13px' }}>
-                    <strong>Status:</strong>{' '}
-                    <span style={{ color: markerColor, fontWeight: 'bold' }}>
-                      {isImpacted ? 'IMPACTED' : 'Safe'}
-                    </span>
-                  </p>
-                  <p style={{ margin: '5px 0', fontSize: '13px' }}>
-                    <strong>Location:</strong> {facility.latitude}, {facility.longitude}
-                  </p>
-                  {Object.entries(facility).map(([key, value]) => {
-                    if (!['name', 'latitude', 'longitude'].includes(key) && value) {
-                      return (
-                        <p key={key} style={{ margin: '5px 0', fontSize: '13px' }}>
-                          <strong>{key}:</strong> {value}
-                        </p>
-                      );
-                    }
-                    return null;
-                  })}
-                  <button
-                    onClick={() => runFacilityAnalysis(facility)}
-                    style={{
-                      marginTop: '10px',
-                      padding: '8px 16px',
-                      background: hasSelectedAnalysisDistricts
-                        ? 'linear-gradient(135deg, var(--aidstack-navy) 0%, #2D5A7B 100%)'
-                        : 'var(--aidstack-slate-light)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: hasSelectedAnalysisDistricts ? 'pointer' : 'not-allowed',
-                      fontSize: '13px',
-                      fontWeight: 'bold',
-                      width: '100%'
-                    }}
-                  >
-                    {hasSelectedAnalysisDistricts ? 'Analyze Site' : 'Select Districts First'}
-                  </button>
-                </div>
+                <FacilityPopupContent
+                  facility={facility}
+                  isImpacted={isImpacted}
+                  markerColor={markerColor}
+                  hasSelectedAnalysisDistricts={hasSelectedAnalysisDistricts}
+                  runFacilityAnalysis={runFacilityAnalysis}
+                />
               </Popup>
             </ReactLeafletMarker>
           );

@@ -44,6 +44,132 @@ function getDistrictDisplayName(props = {}) {
   return props.name || props.NAME || props.DISTRICT || props.District || 'Unnamed Admin Area';
 }
 
+const ADMIN_EXCLUDED_KEYS = new Set(['name', 'NAME', 'geometry', 'bounds', 'riskLevel', 'riskScore', 'eventCount']);
+const ADMIN_PREFERRED_KEYS = [
+  'country',
+  'region',
+  'province',
+  'provincec',
+  'district',
+  'tehsil',
+  'uc',
+  'display_name',
+  'displayname',
+  'population'
+];
+const ADMIN_TECHNICAL_KEY_PATTERNS = [
+  /^shape[_\s-]?len/i,
+  /^shape[_\s-]?length/i,
+  /^shape[_\s-]?area/i,
+  /^objectid$/i,
+  /^fid$/i,
+  /^id$/i
+];
+
+function normalizeAdminKey(key = '') {
+  return String(key)
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[\s-]+/g, '_')
+    .toLowerCase();
+}
+
+function formatAdminLabel(key = '') {
+  const normalized = normalizeAdminKey(key);
+  const compact = normalized.replace(/_/g, '');
+
+  if (compact === 'uc') return 'UC';
+  if (compact === 'id') return 'ID';
+
+  return normalized
+    .split('_')
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
+
+function formatAdminValue(value) {
+  if (value === null || value === undefined || value === '') return '';
+
+  if (typeof value === 'number') {
+    return value.toLocaleString(undefined, {
+      maximumFractionDigits: Math.abs(value) < 10 ? 3 : 1
+    });
+  }
+
+  const numericValue = Number(String(value).replace(/,/g, '').trim());
+  if (!Number.isNaN(numericValue) && String(value).trim() !== '') {
+    return numericValue.toLocaleString(undefined, {
+      maximumFractionDigits: Math.abs(numericValue) < 10 ? 3 : 1
+    });
+  }
+
+  return String(value);
+}
+
+function isTechnicalAdminKey(key = '') {
+  return ADMIN_TECHNICAL_KEY_PATTERNS.some((pattern) => pattern.test(key));
+}
+
+function buildAdminPropertySections(props = {}) {
+  const entries = [];
+  const seenNormalizedKeys = new Set();
+
+  Object.entries(props).forEach(([key, value]) => {
+    const normalizedKey = normalizeAdminKey(key);
+
+    if (ADMIN_EXCLUDED_KEYS.has(key) || ADMIN_EXCLUDED_KEYS.has(normalizedKey)) return;
+    if (value === null || value === undefined || value === '') return;
+    if (seenNormalizedKeys.has(normalizedKey)) return;
+
+    seenNormalizedKeys.add(normalizedKey);
+    entries.push({
+      key,
+      normalizedKey,
+      label: formatAdminLabel(key),
+      value: formatAdminValue(value),
+      technical: isTechnicalAdminKey(key) || isTechnicalAdminKey(normalizedKey)
+    });
+  });
+
+  const preferredOrder = new Map(ADMIN_PREFERRED_KEYS.map((key, index) => [key, index]));
+  const primaryFields = [];
+  const secondaryFields = [];
+  const technicalFields = [];
+
+  entries.forEach((entry) => {
+    if (entry.technical) {
+      technicalFields.push(entry);
+      return;
+    }
+
+    if (preferredOrder.has(entry.normalizedKey)) {
+      primaryFields.push(entry);
+      return;
+    }
+
+    secondaryFields.push(entry);
+  });
+
+  const sortByPreferredOrder = (a, b) => (
+    (preferredOrder.get(a.normalizedKey) ?? Number.MAX_SAFE_INTEGER) -
+    (preferredOrder.get(b.normalizedKey) ?? Number.MAX_SAFE_INTEGER)
+  ) || a.label.localeCompare(b.label);
+
+  primaryFields.sort(sortByPreferredOrder);
+  secondaryFields.sort((a, b) => a.label.localeCompare(b.label));
+  technicalFields.sort((a, b) => a.label.localeCompare(b.label));
+
+  return { primaryFields, secondaryFields, technicalFields };
+}
+
+function renderAdminFields(fields = []) {
+  return fields.map((field) => `
+    <p style="margin: 6px 0; font-size: 13px;">
+      <strong style="color: #475569;">${escapeHtml(field.label)}:</strong> ${escapeHtml(field.value)}
+    </p>
+  `).join('');
+}
+
 function buildDatasetPopupBlock(datasetStyle, featureId) {
   if (datasetStyle?.mode !== ADMIN_FILL_MODES.DATASET || !datasetStyle.metricField) return '';
 
@@ -181,6 +307,7 @@ export default function AdminBoundariesLayer({
         const riskLevel = props.riskLevel || 'none';
         const riskScore = props.riskScore || 0;
         const eventCount = props.eventCount || 0;
+        const { primaryFields, secondaryFields, technicalFields } = buildAdminPropertySections(props);
 
         let popupContent = `
           <div style="font-family: 'Inter', sans-serif; max-width: 300px;">
@@ -200,6 +327,14 @@ export default function AdminBoundariesLayer({
         }
 
         popupContent += buildDatasetPopupBlock(datasetStyle, feature.id);
+
+        if (primaryFields.length > 0) {
+          popupContent += `
+            <div style="margin-top: 10px;">
+              ${renderAdminFields(primaryFields)}
+            </div>
+          `;
+        }
 
         const isSelectedForAnalysis = selectedIds.has(feature.id);
         if (onAnalysisDistrictsChange) {
@@ -225,23 +360,25 @@ export default function AdminBoundariesLayer({
           `;
         }
 
-        const excludeKeys = ['name', 'NAME', 'geometry', 'bounds', 'riskLevel', 'riskScore', 'eventCount'];
-        Object.entries(props).forEach(([key, value]) => {
-          if (value && !excludeKeys.includes(key)) {
-            const formattedKey = key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim();
-            const capitalizedKey = formattedKey.charAt(0).toUpperCase() + formattedKey.slice(1);
-            let formattedValue = value;
-            if (typeof value === 'number' && value > 1000) {
-              formattedValue = value.toLocaleString();
-            }
+        if (secondaryFields.length > 0) {
+          popupContent += `
+            <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e2e8f0;">
+              <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Attributes</div>
+              ${renderAdminFields(secondaryFields)}
+            </div>
+          `;
+        }
 
-            popupContent += `
-              <p style="margin: 6px 0; font-size: 13px;">
-                <strong style="color: #666;">${escapeHtml(capitalizedKey)}:</strong> ${escapeHtml(formattedValue)}
-              </p>
-            `;
-          }
-        });
+        if (technicalFields.length > 0) {
+          popupContent += `
+            <details style="margin-top: 12px;">
+              <summary style="cursor: pointer; font-size: 12px; color: #64748b; font-weight: 600;">Technical fields</summary>
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #cbd5e1;">
+                ${renderAdminFields(technicalFields)}
+              </div>
+            </details>
+          `;
+        }
 
         if (canUseDistrictDecisionTools && (onDistrictClick || onDistrictOutlookClick)) {
           popupContent += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">`;

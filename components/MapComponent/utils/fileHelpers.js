@@ -76,9 +76,16 @@ export const convertFacilitiesToCSV = (facilities, columnMapping) => {
   }
 
   const { name, latitude, longitude, displayFields = [], aiAnalysisFields = [] } = columnMapping;
+  const uniqueAdditionalFields = Array.from(
+    new Set(
+      [...displayFields, ...aiAnalysisFields].filter(
+        (field) => field && ![name, latitude, longitude].includes(field)
+      )
+    )
+  );
 
   // Build headers
-  const headers = ['name', 'latitude', 'longitude', ...displayFields, ...aiAnalysisFields];
+  const headers = ['name', 'latitude', 'longitude', ...uniqueAdditionalFields];
 
   // Build rows
   const rows = facilities.map(facility => {
@@ -86,8 +93,7 @@ export const convertFacilitiesToCSV = (facilities, columnMapping) => {
       facility[name],
       facility[latitude],
       facility[longitude],
-      ...displayFields.map(field => facility[field] || ''),
-      ...aiAnalysisFields.map(field => facility[field] || '')
+      ...uniqueAdditionalFields.map(field => facility[field] || '')
     ];
     return row.map(escapeCSVValue).join(',');
   });
