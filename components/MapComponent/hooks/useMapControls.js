@@ -43,6 +43,7 @@ export const useMapControls = () => {
   const [unifiedDrawerOpen, setUnifiedDrawerOpen] = useState(false);
   const [mapLayersDrawerOpen, setMapLayersDrawerOpen] = useState(false);
   const [activeDrawerTab, setActiveDrawerTab] = useState('facilities'); // facilities, analysis, logistics, reports
+  const [drawerMode, setDrawerMode] = useState('workspace'); // workspace, datahub
 
   // Map layer states
   const [currentMapLayer, setCurrentMapLayer] = useState('street');
@@ -74,8 +75,9 @@ export const useMapControls = () => {
     setMapLayersDrawerOpen(false);
   }, []);
 
-  const openUnifiedDrawer = useCallback((tab = 'facilities') => {
+  const openUnifiedDrawer = useCallback((tab = 'facilities', mode = 'workspace') => {
     setActiveDrawerTab(tab === 'layers' ? 'facilities' : tab);
+    setDrawerMode(mode);
     setUnifiedDrawerOpen(true);
     setFilterDrawerOpen(false); // Close filter drawer
     setMapLayersDrawerOpen(false);
@@ -139,6 +141,7 @@ export const useMapControls = () => {
     unifiedDrawerOpen,
     mapLayersDrawerOpen,
     activeDrawerTab,
+    drawerMode,
 
     // Map layer states
     currentMapLayer,
@@ -177,6 +180,7 @@ export const useMapControls = () => {
     openUnifiedDrawer,
     toggleUnifiedDrawer,
     setActiveDrawerTab,
+    setDrawerMode,
     toggleMapLayersDrawer,
     // Legacy toggle functions (for backward compatibility)
     toggleFacilityDrawer,

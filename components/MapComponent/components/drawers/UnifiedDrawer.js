@@ -93,7 +93,8 @@ const UnifiedDrawer = ({
   adminNoDataStyle,
   setAdminNoDataStyle,
   adminDatasetJoinSummary,
-  adminDatasetLegend = []
+  adminDatasetLegend = [],
+  drawerMode = 'workspace'
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -166,6 +167,15 @@ const UnifiedDrawer = ({
       disabled: (impactedFacilities?.length || 0) === 0 && !sitrep
     },
   ];
+  const visibleTabIdsByMode = {
+    datahub: ['facilities'],
+    analysis: ['analysis'],
+    logistics: ['logistics'],
+    reports: ['reports'],
+    workspace: tabs.map((tab) => tab.id)
+  };
+  const visibleTabIds = visibleTabIdsByMode[drawerMode] || visibleTabIdsByMode.workspace;
+  const visibleTabs = tabs.filter((tab) => visibleTabIds.includes(tab.id));
 
   const availableNow = [];
 
@@ -213,7 +223,15 @@ const UnifiedDrawer = ({
               fontFamily: "'Space Grotesk', sans-serif",
               margin: 0
             }}>
-              {activeTab === 'facilities' ? 'Data Hub' : 'Workspace'}
+              {drawerMode === 'datahub'
+                ? 'Data Hub'
+                : activeTab === 'analysis'
+                  ? 'Site Analysis'
+                  : activeTab === 'logistics'
+                    ? 'Logistics Assessment'
+                    : activeTab === 'reports'
+                      ? 'Situation Report'
+                      : 'Workspace'}
             </h3>
             <button
               className="drawer-close"
@@ -247,16 +265,17 @@ const UnifiedDrawer = ({
           </div>
 
           {/* Tab Navigation */}
-          <div style={{
-            display: 'flex',
-            gap: '4px',
-            padding: '0 12px',
-            overflowX: 'auto',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none'
-          }}>
-            {tabs.map(tab => (
-              <button
+          {visibleTabs.length > 1 && (
+            <div style={{
+              display: 'flex',
+              gap: '4px',
+              padding: '0 12px',
+              overflowX: 'auto',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none'
+            }}>
+              {visibleTabs.map(tab => (
+                <button
                 key={tab.id}
                 onClick={() => !tab.disabled && handleTabChange(tab.id)}
                 disabled={tab.disabled}
@@ -316,7 +335,8 @@ const UnifiedDrawer = ({
                 )}
               </button>
             ))}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Content Area */}
@@ -333,7 +353,7 @@ const UnifiedDrawer = ({
             borderBottom: '1px solid #E5E7EB',
             background: '#F8FAFC'
           }}>
-            {activeTab === 'facilities' && (
+            {drawerMode === 'datahub' && (
               <div style={{
                 background: 'linear-gradient(135deg, #fff7ed 0%, #ffffff 100%)',
                 border: '1px solid #fed7aa',
@@ -449,6 +469,7 @@ const UnifiedDrawer = ({
                 Requires admin boundaries plus either facilities or ACLED/security context.
               </div>
             </div>
+
           </div>
 
           {activeTab === 'facilities' && (

@@ -761,6 +761,7 @@ const MapComponent = ({
     unifiedDrawerOpen,
     mapLayersDrawerOpen,
     activeDrawerTab,
+    drawerMode,
     currentMapLayer,
     showRoads,
     setShowHeatmap,
@@ -793,6 +794,7 @@ const MapComponent = ({
     openUnifiedDrawer,
     toggleUnifiedDrawer,
     setActiveDrawerTab,
+    setDrawerMode,
     toggleFacilityDrawer,
     toggleSitrepDrawer,
     toggleMapLayersDrawer,
@@ -1375,8 +1377,8 @@ const MapComponent = ({
       // Continue with empty disasters array to show baseline assessment
     }
 
-    // Open the workspace logistics tab immediately to show loading state
-    openUnifiedDrawer('logistics');
+    // Open the logistics drawer immediately to show loading state
+    openUnifiedDrawer('logistics', 'logistics');
 
     const locationContext = districts && districts.length > 0
       ? extractLocationFromDistrict(districts[0])
@@ -1836,10 +1838,7 @@ const MapComponent = ({
 
     if (!hasSelectedAnalysisDistricts) {
       addToast('Select one or more districts before running analysis.', 'warning');
-      setActiveDrawerTab('layers');
-      if (!unifiedDrawerOpen) {
-        toggleUnifiedDrawer();
-      }
+      openUnifiedDrawer('facilities', 'datahub');
       return;
     }
 
@@ -1858,10 +1857,12 @@ const MapComponent = ({
       activeMapLayerNote: currentLayer?.note || null
     });
 
-    setActiveDrawerTab('analysis');
-    if (!unifiedDrawerOpen) {
-      toggleUnifiedDrawer();
-    }
+    openUnifiedDrawer('analysis', 'analysis');
+  };
+
+  const openSituationReport = async (forceRefresh = false) => {
+    await onGenerateSitrep(forceRefresh);
+    openUnifiedDrawer('reports', 'reports');
   };
 
   // Check if any drawer is open
@@ -1895,7 +1896,7 @@ const MapComponent = ({
 
       {/* Hamburger Menu - high-level workspace and analysis actions */}
       <HamburgerMenu
-        onControlPanelClick={() => openUnifiedDrawer('facilities')}
+        onControlPanelClick={() => openUnifiedDrawer('facilities', 'datahub')}
         onFilterClick={toggleFilterDrawer}
         onCampaignDashboardClick={() => setShowCampaignDashboard(true)}
         onLogisticsClick={handleLogisticsAssessment}
@@ -1920,7 +1921,7 @@ const MapComponent = ({
       />
 
       <FloatingActionButtons
-        onDataHubClick={() => openUnifiedDrawer('facilities')}
+        onDataHubClick={() => openUnifiedDrawer('facilities', 'datahub')}
         onLayersClick={toggleMapLayersDrawer}
         onFilterClick={toggleFilterDrawer}
         drawingEnabled={drawingEnabled}
@@ -1985,6 +1986,7 @@ const MapComponent = ({
         onClose={toggleUnifiedDrawer}
         initialTab={activeDrawerTab}
         onTabChange={setActiveDrawerTab}
+        drawerMode={drawerMode}
 
         // Facility tab props
         facilities={facilities}
@@ -2027,7 +2029,7 @@ const MapComponent = ({
             });
           }
         }}
-        onGenerateSitrep={onGenerateSitrep}
+        onGenerateSitrep={openSituationReport}
         sitrepLoading={sitrepLoading}
         onClearCache={onClearCache}
         acledData={acledData}

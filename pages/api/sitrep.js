@@ -6,6 +6,12 @@ import OpenAI from 'openai';
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(String(value).replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export const config = {
   api: {
     bodyParser: {
@@ -30,6 +36,7 @@ async function handler(req, res) {
       worldPopData = {},
       worldPopYear = null,
       districts = [],
+      uploadedDataSchema = null,
       includeWebSearch = true
     } = req.body;
 
@@ -79,6 +86,7 @@ async function handler(req, res) {
         worldPopData,
         worldPopYear,
         districts,
+        uploadedDataSchema,
         scope,
         recentExternalContext
       );
@@ -116,7 +124,7 @@ async function handler(req, res) {
 }
 
 // Generate situation report using OpenAI
-async function generateAISitrep(impactedFacilities, disasters, situationOverview, dateFilterText, statistics, acledData = [], osmData = null, worldPopData = {}, worldPopYear = null, districts = [], scope = {}, recentExternalContext = null) {
+async function generateAISitrep(impactedFacilities, disasters, situationOverview, dateFilterText, statistics, acledData = [], osmData = null, worldPopData = {}, worldPopYear = null, districts = [], uploadedDataSchema = null, scope = {}, recentExternalContext = null) {
   try {
     // Get current date and time
     const date = new Date().toISOString().split('T')[0];
@@ -127,34 +135,51 @@ async function generateAISitrep(impactedFacilities, disasters, situationOverview
 
     // Add ACLED security context
     if (acledData && acledData.length > 0) {
+      const acledSummary = buildAreaAcledSummary(acledData);
       enhancedContext += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
       enhancedContext += `SECURITY CONTEXT - ACLED CONFLICT DATA (${acledData.length} events)\n`;
       enhancedContext += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
 
-      // Group by event type
-      const byType = acledData.reduce((acc, event) => {
-        const type = event.event_type || 'Unknown';
-        acc[type] = (acc[type] || 0) + 1;
-        return acc;
-      }, {});
-
-      enhancedContext += 'Security incidents by type:\n';
-      Object.entries(byType)
-        .sort((a, b) => b[1] - a[1])
-        .forEach(([type, count]) => {
-          enhancedContext += `- ${type}: ${count} events\n`;
+      enhancedContext += '\nACLED summary:\n';
+      if (acledSummary.dateRange.start && acledSummary.dateRange.end) {
+        enhancedContext += `- Event date range in analyzed area: ${acledSummary.dateRange.start} to ${acledSummary.dateRange.end}\n`;
+      }
+      enhancedContext += `- Reported fatalities in analyzed area: ${acledSummary.totalFatalities}\n`;
+      if (acledSummary.zeroFatalityEvents > 0) {
+        enhancedContext += `- Events recorded with no reported fatalities: ${acledSummary.zeroFatalityEvents}\n`;
+      }
+      if (acledSummary.eventTypes.length > 0) {
+        enhancedContext += '- Incidents by event type:\n';
+        acledSummary.eventTypes.forEach(({ label, count }) => {
+          enhancedContext += `  - ${label}: ${count}\n`;
         });
-
-      // Most recent events
-      const recentEvents = acledData
-        .sort((a, b) => new Date(b.event_date) - new Date(a.event_date))
-        .slice(0, 5);
-
-      enhancedContext += '\nRecent security incidents:\n';
-      recentEvents.forEach(event => {
-        enhancedContext += `- ${event.event_date}: ${event.event_type} in ${event.admin2 || event.admin1 || event.country}\n`;
-        if (event.notes) enhancedContext += `  Note: ${event.notes.substring(0, 100)}...\n`;
-      });
+      }
+      if (acledSummary.subEventTypes.length > 0) {
+        enhancedContext += '- Incidents by sub-event type:\n';
+        acledSummary.subEventTypes.forEach(({ label, count }) => {
+          enhancedContext += `  - ${label}: ${count}\n`;
+        });
+      }
+      if (acledSummary.hotspots.length > 0) {
+        enhancedContext += '- Main hotspots in analyzed area:\n';
+        acledSummary.hotspots.forEach(({ label, count, fatalities }, index) => {
+          enhancedContext += `  - Hotspot ${index + 1}: ${label} (${count} events${fatalities > 0 ? `, ${fatalities} reported fatalities` : ''})\n`;
+        });
+      }
+      if (acledSummary.actorPairs.length > 0) {
+        enhancedContext += '- Most frequent actor pairings:\n';
+        acledSummary.actorPairs.forEach(({ label, count }) => {
+          enhancedContext += `  - ${label}: ${count} events\n`;
+        });
+      }
+      if (acledSummary.notableIncidents.length > 0) {
+        enhancedContext += '\nNotable security incidents in analyzed area:\n';
+        acledSummary.notableIncidents.forEach((incident) => {
+          enhancedContext += `- ${incident.event_date}: ${incident.event_type}${incident.sub_event_type ? ` / ${incident.sub_event_type}` : ''} in ${incident.location}${incident.actorSummary ? ` involving ${incident.actorSummary}` : ''}${incident.fatalities > 0 ? ` (${incident.fatalities} fatalities)` : ' (no reported fatalities)'}\n`;
+          if (incident.notes) enhancedContext += `  Note: ${incident.notes}\n`;
+          if (incident.source) enhancedContext += `  Source: ${incident.source}\n`;
+        });
+      }
     }
 
     // Add OSM infrastructure context
@@ -177,6 +202,23 @@ async function generateAISitrep(impactedFacilities, disasters, situationOverview
       enhancedContext += '\n**NOTE**: Treat this as supporting current context for the scoped operational area only. Do not let unrelated global news dominate the report.\n';
     }
 
+    if (uploadedDataSchema && (uploadedDataSchema.keyFields?.length || uploadedDataSchema.typeBreakdown?.length)) {
+      enhancedContext += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      enhancedContext += 'UPLOADED SITE DATA PROFILE\n';
+      enhancedContext += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+      enhancedContext += `- Uploaded records in scope: ${uploadedDataSchema.recordCount || impactedFacilities.length}\n`;
+      if (uploadedDataSchema.typeBreakdown?.length) {
+        enhancedContext += '- Site type breakdown:\n';
+        uploadedDataSchema.typeBreakdown.forEach((entry) => {
+          enhancedContext += `  - ${entry.label}: ${entry.count}\n`;
+        });
+      }
+      if (uploadedDataSchema.keyFields?.length) {
+        enhancedContext += `- Key uploaded fields available for interpretation: ${uploadedDataSchema.keyFields.join(', ')}\n`;
+      }
+      enhancedContext += '\n**NOTE**: Infer the operational meaning of the uploaded site data from these fields. If the uploaded records look like campaign sites, immunization points, health facilities, labs, blood banks, or malaria program records, adapt the report wording and priorities accordingly.\n';
+    }
+
     // Create prompt for GPT
     const prompt = `
 You are a disaster management professional tasked with creating a concise Situation Report (SitRep).
@@ -189,29 +231,36 @@ WORKSPACE SCOPE:
 - Countries: ${scope.countries?.join(', ') || 'Unknown'}
 - Regions/Admin units: ${scope.regions?.slice(0, 8).join(', ') || 'Not specified'}
 - District count: ${scope.districtCount || 0}
-- Facilities assessed: ${scope.facilityCount || 0}
-- Impacted facilities: ${scope.impactedFacilityCount || 0}
+- Sites assessed: ${scope.siteCount || 0}
+- Impacted sites: ${scope.impactedSiteCount || 0}
+- Uploaded site record types: ${uploadedDataSchema?.typeBreakdown?.map((entry) => `${entry.label} (${entry.count})`).join(', ') || 'Not specified'}
+- Uploaded key fields: ${uploadedDataSchema?.keyFields?.join(', ') || 'Not specified'}
 
 SITUATION OVERVIEW (scoped disasters from the ${dateFilterText}):
 ${enhancedContext}
 
 IMPORTANT SCOPING RULES:
 - This report must ONLY describe the current operational workspace, not the global GDACS feed.
-- ONLY include disasters, facilities, districts, and ACLED events from the current filtered selection (${dateFilterText}) and scoped area above.
+- ONLY include disasters, sites, districts, and ACLED events from the current filtered selection (${dateFilterText}) and scoped area above.
 - Do not reference unrelated disasters in other countries or regions.
-- The primary narrative is operational impact on the user's facilities and covered geography.
+- Use the word "site" or "sites" in the report, not "facility" or "facilities", unless directly quoting an external source.
+- The primary narrative is operational impact on the user's sites and covered geography.
+- Do not assume all uploaded sites are the same type. The uploaded data may represent health facilities, PHCs, hospitals, labs, blood banks, immunization sites, malaria campaign sites, or other operational records.
+- When uploaded fields indicate campaign or program metrics such as target population, refusals, refusal rate, doses, stock, coverage, malaria indicators, or service type, explicitly use those metrics in the report.
+- When site types vary, distinguish them in the narrative instead of collapsing everything into one generic category.
 - If web search context is included, use it only to supplement and update the scoped picture. Do not let it broaden the report into a global bulletin.
 
 Your SitRep should include:
 1. Scope
 2. Executive Summary
 3. Priority Areas
-4. Facility Impact Summary
-5. Threat Overview
-6. Population and Access Context
-7. Operational Implications
-8. Immediate Actions
-9. Data Confidence and Gaps
+4. Site Impact Summary (adapt to the uploaded record types and include any meaningful uploaded metrics)
+5. Security Context (must explicitly use the uploaded ACLED data: event counts, main hotspots, most relevant event types, fatalities if present, and recent notable incidents)
+6. Threat Overview
+7. Population and Access Context
+8. Operational Implications
+9. Immediate Actions
+10. Data Confidence and Gaps
 
 Format your response in markdown for readability. The first line of your report MUST be:
 # Situation Report: Scoped Operational Assessment
@@ -244,8 +293,8 @@ Keep the entire SitRep concise and actionable.
 function createSituationOverview(impactedFacilities, disasters, statistics, scope = {}) {
   let overview = `WORKSPACE SCOPE:\n`;
   overview += `- ${scope.summary || 'Current operational workspace'}\n`;
-  overview += `- Facilities assessed: ${scope.facilityCount || 0}\n`;
-  overview += `- Impacted facilities: ${scope.impactedFacilityCount || 0}\n`;
+  overview += `- Sites assessed: ${scope.siteCount || 0}\n`;
+  overview += `- Impacted sites: ${scope.impactedSiteCount || 0}\n`;
   overview += `- Districts loaded: ${scope.districtCount || 0}\n`;
   overview += `- Countries in scope: ${scope.countries?.join(', ') || 'Unknown'}\n`;
   overview += `\nACTIVE DISASTERS IN SCOPE (${disasters.length}):\n`;
@@ -293,14 +342,14 @@ function createSituationOverview(impactedFacilities, disasters, statistics, scop
     
     // Add basic statistics
     overview += `- Total Disasters: ${statistics.totalDisasters}\n`;
-    overview += `- Total Facilities: ${statistics.totalFacilities}\n`;
-    overview += `- Impacted Facilities: ${statistics.impactedFacilityCount} (${statistics.percentageImpacted}%)\n`;
+    overview += `- Total Sites: ${statistics.totalFacilities}\n`;
+    overview += `- Impacted Sites: ${statistics.impactedFacilityCount} (${statistics.percentageImpacted}%)\n`;
     
     // Add disaster statistics
     if (statistics.disasterStats && statistics.disasterStats.length > 0) {
       overview += `\nDISASTER IMPACT DETAILS:\n`;
       for (const disasterStat of statistics.disasterStats) {
-        overview += `- ${disasterStat.name} (${disasterStat.type}): ${disasterStat.affectedFacilities} facilities impacted, ${disasterStat.impactArea} km² area, ${disasterStat.polygon ? 'using polygon data' : 'using radius'}\n`;
+        overview += `- ${disasterStat.name} (${disasterStat.type}): ${disasterStat.affectedFacilities} sites impacted, ${disasterStat.impactArea} km² area, ${disasterStat.polygon ? 'using polygon data' : 'using radius'}\n`;
       }
     }
     
@@ -308,20 +357,32 @@ function createSituationOverview(impactedFacilities, disasters, statistics, scop
     if (statistics.overlappingImpacts && statistics.overlappingImpacts.length > 0) {
       overview += `\nOVERLAPPING DISASTER IMPACTS (${statistics.overlappingImpacts.length}):\n`;
       for (const overlap of statistics.overlappingImpacts) {
-        overview += `- ${overlap.disasters[0]} + ${overlap.disasters[1]}: Impacts ${overlap.facilities.length} facilities\n`;
+        overview += `- ${overlap.disasters[0]} + ${overlap.disasters[1]}: Impacts ${overlap.facilities.length} sites\n`;
       }
     }
   }
   
-  // Add impacted facilities summary
-  overview += `\nIMPACTED FACILITIES (${impactedFacilities.length}):\n`;
+  // Add impacted sites summary
+  overview += `\nIMPACTED SITES (${impactedFacilities.length}):\n`;
   
   for (const impact of impactedFacilities) {
     const facility = impact.facility || {};
+    const attributes = impact.attributes || {};
     const facilityImpacts = impact.impacts || [];
     
-    const facilityName = facility.name || 'Unnamed facility';
-    overview += `\n${facilityName}:\n`;
+    const facilityName = facility.name || 'Unnamed site';
+    const locationBits = [facility.district, facility.region, facility.country].filter(Boolean);
+    overview += `\n${facilityName}${locationBits.length > 0 ? ` (${locationBits.join(', ')})` : ''}:\n`;
+    const typeLabel = facility.type || facility.facilityType || facility.site_type || facility.siteType || facility.category || facility.service_type;
+    if (typeLabel) {
+      overview += `- Site type: ${typeLabel}\n`;
+    }
+    const relevantAttributes = Object.entries(attributes)
+      .filter(([key]) => /type|category|service|target|population|refusal|coverage|dose|stock|supply|capacity|status|team|malaria|campaign/i.test(key))
+      .slice(0, 8);
+    relevantAttributes.forEach(([key, value]) => {
+      overview += `- ${key}: ${value}\n`;
+    });
     
     for (const disasterImpact of facilityImpacts) {
       const disaster = disasterImpact.disaster || {};
@@ -355,7 +416,7 @@ async function generateFallbackSitrep(impactedFacilities, disasters, situationOv
   - Scope: ${scope.summary || 'Current operational workspace'}
   - Time period: ${dateFilterText}
   - Number of disasters: ${disasters.length}
-  - Number of affected facilities: ${impactedFacilities.length}
+  - Number of affected sites: ${impactedFacilities.length}
 
   ${situationOverview}
 
@@ -365,11 +426,15 @@ async function generateFallbackSitrep(impactedFacilities, disasters, situationOv
   1. Scope
   2. Executive Summary
   3. Priority Areas
-  4. Facility Impact Summary
-  5. Threat Overview
-  6. Operational Implications
-  7. Immediate Actions
-  8. Data Confidence and Gaps
+  4. Site Impact Summary
+  5. Security Context
+  6. Threat Overview
+  7. Operational Implications
+  8. Immediate Actions
+  9. Data Confidence and Gaps
+
+  Use "site" / "sites" instead of "facility" / "facilities".
+  Adapt the report to the uploaded site types and fields instead of assuming generic facilities.
 
   The first line must be:
   # Situation Report: Scoped Operational Assessment
@@ -406,13 +471,28 @@ function getDisasterTypeName(eventType) {
 
 function extractLocationFromDistrict(district) {
   const props = district?.properties || district || {};
-  const countryFields = ['NAME_0', 'ADM0_EN', 'COUNTRY', 'Country', 'country', 'admin0Name', 'ADM0_NAME', 'ADMIN0', 'name_0'];
-  const regionFields = ['NAME_1', 'ADM1_EN', 'REGION', 'Region', 'region', 'admin1Name', 'ADM1_NAME', 'ADMIN1', 'name_1'];
-  const districtFields = ['NAME_2', 'ADM2_EN', 'DISTRICT', 'District', 'district', 'admin2Name', 'ADM2_NAME', 'ADMIN2', 'name_2', 'NAME'];
+  const normalizeKey = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const entries = Object.entries(props || {});
+  const getFirstMatchingValue = (matchers = []) => {
+    for (const [key, value] of entries) {
+      if (value === null || value === undefined || value === '') continue;
+      const normalized = normalizeKey(key);
+      if (matchers.some((matcher) => normalized === matcher || normalized.includes(matcher))) {
+        return value;
+      }
+    }
+    return null;
+  };
 
-  const country = countryFields.map((field) => props[field]).find(Boolean) || null;
-  const region = regionFields.map((field) => props[field]).find(Boolean) || null;
-  const districtName = districtFields.map((field) => props[field]).find(Boolean) || null;
+  const country = getFirstMatchingValue([
+    'name0', 'adm0en', 'adm0name', 'country', 'admin0', 'admin0name', 'cntry', 'iso0name'
+  ]);
+  const region = getFirstMatchingValue([
+    'name1', 'adm1en', 'adm1name', 'region', 'province', 'state', 'admin1', 'admin1name', 'provience', 'provincec'
+  ]);
+  const districtName = getFirstMatchingValue([
+    'name2', 'adm2en', 'adm2name', 'district', 'admin2', 'admin2name', 'tehsil', 'uc', 'municipality', 'county', 'name'
+  ]);
 
   return { country, region, districtName };
 }
@@ -440,13 +520,13 @@ function buildSitrepScope(impactedFacilities = [], disasters = [], districts = [
   const districtNames = Array.from(districtSet);
   const scopeType = districtNames.length > 0 ? 'district' : countries.length > 0 ? 'country' : 'facility';
 
-  let summary = 'Facility-centered operational workspace';
+  let summary = 'Site-centered operational workspace';
   if (districtNames.length > 0) {
     summary = `${districtNames.length} district(s) in ${countries.join(', ') || 'the selected area'}`;
   } else if (regions.length > 0 || countries.length > 0) {
     summary = `${regions.slice(0, 3).join(', ') || countries.join(', ')} operational workspace`;
   } else if (impactedFacilities.length > 0) {
-    summary = `${impactedFacilities.length} impacted facility location(s)`;
+    summary = `${impactedFacilities.length} impacted site location(s)`;
   }
 
   const threatTypes = Array.from(new Set(
@@ -464,6 +544,8 @@ function buildSitrepScope(impactedFacilities = [], disasters = [], districts = [
     districtCount: districts.length,
     facilityCount: impactedFacilities.length,
     impactedFacilityCount: impactedFacilities.length,
+    siteCount: impactedFacilities.length,
+    impactedSiteCount: impactedFacilities.length,
     threatTypes
   };
 }
@@ -500,3 +582,79 @@ Return a concise markdown summary with:
   };
 }
 export default withRateLimit(handler);
+
+function buildAreaAcledSummary(acledData = []) {
+  const countBy = (items, getter, { limit = 6 } = {}) => {
+    const counts = items.reduce((acc, item) => {
+      const key = getter(item);
+      if (!key) return acc;
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([label, count]) => ({ label, count }));
+  };
+
+  const hotspotMap = acledData.reduce((acc, event) => {
+    const key = event.admin2 || event.admin1 || event.location || event.country || 'Unspecified';
+    if (!acc[key]) {
+      acc[key] = { count: 0, fatalities: 0 };
+    }
+    acc[key].count += 1;
+    acc[key].fatalities += toNumber(event.fatalities) || 0;
+    return acc;
+  }, {});
+
+  const totalFatalities = acledData.reduce((sum, event) => sum + (toNumber(event.fatalities) || 0), 0);
+  const zeroFatalityEvents = acledData.filter((event) => (toNumber(event.fatalities) || 0) === 0).length;
+  const sortedDates = acledData.map((event) => event.event_date).filter(Boolean).sort();
+
+  const notableIncidents = acledData
+    .slice()
+    .sort((a, b) => {
+      const fatalityDiff = (toNumber(b.fatalities) || 0) - (toNumber(a.fatalities) || 0);
+      if (fatalityDiff !== 0) return fatalityDiff;
+      return new Date(b.event_date || 0) - new Date(a.event_date || 0);
+    })
+    .slice(0, 5)
+    .map((event) => ({
+      event_date: event.event_date,
+      event_type: event.event_type || 'Unknown',
+      sub_event_type: event.sub_event_type || null,
+      location: event.admin2 || event.admin1 || event.location || event.country || 'Unspecified',
+      actorSummary: [event.actor1, event.actor2].filter(Boolean).join(' vs ') || null,
+      fatalities: toNumber(event.fatalities) || 0,
+      notes: event.notes ? String(event.notes).slice(0, 180) : null,
+      source: event.source || null
+    }));
+
+  return {
+    totalFatalities,
+    zeroFatalityEvents,
+    dateRange: {
+      start: sortedDates[0] || null,
+      end: sortedDates[sortedDates.length - 1] || null
+    },
+    eventTypes: countBy(acledData, (event) => event.event_type || 'Unknown'),
+    subEventTypes: countBy(acledData, (event) => event.sub_event_type || null),
+    hotspots: Object.entries(hotspotMap)
+      .sort((a, b) => {
+        if (b[1].count !== a[1].count) return b[1].count - a[1].count;
+        return b[1].fatalities - a[1].fatalities;
+      })
+      .slice(0, 5)
+      .map(([label, value]) => ({ label, count: value.count, fatalities: value.fatalities })),
+    actorPairs: countBy(
+      acledData,
+      (event) => {
+        const actors = [event.actor1, event.actor2].filter(Boolean);
+        return actors.length > 0 ? actors.join(' vs ') : null;
+      },
+      { limit: 5 }
+    ),
+    notableIncidents
+  };
+}

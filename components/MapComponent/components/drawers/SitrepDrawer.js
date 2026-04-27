@@ -254,7 +254,7 @@ const SitrepDrawer = ({
                 Situation Report
               </div>
               <div style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
-                Operational summary for current disasters, facility exposure, and response context.
+                Operational summary for current disasters, site exposure, and response context.
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -266,7 +266,7 @@ const SitrepDrawer = ({
                 fontSize: '12px',
                 fontWeight: 700
               }}>
-                {impactedFacilities.length} impacted facilities
+                {impactedFacilities.length} impacted sites
               </div>
               {timestamp && (
                 <div style={{
@@ -304,7 +304,7 @@ const SitrepDrawer = ({
                   Generate or refresh the current report
                 </div>
                 <div style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
-                  Uses the current disaster filter, impacted facilities, ACLED context, OSM context, and population data already loaded in the workspace.
+                  Uses the current disaster filter, impacted sites, uploaded ACLED context, OSM context, and population data already loaded in the workspace.
                 </div>
               </div>
               <button
@@ -352,7 +352,7 @@ const SitrepDrawer = ({
 
             {impactedFacilities.length === 0 && (
               <div style={{ fontSize: '12px', color: '#64748b' }}>
-                Upload facilities and run impact assessment first.
+                Upload sites and run impact assessment first.
               </div>
             )}
           </div>

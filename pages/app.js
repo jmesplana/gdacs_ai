@@ -9,7 +9,8 @@ import { getDisasterTimelineDate } from '../components/MapComponent/utils/disast
 import {
   filterFacilitiesToDistricts,
   filterImpactedFacilitiesToDistricts,
-  getScopedWorldPopData
+  getScopedWorldPopData,
+  filterItemsToDistricts
 } from '../lib/analysisScope';
 import {
   saveDistricts,
@@ -62,6 +63,10 @@ const TrendAnalysisDashboard = dynamic(() => import('../components/TrendAnalysis
   ssr: false,
 });
 
+const SitrepDrawer = dynamic(() => import('../components/MapComponent/components/drawers/SitrepDrawer'), {
+  ssr: false,
+});
+
 const matrixTone = {
   ready: { text: '#166534', background: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.22)' },
   partial: { text: '#92400e', background: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.24)' },
@@ -86,7 +91,10 @@ function OperationalContextBar({
   acledEnabled = true,
   acledData = [],
   osmData = null,
-  canUseDistrictDecisionTools = false
+  canUseDistrictDecisionTools = false,
+  onOpenSitrep,
+  sitrepLoading = false,
+  canOpenSitrep = false
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -117,6 +125,13 @@ function OperationalContextBar({
       ? filterImpactedFacilitiesToDistricts(impactedFacilities, selectedAnalysisDistricts)
       : impactedFacilities,
     [impactedFacilities, selectedAnalysisDistricts]
+  );
+
+  const scopedAcledData = useMemo(
+    () => selectedAnalysisDistricts.length > 0
+      ? filterItemsToDistricts(acledData, selectedAnalysisDistricts, 'latitude', 'longitude')
+      : acledData,
+    [acledData, selectedAnalysisDistricts]
   );
 
   const scopedWorldPopData = useMemo(
@@ -207,6 +222,33 @@ function OperationalContextBar({
               {item.label}
             </span>
           ))}
+          <button
+            type="button"
+            onClick={() => onOpenSitrep && onOpenSitrep()}
+            disabled={!canOpenSitrep || sitrepLoading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '7px 10px',
+              borderRadius: '999px',
+              fontSize: '12px',
+              fontWeight: 700,
+              color: 'white',
+              background: canOpenSitrep ? '#F44336' : '#CBD5E1',
+              border: 'none',
+              cursor: canOpenSitrep && !sitrepLoading ? 'pointer' : 'not-allowed',
+              opacity: sitrepLoading ? 0.85 : 1
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+            {sitrepLoading ? 'Generating report...' : 'Sitrep'}
+          </button>
         </div>
         <button
           type="button"
@@ -593,6 +635,7 @@ export default function Home() {
   const [showOperationalOutlook, setShowOperationalOutlook] = useState(false); // Operational outlook dashboard visibility
   const [showPrioritizationBoard, setShowPrioritizationBoard] = useState(false); // Prioritization board visibility
   const [showTrendAnalysis, setShowTrendAnalysis] = useState(false); // Trend analysis dashboard visibility
+  const [showSitrepModal, setShowSitrepModal] = useState(false); // Sitrep modal visibility
   const [completeReport, setCompleteReport] = useState(null); // Store combined AI report
   const [lastUpdated, setLastUpdated] = useState(null); // Track when data was last updated
   const [timeSinceUpdate, setTimeSinceUpdate] = useState(''); // Human-readable time since last update
@@ -626,6 +669,12 @@ export default function Home() {
   const [selectedAnalysisDistricts, setSelectedAnalysisDistricts] = useState([]);
   const [latestPrioritizationBoard, setLatestPrioritizationBoard] = useState(null);
   const [enabledEvidenceLayers, setEnabledEvidenceLayers] = useState([]);
+  const scopedAcledData = useMemo(
+    () => selectedAnalysisDistricts.length > 0
+      ? filterItemsToDistricts(acledData, selectedAnalysisDistricts, 'latitude', 'longitude')
+      : acledData,
+    [acledData, selectedAnalysisDistricts]
+  );
   const canUseDistrictDecisionTools = districts.length > 0 && selectedAnalysisDistricts.length > 0;
 
   // Toast notifications
@@ -1564,6 +1613,12 @@ export default function Home() {
         region: item?.facility?.region,
         district: item?.facility?.district
       },
+      attributes: Object.fromEntries(
+        Object.entries(item?.facility || {})
+          .filter(([key, value]) => !['name', 'latitude', 'longitude', 'type', 'facilityType', 'country', 'region', 'district'].includes(key))
+          .filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value))
+          .slice(0, 24)
+      ),
       impacts: (item?.impacts || []).slice(0, 8).map((impact) => ({
         distance: impact?.distance,
         impactMethod: impact?.impactMethod,
@@ -1578,6 +1633,55 @@ export default function Home() {
         }
       }))
     }));
+
+  const buildSitrepSchemaSummary = (items = []) => {
+    const records = (items || []).map((item) => item?.facility || item).filter(Boolean);
+    const fieldCounts = {};
+    const typeCounts = {};
+
+    records.forEach((record) => {
+      const recordType = record.type || record.facilityType || record.site_type || record.siteType || record.category || record.service_type || null;
+      if (recordType) {
+        const normalizedType = String(recordType).trim();
+        if (normalizedType) {
+          typeCounts[normalizedType] = (typeCounts[normalizedType] || 0) + 1;
+        }
+      }
+
+      Object.entries(record).forEach(([key, value]) => {
+        if (value === null || value === undefined || value === '') return;
+        if (['object', 'function'].includes(typeof value)) return;
+        fieldCounts[key] = (fieldCounts[key] || 0) + 1;
+      });
+    });
+
+    const preferredFieldMatchers = [
+      'type', 'category', 'service', 'target', 'population', 'refusal', 'coverage', 'malaria',
+      'stock', 'supply', 'capacity', 'status', 'team', 'dose', 'children', 'women', 'campaign'
+    ];
+
+    const keyFields = Object.entries(fieldCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([field]) => field)
+      .sort((a, b) => {
+        const aMatch = preferredFieldMatchers.findIndex((matcher) => a.toLowerCase().includes(matcher));
+        const bMatch = preferredFieldMatchers.findIndex((matcher) => b.toLowerCase().includes(matcher));
+        const aRank = aMatch === -1 ? 999 : aMatch;
+        const bRank = bMatch === -1 ? 999 : bMatch;
+        if (aRank !== bRank) return aRank - bRank;
+        return a.localeCompare(b);
+      })
+      .slice(0, 18);
+
+    return {
+      recordCount: records.length,
+      typeBreakdown: Object.entries(typeCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([label, count]) => ({ label, count })),
+      keyFields
+    };
+  };
 
   const compactSitrepDisasters = (items = [], maxItems = 100) =>
     (items || []).slice(0, maxItems).map((item) => ({
@@ -1602,6 +1706,9 @@ export default function Home() {
       admin2: item?.admin2,
       location: item?.location,
       fatalities: item?.fatalities,
+      actor1: item?.actor1,
+      actor2: item?.actor2,
+      source: item?.source,
       notes: item?.notes ? String(item.notes).slice(0, 160) : null
     }));
 
@@ -1635,26 +1742,16 @@ export default function Home() {
   };
 
   const compactSitrepDistricts = (items = [], maxItems = 100) =>
-    (items || []).slice(0, maxItems).map((district) => ({
-      properties: district?.properties
-        ? {
-            NAME_0: district.properties.NAME_0,
-            ADM0_EN: district.properties.ADM0_EN,
-            COUNTRY: district.properties.COUNTRY,
-            country: district.properties.country,
-            NAME_1: district.properties.NAME_1,
-            ADM1_EN: district.properties.ADM1_EN,
-            REGION: district.properties.REGION,
-            region: district.properties.region,
-            NAME_2: district.properties.NAME_2,
-            ADM2_EN: district.properties.ADM2_EN,
-            DISTRICT: district.properties.DISTRICT,
-            district: district.properties.district,
-            NAME: district.properties.NAME,
-            name: district.properties.name
-          }
-        : district
-    }));
+    (items || []).slice(0, maxItems).map((district) => {
+      const properties = district?.properties || district || {};
+      const compactProperties = Object.fromEntries(
+        Object.entries(properties)
+          .filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value))
+          .slice(0, 40)
+      );
+
+      return { properties: compactProperties };
+    });
 
   const compactSitrepWorldPopData = (data = {}, maxEntries = 100) =>
     Object.fromEntries(Object.entries(data || {}).slice(0, maxEntries));
@@ -1707,11 +1804,12 @@ export default function Home() {
         disasters: compactSitrepDisasters(filteredDisasters.length > 0 ? filteredDisasters : disasters),
         dateFilter: dateFilter,
         statistics: compactSitrepStatistics(impactStatistics),
-        acledData: acledEnabled ? compactSitrepAcled(acledData) : [],
+        acledData: acledEnabled ? compactSitrepAcled(scopedAcledData) : [],
         osmData: compactSitrepOsmData(osmData),
         worldPopData: compactSitrepWorldPopData(worldPopData),
         worldPopYear: worldPopLastFetch?.year || null,
-        districts: compactSitrepDistricts(districtRawData || [])
+        districts: compactSitrepDistricts(districtRawData || []),
+        uploadedDataSchema: buildSitrepSchemaSummary(impactedFacilities.length > 0 ? impactedFacilities : facilities)
       });
 
       console.log(`Sitrep request body size: ${(requestBody.length / 1024).toFixed(2)} KB`);
@@ -1736,6 +1834,12 @@ export default function Home() {
     } finally {
       setLoading(prev => ({ ...prev, sitrep: false }));
     }
+  };
+
+  const openSitrepModal = async (forceRefresh = false) => {
+    if (impactedFacilities.length === 0) return;
+    setShowSitrepModal(true);
+    await generateSitrep(forceRefresh);
   };
 
   // Handle facility selection
@@ -2859,6 +2963,9 @@ export default function Home() {
           acledData={acledData}
           osmData={osmData}
           canUseDistrictDecisionTools={canUseDistrictDecisionTools}
+          onOpenSitrep={() => openSitrepModal()}
+          sitrepLoading={loading.sitrep}
+          canOpenSitrep={impactedFacilities.length > 0}
         />
 
         <MapComponent
@@ -2971,6 +3078,74 @@ export default function Home() {
               setSelectedDistrictForOutlook(null); // Clear selected district when closing
             }}
           />
+        )}
+
+        {showSitrepModal && (
+          <div
+            onClick={() => setShowSitrepModal(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 10000,
+              background: 'rgba(15, 23, 42, 0.62)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '24px'
+            }}
+          >
+            <div
+              onClick={(event) => event.stopPropagation()}
+              style={{
+                width: 'min(1120px, 100%)',
+                maxHeight: '88vh',
+                overflowY: 'auto',
+                background: '#F8FAFC',
+                border: '1px solid rgba(148, 163, 184, 0.32)',
+                borderRadius: '20px',
+                boxShadow: '0 24px 80px rgba(15, 23, 42, 0.28)',
+                position: 'relative'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowSitrepModal(false)}
+                style={{
+                  position: 'sticky',
+                  top: '16px',
+                  float: 'right',
+                  margin: '16px 16px 0 0',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '999px',
+                  border: '1px solid #CBD5E1',
+                  background: 'rgba(255, 255, 255, 0.96)',
+                  color: '#334155',
+                  fontSize: '22px',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  zIndex: 1
+                }}
+                aria-label="Close situation report"
+              >
+                ×
+              </button>
+              <div style={{ padding: '8px 24px 24px 24px' }}>
+                <SitrepDrawer
+                  embedded={true}
+                  isOpen={true}
+                  onClose={() => setShowSitrepModal(false)}
+                  sitrep={sitrep}
+                  timestamp={sitrepTimestamp}
+                  sitrepLoading={loading.sitrep}
+                  onGenerateSitrep={openSitrepModal}
+                  impactedFacilities={impactedFacilities}
+                  facilities={facilities}
+                />
+              </div>
+            </div>
+          </div>
         )}
 
         {showPrioritizationBoard && (
