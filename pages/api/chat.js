@@ -185,7 +185,7 @@ async function handler(req, res) {
 
 **💬 CHAT MODE**: The current request is in ${detailLevel === 'deep' ? 'DEEP' : 'COMPACT'} mode.
 - COMPACT mode: prioritize speed, concise synthesis, and the contextual-analysis layer.
-- DEEP mode: the user is asking for evidence-heavy or detailed analysis. Use the targeted detailed context provided, cite specific event/facility details from context, and favor precision over brevity.
+- DEEP mode: the user is asking for evidence-heavy or detailed analysis. Use the targeted detailed context provided, cite specific event/site details from context, and favor precision over brevity.
 
 **🗺️ MAP AND EVIDENCE LAYERS**:
 - If the context says a map or evidence layer is loaded, treat it as available data.
@@ -236,7 +236,7 @@ Core expertise areas:
 - Vector control in emergency settings
 - Malaria response in humanitarian crises, armed conflict, and IDP settings
 
-The user is viewing a disaster impact assessment tool. You have access to the current context of their situation including facility data, active disasters, and impact assessments.
+The user is viewing a disaster impact assessment tool. You have access to the current context of their situation including site data, active disasters, and impact assessments.
 
 Current Context:
 ${contextSummary}
@@ -246,11 +246,11 @@ Your role is to:
 2. Provide actionable recommendations based on the current situation
 3. Help with scenario planning and decision-making
 4. Explain technical humanitarian concepts in plain language
-5. Reference specific facilities, disasters, and data from the context when relevant
-6. When asked about facilities, you MUST reference the facilities list provided in the context above
+5. Reference specific sites, disasters, and data from the context when relevant
+6. When asked about sites, you MUST reference the sites list provided in the context above
 7. When districts are actively selected in the context, answer about that selected admin area unless the user clearly asks about the full uploaded shapefile
 7a. When the user asks which district to avoid, which areas are unsafe, no-go, or highest risk, use the active district risk assessment and prioritization board first. Name the highest-risk district(s) in the current analysis scope and explain the evidence basis.
-8. **Campaign Planning Support**: When asked about campaign viability, feasibility, or "can I run a campaign at [facility]", provide guidance on:
+8. **Campaign Planning Support**: When asked about campaign viability, feasibility, or "can I run a campaign at [site]", provide guidance on:
    - Whether it's safe to proceed with health campaigns (malaria, immunization, etc.)
    - Specific risks for campaign teams and target populations
    - Cold chain considerations for vaccine programs
@@ -273,8 +273,10 @@ Your role is to:
    - Recommend specific assessment timing based on campaign status and disaster situation
 
 IMPORTANT:
-- The user has uploaded facility data that is visible in the "FACILITIES LIST" section above. When asked questions like "which facilities have I added" or "what facilities do I have", you should list out the facilities from the FACILITIES LIST in the context, including their names, locations, types, and any other relevant details.
-- **FACILITY DATA FIELDS**: If you see "📊 AI ANALYSIS FIELDS LOADED" in the context, the user has selected specific data fields for you to analyze. The actual data values from these fields are included in each facility's listing above (shown inline after the facility name and location). You MUST use this data to answer questions about facility characteristics, populations, disease prevalence, service coverage, or any other metrics the user asks about.
+- Use "site" / "sites" in user-facing responses, headings, and table column names by default. Only use "facility" when you are referring to a specific facility type already present in the data, such as hospital, clinic, warehouse, or school.
+- When the user asks for a table, prefer a markdown table with a first column named "Site" rather than "Facility", unless the user explicitly asks for a different label.
+- The user has uploaded site data that is visible in the "SITES LIST" section above. When asked questions like "which sites have I added" or "what sites do I have", you should list out the sites from the SITES LIST in the context, including their names, locations, types, and any other relevant details.
+- **SITE DATA FIELDS**: If you see "📊 AI ANALYSIS FIELDS LOADED" in the context, the user has selected specific data fields for you to analyze. The actual data values from these fields are included in each site's listing above (shown inline after the site name and location). You MUST use this data to answer questions about site characteristics, populations, disease prevalence, service coverage, or any other metrics the user asks about.
 - **ACLED COUNT RULE**: If the context includes "Current analysis scope ACLED events", use that number when the user asks "how many ACLED events" or asks for the count in the current selected area. Only use the full loaded ACLED total if the user explicitly asks about the whole uploaded dataset or full system count.
 - **ACLED DETAIL RULE**: When ACLED event records in context include notes, actor1, actor2, sub_event_type, or source, use those fields when the user asks what happened in a specific event or location. Treat notes as the primary event-detail field.
 - For campaign planning questions, consider: disaster proximity, cold chain risks, access constraints, population displacement, staff safety, and program-specific needs (ACTs for malaria, vaccines for immunization)
@@ -942,9 +944,9 @@ function buildContextSummary(context) {
     summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   }
 
-  // Facility information
+  // Site information
   if (context.selectedFacility) {
-    summary.push(`SELECTED FACILITY: ${context.selectedFacility.name}`);
+    summary.push(`SELECTED SITE: ${context.selectedFacility.name}`);
     if (context.selectedFacility.type) {
       summary.push(`Type: ${context.selectedFacility.type}`);
     }
@@ -952,18 +954,18 @@ function buildContextSummary(context) {
 
     // Include custom fields from uploaded data
     if (context.selectedFacility.customFields) {
-      summary.push('\nAdditional Facility Information:');
+      summary.push('\nAdditional Site Information:');
       Object.entries(context.selectedFacility.customFields).forEach(([key, value]) => {
         summary.push(`- ${key}: ${value}`);
       });
     }
   }
 
-  // Facilities overview
+  // Sites overview
   if (context.totalFacilities) {
-    summary.push(`\nTOTAL FACILITIES: ${context.totalFacilities}`);
+    summary.push(`\nTOTAL SITES: ${context.totalFacilities}`);
 
-    // Include facilities list (compact format for 200 facilities)
+    // Include sites list (compact format for 200 entries)
     if (context.facilities && context.facilities.length > 0) {
       const totalCount = context.totalFacilities;
       const shownCount = context.facilities.length;
@@ -971,19 +973,19 @@ function buildContextSummary(context) {
       const aiAnalysisFields = context.aiAnalysisFields || [];
 
       // Debug logging
-      console.log('Building facility list with AI fields:', aiAnalysisFields);
+      console.log('Building site list with AI fields:', aiAnalysisFields);
       if (context.facilities.length > 0) {
-        console.log('Sample facility keys:', Object.keys(context.facilities[0]));
+        console.log('Sample site keys:', Object.keys(context.facilities[0]));
       }
 
       if (aiAnalysisFields.length > 0) {
-        summary.push(`\n📊 FACILITIES DATABASE WITH AI ANALYSIS DATA (showing ${shownCount} of ${totalCount}):`);
-        summary.push(`   The following fields are included for each facility: ${aiAnalysisFields.join(', ')}`);
+        summary.push(`\n📊 SITES DATABASE WITH AI ANALYSIS DATA (showing ${shownCount} of ${totalCount}):`);
+        summary.push(`   The following fields are included for each site: ${aiAnalysisFields.join(', ')}`);
       } else {
-        summary.push(`\nFACILITIES DATABASE (showing ${shownCount} of ${totalCount}):`);
+        summary.push(`\nSITES DATABASE (showing ${shownCount} of ${totalCount}):`);
       }
 
-      // Compact one-line format for each facility
+      // Compact one-line format for each site
       context.facilities.forEach((facility, idx) => {
         const parts = [`${idx + 1}. ${facility.name}`];
 
@@ -1016,13 +1018,13 @@ function buildContextSummary(context) {
       });
 
       if (totalCount > shownCount) {
-        summary.push(`\n[${totalCount - shownCount} additional facilities not shown]`);
+        summary.push(`\n[${totalCount - shownCount} additional sites not shown]`);
       }
 
       if (aiAnalysisFields.length > 0) {
-        summary.push(`\n📊 AI ANALYSIS FIELDS LOADED FOR ALL FACILITIES:`);
+        summary.push(`\n📊 AI ANALYSIS FIELDS LOADED FOR ALL SITES:`);
         summary.push(`   Fields available: ${aiAnalysisFields.join(', ')}`);
-        summary.push(`   ✅ The data from these fields is included in each facility listing above`);
+        summary.push(`   ✅ The data from these fields is included in each site listing above`);
         summary.push(`   You can analyze trends, identify patterns, and answer questions about these field values`);
       }
     }
@@ -1236,17 +1238,17 @@ function buildContextSummary(context) {
     }
   }
 
-  // Impacted facilities
+  // Impacted sites
   if (context.impactedFacilities && context.impactedFacilities.length > 0) {
     const totalImpacted = context.totalImpactedFacilities || context.impactedFacilities.length;
-    summary.push(`\nIMPACTED FACILITIES (showing ${context.impactedFacilities.length} of ${totalImpacted} total):`);
+    summary.push(`\nIMPACTED SITES (showing ${context.impactedFacilities.length} of ${totalImpacted} total):`);
     context.impactedFacilities.slice(0, 5).forEach(item => {
       summary.push(`- ${item.facility.name}: ${item.impacts.length} disaster(s) affecting it`);
     });
     if (totalImpacted > context.impactedFacilities.length) {
-      summary.push(`... plus ${totalImpacted - context.impactedFacilities.length} additional impacted facilities not included in the chat sample`);
+      summary.push(`... plus ${totalImpacted - context.impactedFacilities.length} additional impacted sites not included in the chat sample`);
     } else if (context.impactedFacilities.length > 5) {
-      summary.push(`... and ${context.impactedFacilities.length - 5} more facilities`);
+      summary.push(`... and ${context.impactedFacilities.length - 5} more sites`);
     }
   }
 

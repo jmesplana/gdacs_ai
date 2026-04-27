@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 
+const CHAT_DRAWER_WIDTH = 420;
+const CHAT_DRAWER_EXPANDED_WIDTH = 760;
+
 function compactWorldPopDataForChat(worldPopData = {}, maxEntries = 50) {
   const entries = Object.entries(worldPopData || {}).slice(0, maxEntries);
   return Object.fromEntries(entries);
@@ -274,11 +277,219 @@ function shouldUseDeepChat(message = '') {
   return asksForDetail || asksAboutSpecificEvidence || asksAirportProximity;
 }
 
+function isTableRow(line = '') {
+  const trimmed = line.trim();
+  return trimmed.includes('|') && !trimmed.startsWith('```');
+}
+
+function isTableSeparator(line = '') {
+  const normalized = line.trim().replace(/\|/g, '').replace(/:/g, '').replace(/-/g, '').trim();
+  return normalized.length === 0 && line.includes('-');
+}
+
+function parseTableRow(line = '') {
+  return line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
+}
+
+function isTabularRow(line = '') {
+  const trimmed = line.trim();
+  return trimmed.includes('\t') && !trimmed.startsWith('```');
+}
+
+function parseTabularRow(line = '') {
+  return line
+    .trim()
+    .split('\t')
+    .map((cell) => cell.trim());
+}
+
+function stripMarkdownTokens(value = '') {
+  return String(value)
+    .replace(/`/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/\*/g, '')
+    .replace(/_/g, '')
+    .trim();
+}
+
+function isNumericTableCell(value = '') {
+  const normalized = stripMarkdownTokens(value)
+    .replace(/,/g, '')
+    .replace(/%/g, '')
+    .replace(/[()]/g, '')
+    .trim();
+
+  if (!normalized) return false;
+  return /^-?\d+(\.\d+)?$/.test(normalized);
+}
+
+function getNumericColumns(rows = []) {
+  if (!rows.length) return new Set();
+
+  const maxColumns = Math.max(...rows.map((row) => row.length));
+  const numericColumns = new Set();
+
+  for (let columnIndex = 0; columnIndex < maxColumns; columnIndex += 1) {
+    const columnValues = rows
+      .map((row) => row[columnIndex])
+      .filter((value) => value !== undefined && value !== null && String(value).trim() !== '');
+
+    if (columnValues.length > 0 && columnValues.every((value) => isNumericTableCell(value))) {
+      numericColumns.add(columnIndex);
+    }
+  }
+
+  return numericColumns;
+}
+
+function renderInlineMarkdown(content, key) {
+  return (
+    <ReactMarkdown
+      key={key}
+      components={{
+        p: ({ node, ...props }) => <span {...props} />,
+        strong: ({ node, ...props }) => <strong style={{ fontWeight: 700, color: '#0f172a' }} {...props} />,
+        em: ({ node, ...props }) => <em {...props} />,
+        code: ({ node, inline, ...props }) => <code style={{ backgroundColor: 'rgba(15,23,42,0.06)', padding: '1px 4px', borderRadius: '4px', fontSize: '0.92em' }} {...props} />
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
+
+function markdownComponents() {
+  return {
+    p: ({ node, ...props }) => <p style={{ margin: '0.5em 0' }} {...props} />,
+    strong: ({ node, ...props }) => <strong style={{ fontWeight: 600 }} {...props} />,
+    em: ({ node, ...props }) => <em {...props} />,
+    ul: ({ node, ordered, ...props }) => <ul style={{ marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em' }} {...props} />,
+    ol: ({ node, ordered, ...props }) => <ol style={{ marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em' }} {...props} />,
+    li: ({ node, ordered, ...props }) => <li style={{ marginBottom: '0.3em' }} {...props} />,
+    code: ({ node, inline, ...props }) => (
+      inline
+        ? <code style={{ backgroundColor: 'rgba(0,0,0,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em' }} {...props} />
+        : <code style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.1)', padding: '8px', borderRadius: '4px', fontSize: '0.9em', overflow: 'auto' }} {...props} />
+    )
+  };
+}
+
+function renderMarkdownWithTables(content, keyPrefix = 'md') {
+  if (!content) return null;
+
+  const lines = content.split('\n');
+  const blocks = [];
+  let currentMarkdown = [];
+  let i = 0;
+
+  const flushMarkdown = () => {
+    const markdown = currentMarkdown.join('\n').trim();
+    if (markdown) {
+      blocks.push({ type: 'markdown', content: markdown });
+    }
+    currentMarkdown = [];
+  };
+
+  while (i < lines.length) {
+    const currentLine = lines[i];
+    const nextLine = lines[i + 1];
+
+    if (isTableRow(currentLine) && nextLine && isTableSeparator(nextLine)) {
+      flushMarkdown();
+
+      const header = parseTableRow(currentLine);
+      const rows = [];
+      i += 2;
+
+      while (i < lines.length && isTableRow(lines[i])) {
+        rows.push(parseTableRow(lines[i]));
+        i += 1;
+      }
+
+      blocks.push({ type: 'table', header, rows });
+      continue;
+    }
+
+    if (isTabularRow(currentLine) && nextLine && isTabularRow(nextLine)) {
+      flushMarkdown();
+
+      const header = parseTabularRow(currentLine);
+      const rows = [];
+      i += 1;
+
+      while (i < lines.length && isTabularRow(lines[i])) {
+        rows.push(parseTabularRow(lines[i]));
+        i += 1;
+      }
+
+      blocks.push({ type: 'table', header, rows });
+      continue;
+    }
+
+    currentMarkdown.push(currentLine);
+    i += 1;
+  }
+
+  flushMarkdown();
+
+  return blocks.map((block, index) => {
+    if (block.type === 'table') {
+      const numericColumns = getNumericColumns(block.rows);
+
+      return (
+        <div key={`${keyPrefix}-table-${index}`} className="chat-table-wrap">
+          <table className="chat-table">
+            <thead>
+              <tr>
+                {block.header.map((cell, cellIndex) => (
+                  <th
+                    key={`${keyPrefix}-th-${index}-${cellIndex}`}
+                    className={numericColumns.has(cellIndex) ? 'chat-table-cell-numeric' : ''}
+                  >
+                    {renderInlineMarkdown(cell, `${keyPrefix}-th-md-${index}-${cellIndex}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, rowIndex) => (
+                <tr key={`${keyPrefix}-tr-${index}-${rowIndex}`}>
+                  {row.map((cell, cellIndex) => (
+                    <td
+                      key={`${keyPrefix}-td-${index}-${rowIndex}-${cellIndex}`}
+                      className={numericColumns.has(cellIndex) ? 'chat-table-cell-numeric' : ''}
+                    >
+                      {renderInlineMarkdown(cell, `${keyPrefix}-td-md-${index}-${rowIndex}-${cellIndex}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    return (
+      <ReactMarkdown key={`${keyPrefix}-markdown-${index}`} components={markdownComponents()}>
+        {block.content}
+      </ReactMarkdown>
+    );
+  });
+}
+
 const ChatDrawer = ({
   isOpen,
   onClose,
   context,
   onHighlightDistricts,
+  isExpanded = false,
+  onToggleExpand,
   embedded = false // New prop for when embedded in UnifiedDrawer
 }) => {
   const [messages, setMessages] = useState([
@@ -485,6 +696,7 @@ const ChatDrawer = ({
   };
 
   const suggestedQuestions = getSuggestedQuestions();
+  const messageMaxWidth = isExpanded ? '92%' : '85%';
 
   // Content that will be shown (either embedded or in full drawer)
   const content = (
@@ -509,7 +721,7 @@ const ChatDrawer = ({
               key={index}
               style={{
                 alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '85%'
+                maxWidth: messageMaxWidth
               }}
             >
               <div style={{
@@ -573,23 +785,7 @@ const ChatDrawer = ({
                   </div>
                 ) : (
                   <div style={{ paddingRight: '24px' }}>
-                    <ReactMarkdown
-                    components={{
-                      p: ({node, ...props}) => <p style={{margin: '0.5em 0'}} {...props} />,
-                      strong: ({node, ...props}) => <strong style={{fontWeight: 600}} {...props} />,
-                      em: ({node, ...props}) => <em {...props} />,
-                      ul: ({node, ordered, ...props}) => <ul style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
-                      ol: ({node, ordered, ...props}) => <ol style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
-                      li: ({node, ordered, ...props}) => <li style={{marginBottom: '0.3em'}} {...props} />,
-                      code: ({node, inline, ...props}) => (
-                        inline ?
-                          <code style={{backgroundColor: 'rgba(0,0,0,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em'}} {...props} /> :
-                          <code style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.1)', padding: '8px', borderRadius: '4px', fontSize: '0.9em', overflow: 'auto'}} {...props} />
-                      )
-                    }}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
+                    {renderMarkdownWithTables(message.content, `message-${index}`)}
                   </div>
                 )}
               </div>
@@ -608,7 +804,7 @@ const ChatDrawer = ({
           {streamingMessage && (
             <div style={{
               alignSelf: 'flex-start',
-              maxWidth: '85%'
+              maxWidth: messageMaxWidth
             }}>
               <div style={{
                 backgroundColor: 'var(--aidstack-light-gray)',
@@ -620,23 +816,7 @@ const ChatDrawer = ({
                 fontFamily: "'Inter', sans-serif",
                 boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
               }}>
-                <ReactMarkdown
-                  components={{
-                    p: ({node, ...props}) => <p style={{margin: '0.5em 0'}} {...props} />,
-                    strong: ({node, ...props}) => <strong style={{fontWeight: 600}} {...props} />,
-                    em: ({node, ...props}) => <em {...props} />,
-                    ul: ({node, ordered, ...props}) => <ul style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
-                    ol: ({node, ordered, ...props}) => <ol style={{marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em'}} {...props} />,
-                    li: ({node, ordered, ...props}) => <li style={{marginBottom: '0.3em'}} {...props} />,
-                    code: ({node, inline, ...props}) => (
-                      inline ?
-                        <code style={{backgroundColor: 'rgba(0,0,0,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em'}} {...props} /> :
-                        <code style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.1)', padding: '8px', borderRadius: '4px', fontSize: '0.9em', overflow: 'auto'}} {...props} />
-                    )
-                  }}
-                >
-                  {streamingMessage}
-                </ReactMarkdown>
+                {renderMarkdownWithTables(streamingMessage, 'streaming')}
                 <span style={{
                   display: 'inline-block',
                   width: '8px',
@@ -838,6 +1018,59 @@ const ChatDrawer = ({
             opacity: 0;
           }
         }
+        .chat-table-wrap {
+          overflow-x: auto;
+          margin: 12px 0 16px 0;
+          border: 1px solid #94a3b8;
+          border-radius: 14px;
+          background: #ffffff;
+          box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+        }
+        .chat-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12.5px;
+          line-height: 1.5;
+          color: var(--aidstack-slate-dark);
+        }
+        .chat-table th {
+          text-align: left;
+          padding: 12px 14px;
+          background: #e2e8f0;
+          border-bottom: 1px solid #94a3b8;
+          color: #0f172a;
+          font-weight: 700;
+          letter-spacing: 0.01em;
+          white-space: nowrap;
+          font-family: 'Space Grotesk', sans-serif;
+        }
+        .chat-table th:not(:last-child),
+        .chat-table td:not(:last-child) {
+          border-right: 1px solid #cbd5e1;
+        }
+        .chat-table tbody tr:nth-child(even) {
+          background: #f8fafc;
+        }
+        .chat-table tbody tr:hover {
+          background: #e2e8f0;
+        }
+        .chat-table td {
+          padding: 11px 14px;
+          border-top: 1px solid #cbd5e1;
+          vertical-align: top;
+          color: #334155;
+          background: transparent;
+        }
+        .chat-table tbody tr:first-child td {
+          border-top: none;
+        }
+        .chat-table-cell-numeric {
+          text-align: center;
+          font-variant-numeric: tabular-nums;
+        }
+        .chat-table :global(p) {
+          margin: 0;
+        }
       `}</style>
     </div>
   );
@@ -855,7 +1088,7 @@ const ChatDrawer = ({
         onClick={(e) => e.stopPropagation()}
         style={{
           zIndex: 3000,
-          width: '420px',
+          width: isExpanded ? `${CHAT_DRAWER_EXPANDED_WIDTH}px` : `${CHAT_DRAWER_WIDTH}px`,
           display: 'flex',
           flexDirection: 'column',
           maxHeight: '90vh'
@@ -893,6 +1126,40 @@ const ChatDrawer = ({
               </div>
             )}
           </div>
+          <button
+            onClick={onToggleExpand}
+            title={isExpanded ? 'Collapse chat width' : 'Expand chat width'}
+            style={{
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.22)',
+              color: 'white',
+              borderRadius: '8px',
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              marginRight: '8px',
+              flexShrink: 0
+            }}
+          >
+            {isExpanded ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <polyline points="9 21 3 21 3 15"></polyline>
+                <line x1="21" y1="3" x2="14" y2="10"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 3 3 3 3 9"></polyline>
+                <polyline points="15 21 21 21 21 15"></polyline>
+                <line x1="3" y1="3" x2="10" y2="10"></line>
+                <line x1="21" y1="21" x2="14" y2="14"></line>
+              </svg>
+            )}
+          </button>
           <button className="drawer-close" onClick={onClose} style={{color: 'white'}}>×</button>
         </div>
 

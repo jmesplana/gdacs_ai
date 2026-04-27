@@ -475,6 +475,8 @@ const formatMonthLabel = (value) => {
 
 const FACILITY_BASE_FIELDS = new Set(['name', 'latitude', 'longitude']);
 const FACILITY_SUMMARY_FIELDS = new Set(['refusal_reason', 'refusal_rate', 'refusal', 'target']);
+const CHAT_DRAWER_WIDTH = 420;
+const CHAT_DRAWER_EXPANDED_WIDTH = 760;
 
 function normalizeFacilityFieldKey(key = '') {
   return String(key).replace(/_\d+$/, '');
@@ -681,6 +683,7 @@ const MapComponent = ({
   const mapContainerRef = useRef(null);
   const nighttimeCompareDragRef = useRef(false);
   const [mapInstance, setMapInstance] = useState(null);
+  const [chatDrawerExpanded, setChatDrawerExpanded] = useState(false);
   const { addToast } = useToast();
 
   // Use custom hooks
@@ -1865,7 +1868,9 @@ const MapComponent = ({
   const isAnyDrawerOpen = filterDrawerOpen || unifiedDrawerOpen || mapLayersDrawerOpen || showChatDrawer;
 
   // Drawer width (should match the drawer width in CSS)
-  const drawerWidth = 400;
+  const drawerWidth = showChatDrawer
+    ? (chatDrawerExpanded ? CHAT_DRAWER_EXPANDED_WIDTH : CHAT_DRAWER_WIDTH)
+    : 400;
 
   return (
     <div
@@ -2702,8 +2707,13 @@ const MapComponent = ({
       {/* Chat Drawer - Kept separate due to complex context management */}
       <ChatDrawer
         isOpen={showChatDrawer}
-        onClose={() => setShowChatDrawer(false)}
+        onClose={() => {
+          setShowChatDrawer(false);
+          setChatDrawerExpanded(false);
+        }}
         onHighlightDistricts={districts && districts.length > 0 ? handleHighlightDistricts : null}
+        isExpanded={chatDrawerExpanded}
+        onToggleExpand={() => setChatDrawerExpanded((current) => !current)}
         context={{
           activeMapLayer: currentMapLayer,
           activeMapLayerName: currentLayer?.name || null,
