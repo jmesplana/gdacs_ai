@@ -48,11 +48,13 @@ Optional environment variables:
 **Component hierarchy**:
 - `components/MapComponent.js` (~10,300 LOC including subcomponents) — the core map interface
   - `components/MapComponent/hooks/` — Custom hooks: `useAIAnalysis`, `useDrawing`, `useFileUpload`, `useMapControls`, `useMapFilters`, `usePlayback`, `useWorldPop`, `useOSMInfrastructure`
-  - `components/MapComponent/components/drawers/` — Side panels: `ChatDrawer` (expandable for larger workspace), `FacilityDrawer`, `FilterDrawer`, `MapLayersDrawer`, `RecommendationsDrawer`, `SitrepDrawer`, `UnifiedDrawer`, `WorldPopDrawer`
+  - `components/MapComponent/components/drawers/` — Side panels: `ChatDrawer` (expandable for larger workspace with enhanced table rendering), `FacilityDrawer`, `FilterDrawer`, `MapLayersDrawer`, `RecommendationsDrawer`, `SitrepDrawer`, `UnifiedDrawer` (trend analysis integration), `WorldPopDrawer`
   - `components/MapComponent/components/overlays/` — Map overlays: `FloatingActionButtons`, `HamburgerMenu`, `MapLegend`, `TimelineScrubber`, `CampaignDashboard`
-  - `components/MapComponent/components/` — Map layers: `AcledMarkers`, `DisasterMarkers`, `DrawingLayer`, `HeatmapLayer`, `TimelineVisualization`, `OSMInfrastructureLayer`
-  - `components/MapComponent/utils/` — Geospatial helpers: `disasterHelpers`, `fileHelpers`, `mapHelpers`, `osmHelpers`
-- Other major components: `PredictionDashboard.js`, `TrendAnalysisDashboard.js`, `OperationalOutlook.js`, `LandingPage.js`, `ShapefileUploader.js`, `SitrepGenerator.js`
+  - `components/MapComponent/components/` — Map layers: `AcledMarkers`, `DisasterMarkers`, `DrawingLayer`, `HeatmapLayer`, `TimelineVisualization`, `OSMInfrastructureLayer`, `AdminBoundariesLayer` (enhanced with dataset styling)
+  - `components/MapComponent/utils/` — Geospatial helpers: `disasterHelpers`, `fileHelpers`, `mapHelpers`, `osmHelpers`, `adminDatasetStyling` (choropleth styling for admin boundaries)
+  - `components/MapComponent/constants/` — Map configuration: `mapConstants` (base layers, zoom levels, style presets)
+- Other major components: `PredictionDashboard.js`, `TrendAnalysisDashboard.js` (modularized with subcomponents), `OperationalOutlook.js`, `LandingPage.js`, `ShapefileUploader.js`, `SitrepGenerator.js`
+  - `components/TrendAnalysisDashboard/` — Modular subcomponents: `AcledTrendsChart`, `DisasterTimelineChart`, `FacilityRiskChart`, `DistrictComparisonTable`, `SummaryCards`, `NarrativePanel`, `EmptyState`
 
 **State management**: Local `useState` throughout — no Redux/Zustand. `pages/app.js` owns top-level state and passes down via props.
 
@@ -61,8 +63,8 @@ Optional environment variables:
 All AI endpoints are rate-limited via `lib/rateLimit.js` (100 req/hr per IP, Redis-backed).
 
 Key routes:
-- `pages/api/chat.js` — Chatbot using GPT-4o with web search
-- `pages/api/impact_assessment.js` — Calculates disaster proximity to uploaded facilities using `geolib`
+- `pages/api/chat.js` — Chatbot using GPT-4o with web search (enhanced context awareness)
+- `pages/api/impact_assessment.js` — **Lightweight API wrapper** for impact assessment. Core logic moved to `lib/impactAssessment.js` for client-side processing. API now handles optional server-side execution
 - `pages/api/process-shapefile.js` — Parses SHP/GeoJSON uploads (60s timeout, 3GB memory via `vercel.json`)
 - `pages/api/worldpop-stats.js` — Fetches WorldPop population data via Google Earth Engine (120s timeout, 1GB memory via `vercel.json`)
 - `pages/api/gdacs.js` — Proxies/parses GDACS RSS feed
@@ -73,7 +75,8 @@ Key routes:
 - `pages/api/prioritization-board.js` — Area-scoped facility/district ranking with multi-layer context
 - `pages/api/district-hazard-analysis.js` — District-level hazard analysis framework
 - `pages/api/export-brief.js` — Exportable decision briefs
-- `pages/api/trends.js` — Trend analysis with temporal patterns across ACLED, disasters, and facility risk (25MB body limit, client-side processing to avoid 413 errors)
+- `pages/api/trends.js` — Trend analysis API for AI narrative generation only. Data processing moved to client-side via `lib/trendAnalysis.js` to avoid 413 payload errors
+- `pages/api/sitrep.js` — Enhanced SitRep generation with better context and formatting
 
 Other AI endpoints (all rate-limited): `analysis.js`, `campaign-viability.js`, `campaign-viability-batch.js`, `disaster-forecast.js`, `district-campaign-viability.js`, `operation-viability.js`, `outbreak-prediction.js`, `recommendations.js`, `security-assessment.js`, `sitrep.js`, `supply-chain-forecast.js`, `weather-forecast.js`
 
@@ -88,6 +91,7 @@ Other AI endpoints (all rate-limited): `analysis.js`, `campaign-viability.js`, `
 - `lib/osmCache.js` — Redis-backed OSM data caching (24h TTL) with in-memory fallback (50 entry LRU cache)
 - `lib/osmHelpers.js` — Server-side OSM utilities: Overpass API query builder, GeoJSON conversion, infrastructure categorization, boundary subdivision for large areas
 - `lib/aiContextBuilders.js` — Reusable AI context builders for GPT-4o: OSM context, proximity calculations, disaster impact analysis
+- `lib/impactAssessment.js` — **Client-side impact assessment library** (413 LOC): Disaster proximity calculations, facility risk scoring, district aggregation, ACLED integration. Moved from server-side to enable client-side processing of large datasets
 - `lib/districtRiskScoring.js` — District-level risk calculation algorithms
 - `lib/districtHazardAnalysis.js` — Hazard analysis framework for district-level assessments
 - `lib/analysisScope.js` — Geographic scope management for area-based workflows
@@ -214,6 +218,7 @@ From `PRODUCTION_ROADMAP.md`:
 - **Leaflet SSR incompatibility**: All Leaflet-dependent components must be dynamically imported with `{ ssr: false }` to prevent Next.js server-side rendering errors
 - **Large state in app.js**: The main `pages/app.js` contains 80+ `useState` hooks. Consider using context or state management library for major refactors
 - **No TypeScript**: This is a JavaScript-only codebase. Do not add TypeScript files or types
+- **Client-side processing pattern**: Recent refactor moved heavy data processing from API routes to client-side libraries to avoid 413 payload errors and serverless timeout issues. Pattern: `lib/impactAssessment.js` for impact calculations, `lib/trendAnalysis.js` for trend analytics. APIs now handle only AI narrative generation
 - **Rate limiting**: Gracefully degrades if Redis is unavailable — app continues to function without rate limiting. All AI endpoints must use `lib/rateLimit.js`
 - **OSM Integration**: OSM infrastructure data is fetched automatically when districts are uploaded. Large boundaries (>10,000 km²) are automatically subdivided. Uses multi-tier caching: Redis (24h) → in-memory LRU (50 entries) → localStorage (24h)
 - **AI Context Building**: When adding OSM or WorldPop context to AI endpoints, use the reusable context builders in `lib/aiContextBuilders.js` to maintain consistency across endpoints
@@ -222,4 +227,6 @@ From `PRODUCTION_ROADMAP.md`:
 - **ACLED handling**: ACLED data is optional throughout the app. Not cached in browser due to file size. All analysis features work without ACLED but provide lower-confidence results
 - **Internal API calls**: Always use `APP_BASE_URL` environment variable for API-to-API calls to avoid hardcoding localhost
 - **Error handling**: Client-facing errors should be generic. Never expose `error.message` directly in API responses (leaks implementation details)
-- **Large payload handling**: For endpoints that process large datasets (ACLED, facilities, districts), prefer client-side processing over API POST to avoid 413 payload errors. See `TrendAnalysisDashboard.js` for the pattern: import analysis functions client-side and process data locally, only calling API for AI narrative generation
+- **Large payload handling**: For endpoints that process large datasets (ACLED, facilities, districts), prefer client-side processing over API POST to avoid 413 payload errors. See `TrendAnalysisDashboard.js` and `pages/app.js` (impact assessment) for the pattern: import analysis functions from `lib/` client-side and process data locally, only calling API for AI narrative generation
+- **Admin boundary dataset styling**: Admin boundaries support dynamic choropleth styling via `adminDatasetStyling.js`. Supports risk-based coloring, custom dataset field visualization, quantile/equal-interval classification, and automatic metric meaning detection (worse-high vs better-high)
+- **Modular dashboard components**: Trend Analysis Dashboard refactored into atomic subcomponents in `components/TrendAnalysisDashboard/` for better maintainability and reusability
