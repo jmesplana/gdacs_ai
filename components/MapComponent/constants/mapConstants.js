@@ -1,5 +1,13 @@
 // Map Configuration Constants
 
+function withOptionalApiKey(url, apiKey) {
+  if (!apiKey) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}api_key=${encodeURIComponent(apiKey)}`;
+}
+
+const stadiaMapsApiKey = process.env.NEXT_PUBLIC_STADIA_MAPS_API_KEY;
+
 export const ZOOM_RADIUS_CONFIG = {
   WORLD_VIEW: { maxZoom: 2, radius: 500000 },
   CONTINENTAL: { maxZoom: 4, radius: 300000 },
@@ -103,7 +111,10 @@ export const MAP_LAYERS = {
   TONER_LITE: {
     id: 'toner_lite',
     name: 'Toner Lite',
-    url: 'https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}{r}.png',
+    url: withOptionalApiKey(
+      'https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}{r}.png',
+      stadiaMapsApiKey
+    ),
     attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://stamen.com/" target="_blank">Stamen Design</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
   }
 };
