@@ -18,6 +18,11 @@ npm start        # Start production server
 
 No test runner is configured — there are no test files in this project.
 
+## Custom Slash Commands
+
+Available slash commands:
+- `/brand-aidstack` — Apply Aidstack branding to components and pages using official brand guidelines
+
 ## Environment Setup
 
 Create `.env.local`:
@@ -43,7 +48,7 @@ Optional environment variables:
 **Component hierarchy**:
 - `components/MapComponent.js` (~10,300 LOC including subcomponents) — the core map interface
   - `components/MapComponent/hooks/` — Custom hooks: `useAIAnalysis`, `useDrawing`, `useFileUpload`, `useMapControls`, `useMapFilters`, `usePlayback`, `useWorldPop`, `useOSMInfrastructure`
-  - `components/MapComponent/components/drawers/` — Side panels: `ChatDrawer`, `FacilityDrawer`, `FilterDrawer`, `MapLayersDrawer`, `RecommendationsDrawer`, `SitrepDrawer`, `UnifiedDrawer`, `WorldPopDrawer`
+  - `components/MapComponent/components/drawers/` — Side panels: `ChatDrawer` (expandable for larger workspace), `FacilityDrawer`, `FilterDrawer`, `MapLayersDrawer`, `RecommendationsDrawer`, `SitrepDrawer`, `UnifiedDrawer`, `WorldPopDrawer`
   - `components/MapComponent/components/overlays/` — Map overlays: `FloatingActionButtons`, `HamburgerMenu`, `MapLegend`, `TimelineScrubber`, `CampaignDashboard`
   - `components/MapComponent/components/` — Map layers: `AcledMarkers`, `DisasterMarkers`, `DrawingLayer`, `HeatmapLayer`, `TimelineVisualization`, `OSMInfrastructureLayer`
   - `components/MapComponent/utils/` — Geospatial helpers: `disasterHelpers`, `fileHelpers`, `mapHelpers`, `osmHelpers`
@@ -178,7 +183,7 @@ See `OSM_INTEGRATION_PROGRESS.md` and `APP_HUB_ARCHITECTURE.md` for detailed doc
 
 ## Known Issues & Production Gaps
 
-From `PRODUCTION_ROADMAP.md` (as of March 2026):
+From `PRODUCTION_ROADMAP.md`:
 
 **Security** (Phase 1):
 - Upload size limits not enforced (target: 1MB body size limit)

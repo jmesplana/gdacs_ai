@@ -7,6 +7,104 @@ import DisasterTimelineChart from './TrendAnalysisDashboard/DisasterTimelineChar
 import DistrictComparisonTable from './TrendAnalysisDashboard/DistrictComparisonTable';
 import NarrativePanel from './TrendAnalysisDashboard/NarrativePanel';
 
+const acledEventDateFormatter = new Intl.DateTimeFormat('en', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric'
+});
+
+function formatAcledEventDate(value) {
+  if (!value) return 'Unknown date';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Unknown date' : acledEventDateFormatter.format(date);
+}
+
+function AcledMetricCard({ value, label, accent = '#ef4444', sublabel = null }) {
+  return (
+    <div style={{
+      background: 'white',
+      border: '1px solid #e2e8f0',
+      borderRadius: '12px',
+      padding: '16px',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+    }}>
+      <div style={{
+        fontSize: '26px',
+        fontWeight: 700,
+        color: accent,
+        marginBottom: '6px',
+        fontFamily: "'Space Grotesk', sans-serif"
+      }}>
+        {value}
+      </div>
+      <div style={{
+        fontSize: '12px',
+        color: '#475569',
+        fontWeight: 600
+      }}>
+        {label}
+      </div>
+      {sublabel && (
+        <div style={{
+          marginTop: '6px',
+          fontSize: '11px',
+          color: '#64748b'
+        }}>
+          {sublabel}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AcledRankedList({ title, items = [], emptyMessage, renderValue }) {
+  return (
+    <div style={{
+      background: 'white',
+      border: '1px solid #e2e8f0',
+      borderRadius: '12px',
+      padding: '18px',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+    }}>
+      <div style={{
+        fontSize: '13px',
+        fontWeight: 700,
+        color: 'var(--aidstack-navy)',
+        marginBottom: '12px',
+        fontFamily: "'Space Grotesk', sans-serif"
+      }}>
+        {title}
+      </div>
+      {items.length === 0 ? (
+        <div style={{ fontSize: '12px', color: '#64748b' }}>{emptyMessage}</div>
+      ) : (
+        items.map((item, index) => (
+          <div
+            key={`${title}-${index}-${item.type || item.district || item.actor || item.label || 'row'}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              padding: '10px 0',
+              borderTop: index === 0 ? 'none' : '1px solid #f1f5f9'
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a' }}>
+                {item.type || item.district || item.actor || 'Unknown'}
+              </div>
+            </div>
+            <div style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}>
+              {renderValue(item)}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
 export default function TrendAnalysisDashboard({
   districts = [],
   selectedDistricts = [],
@@ -19,6 +117,7 @@ export default function TrendAnalysisDashboard({
   const [error, setError] = useState(null);
   const [trendData, setTrendData] = useState(null);
   const [timeWindow, setTimeWindow] = useState(30); // default 30 days
+  const [acledGranularity, setAcledGranularity] = useState('daily');
   const [narrative, setNarrative] = useState(null);
   const [narrativeLoading, setNarrativeLoading] = useState(false);
   const [narrativeError, setNarrativeError] = useState(null);
@@ -32,7 +131,7 @@ export default function TrendAnalysisDashboard({
     }
 
     fetchTrendAnalysis();
-  }, [selectedDistricts, facilities, acledData, disasters, timeWindow]);
+  }, [selectedDistricts, facilities, acledData, disasters, timeWindow, acledGranularity]);
 
   const fetchTrendAnalysis = async () => {
     setLoading(true);
@@ -45,7 +144,8 @@ export default function TrendAnalysisDashboard({
         aggregateDisastersByTime,
         calculateFacilityRiskTrends,
         calculateDistrictComparison,
-        getSummaryMetrics
+        getSummaryMetrics,
+        getAcledDetailMetrics
       } = await import('../lib/trendAnalysis');
 
       // Calculate summary metrics
@@ -61,7 +161,13 @@ export default function TrendAnalysisDashboard({
       const acledTrends = aggregateAcledByTime(
         acledData || [],
         selectedDistricts,
-        'daily',
+        acledGranularity,
+        timeWindow
+      );
+
+      const acledDetails = getAcledDetailMetrics(
+        selectedDistricts,
+        acledData || [],
         timeWindow
       );
 
@@ -100,6 +206,7 @@ export default function TrendAnalysisDashboard({
         success: true,
         summary,
         acledTrends,
+        acledDetails,
         facilityRiskTrends,
         disasterTrends,
         districtComparison,
@@ -544,66 +651,253 @@ export default function TrendAnalysisDashboard({
                 </div>
 
                 {/* ACLED Stats */}
-                {trendData.summary?.currentPeriod?.acledEvents !== undefined && (
-                  <div style={{
-                    background: 'white',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '12px',
-                    padding: '20px',
-                    marginBottom: '20px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-                  }}>
+                {trendData.acledDetails && (
+                  <>
                     <div style={{
-                      fontSize: '32px',
-                      fontWeight: 700,
-                      color: '#ef4444',
-                      marginBottom: '8px',
-                      fontFamily: "'Space Grotesk', sans-serif"
+                      background: '#fff7ed',
+                      border: '1px solid #fdba74',
+                      borderRadius: '12px',
+                      padding: '14px 16px',
+                      marginBottom: '20px'
                     }}>
-                      {trendData.summary.currentPeriod.acledEvents}
-                    </div>
-                    <div style={{
-                      fontSize: '13px',
-                      color: '#64748b',
-                      marginBottom: '12px',
-                      fontFamily: "'Inter', sans-serif"
-                    }}>
-                      Security events in the last {timeWindow} days
-                    </div>
-                    {trendData.summary.trends?.acledChange !== null && trendData.summary.trends?.acledChange !== 0 && (
                       <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        fontSize: '14px',
-                        fontFamily: "'Inter', sans-serif"
+                        fontSize: '12px',
+                        color: '#9a3412',
+                        lineHeight: 1.5
                       }}>
-                        <span style={{
-                          color: trendData.summary.trends.acledChange > 0 ? '#ef4444' : '#10b981',
-                          fontWeight: 700
-                        }}>
-                          {trendData.summary.trends.acledChange > 0 ? '↑' : '↓'} {Math.abs(trendData.summary.trends.acledChange)}%
-                        </span>
-                        <span style={{ color: '#64748b' }}>
-                          vs previous period
-                        </span>
+                        {trendData.summary?.trends?.acledChange !== null && trendData.summary?.trends?.acledChange !== undefined
+                          ? `Security activity ${trendData.summary.trends.acledChange > 0 ? 'increased' : trendData.summary.trends.acledChange < 0 ? 'decreased' : 'was unchanged'} ${Math.abs(trendData.summary.trends.acledChange)}% vs the previous ${timeWindow}-day period`
+                          : `Security activity summary for the last ${timeWindow} days`}
+                        {trendData.acledDetails.topEventTypes?.[0]?.type ? `, driven mainly by ${trendData.acledDetails.topEventTypes[0].type}` : ''}
+                        {trendData.acledDetails.topDistrictsByCount?.[0]?.district ? ` in ${trendData.acledDetails.topDistrictsByCount[0].district}` : ''}.
                       </div>
-                    )}
-                  </div>
+                    </div>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      gap: '12px',
+                      marginBottom: '20px'
+                    }}>
+                      <AcledMetricCard
+                        value={trendData.acledDetails.totalEvents.toLocaleString()}
+                        label={`Events in last ${timeWindow} days`}
+                      />
+                      <AcledMetricCard
+                        value={trendData.acledDetails.totalFatalities.toLocaleString()}
+                        label="Reported fatalities"
+                        accent="#b91c1c"
+                      />
+                      <AcledMetricCard
+                        value={trendData.acledDetails.mostCommonEventType}
+                        label="Most common event type"
+                        accent="#1e293b"
+                      />
+                      <AcledMetricCard
+                        value={trendData.acledDetails.mostAffectedDistrict}
+                        label="Most affected district"
+                        accent="#7c2d12"
+                      />
+                    </div>
+                  </>
                 )}
 
                 {/* ACLED Trends Chart */}
                 {trendData.acledTrends ? (
-                  <AcledTrendsChart
-                    data={trendData.acledTrends}
-                    title={`ACLED Events Over Last ${timeWindow} Days`}
-                  />
+                  <>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      marginBottom: '12px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#64748b',
+                        fontWeight: 600
+                      }}>
+                        Time series view
+                      </div>
+                      <div style={{
+                        display: 'inline-flex',
+                        gap: '6px',
+                        padding: '4px',
+                        background: 'white',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '10px'
+                      }}>
+                        {[
+                          { id: 'daily', label: 'Daily' },
+                          { id: 'weekly', label: 'Weekly' }
+                        ].map((option) => (
+                          <button
+                            key={option.id}
+                            onClick={() => setAcledGranularity(option.id)}
+                            style={{
+                              padding: '7px 12px',
+                              border: 'none',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              background: acledGranularity === option.id ? 'var(--aidstack-navy)' : 'transparent',
+                              color: acledGranularity === option.id ? 'white' : '#475569',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              fontFamily: "'Inter', sans-serif"
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <AcledTrendsChart
+                      data={trendData.acledTrends}
+                      title={`ACLED Events Over Last ${timeWindow} Days`}
+                      granularity={acledGranularity}
+                    />
+                  </>
                 ) : (
                   <EmptyState
                     icon="⚠️"
                     title="No ACLED Data"
                     message={`No security events recorded in the last ${timeWindow} days for selected districts. Try a longer time window or upload ACLED data.`}
                   />
+                )}
+
+                {trendData.acledDetails && (
+                  <>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      gap: '12px',
+                      marginBottom: '20px'
+                    }}>
+                      <AcledRankedList
+                        title="Top Event Types"
+                        items={trendData.acledDetails.topEventTypes}
+                        emptyMessage="No event type breakdown available."
+                        renderValue={(item) => `${item.count} events`}
+                      />
+                      <AcledRankedList
+                        title="Top District Hotspots"
+                        items={trendData.acledDetails.topDistrictsByCount}
+                        emptyMessage="No district hotspot data available."
+                        renderValue={(item) => `${item.count} events`}
+                      />
+                    </div>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      gap: '12px',
+                      marginBottom: '20px'
+                    }}>
+                      <AcledRankedList
+                        title="Fatality Hotspots"
+                        items={trendData.acledDetails.topDistrictsByFatalities.filter((item) => item.fatalities > 0)}
+                        emptyMessage="No fatalities reported in this window."
+                        renderValue={(item) => `${item.fatalities} fatalities`}
+                      />
+                      <AcledRankedList
+                        title="Most Frequent Actors"
+                        items={trendData.acledDetails.topActors}
+                        emptyMessage="No actor data available."
+                        renderValue={(item) => `${item.count} events`}
+                      />
+                    </div>
+
+                    <div style={{
+                      background: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '18px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                      marginBottom: '20px'
+                    }}>
+                      <div style={{
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: 'var(--aidstack-navy)',
+                        marginBottom: '12px',
+                        fontFamily: "'Space Grotesk', sans-serif"
+                      }}>
+                        Recent Notable Events
+                      </div>
+                      <div style={{
+                        display: 'grid',
+                        gap: '10px'
+                      }}>
+                        {trendData.acledDetails.recentEvents.map((event, index) => (
+                          <div
+                            key={`${event.event_id_cnty || event.event_id_no_cnty || event.event_date || index}-${index}`}
+                            style={{
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '10px',
+                              padding: '12px 14px',
+                              background: '#f8fafc'
+                            }}
+                          >
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              justifyContent: 'space-between',
+                              gap: '12px',
+                              marginBottom: '6px'
+                            }}>
+                              <div>
+                                <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>
+                                  {event.event_type || 'Unknown event'}
+                                  {event.sub_event_type ? ` • ${event.sub_event_type}` : ''}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
+                                  {event.admin2 || event.admin1 || 'Unknown district'}
+                                  {event.country ? `, ${event.country}` : ''}
+                                </div>
+                              </div>
+                              <div style={{
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color: '#475569',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {formatAcledEventDate(event.event_date)}
+                              </div>
+                            </div>
+
+                            <div style={{
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              gap: '8px 14px',
+                              fontSize: '11px',
+                              color: '#475569',
+                              marginBottom: event.notes ? '8px' : '0'
+                            }}>
+                              {event.actor1 && (
+                                <span><strong>Actor 1:</strong> {event.actor1}</span>
+                              )}
+                              {event.actor2 && (
+                                <span><strong>Actor 2:</strong> {event.actor2}</span>
+                              )}
+                              <span><strong>Fatalities:</strong> {(event.fatalities || 0).toLocaleString()}</span>
+                            </div>
+
+                            {event.notes && (
+                              <div style={{
+                                fontSize: '11px',
+                                color: '#334155',
+                                lineHeight: 1.5
+                              }}>
+                                {String(event.notes).slice(0, 220)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 )}
               </>
             )}
