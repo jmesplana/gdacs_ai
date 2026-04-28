@@ -23,57 +23,39 @@ ChartJS.register(
   Filler
 );
 
-export default function FacilityRiskChart({ data, title = 'Site Risk Distribution Over Time' }) {
+export default function FacilityRiskChart({ data, title = 'Current Site Status' }) {
   // Handle null or empty data
-  if (!data || !data.daily || data.daily.length === 0) {
+  if (!data || !data.current || data.current.length === 0) {
     return (
       <EmptyState
         icon="📊"
-        title="No Risk Data Available"
-        message="Upload sites and analyze disasters to see risk distribution over time"
+        title="No Site Status Available"
+        message="Upload sites and run impact assessment to see current impacted vs not impacted status"
       />
     );
   }
 
   const chartData = useMemo(() => {
-    const labels = data.daily.map(item => item.label || item.date);
-    const highRisk = data.daily.map(item => item.high || 0);
-    const mediumRisk = data.daily.map(item => item.medium || 0);
-    const lowRisk = data.daily.map(item => item.low || 0);
-    const unassessed = data.daily.map(item => item.unassessed || 0);
+    const labels = data.current.map(item => item.label || item.date);
+    const impacted = data.current.map(item => item.impacted || 0);
+    const safe = data.current.map(item => item.safe || 0);
 
     return {
       labels,
       datasets: [
         {
-          label: 'High Risk',
-          data: highRisk,
+          label: 'Impacted',
+          data: impacted,
           backgroundColor: '#ef4444',
           borderColor: '#ef4444',
           borderWidth: 1,
           stack: 'stack0'
         },
         {
-          label: 'Medium Risk',
-          data: mediumRisk,
-          backgroundColor: '#f59e0b',
-          borderColor: '#f59e0b',
-          borderWidth: 1,
-          stack: 'stack0'
-        },
-        {
-          label: 'Low Risk',
-          data: lowRisk,
+          label: 'Not Impacted',
+          data: safe,
           backgroundColor: '#10b981',
           borderColor: '#10b981',
-          borderWidth: 1,
-          stack: 'stack0'
-        },
-        {
-          label: 'Unassessed',
-          data: unassessed,
-          backgroundColor: '#94a3b8',
-          borderColor: '#94a3b8',
           borderWidth: 1,
           stack: 'stack0'
         }
@@ -118,7 +100,7 @@ export default function FacilityRiskChart({ data, title = 'Site Risk Distributio
         displayColors: true,
         callbacks: {
           title: function(context) {
-            return context[0].label;
+            return 'Current site status';
           },
           label: function(context) {
             const label = context.dataset.label || '';
@@ -136,24 +118,6 @@ export default function FacilityRiskChart({ data, title = 'Site Risk Distributio
     },
     scales: {
       x: {
-        stacked: true,
-        grid: {
-          display: false
-        },
-        ticks: {
-          font: {
-            family: "'Inter', sans-serif",
-            size: 11
-          },
-          color: '#64748b',
-          maxRotation: 45,
-          minRotation: 0
-        },
-        border: {
-          color: '#e2e8f0'
-        }
-      },
-      y: {
         stacked: true,
         beginAtZero: true,
         grid: {
@@ -181,6 +145,22 @@ export default function FacilityRiskChart({ data, title = 'Site Risk Distributio
           },
           color: '#475569'
         }
+      },
+      y: {
+        stacked: true,
+        grid: {
+          display: false
+        },
+        ticks: {
+          font: {
+            family: "'Inter', sans-serif",
+            size: 11
+          },
+          color: '#64748b'
+        },
+        border: {
+          color: '#e2e8f0'
+        }
       }
     },
     interaction: {
@@ -202,7 +182,9 @@ export default function FacilityRiskChart({ data, title = 'Site Risk Distributio
         marginBottom: '16px',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        gap: '12px',
+        flexWrap: 'wrap'
       }}>
         <h3 style={{
           fontSize: '14px',
@@ -228,16 +210,27 @@ export default function FacilityRiskChart({ data, title = 'Site Risk Distributio
       </div>
 
       <div style={{
-        height: '320px',
+        marginBottom: '14px',
+        fontSize: '12px',
+        color: '#475569',
+        lineHeight: 1.5
+      }}>
+        {data.impactDistribution?.impacted > 0
+          ? `This is a current snapshot of site impact status based on the app's disaster and ACLED proximity assessment. ${data.impactDistribution.impacted} of ${data.totalFacilities} sites are currently marked as impacted in the selected area.`
+          : `No sites are currently marked as impacted in the selected area. This view reflects current impact status, not a historical site-risk trend.`}
+      </div>
+
+      <div style={{
+        height: '220px',
         position: 'relative'
       }}>
         <Bar data={chartData} options={options} />
       </div>
 
-      {data.riskDistribution && (
+      {data.impactDistribution && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: 'repeat(2, 1fr)',
           gap: '12px',
           marginTop: '16px',
           paddingTop: '16px',
@@ -256,7 +249,7 @@ export default function FacilityRiskChart({ data, title = 'Site Risk Distributio
               fontFamily: "'Inter', sans-serif",
               marginBottom: '4px'
             }}>
-              High Risk
+              Impacted
             </div>
             <div style={{
               fontSize: '20px',
@@ -264,7 +257,7 @@ export default function FacilityRiskChart({ data, title = 'Site Risk Distributio
               color: '#ef4444',
               fontFamily: "'Space Grotesk', sans-serif"
             }}>
-              {data.riskDistribution.high || 0}
+              {data.impactDistribution.impacted || 0}
             </div>
           </div>
 
@@ -281,32 +274,7 @@ export default function FacilityRiskChart({ data, title = 'Site Risk Distributio
               fontFamily: "'Inter', sans-serif",
               marginBottom: '4px'
             }}>
-              Medium Risk
-            </div>
-            <div style={{
-              fontSize: '20px',
-              fontWeight: 700,
-              color: '#f59e0b',
-              fontFamily: "'Space Grotesk', sans-serif"
-            }}>
-              {data.riskDistribution.medium || 0}
-            </div>
-          </div>
-
-          <div style={{
-            textAlign: 'center',
-            padding: '8px'
-          }}>
-            <div style={{
-              fontSize: '11px',
-              color: '#94a3b8',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              fontWeight: 600,
-              fontFamily: "'Inter', sans-serif",
-              marginBottom: '4px'
-            }}>
-              Low Risk
+              Not Impacted
             </div>
             <div style={{
               fontSize: '20px',
@@ -314,36 +282,12 @@ export default function FacilityRiskChart({ data, title = 'Site Risk Distributio
               color: '#10b981',
               fontFamily: "'Space Grotesk', sans-serif"
             }}>
-              {data.riskDistribution.low || 0}
-            </div>
-          </div>
-
-          <div style={{
-            textAlign: 'center',
-            padding: '8px'
-          }}>
-            <div style={{
-              fontSize: '11px',
-              color: '#94a3b8',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              fontWeight: 600,
-              fontFamily: "'Inter', sans-serif",
-              marginBottom: '4px'
-            }}>
-              Unassessed
-            </div>
-            <div style={{
-              fontSize: '20px',
-              fontWeight: 700,
-              color: '#94a3b8',
-              fontFamily: "'Space Grotesk', sans-serif"
-            }}>
-              {data.riskDistribution.unassessed || 0}
+              {data.impactDistribution.safe || 0}
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }

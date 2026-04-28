@@ -120,7 +120,7 @@ const FacilityDrawer = ({
 
   const downloadCSVSample = (e) => {
     e.preventDefault();
-    const csvContent = "name,latitude,longitude,description,type,capacity,risk_level,last_inspection\nHeadquarters,40.7128,-74.006,Main office building,Office,250,Low,2023-10-15\nRegional Office A,34.0522,-118.2437,Western region headquarters,Office,120,Medium,2023-09-20\nWarehouse B,51.5074,-0.1278,Storage facility for European operations,Warehouse,N/A,High,2023-08-05\nField Station C,35.6762,139.6503,Asian operations center,Field Station,45,Medium,2023-11-01\nDistribution Center D,19.4326,-99.1332,Latin American distribution hub,Distribution,500,High,2023-07-12";
+    const csvContent = "name,latitude,longitude,description,type,capacity,last_inspection\nHeadquarters,40.7128,-74.006,Main office building,Office,250,2023-10-15\nRegional Office A,34.0522,-118.2437,Western region headquarters,Office,120,2023-09-20\nWarehouse B,51.5074,-0.1278,Storage facility for European operations,Warehouse,N/A,2023-08-05\nField Station C,35.6762,139.6503,Asian operations center,Field Station,45,2023-11-01\nDistribution Center D,19.4326,-99.1332,Latin American distribution hub,Distribution,500,2023-07-12";
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -134,12 +134,12 @@ const FacilityDrawer = ({
     // Create a workbook with sample data
     const wb = XLSX.utils.book_new();
     const wsData = [
-      ['name', 'latitude', 'longitude', 'description', 'type', 'capacity', 'risk_level', 'last_inspection', 'emergency_contact', 'supplies_available'],
-      ['Headquarters', 40.7128, -74.006, 'Main office building', 'Office', 250, 'Low', '2023-10-15', '555-123-4567', 'Water, Food, Medical'],
-      ['Regional Office A', 34.0522, -118.2437, 'Western region headquarters', 'Office', 120, 'Medium', '2023-09-20', '555-234-5678', 'Medical supplies only'],
-      ['Warehouse B', 51.5074, -0.1278, 'Storage facility for European operations', 'Warehouse', 'N/A', 'High', '2023-08-05', '555-345-6789', 'Large food stockpile, water'],
-      ['Field Station C', 35.6762, 139.6503, 'Asian operations center', 'Field Station', 45, 'Medium', '2023-11-01', '555-456-7890', 'Limited supplies'],
-      ['Distribution Center D', 19.4326, -99.1332, 'Latin American distribution hub', 'Distribution', 500, 'High', '2023-07-12', '555-567-8901', 'Full emergency supplies']
+      ['name', 'latitude', 'longitude', 'description', 'type', 'capacity', 'last_inspection', 'emergency_contact', 'supplies_available'],
+      ['Headquarters', 40.7128, -74.006, 'Main office building', 'Office', 250, '2023-10-15', '555-123-4567', 'Water, Food, Medical'],
+      ['Regional Office A', 34.0522, -118.2437, 'Western region headquarters', 'Office', 120, '2023-09-20', '555-234-5678', 'Medical supplies only'],
+      ['Warehouse B', 51.5074, -0.1278, 'Storage facility for European operations', 'Warehouse', 'N/A', '2023-08-05', '555-345-6789', 'Large food stockpile, water'],
+      ['Field Station C', 35.6762, 139.6503, 'Asian operations center', 'Field Station', 45, '2023-11-01', '555-456-7890', 'Limited supplies'],
+      ['Distribution Center D', 19.4326, -99.1332, 'Latin American distribution hub', 'Distribution', 500, '2023-07-12', '555-567-8901', 'Full emergency supplies']
     ];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     XLSX.utils.book_append_sheet(wb, ws, 'Sites');

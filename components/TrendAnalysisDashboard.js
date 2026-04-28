@@ -109,6 +109,7 @@ export default function TrendAnalysisDashboard({
   districts = [],
   selectedDistricts = [],
   facilities = [],
+  impactedFacilities = [],
   acledData = [],
   disasters = [],
   onClose
@@ -131,7 +132,7 @@ export default function TrendAnalysisDashboard({
     }
 
     fetchTrendAnalysis();
-  }, [selectedDistricts, facilities, acledData, disasters, timeWindow, acledGranularity]);
+  }, [selectedDistricts, facilities, impactedFacilities, acledData, disasters, timeWindow, acledGranularity]);
 
   const fetchTrendAnalysis = async () => {
     setLoading(true);
@@ -174,10 +175,8 @@ export default function TrendAnalysisDashboard({
       // Calculate facility risk trends
       const facilityRiskTrends = calculateFacilityRiskTrends(
         facilities || [],
-        disasters || [],
-        acledData || [],
-        selectedDistricts,
-        timeWindow
+        impactedFacilities || [],
+        selectedDistricts
       );
 
       // Calculate disaster trends
@@ -625,13 +624,13 @@ export default function TrendAnalysisDashboard({
                 {trendData.facilityRiskTrends ? (
                   <FacilityRiskChart
                     data={trendData.facilityRiskTrends}
-                    title="Site Risk Distribution Over Time"
+                    title="Current Site Status"
                   />
                 ) : (
                   <EmptyState
                     icon="🏥"
-                    title="No Site Risk Data"
-                    message="Risk levels are calculated during impact assessment. Run an impact assessment to see site risk trends."
+                    title="No Site Status Data"
+                    message="Upload sites and run an impact assessment to see current impacted vs not impacted status in the selected area."
                   />
                 )}
               </>

@@ -3176,6 +3176,7 @@ export default function Home() {
             districts={districts}
             selectedDistricts={selectedAnalysisDistricts}
             facilities={facilities}
+            impactedFacilities={impactedFacilities}
             acledData={acledEnabled ? acledData : []}
             disasters={filteredDisasters.length > 0 ? filteredDisasters : disasters}
             onClose={() => setShowTrendAnalysis(false)}

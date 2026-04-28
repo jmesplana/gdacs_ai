@@ -3,6 +3,8 @@ import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  LineController,
+  BarController,
   PointElement,
   LineElement,
   BarElement,
@@ -18,6 +20,8 @@ import EmptyState from './EmptyState';
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  LineController,
+  BarController,
   PointElement,
   LineElement,
   BarElement,
