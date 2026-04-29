@@ -36,9 +36,9 @@ export const RISK_BORDER_COLORS = {
   none: '#2D5A7B'
 };
 
-const WORSE_HIGH_PALETTE = ['#2e7d32', '#7cb342', '#fbc02d', '#f57c00', '#d32f2f'];
-const BETTER_HIGH_PALETTE = ['#d32f2f', '#f57c00', '#fbc02d', '#7cb342', '#2e7d32'];
-const NEUTRAL_PALETTE = ['#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8', '#1e3a8a'];
+const WORSE_HIGH_PALETTE = ['#fee2e2', '#fca5a5', '#f87171', '#ef4444', '#b91c1c'];
+const BETTER_HIGH_PALETTE = ['#dcfce7', '#86efac', '#4ade80', '#16a34a', '#166534'];
+const NEUTRAL_PALETTE = ['#dbeafe', '#93c5fd', '#60a5fa', '#2563eb', '#1e3a8a'];
 
 const WORSE_HIGH_KEYWORDS = [
   'refusal', 'risk', 'case', 'cases', 'incidence', 'mortality', 'death', 'fatal',
@@ -151,19 +151,20 @@ export function suggestMetricMeaning(field = '') {
   return ADMIN_METRIC_MEANINGS.NEUTRAL;
 }
 
-function getPalette(meaning, classCount) {
+function getPalette(meaning, classCount, reverse = false) {
   const palette = meaning === ADMIN_METRIC_MEANINGS.BETTER_HIGH
     ? BETTER_HIGH_PALETTE
     : meaning === ADMIN_METRIC_MEANINGS.NEUTRAL
       ? NEUTRAL_PALETTE
       : WORSE_HIGH_PALETTE;
+  const orderedPalette = reverse ? [...palette].reverse() : palette;
 
-  if (classCount === palette.length) return palette;
-  if (classCount <= 1) return [palette[palette.length - 1]];
+  if (classCount === orderedPalette.length) return orderedPalette;
+  if (classCount <= 1) return [orderedPalette[orderedPalette.length - 1]];
 
   return Array.from({ length: classCount }, (_, index) => {
-    const paletteIndex = Math.round((index / (classCount - 1)) * (palette.length - 1));
-    return palette[paletteIndex];
+    const paletteIndex = Math.round((index / (classCount - 1)) * (orderedPalette.length - 1));
+    return orderedPalette[paletteIndex];
   });
 }
 
@@ -224,7 +225,8 @@ export function buildDatasetColorScale(values = [], options = {}) {
     classCount = 5,
     meaning = ADMIN_METRIC_MEANINGS.WORSE_HIGH,
     classification = ADMIN_CLASSIFICATION_METHODS.QUANTILE,
-    isPercent = false
+    isPercent = false,
+    reverseColors = false
   } = options;
 
   const cleanValues = values.filter((value) => Number.isFinite(value));
@@ -240,7 +242,7 @@ export function buildDatasetColorScale(values = [], options = {}) {
   const breaks = classification === ADMIN_CLASSIFICATION_METHODS.EQUAL_INTERVAL
     ? buildEqualIntervalBreaks(cleanValues, normalizedClassCount)
     : buildQuantileBreaks(cleanValues, normalizedClassCount);
-  const colors = getPalette(meaning, breaks.length || normalizedClassCount);
+  const colors = getPalette(meaning, breaks.length || normalizedClassCount, reverseColors);
 
   return {
     breaks,

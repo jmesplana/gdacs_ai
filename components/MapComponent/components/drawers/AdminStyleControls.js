@@ -66,6 +66,8 @@ export default function AdminStyleControls({
   setAdminClassification,
   adminClassCount,
   setAdminClassCount,
+  adminReverseColors,
+  setAdminReverseColors,
   adminNoDataStyle,
   setAdminNoDataStyle,
   datasetJoinSummary = null,
@@ -223,6 +225,19 @@ export default function AdminStyleControls({
                       onChange={(event) => setAdminClassCount(Math.min(7, Math.max(3, Number(event.target.value) || 5)))}
                       style={selectStyle}
                     />
+                  </div>
+                </div>
+                <div style={{ marginTop: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#475569', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={adminReverseColors}
+                      onChange={(event) => setAdminReverseColors(event.target.checked)}
+                    />
+                    Reverse color direction
+                  </label>
+                  <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b', lineHeight: 1.5 }}>
+                    Recommended: keep refusal, risk, and missed-child metrics on a red ramp so low values are light red and higher values become dark red.
                   </div>
                 </div>
                 <div style={{ marginTop: '10px' }}>

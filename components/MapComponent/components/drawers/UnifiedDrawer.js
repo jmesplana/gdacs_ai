@@ -90,6 +90,8 @@ const UnifiedDrawer = ({
   setAdminClassification,
   adminClassCount,
   setAdminClassCount,
+  adminReverseColors,
+  setAdminReverseColors,
   adminNoDataStyle,
   setAdminNoDataStyle,
   adminDatasetJoinSummary,
@@ -512,6 +514,8 @@ const UnifiedDrawer = ({
               setAdminClassification={setAdminClassification}
               adminClassCount={adminClassCount}
               setAdminClassCount={setAdminClassCount}
+              adminReverseColors={adminReverseColors}
+              setAdminReverseColors={setAdminReverseColors}
               adminNoDataStyle={adminNoDataStyle}
               setAdminNoDataStyle={setAdminNoDataStyle}
               adminDatasetJoinSummary={adminDatasetJoinSummary}

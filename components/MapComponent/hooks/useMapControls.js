@@ -33,6 +33,7 @@ export const useMapControls = () => {
   const [adminMetricMeaning, setAdminMetricMeaning] = useState(ADMIN_METRIC_MEANINGS.WORSE_HIGH);
   const [adminClassification, setAdminClassification] = useState(ADMIN_CLASSIFICATION_METHODS.QUANTILE);
   const [adminClassCount, setAdminClassCount] = useState(5);
+  const [adminReverseColors, setAdminReverseColors] = useState(false);
   const [adminNoDataStyle, setAdminNoDataStyle] = useState(NO_DATA_STYLES.TRANSPARENT);
   const [showLabels, setShowLabels] = useState(true);
   const [showDistrictLabels, setShowDistrictLabels] = useState(true);
@@ -131,6 +132,7 @@ export const useMapControls = () => {
     adminMetricMeaning,
     adminClassification,
     adminClassCount,
+    adminReverseColors,
     adminNoDataStyle,
     showLabels,
     showDistrictLabels,
@@ -168,6 +170,7 @@ export const useMapControls = () => {
     setAdminMetricMeaning,
     setAdminClassification,
     setAdminClassCount,
+    setAdminReverseColors,
     setAdminNoDataStyle,
     setShowLabels,
     setShowDistrictLabels,

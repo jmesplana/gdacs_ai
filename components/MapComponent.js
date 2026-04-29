@@ -753,6 +753,7 @@ const MapComponent = ({
     adminMetricMeaning,
     adminClassification,
     adminClassCount,
+    adminReverseColors,
     adminNoDataStyle,
     showLabels,
     showDistrictLabels,
@@ -784,6 +785,7 @@ const MapComponent = ({
     setAdminMetricMeaning,
     setAdminClassification,
     setAdminClassCount,
+    setAdminReverseColors,
     setAdminNoDataStyle,
     setShowLabels,
     setShowDistrictLabels,
@@ -1754,9 +1756,10 @@ const MapComponent = ({
       classCount: adminClassCount,
       meaning: adminMetricMeaning,
       classification: adminClassification,
-      isPercent: Boolean(selectedAdminMetric?.isPercent)
+      isPercent: Boolean(selectedAdminMetric?.isPercent),
+      reverseColors: adminReverseColors
     }),
-    [adminMetricValues, adminClassCount, adminMetricMeaning, adminClassification, selectedAdminMetric]
+    [adminMetricValues, adminClassCount, adminMetricMeaning, adminClassification, adminReverseColors, selectedAdminMetric]
   );
   const adminDatasetStyle = useMemo(
     () => ({
@@ -1767,7 +1770,7 @@ const MapComponent = ({
       scale: adminDatasetScale,
       isPercent: Boolean(selectedAdminMetric?.isPercent),
       legend: adminFillMode === ADMIN_FILL_MODES.DATASET ? adminDatasetScale.legend : [],
-      legendKey: `${adminMetricField}-${adminMetricMeaning}-${adminClassification}-${adminClassCount}-${adminMetricValues.length}-${adminMetricValues[0] || 0}-${adminMetricValues[adminMetricValues.length - 1] || 0}`
+      legendKey: `${adminMetricField}-${adminMetricMeaning}-${adminClassification}-${adminClassCount}-${adminReverseColors}-${adminMetricValues.length}-${adminMetricValues[0] || 0}-${adminMetricValues[adminMetricValues.length - 1] || 0}`
     }),
     [
       adminFillMode,
@@ -1779,6 +1782,7 @@ const MapComponent = ({
       adminMetricMeaning,
       adminClassification,
       adminClassCount,
+      adminReverseColors,
       adminMetricValues
     ]
   );
@@ -2008,6 +2012,8 @@ const MapComponent = ({
         setAdminClassification={setAdminClassification}
         adminClassCount={adminClassCount}
         setAdminClassCount={setAdminClassCount}
+        adminReverseColors={adminReverseColors}
+        setAdminReverseColors={setAdminReverseColors}
         adminNoDataStyle={adminNoDataStyle}
         setAdminNoDataStyle={setAdminNoDataStyle}
         adminDatasetJoinSummary={adminDatasetJoin}

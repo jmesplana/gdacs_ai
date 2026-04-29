@@ -43,6 +43,8 @@ const FacilityDrawer = ({
   setAdminClassification = () => {},
   adminClassCount = 5,
   setAdminClassCount = () => {},
+  adminReverseColors = false,
+  setAdminReverseColors = () => {},
   adminNoDataStyle = 'transparent',
   setAdminNoDataStyle = () => {},
   adminDatasetJoinSummary,
@@ -310,6 +312,8 @@ const FacilityDrawer = ({
                 setAdminClassification={setAdminClassification}
                 adminClassCount={adminClassCount}
                 setAdminClassCount={setAdminClassCount}
+                adminReverseColors={adminReverseColors}
+                setAdminReverseColors={setAdminReverseColors}
                 adminNoDataStyle={adminNoDataStyle}
                 setAdminNoDataStyle={setAdminNoDataStyle}
                 datasetJoinSummary={adminDatasetJoinSummary}
