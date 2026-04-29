@@ -85,6 +85,7 @@ import buildWeatherContext from '../utils/weatherContextBuilder';
 import { useToast } from './Toast';
 import { getOperationType } from '../config/operationTypes';
 import { buildDistrictRiskIndex, isPointInDistricts } from '../lib/districtRiskScoring';
+import { getScopedWorldPopData } from '../lib/analysisScope';
 
 // Import constants
 import {
@@ -313,6 +314,77 @@ function compactDistrictForContext(district = {}, index = 0) {
       POP: props.POP
     }
   };
+}
+
+function simplifyGeometryForAnalysis(geometry = null) {
+  if (!geometry?.type || !geometry?.coordinates) return null;
+
+  const simplifyRing = (ring = [], maxPoints = 80) => {
+    if (!Array.isArray(ring) || ring.length <= maxPoints) return ring;
+    const step = Math.max(1, Math.ceil(ring.length / maxPoints));
+    const simplified = ring.filter((_, idx) => idx % step === 0);
+
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first && simplified[0] !== first) simplified.unshift(first);
+    if (last && simplified[simplified.length - 1] !== last) simplified.push(last);
+
+    return simplified;
+  };
+
+  if (geometry.type === 'Polygon') {
+    return {
+      type: geometry.type,
+      coordinates: geometry.coordinates.map((ring, index) => simplifyRing(ring, index === 0 ? 80 : 30))
+    };
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    return {
+      type: geometry.type,
+      coordinates: geometry.coordinates.map((polygon) =>
+        polygon.map((ring, index) => simplifyRing(ring, index === 0 ? 80 : 30))
+      )
+    };
+  }
+
+  return geometry;
+}
+
+function compactDistrictForAnalysis(district = {}, index = 0) {
+  const props = district.properties || {};
+
+  return {
+    id: district.id || index,
+    name: district.name || props.ADM2_EN || props.NAME_2 || props.NAME || props.name || props.district || `Selected Area ${index + 1}`,
+    country: district.country,
+    region: district.region,
+    geometry: simplifyGeometryForAnalysis(district.geometry || null),
+    properties: {
+      ADM2_EN: props.ADM2_EN,
+      NAME_2: props.NAME_2,
+      NAME: props.NAME,
+      name: props.name,
+      district: props.district
+    }
+  };
+}
+
+function compactAcledForAnalysis(events = [], maxItems = 50) {
+  return (events || []).slice(0, maxItems).map((event) => ({
+    event_date: event?.event_date,
+    event_type: event?.event_type,
+    sub_event_type: event?.sub_event_type,
+    admin1: event?.admin1,
+    admin2: event?.admin2,
+    location: event?.location,
+    latitude: event?.latitude,
+    longitude: event?.longitude,
+    fatalities: event?.fatalities,
+    actor1: event?.actor1,
+    actor2: event?.actor2,
+    notes: event?.notes ? String(event.notes).slice(0, 160) : null
+  }));
 }
 
 const LARGE_DISTRICT_COUNT = 80;
@@ -1854,11 +1926,13 @@ const MapComponent = ({
     const facilityImpacts = impactedFacilities.find(
       f => f.facility.name === facility.name
     )?.impacts || [];
+    const analysisDistricts = selectedAnalysisDistricts.map(compactDistrictForAnalysis);
+    const scopedWorldPopData = getScopedWorldPopData(worldPopData, analysisDistricts);
 
     handleAnalyzeFacility(facility, facilityImpacts, {
-      acledData: acledEnabled ? filteredAcledData : [],
-      worldPopData,
-      selectedDistricts: selectedAnalysisDistricts.map(compactDistrictForContext),
+      acledData: acledEnabled ? compactAcledForAnalysis(filteredAcledData) : [],
+      worldPopData: scopedWorldPopData,
+      selectedDistricts: analysisDistricts,
       operationType,
       nighttimeLightsLoaded: currentMapLayer === 'nighttime_lights',
       activeMapLayerName: currentLayer?.name || null,

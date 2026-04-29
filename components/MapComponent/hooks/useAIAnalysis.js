@@ -53,6 +53,9 @@ export const useAIAnalysis = () => {
       });
 
       if (!response.ok) {
+        if (response.status === 413) {
+          throw new Error('Analysis request was too large for the deployed server');
+        }
         throw new Error('Failed to analyze facility');
       }
 
@@ -77,7 +80,9 @@ export const useAIAnalysis = () => {
     } catch (error) {
       console.error('Error analyzing facility:', error);
       setAnalysisData({
-        error: 'Failed to generate analysis. Please try again.'
+        error: error?.message === 'Analysis request was too large for the deployed server'
+          ? 'The analysis request was too large for the deployed server. The request has been reduced in the app, but if this persists, narrow the analysis scope and try again.'
+          : 'Failed to generate analysis. Please try again.'
       });
     } finally {
       setAnalysisLoading(false);
