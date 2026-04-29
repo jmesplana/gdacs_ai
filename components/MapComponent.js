@@ -1692,7 +1692,7 @@ const MapComponent = ({
 
     const paneName = 'geeEvidencePane';
     const existingPane = mapInstance.getPane(paneName) || mapInstance.createPane(paneName);
-    existingPane.style.zIndex = '420';
+    existingPane.style.zIndex = '300'; // Below admin boundaries (400) but above base tiles (200)
     existingPane.style.pointerEvents = 'none';
     setGeeEvidencePaneReady(true);
 

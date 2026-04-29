@@ -112,11 +112,11 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer, showCl
 
     console.log(`Filtered to ${visibleFeatures.length} visible features`);
 
-    // Create or get OSM infrastructure pane with high z-index (above GEE layers at 420)
+    // Create or get OSM infrastructure pane with high z-index (above admin boundaries and GEE layers)
     const osmPaneName = 'osmInfrastructurePane';
     if (!map.getPane(osmPaneName)) {
       const osmPane = map.createPane(osmPaneName);
-      osmPane.style.zIndex = '450'; // Above GEE evidence pane (420)
+      osmPane.style.zIndex = '450'; // Above admin boundaries (400) and GEE evidence pane (300)
       osmPane.style.pointerEvents = 'auto'; // Allow click interactions
     }
 
