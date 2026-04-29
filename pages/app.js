@@ -172,6 +172,7 @@ function OperationalContextBar({
   const evidenceItems = [
     { label: 'Flood', status: enabledEvidenceLayers.includes('flood_context') ? 'ready' : 'blocked', detail: enabledEvidenceLayers.includes('flood_context') ? 'enabled' : 'load Flood Context' },
     { label: 'Drought', status: enabledEvidenceLayers.includes('drought_context') ? 'ready' : 'blocked', detail: enabledEvidenceLayers.includes('drought_context') ? 'enabled' : 'load Drought Context' },
+    { label: 'Access', status: enabledEvidenceLayers.includes('accessibility_context') ? 'ready' : 'blocked', detail: enabledEvidenceLayers.includes('accessibility_context') ? 'enabled' : 'load Accessibility' },
     { label: 'Nighttime', status: enabledEvidenceLayers.includes('nighttime_lights') ? 'ready' : 'blocked', detail: enabledEvidenceLayers.includes('nighttime_lights') ? 'loaded' : 'switch to Nighttime Lights' },
     { label: 'Security', status: acledEnabled && acledData.length > 0 ? 'ready' : 'blocked', detail: acledEnabled && acledData.length > 0 ? `${acledData.length} ACLED events` : 'upload or enable ACLED' },
     { label: 'Logistics', status: osmLayerCount > 0 ? 'ready' : 'blocked', detail: osmLayerCount > 0 ? `${osmLayerCount} OSM layer${osmLayerCount === 1 ? '' : 's'}` : 'load roads, airports, fuel' },
@@ -988,9 +989,7 @@ export default function Home() {
 
   // Save enabled layers to IndexedDB when they change
   useEffect(() => {
-    if (enabledEvidenceLayers.length > 0) {
-      saveConfig('enabledLayers', enabledEvidenceLayers);
-    }
+    saveConfig('enabledLayers', enabledEvidenceLayers);
   }, [enabledEvidenceLayers]);
 
   // ==================== END: IndexedDB persistence hooks ====================
@@ -3028,6 +3027,7 @@ export default function Home() {
           }}
           onAnalysisDistrictsChange={setSelectedAnalysisDistricts}
           onEvidenceLayersChange={setEnabledEvidenceLayers}
+          enabledEvidenceLayers={enabledEvidenceLayers}
           selectedAnalysisDistricts={selectedAnalysisDistricts}
           prioritizationBoard={latestPrioritizationBoard}
         />

@@ -92,6 +92,16 @@ export const MAP_LAYERS = {
     attribution: '&copy; <a href="https://developers.google.com/earth-engine/datasets/catalog/UCSB_CHG_CHIRPS_DAILY">Google Earth Engine</a> / CHIRPS, <a href="https://developers.google.com/earth-engine/datasets/catalog/ECMWF_ERA5_LAND_DAILY_AGGR">ERA5-Land</a>',
     note: 'Combines recent rainfall and heat context to support drought-readiness screening before scoring districts.'
   },
+  ACCESSIBILITY_CONTEXT: {
+    id: 'accessibility_context',
+    name: 'Accessibility Context (GEE)',
+    type: 'gee',
+    dataset: 'accessibility_context',
+    overlayOnBase: true,
+    overlayOpacity: 0.72,
+    attribution: '&copy; <a href="https://developers.google.com/earth-engine/datasets/catalog/Oxford_MAP_accessibility_to_healthcare_2019">Google Earth Engine</a> / Oxford MAP accessibility to healthcare',
+    note: 'Shows modeled travel time to the nearest hospital or clinic. Blue means easier access, yellow to dark red means harder to reach.'
+  },
   RECENT_IMAGERY: {
     id: 'recent_imagery',
     name: 'Recent Imagery (Daily)',

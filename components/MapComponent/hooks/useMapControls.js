@@ -28,6 +28,7 @@ export const useMapControls = () => {
   const [showAcledLayer, setShowAcledLayer] = useState(true);
   const [showFloodContextLayer, setShowFloodContextLayer] = useState(false);
   const [showDroughtContextLayer, setShowDroughtContextLayer] = useState(false);
+  const [showAccessibilityContextLayer, setShowAccessibilityContextLayer] = useState(false);
   const [showDistrictRiskFill, setShowDistrictRiskFill] = useState(true);
   const [adminFillMode, setAdminFillMode] = useState(ADMIN_FILL_MODES.RISK);
   const [adminMetricField, setAdminMetricField] = useState('');
@@ -134,6 +135,7 @@ export const useMapControls = () => {
     showAcledLayer,
     showFloodContextLayer,
     showDroughtContextLayer,
+    showAccessibilityContextLayer,
     showDistrictRiskFill,
     adminFillMode,
     adminMetricField,
@@ -173,6 +175,7 @@ export const useMapControls = () => {
     setShowAcledLayer,
     setShowFloodContextLayer,
     setShowDroughtContextLayer,
+    setShowAccessibilityContextLayer,
     setShowDistrictRiskFill,
     setAdminFillMode,
     setAdminMetricField,

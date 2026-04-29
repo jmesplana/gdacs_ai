@@ -747,6 +747,7 @@ const MapComponent = ({
   onOSMDataChange,
   onAnalysisDistrictsChange,
   onEvidenceLayersChange,
+  enabledEvidenceLayers = [],
   selectedAnalysisDistricts = [],
   prioritizationBoard = null
 }) => {
@@ -754,6 +755,7 @@ const MapComponent = ({
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const nighttimeCompareDragRef = useRef(false);
+  const hydratedEvidenceLayersRef = useRef(false);
   const [mapInstance, setMapInstance] = useState(null);
   const [chatDrawerExpanded, setChatDrawerExpanded] = useState(false);
   const { addToast } = useToast();
@@ -819,6 +821,7 @@ const MapComponent = ({
     showAcledLayer,
     showFloodContextLayer,
     showDroughtContextLayer,
+    showAccessibilityContextLayer,
     showDistrictRiskFill,
     adminFillMode,
     adminMetricField,
@@ -852,6 +855,7 @@ const MapComponent = ({
     setShowAcledLayer,
     setShowFloodContextLayer,
     setShowDroughtContextLayer,
+    setShowAccessibilityContextLayer,
     setShowDistrictRiskFill,
     setAdminFillMode,
     setAdminMetricField,
@@ -1502,6 +1506,8 @@ const MapComponent = ({
   const [nighttimeComparePosition, setNighttimeComparePosition] = useState(50);
   const [floodContextTileUrl, setFloodContextTileUrl] = useState(null);
   const [droughtContextTileUrl, setDroughtContextTileUrl] = useState(null);
+  const [accessibilityContextTileUrl, setAccessibilityContextTileUrl] = useState(null);
+  const [geeEvidencePaneReady, setGeeEvidencePaneReady] = useState(false);
   const [geeOverlayError, setGeeOverlayError] = useState(null);
   const geeBounds = useMemo(
     () => calculateBounds(selectedAnalysisDistricts?.length ? selectedAnalysisDistricts : districts),
@@ -1526,10 +1532,22 @@ const MapComponent = ({
       onEvidenceLayersChange([
         ...(showFloodContextLayer ? ['flood_context'] : []),
         ...(showDroughtContextLayer ? ['drought_context'] : []),
+        ...(showAccessibilityContextLayer ? ['accessibility_context'] : []),
         ...(currentMapLayer === 'nighttime_lights' ? ['nighttime_lights'] : [])
       ]);
     }
-  }, [showFloodContextLayer, showDroughtContextLayer, currentMapLayer, onEvidenceLayersChange]);
+  }, [showFloodContextLayer, showDroughtContextLayer, showAccessibilityContextLayer, currentMapLayer, onEvidenceLayersChange]);
+
+  useEffect(() => {
+    if (hydratedEvidenceLayersRef.current) return;
+    if (!Array.isArray(enabledEvidenceLayers) || enabledEvidenceLayers.length === 0) return;
+
+    const enabled = new Set(enabledEvidenceLayers);
+    setShowFloodContextLayer(enabled.has('flood_context'));
+    setShowDroughtContextLayer(enabled.has('drought_context'));
+    setShowAccessibilityContextLayer(enabled.has('accessibility_context'));
+    hydratedEvidenceLayersRef.current = true;
+  }, [enabledEvidenceLayers, setShowFloodContextLayer, setShowDroughtContextLayer, setShowAccessibilityContextLayer]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1665,6 +1683,21 @@ const MapComponent = ({
     return undefined;
   }, [mapInstance, nighttimeComparePosition]);
 
+  useEffect(() => {
+    if (!mapInstance) {
+      setGeeEvidencePaneReady(false);
+      return undefined;
+    }
+
+    const paneName = 'geeEvidencePane';
+    const existingPane = mapInstance.getPane(paneName) || mapInstance.createPane(paneName);
+    existingPane.style.zIndex = '420';
+    existingPane.style.pointerEvents = 'none';
+    setGeeEvidencePaneReady(true);
+
+    return undefined;
+  }, [mapInstance]);
+
   const updateNighttimeComparePosition = (clientX) => {
     if (!mapContainerRef.current || typeof clientX !== 'number') return;
 
@@ -1769,10 +1802,16 @@ const MapComponent = ({
       setDroughtContextTileUrl(null);
     }
 
+    if (showAccessibilityContextLayer) {
+      loadOverlay('accessibility_context', setAccessibilityContextTileUrl);
+    } else {
+      setAccessibilityContextTileUrl(null);
+    }
+
     return () => {
       cancelled = true;
     };
-  }, [showFloodContextLayer, showDroughtContextLayer, geeBounds]);
+  }, [showFloodContextLayer, showDroughtContextLayer, showAccessibilityContextLayer, geeBounds]);
 
   useEffect(() => {
     if (geeBaseLayerError && currentLayer.type === 'gee') {
@@ -2210,6 +2249,8 @@ const MapComponent = ({
         setShowFloodContextLayer={setShowFloodContextLayer}
         showDroughtContextLayer={showDroughtContextLayer}
         setShowDroughtContextLayer={setShowDroughtContextLayer}
+        showAccessibilityContextLayer={showAccessibilityContextLayer}
+        setShowAccessibilityContextLayer={setShowAccessibilityContextLayer}
         districts={districts}
         selectedAnalysisDistricts={selectedAnalysisDistricts}
         osmData={osmData}
@@ -2290,6 +2331,9 @@ const MapComponent = ({
           showDistricts={showDistricts}
           setShowDistricts={setShowDistricts}
           currentMapLayer={currentMapLayer}
+          showFloodContextLayer={showFloodContextLayer}
+          showDroughtContextLayer={showDroughtContextLayer}
+          showAccessibilityContextLayer={showAccessibilityContextLayer}
           gdacsDiagnostics={gdacsDiagnostics}
           adminFillMode={adminFillMode}
           adminDatasetLegend={adminDatasetStyle.legend}
@@ -2366,6 +2410,43 @@ const MapComponent = ({
         </div>
       )}
 
+      {showAccessibilityContextLayer && accessibilityContextTileUrl && (
+        <div
+          style={{
+            position: 'absolute',
+            left: showLegend ? '320px' : '16px',
+            bottom: showLegend ? '160px' : '24px',
+            zIndex: 1100,
+            width: '240px',
+            background: 'rgba(255, 255, 255, 0.96)',
+            border: '1px solid rgba(15, 23, 42, 0.08)',
+            borderRadius: '10px',
+            boxShadow: '0 10px 24px rgba(15, 23, 42, 0.14)',
+            padding: '12px 14px',
+            color: '#0f172a'
+          }}
+        >
+          <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.04em', marginBottom: '6px' }}>
+            ACCESSIBILITY CONTEXT
+          </div>
+          <div style={{ fontSize: '11px', lineHeight: 1.45, color: '#475569', marginBottom: '10px' }}>
+            Modeled travel time to the nearest hospital or clinic.
+          </div>
+          <div
+            style={{
+              height: '12px',
+              borderRadius: '999px',
+              background: 'linear-gradient(90deg, #dbeafe 0%, #60a5fa 22%, #facc15 48%, #f97316 74%, #dc2626 90%, #4c0519 100%)',
+              marginBottom: '8px'
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#334155' }}>
+            <span>Easier access</span>
+            <span>Harder to reach</span>
+          </div>
+        </div>
+      )}
+
       {/* Map Container */}
       <MapContainer
         ref={mapRef}
@@ -2431,21 +2512,33 @@ const MapComponent = ({
           />
         )}
 
-        {showFloodContextLayer && floodContextTileUrl && (
+        {geeEvidencePaneReady && showFloodContextLayer && floodContextTileUrl && (
           <TileLayer
             key={floodContextTileUrl}
             url={floodContextTileUrl}
             attribution={MAP_LAYERS.FLOOD_CONTEXT.attribution}
             opacity={MAP_LAYERS.FLOOD_CONTEXT.overlayOpacity || 0.6}
+            pane="geeEvidencePane"
           />
         )}
 
-        {showDroughtContextLayer && droughtContextTileUrl && (
+        {geeEvidencePaneReady && showDroughtContextLayer && droughtContextTileUrl && (
           <TileLayer
             key={droughtContextTileUrl}
             url={droughtContextTileUrl}
             attribution={MAP_LAYERS.DROUGHT_CONTEXT.attribution}
             opacity={MAP_LAYERS.DROUGHT_CONTEXT.overlayOpacity || 0.6}
+            pane="geeEvidencePane"
+          />
+        )}
+
+        {geeEvidencePaneReady && showAccessibilityContextLayer && accessibilityContextTileUrl && (
+          <TileLayer
+            key={accessibilityContextTileUrl}
+            url={accessibilityContextTileUrl}
+            attribution={MAP_LAYERS.ACCESSIBILITY_CONTEXT.attribution}
+            opacity={MAP_LAYERS.ACCESSIBILITY_CONTEXT.overlayOpacity || 0.58}
+            pane="geeEvidencePane"
           />
         )}
 
@@ -2847,6 +2940,7 @@ const MapComponent = ({
           enabledEvidenceLayers: [
             ...(showFloodContextLayer ? ['flood_context'] : []),
             ...(showDroughtContextLayer ? ['drought_context'] : []),
+            ...(showAccessibilityContextLayer ? ['accessibility_context'] : []),
             ...(currentMapLayer === 'nighttime_lights' ? ['nighttime_lights'] : [])
           ],
           selectedFacility: selectedFacility,

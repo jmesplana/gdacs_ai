@@ -186,6 +186,27 @@ function buildDroughtContext(ee, geometry) {
   };
 }
 
+function buildAccessibilityContext(ee, geometry) {
+  const accessibility = ee.Image('projects/malariaatlasproject/assets/accessibility/accessibility_to_healthcare/2019')
+    .select('accessibility');
+
+  let accessibilityContext = accessibility
+    .divide(240)
+    .clamp(0, 1)
+    .rename('accessibility_context');
+
+  if (geometry) accessibilityContext = accessibilityContext.clip(geometry);
+
+  return {
+    image: accessibilityContext,
+    visParams: {
+      min: 0,
+      max: 1,
+      palette: ['#dbeafe', '#60a5fa', '#facc15', '#f97316', '#dc2626', '#4c0519']
+    },
+  };
+}
+
 function buildNighttimeLights(ee, geometry, options = {}) {
   const { month = null } = options;
   const viirs = ee.ImageCollection('NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG');
@@ -228,6 +249,8 @@ function buildDataset(ee, dataset, geometry, options = {}) {
       return buildFloodContext(ee, geometry);
     case 'drought_context':
       return buildDroughtContext(ee, geometry);
+    case 'accessibility_context':
+      return buildAccessibilityContext(ee, geometry);
     case 'nighttime_lights':
       return buildNighttimeLights(ee, geometry, options);
     default:

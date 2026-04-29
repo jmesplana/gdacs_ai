@@ -15,6 +15,9 @@ const MapLegend = ({
   showDistricts,
   setShowDistricts,
   currentMapLayer = 'street',
+  showFloodContextLayer = false,
+  showDroughtContextLayer = false,
+  showAccessibilityContextLayer = false,
   gdacsDiagnostics = null,
   adminFillMode = ADMIN_FILL_MODES.RISK,
   adminDatasetLegend = [],
@@ -22,26 +25,44 @@ const MapLegend = ({
   adminDatasetJoinSummary = null
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
-  const showHazardContextLegend = currentMapLayer === 'drought_context' || currentMapLayer === 'flood_context';
-  const contextLegendTitle = currentMapLayer === 'drought_context' ? 'DROUGHT CONTEXT' : 'FLOOD CONTEXT';
-  const contextLegendDescription = currentMapLayer === 'drought_context'
-    ? 'Blue tones indicate wetter or lower-stress conditions. Yellow to brown tones indicate drier and warmer context.'
-    : 'Light tones indicate lower flood susceptibility. Darker blue tones indicate flatter terrain and stronger surface-water context.';
-  const contextLegendItems = currentMapLayer === 'drought_context'
-    ? [
-        { color: '#1d4ed8', label: 'Lower drought stress' },
-        { color: '#60a5fa', label: 'Mild drought signal' },
-        { color: '#fef3c7', label: 'Transition zone' },
-        { color: '#f59e0b', label: 'Elevated drought context' },
-        { color: '#92400e', label: 'Highest drought context' }
-      ]
-    : [
-        { color: '#fff7ed', label: 'Lower flood context' },
-        { color: '#fed7aa', label: 'Mild flood context' },
-        { color: '#fb923c', label: 'Moderate flood context' },
-        { color: '#2563eb', label: 'High flood context' },
-        { color: '#0f172a', label: 'Highest flood context' }
-      ];
+  const activeContextLegend = showAccessibilityContextLayer
+    ? {
+        title: 'ACCESSIBILITY CONTEXT',
+        description: 'Blue areas have shorter modeled travel time to nearby care. Yellow to dark red areas are harder to reach.',
+        items: [
+          { color: '#dbeafe', label: 'Lowest travel time' },
+          { color: '#60a5fa', label: 'Lower travel time' },
+          { color: '#facc15', label: 'Moderate travel time' },
+          { color: '#f97316', label: 'Higher travel time' },
+          { color: '#dc2626', label: 'Very high travel time' },
+          { color: '#4c0519', label: 'Hardest to reach' }
+        ]
+      }
+    : showDroughtContextLayer || currentMapLayer === 'drought_context'
+      ? {
+          title: 'DROUGHT CONTEXT',
+          description: 'Blue tones indicate wetter or lower-stress conditions. Yellow to brown tones indicate drier and warmer context.',
+          items: [
+            { color: '#1d4ed8', label: 'Lower drought stress' },
+            { color: '#60a5fa', label: 'Mild drought signal' },
+            { color: '#fef3c7', label: 'Transition zone' },
+            { color: '#f59e0b', label: 'Elevated drought context' },
+            { color: '#92400e', label: 'Highest drought context' }
+          ]
+        }
+      : showFloodContextLayer || currentMapLayer === 'flood_context'
+        ? {
+            title: 'FLOOD CONTEXT',
+            description: 'Light tones indicate lower flood susceptibility. Darker blue tones indicate flatter terrain and stronger surface-water context.',
+            items: [
+              { color: '#fff7ed', label: 'Lower flood context' },
+              { color: '#fed7aa', label: 'Mild flood context' },
+              { color: '#fb923c', label: 'Moderate flood context' },
+              { color: '#2563eb', label: 'High flood context' },
+              { color: '#0f172a', label: 'Highest flood context' }
+            ]
+          }
+        : null;
   return (
     <div style={{
       position: 'absolute',
@@ -279,7 +300,7 @@ const MapLegend = ({
             DISASTER EVENT TYPES
           </div>
 
-          {showHazardContextLegend && (
+          {activeContextLegend && (
             <>
               <div style={{
                 marginBottom: '10px',
@@ -298,15 +319,15 @@ const MapLegend = ({
                   <path d="M4 11h16"></path>
                   <path d="M4 7h16"></path>
                 </svg>
-                {contextLegendTitle}
+                {activeContextLegend.title}
               </div>
 
               <div style={{ marginBottom: '10px', fontSize: '12px', color: '#475569', lineHeight: 1.5 }}>
-                {contextLegendDescription}
+                {activeContextLegend.description}
               </div>
 
               <div style={{ marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {contextLegendItems.map((item) => (
+                {activeContextLegend.items.map((item) => (
                   <div key={item.label} style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: '#334155' }}>
                     <div style={{ width: '18px', height: '18px', borderRadius: '4px', backgroundColor: item.color, border: '1px solid rgba(15,23,42,0.12)', marginRight: '8px' }} />
                     <span>{item.label}</span>

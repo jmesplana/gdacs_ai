@@ -35,6 +35,8 @@ const MapLayersDrawer = ({
   setShowFloodContextLayer,
   showDroughtContextLayer,
   setShowDroughtContextLayer,
+  showAccessibilityContextLayer,
+  setShowAccessibilityContextLayer,
   // Support alternative prop format from UnifiedDrawer
   settings,
   onToggle,
@@ -66,6 +68,7 @@ const MapLayersDrawer = ({
   const activeShowRoads = showRoads !== undefined ? showRoads : (settings?.showRoads || false);
   const activeShowFloodContextLayer = showFloodContextLayer !== undefined ? showFloodContextLayer : (settings?.showFloodContextLayer || false);
   const activeShowDroughtContextLayer = showDroughtContextLayer !== undefined ? showDroughtContextLayer : (settings?.showDroughtContextLayer || false);
+  const activeShowAccessibilityContextLayer = showAccessibilityContextLayer !== undefined ? showAccessibilityContextLayer : (settings?.showAccessibilityContextLayer || false);
 
   const handleMapLayerChange = (layer) => {
     if (setCurrentMapLayer) {
@@ -104,6 +107,16 @@ const MapLayersDrawer = ({
       onToggle('showDroughtContextLayer', value);
     } else if (onConfigChange) {
       onConfigChange({ showDroughtContextLayer: value });
+    }
+  };
+
+  const handleAccessibilityContextLayerChange = (value) => {
+    if (setShowAccessibilityContextLayer) {
+      setShowAccessibilityContextLayer(value);
+    } else if (onToggle) {
+      onToggle('showAccessibilityContextLayer', value);
+    } else if (onConfigChange) {
+      onConfigChange({ showAccessibilityContextLayer: value });
     }
   };
 
@@ -382,6 +395,20 @@ const MapLayersDrawer = ({
           {activeShowDroughtContextLayer && (
             <div style={{ fontSize: '12px', color: '#555', backgroundColor: '#f7f7f7', borderRadius: '6px', padding: '10px', lineHeight: 1.5, marginTop: '6px' }}>
               CHIRPS rainfall plus ERA5-Land climate overlay for drought context. Keep your preferred basemap active underneath.
+            </div>
+          )}
+          <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: activeShowAccessibilityContextLayer ? '#fee2e2' : 'transparent'}}>
+            <input
+              type="checkbox"
+              checked={activeShowAccessibilityContextLayer}
+              onChange={(event) => handleAccessibilityContextLayerChange(event.target.checked)}
+              style={{marginRight: '10px'}}
+            />
+            <span>Accessibility / Hard-to-Reach Overlay</span>
+          </label>
+          {activeShowAccessibilityContextLayer && (
+            <div style={{ fontSize: '12px', color: '#555', backgroundColor: '#f7f7f7', borderRadius: '6px', padding: '10px', lineHeight: 1.5, marginTop: '6px' }}>
+              Oxford MAP travel-time overlay showing access to the nearest hospital or clinic. Blue means easier access, warmer tones mean longer travel time. Open the map legend to see the scale.
             </div>
           )}
         </div>
