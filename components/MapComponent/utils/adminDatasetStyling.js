@@ -20,6 +20,16 @@ export const NO_DATA_STYLES = {
   GRAY: 'gray'
 };
 
+export const ADMIN_COLOR_PALETTES = {
+  AUTO: 'auto',
+  RED: 'red',
+  GREEN: 'green',
+  BLUE: 'blue',
+  ORANGE: 'orange',
+  PURPLE: 'purple',
+  GRAY: 'gray'
+};
+
 export const RISK_COLORS = {
   'very-high': '#d32f2f',
   high: '#f57c00',
@@ -36,9 +46,14 @@ export const RISK_BORDER_COLORS = {
   none: '#2D5A7B'
 };
 
-const WORSE_HIGH_PALETTE = ['#fee2e2', '#fca5a5', '#f87171', '#ef4444', '#b91c1c'];
-const BETTER_HIGH_PALETTE = ['#dcfce7', '#86efac', '#4ade80', '#16a34a', '#166534'];
-const NEUTRAL_PALETTE = ['#dbeafe', '#93c5fd', '#60a5fa', '#2563eb', '#1e3a8a'];
+const PALETTE_STOPS = {
+  [ADMIN_COLOR_PALETTES.RED]: ['#fee2e2', '#fca5a5', '#f87171', '#ef4444', '#b91c1c'],
+  [ADMIN_COLOR_PALETTES.GREEN]: ['#dcfce7', '#86efac', '#4ade80', '#16a34a', '#166534'],
+  [ADMIN_COLOR_PALETTES.BLUE]: ['#dbeafe', '#93c5fd', '#60a5fa', '#2563eb', '#1e3a8a'],
+  [ADMIN_COLOR_PALETTES.ORANGE]: ['#ffedd5', '#fdba74', '#fb923c', '#ea580c', '#9a3412'],
+  [ADMIN_COLOR_PALETTES.PURPLE]: ['#f3e8ff', '#d8b4fe', '#c084fc', '#9333ea', '#581c87'],
+  [ADMIN_COLOR_PALETTES.GRAY]: ['#f1f5f9', '#cbd5e1', '#94a3b8', '#64748b', '#334155']
+};
 
 const WORSE_HIGH_KEYWORDS = [
   'refusal', 'risk', 'case', 'cases', 'incidence', 'mortality', 'death', 'fatal',
@@ -151,12 +166,29 @@ export function suggestMetricMeaning(field = '') {
   return ADMIN_METRIC_MEANINGS.NEUTRAL;
 }
 
-function getPalette(meaning, classCount, reverse = false) {
-  const palette = meaning === ADMIN_METRIC_MEANINGS.BETTER_HIGH
-    ? BETTER_HIGH_PALETTE
-    : meaning === ADMIN_METRIC_MEANINGS.NEUTRAL
-      ? NEUTRAL_PALETTE
-      : WORSE_HIGH_PALETTE;
+export function getPalettePreview(paletteKey = ADMIN_COLOR_PALETTES.AUTO, meaning = ADMIN_METRIC_MEANINGS.NEUTRAL) {
+  const palette = resolveBasePalette(paletteKey, meaning);
+  return [...palette];
+}
+
+function resolveBasePalette(paletteKey, meaning) {
+  if (paletteKey && paletteKey !== ADMIN_COLOR_PALETTES.AUTO && PALETTE_STOPS[paletteKey]) {
+    return PALETTE_STOPS[paletteKey];
+  }
+
+  if (meaning === ADMIN_METRIC_MEANINGS.BETTER_HIGH) {
+    return PALETTE_STOPS[ADMIN_COLOR_PALETTES.GREEN];
+  }
+
+  if (meaning === ADMIN_METRIC_MEANINGS.NEUTRAL) {
+    return PALETTE_STOPS[ADMIN_COLOR_PALETTES.BLUE];
+  }
+
+  return PALETTE_STOPS[ADMIN_COLOR_PALETTES.RED];
+}
+
+function getPalette(meaning, classCount, reverse = false, paletteKey = ADMIN_COLOR_PALETTES.AUTO) {
+  const palette = resolveBasePalette(paletteKey, meaning);
   const orderedPalette = reverse ? [...palette].reverse() : palette;
 
   if (classCount === orderedPalette.length) return orderedPalette;
@@ -226,7 +258,8 @@ export function buildDatasetColorScale(values = [], options = {}) {
     meaning = ADMIN_METRIC_MEANINGS.WORSE_HIGH,
     classification = ADMIN_CLASSIFICATION_METHODS.QUANTILE,
     isPercent = false,
-    reverseColors = false
+    reverseColors = false,
+    palette = ADMIN_COLOR_PALETTES.AUTO
   } = options;
 
   const cleanValues = values.filter((value) => Number.isFinite(value));
@@ -234,15 +267,19 @@ export function buildDatasetColorScale(values = [], options = {}) {
     return {
       breaks: [],
       legend: [],
+      requestedClassCount: Math.min(Math.max(Number(classCount) || 5, 3), 7),
+      appliedClassCount: 0,
+      distinctValueCount: 0,
       getColor: () => '#94a3b8'
     };
   }
 
   const normalizedClassCount = Math.min(Math.max(Number(classCount) || 5, 3), 7);
+  const distinctValueCount = uniqueSortedValues(cleanValues).length;
   const breaks = classification === ADMIN_CLASSIFICATION_METHODS.EQUAL_INTERVAL
     ? buildEqualIntervalBreaks(cleanValues, normalizedClassCount)
     : buildQuantileBreaks(cleanValues, normalizedClassCount);
-  const colors = getPalette(meaning, breaks.length || normalizedClassCount, reverseColors);
+  const colors = getPalette(meaning, breaks.length || normalizedClassCount, reverseColors, palette);
 
   return {
     breaks,
@@ -252,6 +289,9 @@ export function buildDatasetColorScale(values = [], options = {}) {
         ? formatMetricValue(item.min, { isPercent })
         : `${formatMetricValue(item.min, { isPercent })} - ${formatMetricValue(item.max, { isPercent })}`
     })),
+    requestedClassCount: normalizedClassCount,
+    appliedClassCount: breaks.length,
+    distinctValueCount,
     getColor: (value) => {
       const index = findBreakIndex(value, breaks);
       return index >= 0 ? colors[index] || colors[colors.length - 1] : '#94a3b8';

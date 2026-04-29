@@ -90,12 +90,15 @@ const UnifiedDrawer = ({
   setAdminClassification,
   adminClassCount,
   setAdminClassCount,
+  adminColorPalette,
+  setAdminColorPalette,
   adminReverseColors,
   setAdminReverseColors,
   adminNoDataStyle,
   setAdminNoDataStyle,
   adminDatasetJoinSummary,
   adminDatasetLegend = [],
+  adminDatasetScaleInfo = null,
   drawerMode = 'workspace'
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -514,12 +517,15 @@ const UnifiedDrawer = ({
               setAdminClassification={setAdminClassification}
               adminClassCount={adminClassCount}
               setAdminClassCount={setAdminClassCount}
+              adminColorPalette={adminColorPalette}
+              setAdminColorPalette={setAdminColorPalette}
               adminReverseColors={adminReverseColors}
               setAdminReverseColors={setAdminReverseColors}
               adminNoDataStyle={adminNoDataStyle}
               setAdminNoDataStyle={setAdminNoDataStyle}
               adminDatasetJoinSummary={adminDatasetJoinSummary}
               adminDatasetLegend={adminDatasetLegend}
+              adminDatasetScaleInfo={adminDatasetScaleInfo}
             />
           )}
 

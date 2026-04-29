@@ -1,14 +1,26 @@
 import {
+  ADMIN_COLOR_PALETTES,
   ADMIN_CLASSIFICATION_METHODS,
   ADMIN_FILL_MODES,
   ADMIN_METRIC_MEANINGS,
-  NO_DATA_STYLES
+  NO_DATA_STYLES,
+  getPalettePreview
 } from '../../utils/adminDatasetStyling';
 
 const meaningLabels = {
   [ADMIN_METRIC_MEANINGS.WORSE_HIGH]: 'High = worse',
   [ADMIN_METRIC_MEANINGS.BETTER_HIGH]: 'High = better',
   [ADMIN_METRIC_MEANINGS.NEUTRAL]: 'Neutral'
+};
+
+const paletteLabels = {
+  [ADMIN_COLOR_PALETTES.AUTO]: 'Auto',
+  [ADMIN_COLOR_PALETTES.RED]: 'Red',
+  [ADMIN_COLOR_PALETTES.GREEN]: 'Green',
+  [ADMIN_COLOR_PALETTES.BLUE]: 'Blue',
+  [ADMIN_COLOR_PALETTES.ORANGE]: 'Orange',
+  [ADMIN_COLOR_PALETTES.PURPLE]: 'Purple',
+  [ADMIN_COLOR_PALETTES.GRAY]: 'Gray'
 };
 
 const modeOptions = [
@@ -66,18 +78,25 @@ export default function AdminStyleControls({
   setAdminClassification,
   adminClassCount,
   setAdminClassCount,
+  adminColorPalette,
+  setAdminColorPalette,
   adminReverseColors,
   setAdminReverseColors,
   adminNoDataStyle,
   setAdminNoDataStyle,
   datasetJoinSummary = null,
-  legend = []
+  legend = [],
+  scaleInfo = null
 }) {
   const hasDistricts = districts.length > 0;
   const hasRows = facilities.length > 0;
   const hasNumericFields = numericFields.length > 0;
   const selectedField = numericFields.find((item) => item.field === adminMetricField);
   const suggestedMeaning = selectedField?.suggestedMeaning;
+  const palettePreview = getPalettePreview(adminColorPalette, adminMetricMeaning);
+  const quantileClassLimitReached = adminClassification === ADMIN_CLASSIFICATION_METHODS.QUANTILE
+    && scaleInfo
+    && scaleInfo.appliedClassCount < scaleInfo.requestedClassCount;
 
   const activateSuggestedMeaning = () => {
     if (suggestedMeaning) setAdminMetricMeaning(suggestedMeaning);
@@ -225,6 +244,36 @@ export default function AdminStyleControls({
                       onChange={(event) => setAdminClassCount(Math.min(7, Math.max(3, Number(event.target.value) || 5)))}
                       style={selectStyle}
                     />
+                    {quantileClassLimitReached && (
+                      <div style={{ marginTop: '6px', fontSize: '11px', color: '#9a3412', lineHeight: 1.5 }}>
+                        Quantile is showing {scaleInfo.appliedClassCount} class{scaleInfo.appliedClassCount === 1 ? '' : 'es'} because the matched data only has {scaleInfo.distinctValueCount} distinct value{scaleInfo.distinctValueCount === 1 ? '' : 's'}.
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ marginTop: '10px' }}>
+                  <label style={smallLabelStyle}>Color palette</label>
+                  <select
+                    value={adminColorPalette}
+                    onChange={(event) => setAdminColorPalette(event.target.value)}
+                    style={selectStyle}
+                  >
+                    {Object.values(ADMIN_COLOR_PALETTES).map((palette) => (
+                      <option key={palette} value={palette}>
+                        {paletteLabels[palette]}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                    {palettePreview.map((color) => (
+                      <span
+                        key={`${adminColorPalette}-${adminMetricMeaning}-${color}`}
+                        style={{ flex: 1, height: '10px', borderRadius: '999px', background: color, border: '1px solid rgba(15,23,42,0.08)' }}
+                      />
+                    ))}
+                  </div>
+                  <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b', lineHeight: 1.5 }}>
+                    Auto uses red for worse, green for better, and blue for neutral. Manual palettes stay constrained to accessible sequential ramps.
                   </div>
                 </div>
                 <div style={{ marginTop: '10px' }}>
@@ -237,7 +286,7 @@ export default function AdminStyleControls({
                     Reverse color direction
                   </label>
                   <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b', lineHeight: 1.5 }}>
-                    Recommended: keep refusal, risk, and missed-child metrics on a red ramp so low values are light red and higher values become dark red.
+                    Use reverse when the visual direction should flip, such as moving from light-to-dark or dark-to-light within the same palette.
                   </div>
                 </div>
                 <div style={{ marginTop: '10px' }}>

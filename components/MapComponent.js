@@ -753,6 +753,7 @@ const MapComponent = ({
     adminMetricMeaning,
     adminClassification,
     adminClassCount,
+    adminColorPalette,
     adminReverseColors,
     adminNoDataStyle,
     showLabels,
@@ -785,6 +786,7 @@ const MapComponent = ({
     setAdminMetricMeaning,
     setAdminClassification,
     setAdminClassCount,
+    setAdminColorPalette,
     setAdminReverseColors,
     setAdminNoDataStyle,
     setShowLabels,
@@ -1757,9 +1759,10 @@ const MapComponent = ({
       meaning: adminMetricMeaning,
       classification: adminClassification,
       isPercent: Boolean(selectedAdminMetric?.isPercent),
+      palette: adminColorPalette,
       reverseColors: adminReverseColors
     }),
-    [adminMetricValues, adminClassCount, adminMetricMeaning, adminClassification, adminReverseColors, selectedAdminMetric]
+    [adminMetricValues, adminClassCount, adminMetricMeaning, adminClassification, adminColorPalette, adminReverseColors, selectedAdminMetric]
   );
   const adminDatasetStyle = useMemo(
     () => ({
@@ -1770,7 +1773,7 @@ const MapComponent = ({
       scale: adminDatasetScale,
       isPercent: Boolean(selectedAdminMetric?.isPercent),
       legend: adminFillMode === ADMIN_FILL_MODES.DATASET ? adminDatasetScale.legend : [],
-      legendKey: `${adminMetricField}-${adminMetricMeaning}-${adminClassification}-${adminClassCount}-${adminReverseColors}-${adminMetricValues.length}-${adminMetricValues[0] || 0}-${adminMetricValues[adminMetricValues.length - 1] || 0}`
+      legendKey: `${adminMetricField}-${adminMetricMeaning}-${adminClassification}-${adminClassCount}-${adminColorPalette}-${adminReverseColors}-${adminMetricValues.length}-${adminMetricValues[0] || 0}-${adminMetricValues[adminMetricValues.length - 1] || 0}`
     }),
     [
       adminFillMode,
@@ -1782,6 +1785,7 @@ const MapComponent = ({
       adminMetricMeaning,
       adminClassification,
       adminClassCount,
+      adminColorPalette,
       adminReverseColors,
       adminMetricValues
     ]
@@ -2012,12 +2016,15 @@ const MapComponent = ({
         setAdminClassification={setAdminClassification}
         adminClassCount={adminClassCount}
         setAdminClassCount={setAdminClassCount}
+        adminColorPalette={adminColorPalette}
+        setAdminColorPalette={setAdminColorPalette}
         adminReverseColors={adminReverseColors}
         setAdminReverseColors={setAdminReverseColors}
         adminNoDataStyle={adminNoDataStyle}
         setAdminNoDataStyle={setAdminNoDataStyle}
         adminDatasetJoinSummary={adminDatasetJoin}
         adminDatasetLegend={adminDatasetStyle.legend}
+        adminDatasetScaleInfo={adminDatasetScale}
         selectedAnalysisDistricts={selectedAnalysisDistricts}
         onFileUpload={(file) => {
           console.log('File selected:', file);

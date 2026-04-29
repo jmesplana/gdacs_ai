@@ -43,12 +43,15 @@ const FacilityDrawer = ({
   setAdminClassification = () => {},
   adminClassCount = 5,
   setAdminClassCount = () => {},
+  adminColorPalette = 'auto',
+  setAdminColorPalette = () => {},
   adminReverseColors = false,
   setAdminReverseColors = () => {},
   adminNoDataStyle = 'transparent',
   setAdminNoDataStyle = () => {},
   adminDatasetJoinSummary,
-  adminDatasetLegend = []
+  adminDatasetLegend = [],
+  adminDatasetScaleInfo = null
 }) => {
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -312,12 +315,15 @@ const FacilityDrawer = ({
                 setAdminClassification={setAdminClassification}
                 adminClassCount={adminClassCount}
                 setAdminClassCount={setAdminClassCount}
+                adminColorPalette={adminColorPalette}
+                setAdminColorPalette={setAdminColorPalette}
                 adminReverseColors={adminReverseColors}
                 setAdminReverseColors={setAdminReverseColors}
                 adminNoDataStyle={adminNoDataStyle}
                 setAdminNoDataStyle={setAdminNoDataStyle}
                 datasetJoinSummary={adminDatasetJoinSummary}
                 legend={adminDatasetLegend}
+                scaleInfo={adminDatasetScaleInfo}
               />
             )}
           </CollapsibleSection>

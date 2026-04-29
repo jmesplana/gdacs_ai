@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { isFullscreenActive } from '../utils/mapHelpers';
 import {
+  ADMIN_COLOR_PALETTES,
   ADMIN_CLASSIFICATION_METHODS,
   ADMIN_FILL_MODES,
   ADMIN_METRIC_MEANINGS,
@@ -33,6 +34,7 @@ export const useMapControls = () => {
   const [adminMetricMeaning, setAdminMetricMeaning] = useState(ADMIN_METRIC_MEANINGS.WORSE_HIGH);
   const [adminClassification, setAdminClassification] = useState(ADMIN_CLASSIFICATION_METHODS.QUANTILE);
   const [adminClassCount, setAdminClassCount] = useState(5);
+  const [adminColorPalette, setAdminColorPalette] = useState(ADMIN_COLOR_PALETTES.AUTO);
   const [adminReverseColors, setAdminReverseColors] = useState(false);
   const [adminNoDataStyle, setAdminNoDataStyle] = useState(NO_DATA_STYLES.TRANSPARENT);
   const [showLabels, setShowLabels] = useState(true);
@@ -132,6 +134,7 @@ export const useMapControls = () => {
     adminMetricMeaning,
     adminClassification,
     adminClassCount,
+    adminColorPalette,
     adminReverseColors,
     adminNoDataStyle,
     showLabels,
@@ -170,6 +173,7 @@ export const useMapControls = () => {
     setAdminMetricMeaning,
     setAdminClassification,
     setAdminClassCount,
+    setAdminColorPalette,
     setAdminReverseColors,
     setAdminNoDataStyle,
     setShowLabels,
