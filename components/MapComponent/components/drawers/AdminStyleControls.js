@@ -122,6 +122,14 @@ export default function AdminStyleControls({
         )}
       </div>
 
+      <div style={{ fontSize: '12px', color: '#475569', lineHeight: 1.5, marginBottom: '12px' }}>
+        Boundary styling is available once admin areas are loaded.
+        {` `}
+        <strong>Disaster / conflict</strong> uses the current operational context.
+        {` `}
+        <strong>Uploaded data</strong> is only needed when you want to color admin areas from site or activity fields.
+      </div>
+
       <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
         {modeOptions.map((option) => {
           const active = adminFillMode === option.value;

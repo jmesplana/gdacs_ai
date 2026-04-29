@@ -54,7 +54,7 @@ export default function StorageStatusPanel({ onClear }) {
     <div style={{
       position: 'fixed',
       bottom: '20px',
-      right: '20px',
+      left: '20px',
       zIndex: 9999
     }}>
       {/* Floating button */}
@@ -98,7 +98,7 @@ export default function StorageStatusPanel({ onClear }) {
         <div style={{
           position: 'absolute',
           bottom: '70px',
-          right: '0',
+          left: '0',
           width: '320px',
           background: 'white',
           border: '1px solid rgba(0, 0, 0, 0.1)',

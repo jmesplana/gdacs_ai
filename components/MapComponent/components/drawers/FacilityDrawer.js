@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import ShapefileUploader from '../../../ShapefileUploader';
 import CollapsibleSection from './CollapsibleSection';
@@ -51,12 +51,14 @@ const FacilityDrawer = ({
   setAdminNoDataStyle = () => {},
   adminDatasetJoinSummary,
   adminDatasetLegend = [],
-  adminDatasetScaleInfo = null
+  adminDatasetScaleInfo = null,
+  activeSection = 'boundaries'
 }) => {
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'impacted', 'safe'
   const [sortBy, setSortBy] = useState('name'); // 'name', 'distance'
+  const [dataHubTab, setDataHubTab] = useState(activeSection === 'boundaries' ? 'boundaries' : 'sites');
 
   // Filter and sort facilities
   const filteredAndSortedFacilities = useMemo(() => {
@@ -176,6 +178,10 @@ const FacilityDrawer = ({
     input.click();
   };
 
+  useEffect(() => {
+    setDataHubTab(activeSection === 'boundaries' ? 'boundaries' : 'sites');
+  }, [activeSection]);
+
   // If embedded in UnifiedDrawer, skip the wrapper and header
   const content = (
     <div className="drawer-content" style={embedded ? {} : undefined}>
@@ -189,13 +195,58 @@ const FacilityDrawer = ({
           fontFamily: "'Inter', sans-serif"
         }}>
           <div style={{ fontWeight: 700, color: 'var(--aidstack-navy)', marginBottom: '4px', fontSize: '14px' }}>
-            Start with any data source
+            {dataHubTab === 'boundaries'
+              ? 'Step 1: Load admin boundaries'
+              : dataHubTab === 'sites'
+                ? 'Step 2: Upload sites or activities'
+                : 'Step 2: Upload ACLED security data'}
           </div>
           <div style={{ fontSize: '13px', color: '#475569', lineHeight: '1.6' }}>
-            Sites are optional. You can analyze administrative areas with boundaries only, add ACLED for security context, load WorldPop for population, or enrich the map with OSM infrastructure.
+            {dataHubTab === 'boundaries'
+              ? 'Load the operational geography first so scope selection, population layers, logistics, and area analysis all work inside the right boundaries.'
+              : dataHubTab === 'sites'
+                ? 'Upload sites or activities for site-level analysis, map markers, and AI-supported assessment.'
+                : 'Upload optional ACLED data to add security context, movement constraints, and incident patterns to your analysis.'}
           </div>
         </div>
 
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: '8px',
+          marginBottom: '18px'
+        }}>
+          {[
+            { id: 'boundaries', label: 'Admin Layer', count: districts.length, color: 'var(--aidstack-teal)' },
+            { id: 'sites', label: 'Sites / Activities', count: facilities.length, color: 'var(--aidstack-navy)' },
+            { id: 'acled', label: 'ACLED', count: acledData.length, color: '#F44336' }
+          ].map((tab) => {
+            const active = dataHubTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setDataHubTab(tab.id)}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: active ? `2px solid ${tab.color}` : '1px solid #E2E8F0',
+                  background: active ? `${tab.color}12` : '#ffffff',
+                  color: active ? '#0f172a' : '#475569',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontFamily: "'Inter', sans-serif"
+                }}
+              >
+                <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '4px' }}>{tab.label}</div>
+                <div style={{ fontSize: '12px', fontWeight: 700 }}>{tab.count.toLocaleString()} loaded</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {dataHubTab === 'boundaries' && (
+          <>
           {/* Admin Level Boundaries Section */}
           <CollapsibleSection
             title="Admin Boundaries"
@@ -208,6 +259,7 @@ const FacilityDrawer = ({
             count={districts.length}
             color="var(--aidstack-teal)"
             defaultExpanded={districts.length === 0}
+            forceExpanded={true}
           >
             <div style={{ fontSize: '13px', color: '#666', marginBottom: '14px', lineHeight: '1.6' }}>
               Upload a shapefile to enable area-level analysis, boundary labels, population overlays, and logistics workflows.
@@ -327,7 +379,11 @@ const FacilityDrawer = ({
               />
             )}
           </CollapsibleSection>
+          </>
+        )}
 
+        {dataHubTab === 'sites' && (
+          <>
           {/* Facilities Section */}
           <CollapsibleSection
             title="Sites"
@@ -340,6 +396,7 @@ const FacilityDrawer = ({
             count={facilities.length}
             color="var(--aidstack-navy)"
             defaultExpanded={facilities.length > 0}
+            forceExpanded={true}
           >
             <div style={{ margin: '8px 0 20px 0', textAlign: 'center' }}>
               <div style={{ fontSize: '13px', color: '#666', marginBottom: '14px', lineHeight: '1.6', textAlign: 'left' }}>
@@ -805,7 +862,11 @@ const FacilityDrawer = ({
               )}
             </div>
           </CollapsibleSection>
+          </>
+        )}
 
+        {dataHubTab === 'acled' && (
+          <>
           {/* ACLED Security Data Section */}
           <CollapsibleSection
             title="ACLED Security Data"
@@ -817,6 +878,7 @@ const FacilityDrawer = ({
             count={acledData.length}
             color="#F44336"
             defaultExpanded={false}
+            forceExpanded={true}
           >
             {acledData.length > 0 && (
               <div style={{ marginBottom: '15px' }}>
@@ -1183,6 +1245,8 @@ const FacilityDrawer = ({
               </>
             )}
           </CollapsibleSection>
+          </>
+        )}
 
       </div>
     </div>

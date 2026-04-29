@@ -99,7 +99,8 @@ const UnifiedDrawer = ({
   adminDatasetJoinSummary,
   adminDatasetLegend = [],
   adminDatasetScaleInfo = null,
-  drawerMode = 'workspace'
+  drawerMode = 'workspace',
+  dataHubSection = 'boundaries'
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -353,128 +354,101 @@ const UnifiedDrawer = ({
           paddingTop: '10px',
           boxSizing: 'border-box'
         }}>
-          <div style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid #E5E7EB',
-            background: '#F8FAFC'
-          }}>
-            {drawerMode === 'datahub' && (
+        <div style={{
+          padding: drawerMode === 'datahub' ? '0 20px 12px 20px' : '16px 20px',
+          borderBottom: drawerMode === 'datahub' ? 'none' : '1px solid #E5E7EB',
+          background: drawerMode === 'datahub' ? 'transparent' : '#F8FAFC'
+        }}>
+          {drawerMode !== 'datahub' && (
+            <>
               <div style={{
-                background: 'linear-gradient(135deg, #fff7ed 0%, #ffffff 100%)',
-                border: '1px solid #fed7aa',
-                borderRadius: '12px',
-                padding: '14px 16px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: '10px',
                 marginBottom: '12px'
+              }}>
+                {[
+                  { label: 'Admin boundaries', loaded: hasDistricts },
+                  { label: 'Analysis scope', loaded: selectedDistrictCount > 0, value: selectedDistrictCount > 0 ? `${selectedDistrictCount} selected` : 'None selected' },
+                  { label: 'Sites', loaded: hasFacilities },
+                  { label: 'ACLED', loaded: hasAcled },
+                  { label: 'WorldPop', loaded: hasWorldPop }
+                ].map((item) => (
+                  <div key={item.label} style={{
+                    background: 'white',
+                    border: `1px solid ${item.loaded ? '#A7F3D0' : '#E2E8F0'}`,
+                    borderRadius: '10px',
+                    padding: '10px 12px'
+                  }}>
+                    <div style={{
+                      fontSize: '10px',
+                      color: '#94A3B8',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      fontWeight: 700,
+                      fontFamily: "'Inter', sans-serif",
+                      marginBottom: '4px'
+                    }}>
+                      {item.label}
+                    </div>
+                    <div style={{
+                      fontSize: '13px',
+                      color: item.loaded ? '#047857' : '#64748B',
+                      fontWeight: 700,
+                      fontFamily: "'Inter', sans-serif"
+                    }}>
+                      {item.value || (item.loaded ? 'Loaded' : 'Not loaded')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{
+                background: 'white',
+                border: '1px solid #E2E8F0',
+                borderRadius: '10px',
+                padding: '12px'
               }}>
                 <div style={{
                   fontSize: '11px',
-                  color: '#9a3412',
+                  color: '#94A3B8',
                   textTransform: 'uppercase',
                   letterSpacing: '0.05em',
                   fontWeight: 700,
                   fontFamily: "'Inter', sans-serif",
                   marginBottom: '6px'
                 }}>
-                  Start Here
+                  Available Now
                 </div>
                 <div style={{
-                  fontSize: '14px',
-                  color: '#7c2d12',
+                  fontSize: '13px',
+                  color: '#334155',
                   lineHeight: '1.6',
+                  fontFamily: "'Inter', sans-serif",
+                  marginBottom: '10px'
+                }}>
+                  {availableNow.length > 0
+                    ? `You can work with ${availableNow.join(', ')} using your current data.`
+                    : 'Load any data source to start analyzing context. Sites are optional.'}
+                </div>
+                <div style={{
+                  fontSize: '12px',
+                  color: '#475569',
                   fontFamily: "'Inter', sans-serif"
                 }}>
-                  Upload sites, admin boundaries, and evidence layers here first. Analysis, logistics, and reports become useful after your data is loaded.
+                  Logistics readiness: <strong>{logisticsReadiness}/2</strong> core inputs loaded
                 </div>
-              </div>
-            )}
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-              gap: '10px',
-              marginBottom: '12px'
-            }}>
-              {[
-                { label: 'Admin boundaries', loaded: hasDistricts },
-                { label: 'Analysis scope', loaded: selectedDistrictCount > 0, value: selectedDistrictCount > 0 ? `${selectedDistrictCount} selected` : 'None selected' },
-                { label: 'Sites', loaded: hasFacilities },
-                { label: 'ACLED', loaded: hasAcled },
-                { label: 'WorldPop', loaded: hasWorldPop }
-              ].map((item) => (
-                <div key={item.label} style={{
-                  background: 'white',
-                  border: `1px solid ${item.loaded ? '#A7F3D0' : '#E2E8F0'}`,
-                  borderRadius: '10px',
-                  padding: '10px 12px'
+                <div style={{
+                  fontSize: '11px',
+                  color: '#64748B',
+                  marginTop: '4px',
+                  fontFamily: "'Inter', sans-serif"
                 }}>
-                  <div style={{
-                    fontSize: '10px',
-                    color: '#94A3B8',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    fontWeight: 700,
-                    fontFamily: "'Inter', sans-serif",
-                    marginBottom: '4px'
-                  }}>
-                    {item.label}
-                  </div>
-                  <div style={{
-                    fontSize: '13px',
-                    color: item.loaded ? '#047857' : '#64748B',
-                    fontWeight: 700,
-                    fontFamily: "'Inter', sans-serif"
-                  }}>
-                    {item.value || (item.loaded ? 'Loaded' : 'Not loaded')}
-                  </div>
+                  Requires admin boundaries plus either facilities or ACLED/security context.
                 </div>
-              ))}
-            </div>
-
-            <div style={{
-              background: 'white',
-              border: '1px solid #E2E8F0',
-              borderRadius: '10px',
-              padding: '12px'
-            }}>
-              <div style={{
-                fontSize: '11px',
-                color: '#94A3B8',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                fontWeight: 700,
-                fontFamily: "'Inter', sans-serif",
-                marginBottom: '6px'
-              }}>
-                Available Now
               </div>
-              <div style={{
-                fontSize: '13px',
-                color: '#334155',
-                lineHeight: '1.6',
-                fontFamily: "'Inter', sans-serif",
-                marginBottom: '10px'
-              }}>
-                {availableNow.length > 0
-                  ? `You can work with ${availableNow.join(', ')} using your current data.`
-                  : 'Load any data source to start analyzing context. Sites are optional.'}
-              </div>
-              <div style={{
-                fontSize: '12px',
-                color: '#475569',
-                fontFamily: "'Inter', sans-serif"
-              }}>
-                Logistics readiness: <strong>{logisticsReadiness}/2</strong> core inputs loaded
-              </div>
-              <div style={{
-                fontSize: '11px',
-                color: '#64748B',
-                marginTop: '4px',
-                fontFamily: "'Inter', sans-serif"
-              }}>
-                Requires admin boundaries plus either facilities or ACLED/security context.
-              </div>
-            </div>
-
+            </>
+          )}
           </div>
 
           {activeTab === 'facilities' && (
@@ -526,6 +500,7 @@ const UnifiedDrawer = ({
               adminDatasetJoinSummary={adminDatasetJoinSummary}
               adminDatasetLegend={adminDatasetLegend}
               adminDatasetScaleInfo={adminDatasetScaleInfo}
+              activeSection={dataHubSection}
             />
           )}
 

@@ -874,6 +874,7 @@ const MapComponent = ({
     toggleFacilityDrawer,
     toggleSitrepDrawer,
     toggleMapLayersDrawer,
+    openMapLayersDrawer,
     toggleAnalysisDrawer,
     closeAllOverlays
   } = useMapControls();
@@ -888,6 +889,7 @@ const MapComponent = ({
     setSelectedFacility,
     setAnalysisData
   } = useAIAnalysis();
+  const [dataHubSection, setDataHubSection] = useState('boundaries');
 
   // Playback hook - must come after filteredDisasters is defined
   const {
@@ -1343,6 +1345,7 @@ const MapComponent = ({
     // Only require OSM data - disasters are optional (baseline assessment)
     if (!osmData) {
       addToast('Please upload an admin boundary shapefile to enable logistics assessment', 'warning');
+      openWorkflowStep('enrich');
       return;
     }
 
@@ -1912,13 +1915,41 @@ const MapComponent = ({
     [districts, districtRisks]
   );
   const hasSelectedAnalysisDistricts = selectedAnalysisDistricts.length > 0;
+  const openWorkflowStep = (stepId) => {
+    if (stepId === 'area') {
+      setDataHubSection('boundaries');
+      openUnifiedDrawer('facilities', 'datahub');
+      return;
+    }
+
+    if (stepId === 'data') {
+      setDataHubSection('data');
+      openUnifiedDrawer('facilities', 'datahub');
+      return;
+    }
+
+    if (stepId === 'scope' || stepId === 'enrich') {
+      openMapLayersDrawer();
+      return;
+    }
+
+    if (stepId === 'analyze') {
+      openUnifiedDrawer('analysis', 'analysis');
+      return;
+    }
+
+    openSituationReport();
+  };
+  const handleDrawerTabChange = (tab) => {
+    setActiveDrawerTab(tab);
+  };
 
   const runFacilityAnalysis = (facility) => {
     if (!facility) return;
 
     if (!hasSelectedAnalysisDistricts) {
       addToast('Select one or more districts before running analysis.', 'warning');
-      openUnifiedDrawer('facilities', 'datahub');
+      openWorkflowStep('scope');
       return;
     }
 
@@ -1978,10 +2009,12 @@ const MapComponent = ({
 
       {/* Hamburger Menu - high-level workspace and analysis actions */}
       <HamburgerMenu
-        onControlPanelClick={() => openUnifiedDrawer('facilities', 'datahub')}
+        onControlPanelClick={() => openWorkflowStep('data')}
         onFilterClick={toggleFilterDrawer}
         onCampaignDashboardClick={() => setShowCampaignDashboard(true)}
         onLogisticsClick={handleLogisticsAssessment}
+        onFullscreenClick={handleFullscreenToggle}
+        isFullscreen={isFullscreen}
         onHelpClick={() => setShowHelp(!showHelp)}
         drawingEnabled={drawingEnabled}
         onDrawClick={toggleDrawing}
@@ -2003,7 +2036,7 @@ const MapComponent = ({
       />
 
       <FloatingActionButtons
-        onDataHubClick={() => openUnifiedDrawer('facilities', 'datahub')}
+        onDataHubClick={() => openWorkflowStep('data')}
         onLayersClick={toggleMapLayersDrawer}
         onFilterClick={toggleFilterDrawer}
         drawingEnabled={drawingEnabled}
@@ -2067,8 +2100,9 @@ const MapComponent = ({
         isOpen={unifiedDrawerOpen}
         onClose={toggleUnifiedDrawer}
         initialTab={activeDrawerTab}
-        onTabChange={setActiveDrawerTab}
+        onTabChange={handleDrawerTabChange}
         drawerMode={drawerMode}
+        dataHubSection={dataHubSection}
 
         // Facility tab props
         facilities={facilities}
@@ -2912,7 +2946,7 @@ const MapComponent = ({
           title="Population Data (WorldPop)"
           style={{
             position: 'absolute',
-            bottom: '116px',
+            bottom: '182px',
             right: '20px',
             zIndex: 1000,
             backgroundColor: Object.keys(worldPopData).length > 0 ? '#059669' : 'var(--aidstack-navy, #1B3A5C)',
@@ -2957,7 +2991,7 @@ const MapComponent = ({
         title="Ask AI Assistant"
         style={{
           position: 'absolute',
-          bottom: '50px',
+          bottom: '116px',
           right: '20px',
           zIndex: 1000,
           backgroundColor: 'var(--aidstack-orange)',
@@ -2991,6 +3025,64 @@ const MapComponent = ({
         <span style={{fontSize: '11px', marginTop: '2px', fontWeight: 700}}>AI</span>
       </button>
       )}
+
+      <button
+        type="button"
+        onClick={handleFullscreenToggle}
+        title={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+        style={{
+          position: 'absolute',
+          bottom: '50px',
+          right: '20px',
+          zIndex: 1000,
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          color: isFullscreen ? 'var(--aidstack-orange)' : 'var(--aidstack-navy)',
+          border: '2px solid rgba(15, 23, 42, 0.10)',
+          borderRadius: '8px',
+          width: '48px',
+          height: '48px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 3px 10px rgba(0,0,0,0.22)',
+          transition: 'all 0.3s ease'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = 'var(--aidstack-orange)';
+          e.currentTarget.style.transform = 'scale(1.08)';
+          e.currentTarget.style.boxShadow = '0 5px 16px rgba(0,0,0,0.30)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.10)';
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.boxShadow = '0 3px 10px rgba(0,0,0,0.22)';
+        }}
+      >
+        {isFullscreen ? (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+            <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
+            <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+            <path d="M9 14 4 19"></path>
+            <path d="M20 4 15 9"></path>
+            <path d="M15 15 20 20"></path>
+            <path d="M4 4 9 9"></path>
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+            <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
+            <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+            <path d="M4 9 9 4"></path>
+            <path d="M15 4 20 9"></path>
+            <path d="M20 15 15 20"></path>
+            <path d="M9 20 4 15"></path>
+          </svg>
+        )}
+      </button>
 
       {/* Timeline Scrubber - Bottom playback controls */}
       <TimelineScrubber

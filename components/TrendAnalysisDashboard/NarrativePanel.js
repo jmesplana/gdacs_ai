@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function NarrativePanel({ narrative, loading, error, onRegenerate }) {
+export default function NarrativePanel({ narrative, loading, error, onGenerate, onRegenerate }) {
   if (loading) {
     return (
       <div style={{
@@ -85,7 +85,62 @@ export default function NarrativePanel({ narrative, loading, error, onRegenerate
   }
 
   if (!narrative) {
-    return null;
+    return (
+      <div style={{
+        background: 'white',
+        border: '1px solid #e2e8f0',
+        borderRadius: '12px',
+        padding: '20px',
+        marginBottom: '20px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '16px',
+          flexWrap: 'wrap'
+        }}>
+          <div>
+            <div style={{
+              fontSize: '14px',
+              fontWeight: 700,
+              color: 'var(--aidstack-navy)',
+              fontFamily: "'Space Grotesk', sans-serif",
+              marginBottom: '6px'
+            }}>
+              AI Strategic Analysis
+            </div>
+            <div style={{
+              fontSize: '12px',
+              color: '#64748b',
+              fontFamily: "'Inter', sans-serif"
+            }}>
+              Generate the narrative only when you want AI interpretation of the current trend summary.
+            </div>
+          </div>
+          {onGenerate && (
+            <button
+              onClick={onGenerate}
+              style={{
+                background: 'var(--aidstack-navy)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: "'Inter', sans-serif",
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Run AI Analysis
+            </button>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (

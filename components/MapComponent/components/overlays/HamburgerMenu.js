@@ -29,6 +29,8 @@ const menuButtonBaseStyle = {
 
 const HamburgerMenu = ({
   onLogisticsClick,
+  onFullscreenClick,
+  isFullscreen = false,
   onHelpClick,
   playbackEnabled,
   onPlaybackClick,
@@ -193,6 +195,37 @@ const HamburgerMenu = ({
               active: playbackEnabled,
               activeBackground: 'rgba(0, 186, 188, 0.10)',
               activeTextColor: 'var(--aidstack-teal)'
+            })}
+            {renderMenuButton({
+              onClick: () => handleMenuClick(onFullscreenClick),
+              label: isFullscreen ? 'Exit Full Screen' : 'Full Screen',
+              icon: isFullscreen ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+                  <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
+                  <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
+                  <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+                  <path d="M9 14 4 19"></path>
+                  <path d="M20 4 15 9"></path>
+                  <path d="M15 15 20 20"></path>
+                  <path d="M4 4 9 9"></path>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+                  <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
+                  <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
+                  <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+                  <path d="M4 9 9 4"></path>
+                  <path d="M15 4 20 9"></path>
+                  <path d="M20 15 15 20"></path>
+                  <path d="M9 20 4 15"></path>
+                </svg>
+              ),
+              active: isFullscreen,
+              activeBackground: 'rgba(59, 130, 246, 0.10)',
+              activeTextColor: '#2563eb',
+              iconColor: '#2563eb'
             })}
 
             {/* Help */}

@@ -137,6 +137,9 @@ export default function TrendAnalysisDashboard({
   const fetchTrendAnalysis = async () => {
     setLoading(true);
     setError(null);
+    setNarrative(null);
+    setNarrativeError(null);
+    setNarrativeLoading(false);
 
     try {
       // Process ALL data client-side to avoid 413 payload errors
@@ -213,11 +216,6 @@ export default function TrendAnalysisDashboard({
       };
 
       setTrendData(data);
-
-      // Fetch AI narrative after trend data is loaded
-      if (data && data.summary) {
-        fetchNarrative(data);
-      }
     } catch (err) {
       console.error('Error fetching trend analysis:', err);
       setError(err.message);
@@ -557,6 +555,7 @@ export default function TrendAnalysisDashboard({
                   narrative={narrative}
                   loading={narrativeLoading}
                   error={narrativeError}
+                  onGenerate={() => fetchNarrative(trendData)}
                   onRegenerate={() => fetchNarrative(trendData)}
                 />
 

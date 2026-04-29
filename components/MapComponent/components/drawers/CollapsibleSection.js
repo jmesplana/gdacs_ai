@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const CollapsibleSection = ({
   title,
@@ -6,9 +6,16 @@ const CollapsibleSection = ({
   count,
   color = 'var(--aidstack-navy)',
   children,
-  defaultExpanded = false
+  defaultExpanded = false,
+  forceExpanded = false
 }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+  useEffect(() => {
+    if (forceExpanded) {
+      setIsExpanded(true);
+    }
+  }, [forceExpanded]);
 
   return (
     <div style={{

@@ -98,6 +98,12 @@ export const useMapControls = () => {
     setUnifiedDrawerOpen(false);
   }, []);
 
+  const openMapLayersDrawer = useCallback(() => {
+    setMapLayersDrawerOpen(true);
+    setFilterDrawerOpen(false);
+    setUnifiedDrawerOpen(false);
+  }, []);
+
   // Legacy functions for backward compatibility
   const toggleFacilityDrawer = useCallback(() => openUnifiedDrawer('facilities'), [openUnifiedDrawer]);
   const toggleSitrepDrawer = useCallback(() => openUnifiedDrawer('reports'), [openUnifiedDrawer]);
@@ -189,6 +195,7 @@ export const useMapControls = () => {
     setActiveDrawerTab,
     setDrawerMode,
     toggleMapLayersDrawer,
+    openMapLayersDrawer,
     // Legacy toggle functions (for backward compatibility)
     toggleFacilityDrawer,
     toggleSitrepDrawer,
