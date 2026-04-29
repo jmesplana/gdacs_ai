@@ -49,7 +49,8 @@ import {
   MapLegend,
   CampaignDashboard,
   HamburgerMenu,
-  TimelineScrubber
+  TimelineScrubber,
+  GeocodingSearch
 } from './MapComponent/components/overlays';
 
 // Import hooks
@@ -2834,6 +2835,9 @@ const MapComponent = ({
             </ReactLeafletMarker>
           );
         })}
+
+        {/* Geocoding Search */}
+        <GeocodingSearch />
       </MapContainer>
 
       {currentMapLayer === 'nighttime_lights' && nighttimeCompareEnabled && (
