@@ -1498,7 +1498,7 @@ const LandingPage = () => {
                   'Logistics and access assessment',
                   'Route safety analysis',
                   'Infrastructure coverage scoring',
-                  'Multi-tier caching (Redis + localStorage)'
+                  'Multi-tier caching (Redis + IndexedDB)'
                 ]
               },
               {
@@ -1510,7 +1510,10 @@ const LandingPage = () => {
                   'Admin-level forecast scoring',
                   'Operational Outlook with evidence-linked narrative',
                   'Prioritization Board for selected admin areas',
-                  'Shared drivers, sources, and limitations'
+                  'Shared drivers, sources, and limitations',
+                  'Choropleth styling with 7 color palettes',
+                  'Quantile/equal-interval classification',
+                  'Custom dataset field visualization'
                 ]
               },
               {
@@ -1552,15 +1555,18 @@ const LandingPage = () => {
                 ]
               },
               {
-                title: 'Hazard Context Overlays',
+                title: 'Environmental Intelligence Layers',
                 experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>,
-                description: 'Google Earth Engine overlays that support flood and drought screening before hazards are scored',
+                description: 'Six Google Earth Engine overlays for environmental and accessibility context analysis',
                 features: [
-                  'Flood Context from terrain and surface water baseline',
-                  'Drought Context from CHIRPS and ERA5-Land',
-                  'Overlay on top of any basemap',
-                  'Required evidence for hazard scoring'
+                  'Nighttime lights (VIIRS) - population/infrastructure visibility',
+                  'Recent clear imagery (Sentinel-2) - last 10 days terrain view',
+                  'Radar change detection (Sentinel-1) - flood detection through clouds',
+                  'Healthcare accessibility (Oxford MAP) - travel time analysis',
+                  'Flood context - terrain + surface water baseline',
+                  'Drought context - CHIRPS rainfall + ERA5 heat',
+                  'Configurable opacity for overlay blending'
                 ]
               },
               {
@@ -1643,6 +1649,29 @@ const LandingPage = () => {
                   'Mental health & psychosocial support',
                   'Nutrition/RUTF distribution',
                   'Disease surveillance'
+                ]
+              },
+              {
+                title: 'Persistent Data Storage',
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
+                description: 'IndexedDB-powered client-side storage for offline capability and low-connectivity environments',
+                features: [
+                  'Store 50MB+ of operational data locally',
+                  'Districts, WorldPop, OSM, and ACLED cached automatically',
+                  'Storage statistics dashboard with clear controls',
+                  'Works offline after initial data load',
+                  'Perfect for field operations in remote areas'
+                ]
+              },
+              {
+                title: 'Error Boundary Protection',
+                icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>,
+                description: 'Enterprise-grade error handling prevents data loss from component crashes',
+                features: [
+                  'React Error Boundary catches unhandled errors',
+                  'Preserves user data during crashes',
+                  'Friendly reload prompts',
+                  'Production-grade reliability'
                 ]
               },
               {

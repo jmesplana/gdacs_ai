@@ -213,7 +213,8 @@ export default function AdminBoundariesLayer({
   showDistrictRiskFill = true,
   visibleDisasters = [],
   visibleAcledEvents = [],
-  datasetStyle = null
+  datasetStyle = null,
+  isDrawingMode = false
 }) {
   const { addToast } = useToast();
   const selectedIds = selectedAnalysisDistrictIds || new Set((selectedAnalysisDistricts || []).map(district => district.id));
@@ -272,10 +273,10 @@ export default function AdminBoundariesLayer({
 
   return (
     <GeoJSON
-      key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistricts.length}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.legendKey || ''}`}
+      key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistricts.length}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.legendKey || ''}-drawing-${isDrawingMode}`}
       data={featureCollection}
       pane="overlayPane"
-      interactive={true}
+      interactive={!isDrawingMode}
       style={(feature) => {
         const riskLevel = feature.properties.riskLevel || 'none';
         const isHighlighted = highlightedIds.has(feature.id);
@@ -437,7 +438,11 @@ export default function AdminBoundariesLayer({
         }
 
         popupContent += '</div>';
-        layer.bindPopup(popupContent);
+
+        // Only bind popup if not in drawing mode to prevent interference with drawing/annotation
+        if (!isDrawingMode) {
+          layer.bindPopup(popupContent);
+        }
 
         if (allowDistrictLabels && mapInstance) {
           const minZoom = 7;

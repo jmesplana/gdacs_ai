@@ -76,14 +76,17 @@ export default function Landing() {
                 'District hazard analysis with auditable drivers',
                 'Operational outlook and prioritization board',
                 'Operation viability analysis',
-                'Flood and drought context overlays',
-                'Nighttime lights date comparison',
+                'Six Google Earth Engine context layers (nighttime lights, Sentinel-2, Sentinel-1, flood/drought, accessibility)',
+                'Healthcare accessibility overlay (Oxford MAP travel time)',
+                'IndexedDB persistence for offline capability (50MB+ storage)',
+                'Error boundary crash protection',
+                'Enhanced choropleth styling with 7 color palettes',
                 'Batch site assessment',
                 'Interactive geospatial mapping',
                 'AI-assisted decision support',
                 'OSM infrastructure integration and logistics assessment',
                 'Temporal trend analysis and pattern detection',
-                'Multi-tier caching for offline capability'
+                'Multi-tier caching with IndexedDB storage'
               ]
             })
           }}

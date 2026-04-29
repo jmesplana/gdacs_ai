@@ -138,6 +138,23 @@ const DrawingLayer = ({
   useEffect(() => {
     if (!map) return;
 
+    // Create or get drawing pane with high z-index (above GEE layers and OSM)
+    const drawingPaneName = 'drawingPane';
+    if (!map.getPane(drawingPaneName)) {
+      const drawingPane = map.createPane(drawingPaneName);
+      drawingPane.style.zIndex = '500'; // Above GEE (420) and OSM (450)
+      drawingPane.style.pointerEvents = 'auto'; // Allow click interactions
+    }
+
+    // Set the pane for all layers in the feature group
+    if (drawnItemsRef.current) {
+      drawnItemsRef.current.eachLayer((layer) => {
+        if (layer.options) {
+          layer.options.pane = drawingPaneName;
+        }
+      });
+    }
+
     // Add the drawn items layer to the map
     map.addLayer(drawnItemsRef.current);
 
@@ -194,6 +211,12 @@ const DrawingLayer = ({
       map.on(L.Draw.Event.CREATED, (e) => {
         console.log('Drawing created:', e);
         const layer = e.layer;
+
+        // Set pane to ensure drawing appears above other layers
+        if (layer.options) {
+          layer.options.pane = 'drawingPane';
+        }
+
         drawnItemsRef.current.addLayer(layer);
 
         // Update drawings state
@@ -308,7 +331,8 @@ const DrawingLayer = ({
         weight: 3,
         opacity: 0.85,
         lineCap: 'round',
-        lineJoin: 'round'
+        lineJoin: 'round',
+        pane: 'drawingPane' // Ensure freehand drawings appear above other layers
       });
 
       freehandStrokeRef.current = stroke;

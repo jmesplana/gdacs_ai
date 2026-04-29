@@ -2605,6 +2605,7 @@ const MapComponent = ({
             visibleDisasters={visibleDisasters}
             visibleAcledEvents={visibleAcledEvents}
             datasetStyle={adminDatasetStyle}
+            isDrawingMode={drawingEnabled && (annotationMode || freehandMode)}
           />
         )}
 

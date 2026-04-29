@@ -112,9 +112,17 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer, showCl
 
     console.log(`Filtered to ${visibleFeatures.length} visible features`);
 
+    // Create or get OSM infrastructure pane with high z-index (above GEE layers at 420)
+    const osmPaneName = 'osmInfrastructurePane';
+    if (!map.getPane(osmPaneName)) {
+      const osmPane = map.createPane(osmPaneName);
+      osmPane.style.zIndex = '450'; // Above GEE evidence pane (420)
+      osmPane.style.pointerEvents = 'auto'; // Allow click interactions
+    }
+
     // Create line layer group for non-Point geometries
     if (!lineLayerGroupRef.current) {
-      lineLayerGroupRef.current = L.layerGroup();
+      lineLayerGroupRef.current = L.layerGroup({ pane: osmPaneName });
       map.addLayer(lineLayerGroupRef.current);
     } else {
       lineLayerGroupRef.current.clearLayers();
@@ -163,7 +171,7 @@ const OSMInfrastructureLayer = ({ osmData, layerVisibility, showOSMLayer, showCl
 
       const marker = L.marker([lat, lng], {
         icon: customIcon,
-        zIndexOffset: isCentroid ? -450 : -500,
+        zIndexOffset: isCentroid ? 450 : 500,
       });
 
       marker.bindPopup(popupContent);
