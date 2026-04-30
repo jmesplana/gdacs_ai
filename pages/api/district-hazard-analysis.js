@@ -152,11 +152,11 @@ async function getRegionStats(image, featureCollection, scale) {
 
 async function fetchGeeEvidenceSummaries(districts, enabledEvidenceLayers = []) {
   if (!process.env.GEE_SERVICE_ACCOUNT_KEY) {
-    return { evidenceByDistrict: {}, warnings: ['Google Earth Engine is not configured, so flood and drought evidence could not be computed.'] };
+    return { evidenceByDistrict: {}, warnings: ['Google Earth Engine is not configured, so flood, drought, and accessibility evidence could not be computed.'] };
   }
 
   const requested = new Set(enabledEvidenceLayers || []);
-  if (!requested.has('flood_context') && !requested.has('drought_context') && !requested.has('nighttime_lights')) {
+  if (!requested.has('flood_context') && !requested.has('drought_context') && !requested.has('accessibility_context') && !requested.has('nighttime_lights')) {
     return { evidenceByDistrict: {}, warnings: [] };
   }
 
@@ -254,6 +254,36 @@ async function fetchGeeEvidenceSummaries(districts, enabledEvidenceLayers = []) 
       });
     } catch (error) {
       warnings.push(`Drought evidence could not be computed from GEE: ${error.message}`);
+    }
+  }
+
+  if (requested.has('accessibility_context')) {
+    try {
+      const accessibilityMinutes = ee.Image('projects/malariaatlasproject/assets/accessibility/accessibility_to_healthcare/2019')
+        .select('accessibility')
+        .rename('travel_time_minutes');
+      const accessibilityContext = accessibilityMinutes
+        .divide(240)
+        .clamp(0, 1)
+        .rename('accessibility_context');
+      const hardToReachMask = accessibilityMinutes.gte(120).rename('hard_to_reach_share');
+      const image = accessibilityContext.addBands(accessibilityMinutes).addBands(hardToReachMask);
+      const result = await getRegionStats(image, featureCollection, 1000);
+
+      (result.features || []).forEach((feature) => {
+        const props = feature.properties || {};
+        const districtId = props.districtId;
+        evidenceByDistrict[districtId] = {
+          ...(evidenceByDistrict[districtId] || {}),
+          accessibility: {
+            accessibilityContextMean: props.accessibility_context,
+            travelTimeMinutesMean: props.travel_time_minutes,
+            hardToReachShare: props.hard_to_reach_share
+          }
+        };
+      });
+    } catch (error) {
+      warnings.push(`Accessibility evidence could not be computed from GEE: ${error.message}`);
     }
   }
 

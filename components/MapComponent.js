@@ -2006,6 +2006,12 @@ const MapComponent = ({
       selectedDistricts: analysisDistricts,
       operationType,
       nighttimeLightsLoaded: currentMapLayer === 'nighttime_lights',
+      enabledEvidenceLayers: [
+        ...(showFloodContextLayer ? ['flood_context'] : []),
+        ...(showDroughtContextLayer ? ['drought_context'] : []),
+        ...(showAccessibilityContextLayer ? ['accessibility_context'] : []),
+        ...(currentMapLayer === 'nighttime_lights' ? ['nighttime_lights'] : [])
+      ],
       activeMapLayerName: currentLayer?.name || null,
       activeMapLayerNote: currentLayer?.note || null
     });

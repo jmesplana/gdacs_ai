@@ -243,6 +243,7 @@ function formatDistrictHazardAnalysisForContext(districtHazardAnalysis = null) {
       const flood = district.hazardAssessments.flood;
       const drought = district.hazardAssessments.drought;
       const heat = district.hazardAssessments.heat;
+      const access = district.accessibilityAssessment;
 
       if (flood) {
         lines.push(`   Flood readiness: ${flood.status}${flood.message ? ` - ${flood.message}` : ''}`);
@@ -252,6 +253,9 @@ function formatDistrictHazardAnalysisForContext(districtHazardAnalysis = null) {
       }
       if (heat) {
         lines.push(`   Heat readiness: ${heat.status}${heat.message ? ` - ${heat.message}` : ''}`);
+      }
+      if (access) {
+        lines.push(`   Access readiness: ${access.status}${access.message ? ` - ${access.message}` : ''}`);
       }
     }
     if (district.limitations?.length) {
@@ -287,11 +291,13 @@ function formatAssessmentAvailabilityForContext(districtHazardAnalysis = null, s
   const floodReadyCount = districts.filter((district) => district.hazardAssessments?.flood?.status === 'ready').length;
   const droughtReadyCount = districts.filter((district) => district.hazardAssessments?.drought?.status === 'ready').length;
   const heatReadyCount = districts.filter((district) => district.hazardAssessments?.heat?.status === 'ready').length;
+  const accessReadyCount = districts.filter((district) => district.accessibilityAssessment?.status === 'ready').length;
 
   if (districts.length > 0) {
     lines.push(`- Flood assessment readiness: ${floodReadyCount}/${districts.length} districts ready`);
     lines.push(`- Drought assessment readiness: ${droughtReadyCount}/${districts.length} districts ready`);
     lines.push(`- Heat assessment readiness: ${heatReadyCount}/${districts.length} districts ready`);
+    lines.push(`- Hard-to-reach access readiness: ${accessReadyCount}/${districts.length} districts ready`);
   }
 
   if (supportingAssessments?.logistics) {

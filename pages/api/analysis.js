@@ -24,6 +24,7 @@ async function handler(req, res) {
       selectedDistricts = [],
       operationType = 'general',
       nighttimeLightsLoaded = false,
+      enabledEvidenceLayers = [],
       activeMapLayerName = null,
       activeMapLayerNote = null
     } = req.body;
@@ -49,6 +50,7 @@ async function handler(req, res) {
         console.log('Generating AI analysis...');
         const analysis = await generateAIAnalysis(facility, impacts, contextualAnalysis, {
           nighttimeLightsLoaded,
+          enabledEvidenceLayers,
           activeMapLayerName,
           activeMapLayerNote
         });
@@ -65,6 +67,7 @@ async function handler(req, res) {
       try {
         const analysis = await generateFallbackAnalysis(facility, impacts, contextualAnalysis, {
           nighttimeLightsLoaded,
+          enabledEvidenceLayers,
           activeMapLayerName,
           activeMapLayerNote
         });
@@ -110,6 +113,7 @@ ${JSON.stringify(contextualAnalysis, null, 2)}
 MAP / EVIDENCE LAYER STATUS:
 ${JSON.stringify({
   nighttimeLightsLoaded: Boolean(layerContext.nighttimeLightsLoaded),
+  enabledEvidenceLayers: Array.isArray(layerContext.enabledEvidenceLayers) ? layerContext.enabledEvidenceLayers : [],
   activeMapLayerName: layerContext.activeMapLayerName || null,
   activeMapLayerNote: layerContext.activeMapLayerNote || null,
   guidance: layerContext.nighttimeLightsLoaded
@@ -128,6 +132,7 @@ Provide a structured analysis with the following sections:
 Format your response as a JSON object with these section headings as keys and detailed analysis as values. Do not use curly braces, brackets, or other JSON formatting symbols within the text content itself - provide clean, readable text for each section.
 Treat the contextual analysis layer as the primary decision baseline, then use raw facility and disaster data as supporting evidence.
 If nighttime lights are not loaded, do not make claims based on nighttime light patterns. State that the layer is not loaded and recommend switching to Nighttime Lights (GEE) if that context is needed.
+If Accessibility Context is enabled, use it as modeled travel-time evidence for hard-to-reach conditions and access friction. Do not treat it as a road-closure or real-time route-status feed.
 `;
 
     const response = await openai.chat.completions.create({
@@ -184,6 +189,7 @@ async function generateFallbackAnalysis(facility, impacts, contextualAnalysis, l
 
     MAP / EVIDENCE LAYER STATUS: ${JSON.stringify({
       nighttimeLightsLoaded: Boolean(layerContext.nighttimeLightsLoaded),
+      enabledEvidenceLayers: Array.isArray(layerContext.enabledEvidenceLayers) ? layerContext.enabledEvidenceLayers : [],
       activeMapLayerName: layerContext.activeMapLayerName || null,
       activeMapLayerNote: layerContext.activeMapLayerNote || null
     }, null, 2)}
@@ -200,6 +206,7 @@ async function generateFallbackAnalysis(facility, impacts, contextualAnalysis, l
     Avoid using JSON symbols like {}, [], or quotes within your text content.
     Treat the contextual analysis layer as the primary decision baseline, then use raw facility and disaster data as supporting evidence.
     If nighttime lights are not loaded, do not make nighttime-light claims. Instead say that context is not currently loaded and suggest switching the map to Nighttime Lights (GEE) if that evidence would help.
+    If Accessibility Context is enabled, treat it as modeled hard-to-reach travel-time evidence rather than a live route-status feed.
     `;
     
     // Call OpenAI API

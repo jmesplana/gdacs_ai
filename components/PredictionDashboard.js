@@ -832,6 +832,16 @@ const DistrictHazardAnalysisView = ({ data, getRiskColor }) => {
                   note={district.hazardAssessments?.drought?.status === 'ready' ? null : district.hazardAssessments?.drought?.message}
                 />
                 <MetricCard
+                  label="Access"
+                  value={district.accessibilityAssessment?.status === 'ready'
+                    ? `${district.accessibilityAssessment.summary?.meanTravelTimeMinutes || 0} min`
+                    : 'Not ready'}
+                  tone="#C2410C"
+                  note={district.accessibilityAssessment?.status === 'ready'
+                    ? `${district.accessibilityAssessment.summary?.hardToReachSharePct || 0}% of area >120 min`
+                    : district.accessibilityAssessment?.message}
+                />
+                <MetricCard
                   label="Heat"
                   value={district.hazardAssessments?.heat?.status === 'ready' ? `${district.hazardScores.heat}/100` : 'Not ready'}
                   tone="#DC2626"

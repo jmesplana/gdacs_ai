@@ -17,9 +17,12 @@ export const useAIAnalysis = () => {
 
     const forceRefresh = typeof options === 'boolean' ? options : Boolean(options.forceRefresh);
     const contextualInputs = typeof options === 'object' && options !== null ? options : {};
+    const evidenceKey = Array.isArray(contextualInputs.enabledEvidenceLayers)
+      ? [...contextualInputs.enabledEvidenceLayers].sort().join('|')
+      : '';
 
     // Check cache first
-    const cacheKey = `${facility.name}_${disasters?.length || 0}`;
+    const cacheKey = `${facility.name}_${disasters?.length || 0}_${contextualInputs.activeMapLayerName || 'no-layer'}_${evidenceKey}`;
     if (!forceRefresh && analysisCache[cacheKey]) {
       console.log('Using cached analysis for:', facility.name);
       setSelectedFacility(facility);
@@ -47,6 +50,7 @@ export const useAIAnalysis = () => {
           selectedDistricts: contextualInputs.selectedDistricts || [],
           operationType: contextualInputs.operationType || 'general',
           nighttimeLightsLoaded: Boolean(contextualInputs.nighttimeLightsLoaded),
+          enabledEvidenceLayers: contextualInputs.enabledEvidenceLayers || [],
           activeMapLayerName: contextualInputs.activeMapLayerName || null,
           activeMapLayerNote: contextualInputs.activeMapLayerNote || null
         })

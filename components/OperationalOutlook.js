@@ -398,6 +398,7 @@ const OperationalOutlook = ({
   const floodReadyCount = hazardDistricts.filter((district) => district.hazardAssessments?.flood?.status === 'ready').length;
   const droughtReadyCount = hazardDistricts.filter((district) => district.hazardAssessments?.drought?.status === 'ready').length;
   const heatReadyCount = hazardDistricts.filter((district) => district.hazardAssessments?.heat?.status === 'ready').length;
+  const accessReadyCount = hazardDistricts.filter((district) => district.accessibilityAssessment?.status === 'ready').length;
   const evidenceSources = Array.from(new Set([
     ...(districtHazardAnalysis?.summary?.sources || []),
     ...(hazardDistricts.flatMap((district) => district.sources || [])),
@@ -692,6 +693,10 @@ const OperationalOutlook = ({
               <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Heat Ready</div>
                 <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>{formatCountLabel(heatReadyCount, hazardDistricts.length)}</div>
+              </div>
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Access Ready</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--aidstack-navy)' }}>{formatCountLabel(accessReadyCount, hazardDistricts.length)}</div>
               </div>
               <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Logistics Rating</div>

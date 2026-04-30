@@ -936,6 +936,12 @@ function buildContextSummary(context) {
       summary.push(`Layer note: ${context.activeMapLayerNote}`);
     }
 
+    if (Array.isArray(context.enabledEvidenceLayers) && context.enabledEvidenceLayers.includes('accessibility_context')) {
+      summary.push(`Accessibility context: loaded`);
+      summary.push(`Use: modeled travel time to healthcare for hard-to-reach and access-friction context.`);
+      summary.push(`Limits: do not treat this layer as direct proof of current road closures, live passability, or convoy clearance.`);
+    }
+
     if (Array.isArray(context.enabledEvidenceLayers) && context.enabledEvidenceLayers.length > 0) {
       summary.push(`Enabled evidence layers: ${context.enabledEvidenceLayers.join(', ')}`);
     }
