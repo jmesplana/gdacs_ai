@@ -85,7 +85,8 @@ import buildWeatherContext from '../utils/weatherContextBuilder';
 // import { WORLDPOP_TILE_LAYERS } from '../utils/worldpopHelpers'; // Not needed - using GEE tiles
 import { useToast } from './Toast';
 import { getOperationType } from '../config/operationTypes';
-import { buildDistrictRiskIndex, isPointInDistricts } from '../lib/districtRiskScoring';
+import { buildDistrictRiskIndex } from '../lib/districtRiskScoring';
+import { isPointInDistricts } from '../lib/geo/geometry.js';
 import { getScopedWorldPopData } from '../lib/analysisScope';
 
 // Import constants

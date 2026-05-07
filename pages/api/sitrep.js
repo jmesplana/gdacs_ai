@@ -1,16 +1,11 @@
 import { withRateLimit } from '../../lib/rateLimit';
 import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
 import { formatOSMForAI } from '../../lib/osmHelpers';
+import { toNumber } from '../../lib/geo/coordinates.js';
 // Sitrep generation with OpenAI
 import OpenAI from 'openai';
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
-
-function toNumber(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const parsed = Number(String(value).replace(/,/g, ''));
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
 export const config = {
   api: {
