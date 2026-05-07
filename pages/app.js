@@ -1621,6 +1621,7 @@ export default function Home() {
       impacts: (item?.impacts || []).slice(0, 8).map((impact) => ({
         distance: impact?.distance,
         impactMethod: impact?.impactMethod,
+        confidence: impact?.confidence,
         disaster: {
           eventType: impact?.disaster?.eventType,
           eventName: impact?.disaster?.eventName,

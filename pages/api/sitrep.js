@@ -349,7 +349,7 @@ function createSituationOverview(impactedFacilities, disasters, statistics, scop
     if (statistics.disasterStats && statistics.disasterStats.length > 0) {
       overview += `\nDISASTER IMPACT DETAILS:\n`;
       for (const disasterStat of statistics.disasterStats) {
-        overview += `- ${disasterStat.name} (${disasterStat.type}): ${disasterStat.affectedFacilities} sites impacted, ${disasterStat.impactArea} km² area, ${disasterStat.polygon ? 'using polygon data' : 'using radius'}\n`;
+        overview += `- ${disasterStat.name} (${disasterStat.type}): ${disasterStat.affectedFacilities} sites impacted, ${disasterStat.impactArea} km² area, ${disasterStat.polygon ? 'polygon-informed assessment available' : 'radius-based screening only'}\n`;
       }
     }
     
@@ -387,10 +387,16 @@ function createSituationOverview(impactedFacilities, disasters, statistics, scop
     for (const disasterImpact of facilityImpacts) {
       const disaster = disasterImpact.disaster || {};
       const distance = disasterImpact.distance || 'unknown';
-      const impactMethod = disasterImpact.impactMethod || 'radius';
+      const impactMethod = disasterImpact.impactMethod || 'screening_radius';
+      const confidence = disasterImpact.confidence || 'low';
       
       const disasterTitle = disaster.title || 'Unnamed disaster';
-      overview += `- Impacted by ${disasterTitle} (${distance} km away)${impactMethod === 'polygon' ? ' [Within impact polygon]' : ''}\n`;
+      const impactNote = impactMethod === 'confirmed_polygon'
+        ? ' [Confirmed within impact polygon]'
+        : impactMethod === 'proximity_buffer'
+          ? ' [Near polygon, requires verification]'
+          : ' [Radius-based screening]';
+      overview += `- Impacted by ${disasterTitle} (${distance} km away)${impactNote} [confidence: ${confidence}]\n`;
     }
   }
   

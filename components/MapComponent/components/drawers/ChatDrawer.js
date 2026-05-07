@@ -80,6 +80,7 @@ function compactImpactedFacilitiesForChat(items = [], maxItems = 20) {
     impacts: (item?.impacts || []).slice(0, 5).map((impact) => ({
       distance: impact?.distance,
       impactMethod: impact?.impactMethod,
+      confidence: impact?.confidence,
       disaster: {
         eventType: impact?.disaster?.eventType,
         eventName: impact?.disaster?.eventName,
