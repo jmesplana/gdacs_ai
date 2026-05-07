@@ -60,6 +60,40 @@ test('Facility inside GeoJSON polygon should be impacted as confirmed_polygon', 
   assert.equal(impactedFacility.impacts[0].distance, 0);
 });
 
+test('GeoJSON polygon coordinates should be interpreted as longitude latitude', () => {
+  const asymmetricPolygon = [
+    [30, 10],
+    [40, 10],
+    [40, 20],
+    [30, 20],
+    [30, 10],
+  ];
+
+  const facilityInside = {
+    name: 'Asymmetric Inside Facility',
+    latitude: 15,
+    longitude: 35,
+  };
+
+  const result = runAssessment({
+    facilities: [facilityInside],
+    disasters: [
+      buildDisaster({
+        eventName: 'Asymmetric Polygon Disaster',
+        latitude: 15,
+        longitude: 35,
+        polygon: asymmetricPolygon,
+      }),
+    ],
+  });
+
+  const impactedFacility = getFacilityResult(result, 'Asymmetric Inside Facility');
+
+  assert.ok(impactedFacility);
+  assert.equal(impactedFacility.impacts[0].impactMethod, 'confirmed_polygon');
+  assert.equal(impactedFacility.impacts[0].confidence, 'high');
+});
+
 test('Facility outside GeoJSON polygon should not be marked as confirmed_polygon', () => {
   const facilityOutside = {
     name: 'Outside Facility',
