@@ -39,24 +39,6 @@ const DisasterMarkers = ({ disasters, showImpactZones, showDisasterIcons = true,
       return null;
     }
 
-    // Check localStorage cache
-    try {
-      const localStorageKey = `gdacs_geometry_${cacheKey}`;
-      const localCached = localStorage.getItem(localStorageKey);
-      if (localCached) {
-        const parsed = JSON.parse(localCached);
-        const oneHour = 60 * 60 * 1000;
-        if (Date.now() - parsed.timestamp < oneHour) {
-          console.log(`Using localStorage cache for ${cacheKey}`);
-          // Store in memory cache for faster access
-          geometryCacheStore.set(cacheKey, parsed);
-          return parsed.failed ? null : parsed.geojson;
-        }
-      }
-    } catch (error) {
-      console.log('Error reading from localStorage:', error.message);
-    }
-
     // Parse eventtype, eventid, episodeid from geometryUrl
     const urlParams = new URLSearchParams(disaster.geometryUrl.split('?')[1]);
     const eventtype = urlParams.get('eventtype');
@@ -90,14 +72,6 @@ const DisasterMarkers = ({ disasters, showImpactZones, showDisasterIcons = true,
       geometryCacheStore.set(cacheKey, cacheData);
       recentGeometryFailures.delete(cacheKey);
 
-      // Also cache in localStorage
-      try {
-        const localStorageKey = `gdacs_geometry_${cacheKey}`;
-        localStorage.setItem(localStorageKey, JSON.stringify(cacheData));
-      } catch (error) {
-        console.log('Error saving to localStorage:', error.message);
-      }
-
       return geojson;
     } catch (error) {
       console.error(`Failed to fetch geometry for ${eventtype} event ${eventid}:`, error.message);
@@ -106,14 +80,6 @@ const DisasterMarkers = ({ disasters, showImpactZones, showDisasterIcons = true,
       const failureData = { failed: true, timestamp: Date.now() };
       geometryCacheStore.set(cacheKey, failureData);
       recentGeometryFailures.set(cacheKey, Date.now());
-
-      // Also cache failure in localStorage
-      try {
-        const localStorageKey = `gdacs_geometry_${cacheKey}`;
-        localStorage.setItem(localStorageKey, JSON.stringify(failureData));
-      } catch (error) {
-        console.log('Error saving failure to localStorage:', error.message);
-      }
 
       return null;
     }

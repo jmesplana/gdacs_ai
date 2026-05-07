@@ -180,8 +180,7 @@ const ColumnSelectionModal = ({
                   } else {
                     setSelectedColumns({
                       ...selectedColumns,
-                      aiAnalysisFields: [...selectedColumns.aiAnalysisFields, col],
-                      displayFields: selectedColumns.displayFields.filter(c => c !== col)
+                      aiAnalysisFields: [...selectedColumns.aiAnalysisFields, col]
                     });
                   }
                 }}>
@@ -237,8 +236,7 @@ const ColumnSelectionModal = ({
                   } else {
                     setSelectedColumns({
                       ...selectedColumns,
-                      displayFields: [...selectedColumns.displayFields, col],
-                      aiAnalysisFields: selectedColumns.aiAnalysisFields.filter(c => c !== col)
+                      displayFields: [...selectedColumns.displayFields, col]
                     });
                   }
                 }}>

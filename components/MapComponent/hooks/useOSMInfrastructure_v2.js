@@ -5,7 +5,7 @@
  * - Per-category state management (osmDataByCategory)
  * - Per-category loading states
  * - Per-category error handling
- * - Per-category localStorage caching
+ * - No browser persistence for operational OSM datasets
  * - fetchCategories() - load only selected categories
  * - Backwards compatible - still provides aggregate osmData
  */
@@ -48,7 +48,7 @@ export function useOSMInfrastructure() {
   });
   const [showOSMLayer, setShowOSMLayer] = useState(true);
 
-  // Track boundary hash for cache invalidation
+  // Track boundary hash for boundary change resets
   const boundaryHashRef = useRef(null);
 
   // Compute aggregate osmData (backwards compatible)
@@ -95,91 +95,6 @@ export function useOSMInfrastructure() {
         .map(([cat, data]) => [cat, data.features?.length || 0])
     );
   }, [osmDataByCategory]);
-
-  // Load per-category cache from localStorage on mount
-  useEffect(() => {
-    if (!osmBoundary) return;
-
-    const hash = generateBoundaryHash(osmBoundary);
-    boundaryHashRef.current = hash;
-
-    try {
-      // Load each category from localStorage
-      const categories = ['hospitals', 'schools', 'roads', 'water', 'power', 'fuel', 'pharmacies', 'bridges', 'airports'];
-      const loaded = {};
-
-      categories.forEach(category => {
-        const key = `osm_${hash}_${category}`;
-        const cached = localStorage.getItem(key);
-
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          const age = Date.now() - new Date(parsed.timestamp).getTime();
-
-          if (age < 24 * 60 * 60 * 1000) { // 24h
-            loaded[category] = parsed.data;
-          } else {
-            localStorage.removeItem(key);
-          }
-        }
-      });
-
-      if (Object.keys(loaded).length > 0) {
-        setOsmDataByCategory(loaded);
-        console.log('Loaded OSM data from cache:', Object.keys(loaded));
-      }
-    } catch (err) {
-      console.warn('Failed to load cached OSM data:', err);
-    }
-  }, [osmBoundary]);
-
-  // Save per-category data to localStorage
-  const saveCategoryToCache = useCallback((category, data) => {
-    if (!osmBoundary || !data) return;
-
-    const hash = generateBoundaryHash(osmBoundary);
-    const key = `osm_${hash}_${category}`;
-
-    try {
-      localStorage.setItem(key, JSON.stringify({
-        data,
-        timestamp: new Date().toISOString(),
-      }));
-    } catch (err) {
-      console.warn(`Failed to cache ${category}:`, err);
-
-      // Quota exceeded - try to clear oldest category
-      if (err.name === 'QuotaExceededError') {
-        const osmKeys = Object.keys(localStorage).filter(k => k.startsWith('osm_'));
-        if (osmKeys.length > 0) {
-          // Clear oldest
-          const oldest = osmKeys
-            .map(k => {
-              try {
-                const data = JSON.parse(localStorage.getItem(k));
-                return { key: k, timestamp: new Date(data.timestamp).getTime() };
-              } catch {
-                return { key: k, timestamp: 0 };
-              }
-            })
-            .sort((a, b) => a.timestamp - b.timestamp)[0];
-
-          localStorage.removeItem(oldest.key);
-          console.log(`Cleared old cache: ${oldest.key}`);
-
-          // Retry
-          try {
-            localStorage.setItem(key, JSON.stringify({
-              data,
-              timestamp: new Date().toISOString(),
-            }));
-          } catch {
-            console.warn('Still failed to cache after cleanup');
-          }
-        }
-      }
-    }
-  }, [osmBoundary]);
 
   // Sanitize boundary to remove circular references
   const sanitizeBoundary = (boundary) => {
@@ -304,11 +219,6 @@ export function useOSMInfrastructure() {
         // Update state for each category
         setOsmDataByCategory(prev => ({ ...prev, ...byCategory }));
 
-        // Cache each category
-        Object.entries(byCategory).forEach(([cat, data]) => {
-          saveCategoryToCache(cat, data);
-        });
-
         console.log('OSM categories loaded:', Object.keys(byCategory));
       } else {
         const errorMsg = result.error?.message || 'Unknown error';
@@ -331,7 +241,7 @@ export function useOSMInfrastructure() {
       categoriesToFetch.forEach(cat => { clearedLoading[cat] = false; });
       setLoadingByCategory(prev => ({ ...prev, ...clearedLoading }));
     }
-  }, [osmBoundary, osmDataByCategory, saveCategoryToCache]);
+  }, [osmBoundary, osmDataByCategory]);
 
   // Fetch single category (convenience wrapper)
   const fetchCategory = useCallback((category, options = {}) => {
@@ -352,15 +262,8 @@ export function useOSMInfrastructure() {
       return next;
     });
 
-    // Clear from localStorage
-    if (osmBoundary) {
-      const hash = generateBoundaryHash(osmBoundary);
-      const key = `osm_${hash}_${category}`;
-      localStorage.removeItem(key);
-    }
-
     console.log(`Cleared category: ${category}`);
-  }, [osmBoundary]);
+  }, []);
 
   // Clear all OSM data
   const clearOSM = useCallback(() => {
@@ -368,15 +271,8 @@ export function useOSMInfrastructure() {
     setErrorByCategory({});
     setLoadingByCategory({});
 
-    // Clear all localStorage entries for this boundary
-    if (osmBoundary) {
-      const hash = generateBoundaryHash(osmBoundary);
-      const osmKeys = Object.keys(localStorage).filter(k => k.startsWith(`osm_${hash}_`));
-      osmKeys.forEach(key => localStorage.removeItem(key));
-    }
-
     console.log('OSM data cleared');
-  }, [osmBoundary]);
+  }, []);
 
   // Refresh category (force re-fetch)
   const refreshCategory = useCallback((category) => {

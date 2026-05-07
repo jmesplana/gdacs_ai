@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getStorageStats } from '../lib/dataStore';
+import { getWorkspaceStats } from '../lib/storage/workspaceStore';
 
 /**
  * Storage Status Panel
@@ -8,12 +8,15 @@ import { getStorageStats } from '../lib/dataStore';
 export default function StorageStatusPanel({ onClear }) {
   const [isOpen, setIsOpen] = useState(false);
   const [stats, setStats] = useState({
+    facilities: 0,
+    impactedFacilities: 0,
     districts: 0,
     worldpop: 0,
     osm: 0,
     acled: 0,
     selectedDistricts: 0,
-    enabledLayers: 0
+    enabledLayers: 0,
+    savedAt: null
   });
   const [isClearing, setIsClearing] = useState(false);
 
@@ -25,7 +28,7 @@ export default function StorageStatusPanel({ onClear }) {
   }, [isOpen]);
 
   const loadStats = async () => {
-    const storageStats = await getStorageStats();
+    const storageStats = await getWorkspaceStats();
     setStats(storageStats);
   };
 
@@ -48,7 +51,7 @@ export default function StorageStatusPanel({ onClear }) {
     }
   };
 
-  const hasData = stats.districts > 0 || stats.worldpop > 0 || stats.osm > 0 || stats.acled > 0;
+  const hasData = stats.facilities > 0 || stats.districts > 0 || stats.worldpop > 0 || stats.osm > 0 || stats.acled > 0;
 
   return (
     <div style={{
@@ -148,12 +151,24 @@ export default function StorageStatusPanel({ onClear }) {
             marginBottom: '16px'
           }}>
             <StatRow label="Districts" value={stats.districts} />
+            <StatRow label="Sites" value={stats.facilities} />
+            <StatRow label="Impacted sites" value={stats.impactedFacilities} />
             <StatRow label="WorldPop data" value={stats.worldpop} />
             <StatRow label="OSM features" value={stats.osm} />
             <StatRow label="ACLED events" value={stats.acled} />
             <StatRow label="Selected areas" value={stats.selectedDistricts} />
             <StatRow label="Evidence layers" value={stats.enabledLayers} />
           </div>
+
+          {stats.savedAt && (
+            <p style={{
+              margin: '0 0 16px 0',
+              fontSize: '12px',
+              color: '#6b7280'
+            }}>
+              Last saved: {new Date(stats.savedAt).toLocaleString()}
+            </p>
+          )}
 
           {/* Clear button */}
           <button

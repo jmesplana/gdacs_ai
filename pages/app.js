@@ -13,18 +13,10 @@ import {
   filterItemsToDistricts
 } from '../lib/analysisScope';
 import {
-  saveDistricts,
-  loadDistricts,
-  saveWorldPop,
-  loadWorldPop,
-  saveOSMData,
-  loadOSMData,
-  saveACLEDData,
-  loadACLEDData,
-  saveConfig,
-  loadConfig,
-  clearAllData
-} from '../lib/dataStore';
+  saveWorkspace,
+  loadWorkspace,
+  clearWorkspace
+} from '../lib/storage/workspaceStore';
 
 // Import components with dynamic loading (no SSR) for Leaflet compatibility
 const MapComponent = dynamic(() => import('../components/MapComponent'), {
@@ -330,181 +322,6 @@ function OperationalContextBar({
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
 export default function Home() {
-  const indexedDbSupported = () =>
-    typeof window !== 'undefined' && typeof window.indexedDB !== 'undefined';
-
-  const isStorageQuotaError = (error) =>
-    error?.name === 'QuotaExceededError' ||
-    error?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-    error?.code === 22 ||
-    error?.code === 1014;
-
-  const openCacheDatabase = () => new Promise((resolve, reject) => {
-    if (!indexedDbSupported()) {
-      resolve(null);
-      return;
-    }
-
-    const request = window.indexedDB.open('gdacs-browser-cache', 1);
-
-    request.onerror = () => reject(request.error || new Error('Unable to open IndexedDB'));
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('cache')) {
-        db.createObjectStore('cache');
-      }
-    };
-  });
-
-  const readIndexedDbValue = async (key) => {
-    try {
-      const db = await openCacheDatabase();
-      if (!db) return null;
-
-      return await new Promise((resolve, reject) => {
-        const transaction = db.transaction('cache', 'readonly');
-        const store = transaction.objectStore('cache');
-        const request = store.get(key);
-
-        request.onsuccess = () => resolve(request.result ?? null);
-        request.onerror = () => reject(request.error || new Error(`Unable to read ${key} from IndexedDB`));
-      });
-    } catch (error) {
-      console.warn(`Unable to read ${key} from IndexedDB:`, error);
-      return null;
-    }
-  };
-
-  const writeIndexedDbValue = async (key, value) => {
-    try {
-      const db = await openCacheDatabase();
-      if (!db) {
-        return { ok: false, storage: null, persistent: false };
-      }
-
-      await new Promise((resolve, reject) => {
-        const transaction = db.transaction('cache', 'readwrite');
-        const store = transaction.objectStore('cache');
-        const request = store.put(value, key);
-
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error || new Error(`Unable to save ${key} to IndexedDB`));
-      });
-
-      return { ok: true, storage: 'indexedDB', persistent: true };
-    } catch (error) {
-      console.warn(`Unable to save ${key} to IndexedDB:`, error);
-      return { ok: false, storage: null, persistent: false };
-    }
-  };
-
-  const removeIndexedDbValue = async (key) => {
-    try {
-      const db = await openCacheDatabase();
-      if (!db) return;
-
-      await new Promise((resolve, reject) => {
-        const transaction = db.transaction('cache', 'readwrite');
-        const store = transaction.objectStore('cache');
-        const request = store.delete(key);
-
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error || new Error(`Unable to clear ${key} from IndexedDB`));
-      });
-    } catch (error) {
-      console.warn(`Unable to clear ${key} from IndexedDB:`, error);
-    }
-  };
-
-  const loadCachedJson = async (key) => {
-    const sources = [
-      { storage: localStorage, label: 'localStorage' },
-      { storage: sessionStorage, label: 'sessionStorage' }
-    ];
-
-    for (const source of sources) {
-      try {
-        const value = source.storage.getItem(key);
-        if (value) {
-          return {
-            value: JSON.parse(value),
-            source: source.label
-          };
-        }
-      } catch (error) {
-        console.warn(`Unable to read ${key} from ${source.label}:`, error);
-      }
-    }
-
-    const indexedDbValue = await readIndexedDbValue(key);
-    if (indexedDbValue !== null) {
-      return {
-        value: indexedDbValue,
-        source: 'indexedDB'
-      };
-    }
-
-    return { value: null, source: null };
-  };
-
-  const removeCachedValue = async (key) => {
-    try {
-      localStorage.removeItem(key);
-    } catch (error) {
-      console.warn(`Unable to clear ${key} from localStorage:`, error);
-    }
-
-    try {
-      sessionStorage.removeItem(key);
-    } catch (error) {
-      console.warn(`Unable to clear ${key} from sessionStorage:`, error);
-    }
-
-    await removeIndexedDbValue(key);
-  };
-
-  const persistCachedJson = async (key, value) => {
-    const serialized = JSON.stringify(value);
-    const targets = [
-      { storage: localStorage, label: 'localStorage', persistent: true },
-      { storage: sessionStorage, label: 'sessionStorage', persistent: false }
-    ];
-
-    for (const target of targets) {
-      try {
-        target.storage.setItem(key, serialized);
-        if (target.label !== 'localStorage') {
-          try {
-            localStorage.removeItem(key);
-          } catch (_) {}
-        } else {
-          try {
-            sessionStorage.removeItem(key);
-          } catch (_) {}
-        }
-        return { ok: true, storage: target.label, persistent: target.persistent };
-      } catch (error) {
-        if (!isStorageQuotaError(error)) {
-          console.warn(`Unable to save ${key} to ${target.label}:`, error);
-        }
-      }
-    }
-
-    const indexedDbResult = await writeIndexedDbValue(key, value);
-    if (indexedDbResult.ok) {
-      try {
-        localStorage.removeItem(key);
-      } catch (_) {}
-      try {
-        sessionStorage.removeItem(key);
-      } catch (_) {}
-      return indexedDbResult;
-    }
-
-    return { ok: false, storage: null, persistent: false };
-  };
-
   const parseApiResponse = async (response, label) => {
     const contentType = response.headers.get('content-type') || '';
     const raw = await response.text();
@@ -670,6 +487,7 @@ export default function Home() {
   const [selectedAnalysisDistricts, setSelectedAnalysisDistricts] = useState([]);
   const [latestPrioritizationBoard, setLatestPrioritizationBoard] = useState(null);
   const [enabledEvidenceLayers, setEnabledEvidenceLayers] = useState([]);
+  const workspaceRestoredRef = useRef(false);
   const scopedAcledData = useMemo(
     () => selectedAnalysisDistricts.length > 0
       ? filterItemsToDistricts(acledData, selectedAnalysisDistricts, 'latitude', 'longitude')
@@ -697,88 +515,68 @@ export default function Home() {
 
   // Operation type state (for multi-use humanitarian operations)
   const [operationType, setOperationType] = useState('');
-
-  // Persist operation type to localStorage
-  useEffect(() => {
-    try {
-      if (typeof operationType === 'string' && operationType) {
-        localStorage.setItem('gdacs_operation_type', operationType);
-      } else {
-        localStorage.removeItem('gdacs_operation_type');
-      }
-    } catch (error) {
-      console.warn('Unable to persist operation type to localStorage:', error);
-    }
-  }, [operationType]);
-
-  // Load operation type from localStorage on mount
-  useEffect(() => {
-    try {
-      const cachedOperationType = localStorage.getItem('gdacs_operation_type');
-      if (cachedOperationType) {
-        setOperationType(cachedOperationType);
-        console.log('Loaded operation type from cache:', cachedOperationType);
-      }
-    } catch (error) {
-      console.error('Error loading operation type:', error);
-    }
-  }, []);
-
-  // Load cached facilities and ACLED data from localStorage on mount
   useEffect(() => {
     let mounted = true;
 
-    const loadCachedData = async () => {
+    const restoreWorkspace = async () => {
       try {
-        // Load facilities
-        const { value: cachedFacilities, source: facilitiesCacheSource } = await loadCachedJson('gdacs_facilities');
-        const { value: cachedAiFields } = await loadCachedJson('gdacs_ai_analysis_fields');
-
+        const cachedWorkspace = await loadWorkspace();
         if (!mounted) return;
 
-        if (cachedFacilities) {
-          if (cachedFacilities && cachedFacilities.length > 0) {
-            console.log(`Loaded ${cachedFacilities.length} facilities from ${facilitiesCacheSource || 'cache'}`);
-            setFacilities(cachedFacilities);
+        if (!cachedWorkspace) {
+          workspaceRestoredRef.current = true;
+          return;
+        }
 
-            // Restore AI analysis fields if available
-            if (cachedAiFields) {
-              setAiAnalysisFields(cachedAiFields);
-            }
+        const restoredDistricts = cachedWorkspace.districts || [];
+        const restoredConfig = cachedWorkspace.config || {};
 
-            // Assess impact with cached facilities once disasters are loaded
-            if (disasters.length > 0) {
-              assessImpact(cachedFacilities);
-            }
+        setFacilities(cachedWorkspace.facilities || []);
+        setImpactedFacilities(cachedWorkspace.impactedFacilities || []);
+        setWorldPopData(cachedWorkspace.worldPopData || {});
+        setWorldPopLastFetch(cachedWorkspace.worldPopLastFetch || null);
+        setOsmData(cachedWorkspace.osmData || null);
+        setAcledData(cachedWorkspace.acledData || []);
+        setSelectedAnalysisDistricts(cachedWorkspace.selectedAnalysisDistricts || []);
+        setEnabledEvidenceLayers(cachedWorkspace.enabledEvidenceLayers || []);
+        setOperationType(cachedWorkspace.operationType || '');
+        setAiAnalysisFields(Array.isArray(restoredConfig.aiAnalysisFields) ? restoredConfig.aiAnalysisFields : []);
+        setAcledEnabled(restoredConfig.acledEnabled !== undefined ? restoredConfig.acledEnabled : true);
+
+        if (restoredConfig.acledConfig && typeof restoredConfig.acledConfig === 'object') {
+          setAcledConfig(restoredConfig.acledConfig);
+        }
+
+        if (restoredDistricts.length > 0) {
+          setDistricts(restoredDistricts);
+          setDistrictRawData(restoredDistricts);
+          if (restoredDistricts[0]?.properties) {
+            setDistrictAvailableFields(Object.keys(restoredDistricts[0].properties));
           }
         }
 
-        // Load ACLED config only (data not cached due to size)
-        const cachedAcledConfig = localStorage.getItem('gdacs_acled_config');
-        if (cachedAcledConfig) {
-          try {
-            const parsedConfig = JSON.parse(cachedAcledConfig);
-            if (!mounted) return;
-            setAcledConfig(parsedConfig);
-            setAcledEnabled(parsedConfig.enabled !== undefined ? parsedConfig.enabled : true);
-            console.log('Loaded ACLED config from cache');
-          } catch (error) {
-            console.error('Error loading ACLED config:', error);
-          }
+        if (restoredConfig.districtLabelField) {
+          setDistrictLabelField(restoredConfig.districtLabelField);
         }
+
+        workspaceRestoredRef.current = true;
+        console.log('Workspace restored from IndexedDB:', {
+          districts: restoredDistricts.length,
+          facilities: cachedWorkspace.facilities?.length || 0,
+          impactedFacilities: cachedWorkspace.impactedFacilities?.length || 0,
+          acledEvents: cachedWorkspace.acledData?.length || 0
+        });
       } catch (error) {
-        console.error('Error loading cached data:', error);
-        // Clear corrupted cache
-        await removeCachedValue('gdacs_facilities');
-        await removeCachedValue('gdacs_ai_analysis_fields');
-        await removeCachedValue('gdacs_acled_data');
-        await removeCachedValue('gdacs_acled_config');
+        console.error('Error restoring workspace:', error);
+        workspaceRestoredRef.current = true;
       }
     };
 
     const cancelRestore = scheduleCacheRestore(() => {
       if (!shouldSkipCacheRestore()) {
-        loadCachedData();
+        restoreWorkspace();
+      } else {
+        workspaceRestoredRef.current = true;
       }
     }, 1000);
 
@@ -788,211 +586,43 @@ export default function Home() {
     };
   }, []);
 
-  // ==================== NEW: Load cached data from IndexedDB on mount ====================
-
-  // Load districts from IndexedDB
   useEffect(() => {
-    let mounted = true;
+    if (!workspaceRestoredRef.current) return;
 
-    const loadCachedDistricts = async () => {
-      try {
-        const cachedDistricts = await loadDistricts();
-        if (!mounted) return;
-
-        if (cachedDistricts && cachedDistricts.length > 0) {
-          setDistricts(cachedDistricts);
-          setDistrictRawData(cachedDistricts);
-
-          // Extract available fields from first district
-          if (cachedDistricts[0]?.properties) {
-            const fields = Object.keys(cachedDistricts[0].properties);
-            setDistrictAvailableFields(fields);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading cached districts:', error);
+    saveWorkspace({
+      districts,
+      facilities,
+      impactedFacilities,
+      worldPopData,
+      worldPopLastFetch,
+      osmData,
+      acledData,
+      selectedAnalysisDistricts,
+      enabledEvidenceLayers,
+      operationType,
+      config: {
+        acledEnabled,
+        acledConfig,
+        aiAnalysisFields,
+        districtLabelField
       }
-    };
-
-    const cancelRestore = scheduleCacheRestore(() => {
-      if (!shouldSkipCacheRestore()) {
-        loadCachedDistricts();
-      }
-    }, 1200);
-
-    return () => {
-      mounted = false;
-      cancelRestore();
-    };
-  }, []);
-
-  // Load WorldPop data from IndexedDB
-  useEffect(() => {
-    let mounted = true;
-
-    const loadCachedWorldPop = async () => {
-      try {
-        const cachedWorldPop = await loadWorldPop();
-        if (!mounted) return;
-
-        if (cachedWorldPop && Object.keys(cachedWorldPop).length > 0) {
-          setWorldPopData(cachedWorldPop);
-        }
-      } catch (error) {
-        console.error('Error loading cached WorldPop data:', error);
-      }
-    };
-
-    const cancelRestore = scheduleCacheRestore(() => {
-      if (!shouldSkipCacheRestore()) {
-        loadCachedWorldPop();
-      }
-    }, 1600);
-
-    return () => {
-      mounted = false;
-      cancelRestore();
-    };
-  }, []);
-
-  // Load OSM data from IndexedDB
-  useEffect(() => {
-    let mounted = true;
-
-    const loadCachedOSM = async () => {
-      try {
-        const cachedOSM = await loadOSMData();
-        if (!mounted) return;
-
-        if (cachedOSM) {
-          setOsmData(cachedOSM);
-        }
-      } catch (error) {
-        console.error('Error loading cached OSM data:', error);
-      }
-    };
-
-    const cancelRestore = scheduleCacheRestore(() => {
-      if (!shouldSkipCacheRestore()) {
-        loadCachedOSM();
-      }
-    }, 1800);
-
-    return () => {
-      mounted = false;
-      cancelRestore();
-    };
-  }, []);
-
-  // Load ACLED data from IndexedDB
-  useEffect(() => {
-    let mounted = true;
-
-    const loadCachedACLED = async () => {
-      try {
-        const cachedACLED = await loadACLEDData();
-        if (!mounted) return;
-
-        if (cachedACLED && cachedACLED.length > 0) {
-          setAcledData(cachedACLED);
-        }
-      } catch (error) {
-        console.error('Error loading cached ACLED data:', error);
-      }
-    };
-
-    const cancelRestore = scheduleCacheRestore(() => {
-      if (!shouldSkipCacheRestore()) {
-        loadCachedACLED();
-      }
-    }, 2000);
-
-    return () => {
-      mounted = false;
-      cancelRestore();
-    };
-  }, []);
-
-  // Load selected districts and enabled layers from IndexedDB
-  useEffect(() => {
-    let mounted = true;
-
-    const loadCachedConfig = async () => {
-      try {
-        const [cachedSelectedDistricts, cachedEnabledLayers] = await Promise.all([
-          loadConfig('selectedDistricts'),
-          loadConfig('enabledLayers')
-        ]);
-
-        if (!mounted) return;
-
-        if (cachedSelectedDistricts && cachedSelectedDistricts.length > 0) {
-          setSelectedAnalysisDistricts(cachedSelectedDistricts);
-        }
-
-        if (cachedEnabledLayers && cachedEnabledLayers.length > 0) {
-          setEnabledEvidenceLayers(cachedEnabledLayers);
-        }
-      } catch (error) {
-        console.error('Error loading cached config:', error);
-      }
-    };
-
-    const cancelRestore = scheduleCacheRestore(() => {
-      if (!shouldSkipCacheRestore()) {
-        loadCachedConfig();
-      }
-    }, 2200);
-
-    return () => {
-      mounted = false;
-      cancelRestore();
-    };
-  }, []);
-
-  // ==================== NEW: Save data to IndexedDB when it changes ====================
-
-  // Save districts to IndexedDB when they change
-  useEffect(() => {
-    if (districts.length > 0) {
-      saveDistricts(districts);
-    }
-  }, [districts]);
-
-  // Save WorldPop data to IndexedDB when it changes
-  useEffect(() => {
-    if (Object.keys(worldPopData).length > 0) {
-      saveWorldPop(worldPopData);
-    }
-  }, [worldPopData]);
-
-  // Save OSM data to IndexedDB when it changes
-  useEffect(() => {
-    if (osmData) {
-      saveOSMData(osmData);
-    }
-  }, [osmData]);
-
-  // Save ACLED data to IndexedDB when it changes
-  useEffect(() => {
-    if (acledData.length > 0) {
-      saveACLEDData(acledData);
-    }
-  }, [acledData]);
-
-  // Save selected districts to IndexedDB when they change
-  useEffect(() => {
-    if (selectedAnalysisDistricts.length > 0) {
-      saveConfig('selectedDistricts', selectedAnalysisDistricts);
-    }
-  }, [selectedAnalysisDistricts]);
-
-  // Save enabled layers to IndexedDB when they change
-  useEffect(() => {
-    saveConfig('enabledLayers', enabledEvidenceLayers);
-  }, [enabledEvidenceLayers]);
-
-  // ==================== END: IndexedDB persistence hooks ====================
+    });
+  }, [
+    districts,
+    facilities,
+    impactedFacilities,
+    worldPopData,
+    worldPopLastFetch,
+    osmData,
+    acledData,
+    selectedAnalysisDistricts,
+    enabledEvidenceLayers,
+    operationType,
+    acledEnabled,
+    acledConfig,
+    aiAnalysisFields,
+    districtLabelField
+  ]);
 
   // Update the "time since" last data refresh
   useEffect(() => {
@@ -1198,12 +828,7 @@ export default function Home() {
   // Handle clearing cached facility data
   const handleClearCache = async () => {
     try {
-      // Clear existing facility data (localStorage/sessionStorage/IndexedDB)
-      await removeCachedValue('gdacs_facilities');
-      await removeCachedValue('gdacs_ai_analysis_fields');
-
-      // Clear new IndexedDB data stores
-      await clearAllData();
+      await clearWorkspace();
 
       // Clear all state
       setFacilities([]);
@@ -1215,11 +840,23 @@ export default function Home() {
       setRecommendations(null);
       setDistricts([]);
       setDistrictRawData([]);
+      setDistrictAvailableFields([]);
+      setDistrictLabelField(null);
       setWorldPopData({});
+      setWorldPopLastFetch(null);
       setOsmData(null);
       setAcledData([]);
+      setAcledEnabled(true);
+      setAcledConfig({
+        dateRange: 60,
+        eventTypes: ['Battles', 'Explosions/Remote violence', 'Violence against civilians', 'Riots'],
+        showOnMap: true,
+        selectedCountries: [],
+        selectedRegions: []
+      });
       setSelectedAnalysisDistricts([]);
       setEnabledEvidenceLayers([]);
+      setOperationType('');
 
       addToast('All cached data cleared.', 'success');
     } catch (error) {
@@ -1300,21 +937,11 @@ export default function Home() {
 
           console.log(`Loaded ${validEvents.length} ACLED events`);
 
-          // Don't cache ACLED data to localStorage (too large - exceeds quota)
-          // Only cache the config
-          try {
-            const configToSave = { ...acledConfig, enabled: true };
-            localStorage.setItem('gdacs_acled_config', JSON.stringify(configToSave));
-            console.log('ACLED config saved. Note: Data is not cached (too large for localStorage)');
-          } catch (error) {
-            console.error('Error saving ACLED config:', error);
-          }
-
           // Update state (useEffect will trigger reassessment automatically)
           setAcledData(validEvents);
           setAcledEnabled(true);
 
-          addToast(`${validEvents.length.toLocaleString()} ACLED security events loaded. Re-upload after page refresh — file is too large for browser cache.`, 'success');
+          addToast(`${validEvents.length.toLocaleString()} ACLED security events loaded.`, 'success');
         },
         error: (error) => {
           console.error('Error parsing ACLED CSV:', error);
@@ -1330,14 +957,14 @@ export default function Home() {
   // Handle clearing ACLED cache
   const handleClearAcledCache = () => {
     try {
-      localStorage.removeItem('gdacs_acled_data');
-      localStorage.removeItem('gdacs_acled_config');
       setAcledData([]);
       setAcledEnabled(true);
       setAcledConfig({
         dateRange: 60,
         eventTypes: ['Battles', 'Explosions/Remote violence', 'Violence against civilians', 'Riots'],
-        showOnMap: true
+        showOnMap: true,
+        selectedCountries: [],
+        selectedRegions: []
       });
       addToast('Security event data cleared.', 'success');
     } catch (error) {
@@ -1349,24 +976,13 @@ export default function Home() {
   // Toggle ACLED enabled/disabled
   const handleToggleAcled = (enabled) => {
     setAcledEnabled(enabled);
-    try {
-      const configToSave = { ...acledConfig, enabled };
-      localStorage.setItem('gdacs_acled_config', JSON.stringify(configToSave));
-    } catch (error) {
-      console.error('Error saving ACLED config:', error);
-    }
     // useEffect will trigger reassessment automatically when acledEnabled changes
   };
 
   // Handle ACLED config changes (date range, etc.)
   const handleAcledConfigChange = (newConfig) => {
     setAcledConfig(newConfig);
-    try {
-      localStorage.setItem('gdacs_acled_config', JSON.stringify(newConfig));
-      console.log('ACLED config updated:', newConfig);
-    } catch (error) {
-      console.error('Error saving ACLED config:', error);
-    }
+    console.log('ACLED config updated:', newConfig);
   };
 
   // Handle facility CSV upload
@@ -1414,25 +1030,6 @@ export default function Home() {
 
           // Clear any existing sitrep when facilities change
           setSitrep('');
-
-          // Save facilities to browser storage using the most durable available option
-          const facilitiesCacheResult = await persistCachedJson('gdacs_facilities', validFacilities);
-
-          if (columnSelections && columnSelections.aiAnalysisFields) {
-            await persistCachedJson('gdacs_ai_analysis_fields', columnSelections.aiAnalysisFields);
-          } else {
-            await removeCachedValue('gdacs_ai_analysis_fields');
-          }
-
-          if (facilitiesCacheResult.ok) {
-            console.log(`Facilities cached to ${facilitiesCacheResult.storage}`);
-            if (!facilitiesCacheResult.persistent) {
-              addToast('Site data is too large for persistent browser storage. It will remain available until this tab is closed.', 'warning');
-            }
-          } else {
-            console.error('Facility data could not be cached in browser storage');
-            addToast('Site data loaded, but the file is too large to cache in the browser. It will need to be re-uploaded after refresh.', 'warning');
-          }
 
           // Update facilities and immediately assess impact
           setFacilities(validFacilities);
