@@ -1531,6 +1531,19 @@ const MapComponent = ({
     () => (playbackEnabled ? filterByPlaybackDate(filteredAcledData, 'event_date') : filteredAcledData),
     [playbackEnabled, filterByPlaybackDate, filteredAcledData]
   );
+  const facilityImpactState = useMemo(() => {
+    const keys = new Set();
+
+    (impactedFacilities || []).forEach((impactRecord) => {
+      const facilityKey = getFacilityIdentityKey(impactRecord?.facility);
+      if (facilityKey) keys.add(facilityKey);
+    });
+
+    return {
+      keys,
+      signature: Array.from(keys).sort().join('|') || 'none',
+    };
+  }, [impactedFacilities]);
 
   useEffect(() => {
     if (onEvidenceLayersChange) {
@@ -2678,7 +2691,7 @@ const MapComponent = ({
         {/* Facility markers */}
         {showFacilitiesLayer && facilities && facilities.length > 0 && (
           <MarkerClusterGroup
-            key={`facility-clusters-${showClusterCounts ? 'counts' : 'no-counts'}-${showClustering ? 'clustered' : 'plain'}-${facilities.length}`}
+            key={`facility-clusters-${showClusterCounts ? 'counts' : 'no-counts'}-${showClustering ? 'clustered' : 'plain'}-${facilities.length}-${facilityImpactState.signature}`}
             showCoverageOnHover={false}
             maxClusterRadius={showClusterCounts ? 50 : 22}
             iconCreateFunction={(cluster) => {
@@ -2689,9 +2702,7 @@ const MapComponent = ({
               const markers = cluster.getAllChildMarkers();
               const hasImpacted = markers.some(marker => {
                 const facilityKey = marker.options.facilityKey;
-                return impactedFacilities?.some(
-                  impacted => getFacilityIdentityKey(impacted.facility) === facilityKey
-                );
+                return facilityImpactState.keys.has(facilityKey);
               });
 
               const bgColor = hasImpacted ? 'rgba(255, 68, 68, 0.9)' : 'rgba(76, 175, 80, 0.9)';
@@ -2729,9 +2740,7 @@ const MapComponent = ({
             {showClustering && facilities.map((facility, idx) => {
               const facilityKey = getFacilityIdentityKey(facility);
               // Fix: impactedFacilities has structure { facility: {...}, impacts: [...] }
-              const isImpacted = impactedFacilities?.some(
-                impacted => getFacilityIdentityKey(impacted.facility) === facilityKey
-              );
+              const isImpacted = facilityImpactState.keys.has(facilityKey);
 
               const markerColor = isImpacted ? '#ff4444' : '#4CAF50';
 
@@ -2753,7 +2762,7 @@ const MapComponent = ({
 
               return (
                 <ReactLeafletMarker
-                  key={`facility-${idx}`}
+                  key={`facility-${idx}-${facilityKey || 'unknown'}-${isImpacted ? 'impacted' : 'safe'}`}
                   position={[parseFloat(facility.latitude), parseFloat(facility.longitude)]}
                   icon={customIcon}
                   title={facility.name}
@@ -2792,9 +2801,7 @@ const MapComponent = ({
         )}
         {showFacilitiesLayer && facilities && facilities.length > 0 && !showClustering && facilities.map((facility, idx) => {
           const facilityKey = getFacilityIdentityKey(facility);
-          const isImpacted = impactedFacilities?.some(
-            impacted => getFacilityIdentityKey(impacted.facility) === facilityKey
-          );
+          const isImpacted = facilityImpactState.keys.has(facilityKey);
 
           const markerColor = isImpacted ? '#ff4444' : '#4CAF50';
 
@@ -2816,7 +2823,7 @@ const MapComponent = ({
 
           return (
             <ReactLeafletMarker
-              key={`facility-plain-${idx}`}
+              key={`facility-plain-${idx}-${facilityKey || 'unknown'}-${isImpacted ? 'impacted' : 'safe'}`}
               position={[parseFloat(facility.latitude), parseFloat(facility.longitude)]}
               icon={customIcon}
               facilityKey={facilityKey}
