@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test --experimental-default-type=module tests/impactAssessment.test.js"
+    "test": "node --test --experimental-default-type=module tests/*.test.js"
   },
   "dependencies": {
     "@changey/react-leaflet-markercluster": "^4.0.0-rc1",

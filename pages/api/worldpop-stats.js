@@ -1,9 +1,14 @@
 import { withRateLimit } from '../../lib/rateLimit';
+import { assertArray, assertEnum, assertYear, sendApiError } from '../../lib/validation/apiValidation';
 import { groupAgeBands } from '../../utils/worldpopHelpers';
 
 export const config = {
   api: { bodyParser: { sizeLimit: '10mb' } },
 };
+
+const MAX_DISTRICTS = 200;
+const MAX_COORDINATES_PER_DISTRICT = 5000;
+const ALLOWED_DATA_TYPES = ['total', 'agesex'];
 
 // Cache EE initialization across warm invocations
 let eeInitialized = false;
@@ -75,6 +80,30 @@ function districtToEEGeometry(ee, geometry) {
   } catch (e) {
     console.error('[WorldPop] Geometry conversion error:', e.message);
     return null;
+  }
+}
+
+function countCoordinates(geometry) {
+  if (!geometry?.coordinates) return 0;
+  return JSON.stringify(geometry.coordinates).match(/\[/g)?.length || 0;
+}
+
+function validateDistrictGeometry(district) {
+  const geometry = district?.geometry;
+
+  if (!geometry || !['Polygon', 'MultiPolygon'].includes(geometry.type)) {
+    const error = new Error('Each district must have Polygon or MultiPolygon geometry');
+    error.code = 'INVALID_GEOMETRY';
+    error.status = 400;
+    throw error;
+  }
+
+  const coordinateCount = countCoordinates(geometry);
+  if (coordinateCount > MAX_COORDINATES_PER_DISTRICT) {
+    const error = new Error('District geometry is too large. Please simplify the boundary before loading WorldPop.');
+    error.code = 'GEOMETRY_TOO_LARGE';
+    error.status = 413;
+    throw error;
   }
 }
 
@@ -207,32 +236,31 @@ async function fetchWorldPopStats(districts, year, dataType) {
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return sendApiError(res, 405, 'METHOD_NOT_ALLOWED', 'Method not allowed');
   }
 
   if (!process.env.GEE_SERVICE_ACCOUNT_KEY) {
-    return res.status(503).json({ error: 'Google Earth Engine is not configured on this server.' });
-  }
-
-  const { districts, year = 2020, dataType = 'total' } = req.body;
-
-  if (!districts || !Array.isArray(districts) || districts.length === 0) {
-    return res.status(400).json({ error: 'districts array is required' });
-  }
-
-  const parsedYear = parseInt(year, 10);
-  if (parsedYear < 2015 || parsedYear > 2030) {
-    return res.status(400).json({ error: 'year must be between 2015 and 2030' });
+    return sendApiError(res, 503, 'GEE_NOT_CONFIGURED', 'Google Earth Engine is not configured on this server.');
   }
 
   try {
-    const geeResult = await fetchWorldPopStats(districts, parsedYear, dataType);
+    const { districts, year = 2020, dataType = 'total' } = req.body || {};
+
+    assertArray(districts, 'districts', MAX_DISTRICTS);
+    if (districts.length === 0) {
+      return sendApiError(res, 400, 'INVALID_DISTRICTS', 'districts must include at least one district');
+    }
+
+    const parsedYear = assertYear(year);
+    const validatedDataType = assertEnum(dataType, 'dataType', ALLOWED_DATA_TYPES);
+    districts.forEach(validateDistrictGeometry);
+    const geeResult = await fetchWorldPopStats(districts, parsedYear, validatedDataType);
 
     const results = (geeResult.features || []).map((feature, index) => {
       const props = feature.properties || {};
       const districtId = props.districtId;
 
-      if (dataType === 'agesex') {
+      if (validatedDataType === 'agesex') {
         // Debug: log raw props for first district
         if (index === 0) {
           console.log('[WorldPop] Processing agesex data, raw props for first district:', {
@@ -273,10 +301,16 @@ async function handler(req, res) {
     });
 
     console.log(`[WorldPop] Returning ${results.length} results, sample:`, results[0]);
-    return res.status(200).json({ success: true, results, year: parsedYear, dataType });
+    return res.status(200).json({ success: true, results, year: parsedYear, dataType: validatedDataType });
   } catch (error) {
     console.error('WorldPop GEE error:', error.message);
-    return res.status(500).json({ error: error.message || 'Failed to fetch population data from Earth Engine.' });
+    const isValidationError = error.message?.endsWith('must be an array');
+    return sendApiError(
+      res,
+      error.status || (isValidationError ? 400 : 500),
+      error.code || (isValidationError ? 'INVALID_PAYLOAD' : 'WORLDPOP_STATS_ERROR'),
+      error.message || 'Failed to fetch population data from Earth Engine.'
+    );
   }
 }
 

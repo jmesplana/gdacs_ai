@@ -1,7 +1,11 @@
 import { withRateLimit } from '../../lib/rateLimit';
+import { sendApiError } from '../../lib/validation/apiValidation';
 import OpenAI from 'openai';
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const MAX_DISTRICT_ROWS = 50;
+const MAX_FACILITIES = 2000;
+const MAX_SELECTED_DISTRICTS = 100;
 
 export const config = {
   api: {
@@ -13,7 +17,7 @@ export const config = {
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return sendApiError(res, 405, 'METHOD_NOT_ALLOWED', 'Method not allowed');
   }
 
   try {
@@ -25,7 +29,19 @@ async function handler(req, res) {
     } = req.body || {};
 
     if (!board || !Array.isArray(board?.districtRows)) {
-      return res.status(400).json({ error: 'precomputed board is required' });
+      return sendApiError(res, 400, 'INVALID_BOARD', 'board.districtRows is required');
+    }
+
+    if (board.districtRows.length > MAX_DISTRICT_ROWS) {
+      return sendApiError(res, 413, 'PAYLOAD_TOO_LARGE', `Too many district rows. Max ${MAX_DISTRICT_ROWS}.`);
+    }
+
+    if (!Array.isArray(facilities) || facilities.length > MAX_FACILITIES) {
+      return sendApiError(res, 413, 'PAYLOAD_TOO_LARGE', `Too many facilities. Max ${MAX_FACILITIES}.`);
+    }
+
+    if (!Array.isArray(selectedDistricts) || selectedDistricts.length > MAX_SELECTED_DISTRICTS) {
+      return sendApiError(res, 413, 'PAYLOAD_TOO_LARGE', `Too many selected districts. Max ${MAX_SELECTED_DISTRICTS}.`);
     }
 
     const enrichedBoard = await enrichBoardWithAI(board, {
@@ -37,8 +53,26 @@ async function handler(req, res) {
     return res.status(200).json(enrichedBoard);
   } catch (error) {
     console.error('Error generating prioritization board:', error);
-    return res.status(500).json({ error: error.message || 'Failed to generate prioritization board' });
+    return sendApiError(res, error.status || 500, error.code || 'PRIORITIZATION_BOARD_ERROR', error.message || 'Failed to generate prioritization board');
   }
+}
+
+function compactBoardRow(row = {}) {
+  return {
+    district: String(row.district || row.districtName || 'Unknown').slice(0, 120),
+    priorityScore: row.priorityScore ?? row.score ?? null,
+    priorityLevel: row.priorityLevel ?? row.level ?? null,
+    recommendedAction: row.recommendedAction
+      ? String(row.recommendedAction).slice(0, 300)
+      : null,
+    keyGaps: Array.isArray(row.keyGaps)
+      ? row.keyGaps.slice(0, 5).map((gap) => String(gap).slice(0, 200))
+      : [],
+    soWhat: row.soWhat ? String(row.soWhat).slice(0, 600) : null,
+    leadershipNote: row.leadershipNote
+      ? String(row.leadershipNote).slice(0, 400)
+      : null,
+  };
 }
 
 async function enrichBoardWithAI(board, context) {
@@ -70,7 +104,7 @@ Today is ${today}.
 Use the loaded row data first. Use web search only to add recent contextual developments for this exact district/area.
 
 District row data:
-${JSON.stringify(row, null, 2)}
+${JSON.stringify(compactBoardRow(row), null, 2)}
 
 Additional context:
 ${JSON.stringify({

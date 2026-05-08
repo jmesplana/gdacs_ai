@@ -1,4 +1,7 @@
 import { withRateLimit } from '../../lib/rateLimit';
+import { assertEnum, assertYear, sendApiError } from '../../lib/validation/apiValidation';
+
+const ALLOWED_DATA_TYPES = ['total', 'agesex'];
 
 export const config = {
   api: { bodyParser: { sizeLimit: '1mb' } },
@@ -58,28 +61,25 @@ async function initEE() {
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return sendApiError(res, 405, 'METHOD_NOT_ALLOWED', 'Method not allowed');
   }
 
   if (!process.env.GEE_SERVICE_ACCOUNT_KEY) {
-    return res.status(503).json({ error: 'Google Earth Engine is not configured on this server.' });
-  }
-
-  const { year = 2020, dataType = 'total', bounds } = req.body;
-
-  const parsedYear = parseInt(year, 10);
-  if (parsedYear < 2015 || parsedYear > 2030) {
-    return res.status(400).json({ error: 'year must be between 2015 and 2030' });
+    return sendApiError(res, 503, 'GEE_NOT_CONFIGURED', 'Google Earth Engine is not configured on this server.');
   }
 
   try {
+    const { year = 2020, dataType = 'total', bounds } = req.body || {};
+    const parsedYear = assertYear(year);
+    const validatedDataType = assertEnum(dataType, 'dataType', ALLOWED_DATA_TYPES);
+
     await initEE();
     const ee = require('@google/earthengine');
 
-    console.log(`[WorldPop Tiles] Generating tile URL for year=${year}, dataType=${dataType}`);
+    console.log(`[WorldPop Tiles] Generating tile URL for year=${parsedYear}, dataType=${validatedDataType}`);
 
     // Select the appropriate collection
-    const collectionId = dataType === 'agesex'
+    const collectionId = validatedDataType === 'agesex'
       ? 'projects/sat-io/open-datasets/WORLDPOP/agesex'
       : 'projects/sat-io/open-datasets/WORLDPOP/pop';
 
@@ -92,7 +92,7 @@ async function handler(req, res) {
     const image = collection.mosaic();
 
     // For total population, select the population band
-    let selectedImage = dataType === 'agesex'
+    let selectedImage = validatedDataType === 'agesex'
       ? image  // Use all bands for agesex
       : image.select(['population']); // Select only population band for total
 
@@ -111,7 +111,7 @@ async function handler(req, res) {
     }
 
     // Define visualization parameters
-    const visParams = dataType === 'agesex'
+    const visParams = validatedDataType === 'agesex'
       ? {
           // For agesex, we'll sum all bands and visualize
           min: 0,
@@ -127,7 +127,7 @@ async function handler(req, res) {
 
     // If agesex, sum all male and female bands for visualization
     let visualizationImage;
-    if (dataType === 'agesex') {
+    if (validatedDataType === 'agesex') {
       // Sum all f_* and m_* bands to get total population
       // List all 38 age-sex bands explicitly and sum them
       visualizationImage = selectedImage
@@ -169,13 +169,13 @@ async function handler(req, res) {
       mapId: mapId.mapid,
       token: mapId.token,
       year: parsedYear,
-      dataType,
+      dataType: validatedDataType,
       visParams
     });
 
   } catch (error) {
     console.error('[WorldPop Tiles] Error:', error.message);
-    return res.status(500).json({ error: error.message || 'Failed to generate tile URL from Earth Engine.' });
+    return sendApiError(res, error.status || 500, error.code || 'WORLDPOP_TILES_ERROR', error.message || 'Failed to generate tile URL from Earth Engine.');
   }
 }
 
