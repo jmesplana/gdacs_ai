@@ -1,19 +1,122 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
   Tooltip,
-  ResponsiveContainer,
-  Cell
-} from 'recharts';
+  Legend
+} from 'chart.js';
+import { Bar } from 'react-chartjs-2';
 import EmptyState from './EmptyState';
 
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
 export default function DisasterTimelineChart({ data, title }) {
-  // Handle null/empty data
-  if (!data || data.length === 0) {
+  const chartItems = Array.isArray(data) ? data : [];
+
+  const chartData = useMemo(() => ({
+    labels: chartItems.map(item => item.label),
+    datasets: [
+      {
+        label: 'Disasters',
+        data: chartItems.map(item => item.count),
+        backgroundColor: '#ff6b35',
+        borderColor: '#ff6b35',
+        borderWidth: 1,
+        borderRadius: 6,
+        borderSkipped: false,
+      }
+    ]
+  }), [chartItems]);
+
+  const options = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      title: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: 'rgba(30, 41, 59, 0.95)',
+        titleFont: {
+          family: "'Inter', sans-serif",
+          size: 12,
+          weight: 600
+        },
+        bodyFont: {
+          family: "'Inter', sans-serif",
+          size: 12
+        },
+        padding: 12,
+        cornerRadius: 8,
+        callbacks: {
+          label: function(context) {
+            const value = context.parsed.y || 0;
+            return `${value} ${value === 1 ? 'Disaster' : 'Disasters'}`;
+          },
+          afterBody: function(context) {
+            const item = chartItems[context[0].dataIndex];
+            if (!item?.disasters?.length) return [];
+
+            return [
+              'Types:',
+              ...item.disasters.slice(0, 6).map(disaster => `- ${disaster}`)
+            ];
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false
+        },
+        ticks: {
+          font: {
+            family: "'Inter', sans-serif",
+            size: 11
+          },
+          color: '#64748b'
+        },
+        border: {
+          color: '#e2e8f0'
+        }
+      },
+      y: {
+        beginAtZero: true,
+        ticks: {
+          precision: 0,
+          font: {
+            family: "'Inter', sans-serif",
+            size: 11
+          },
+          color: '#64748b'
+        },
+        grid: {
+          color: '#f1f5f9',
+          drawBorder: false
+        },
+        border: {
+          display: false
+        }
+      }
+    }
+  }), [chartItems]);
+
+  // Handle null/empty data after hooks so hook order stays stable across renders
+  if (chartItems.length === 0) {
     return (
       <EmptyState
         icon="📊"
@@ -22,59 +125,6 @@ export default function DisasterTimelineChart({ data, title }) {
       />
     );
   }
-
-  // Custom tooltip to show disaster details
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const item = payload[0].payload;
-      return (
-        <div style={{
-          background: 'white',
-          border: '1px solid #e2e8f0',
-          borderRadius: '8px',
-          padding: '12px',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-          fontFamily: "'Inter', sans-serif"
-        }}>
-          <div style={{
-            fontSize: '12px',
-            fontWeight: 600,
-            color: '#334155',
-            marginBottom: '6px'
-          }}>
-            {item.label}
-          </div>
-          <div style={{
-            fontSize: '14px',
-            fontWeight: 700,
-            color: '#ff6b35',
-            marginBottom: '8px'
-          }}>
-            {item.count} {item.count === 1 ? 'Disaster' : 'Disasters'}
-          </div>
-          {item.disasters && item.disasters.length > 0 && (
-            <div style={{
-              fontSize: '11px',
-              color: '#64748b',
-              borderTop: '1px solid #f1f5f9',
-              paddingTop: '6px',
-              marginTop: '6px'
-            }}>
-              <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                Types:
-              </div>
-              {item.disasters.map((disaster, idx) => (
-                <div key={idx} style={{ marginBottom: '2px' }}>
-                  • {disaster}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <div style={{
@@ -98,58 +148,9 @@ export default function DisasterTimelineChart({ data, title }) {
         </div>
       )}
 
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart
-          data={data}
-          margin={{
-            top: 10,
-            right: 10,
-            left: -20,
-            bottom: 0
-          }}
-        >
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="#f1f5f9"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="label"
-            tick={{
-              fontSize: 11,
-              fill: '#64748b',
-              fontFamily: "'Inter', sans-serif"
-            }}
-            tickLine={false}
-            axisLine={{ stroke: '#e2e8f0' }}
-          />
-          <YAxis
-            tick={{
-              fontSize: 11,
-              fill: '#64748b',
-              fontFamily: "'Inter', sans-serif"
-            }}
-            tickLine={false}
-            axisLine={{ stroke: '#e2e8f0' }}
-            allowDecimals={false}
-          />
-          <Tooltip
-            content={<CustomTooltip />}
-            cursor={{ fill: 'rgba(255, 107, 53, 0.05)' }}
-          />
-          <Bar
-            dataKey="count"
-            radius={[6, 6, 0, 0]}
-          >
-            {data.map((entry, index) => (
-              <Cell
-                key={`cell-${index}`}
-                fill="#ff6b35"
-              />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+      <div style={{ height: '300px', position: 'relative' }}>
+        <Bar data={chartData} options={options} />
+      </div>
     </div>
   );
 }
