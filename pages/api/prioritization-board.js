@@ -1,4 +1,6 @@
 import { withRateLimit } from '../../lib/rateLimit';
+import { getCachedAIResult, setCachedAIResult } from '../../lib/ai/aiCache';
+import { createPrioritizationCacheKey } from '../../lib/ai/aiCacheKey';
 import { sendApiError } from '../../lib/validation/apiValidation';
 import OpenAI from 'openai';
 
@@ -84,6 +86,17 @@ async function enrichBoardWithAI(board, context) {
   const enrichedRows = await Promise.all(
     districtRows.slice(0, maxDistrictsToEnrich).map(async (row) => {
       try {
+        const cacheKey = createPrioritizationCacheKey(row, context);
+        const cached = await getCachedAIResult(cacheKey);
+
+        if (cached) {
+          return {
+            ...row,
+            ...cached,
+            aiCacheHit: true,
+          };
+        }
+
         const today = new Date().toISOString().split('T')[0];
         const currentYear = new Date().getFullYear();
         const response = await openai.responses.create({
@@ -147,6 +160,8 @@ Rules:
         const parsed = safeParseJson(response.output_text);
         if (!parsed) return row;
 
+        await setCachedAIResult(cacheKey, parsed, 86400);
+
         return {
           ...row,
           soWhat: parsed.soWhat || row.soWhat,
@@ -157,7 +172,8 @@ Rules:
           recentSourceDate: parsed.recentSourceDate || null,
           recentSourceLabel: parsed.recentSourceLabel || extractFirstLink(row.recentContext)?.label || null,
           recentSourceUrl: parsed.recentSourceUrl || extractFirstLink(row.recentContext)?.url || null,
-          analysisSource: parsed.analysisSource || 'AI + loaded data + web search'
+          analysisSource: parsed.analysisSource || 'AI + loaded data + web search',
+          aiCacheHit: false,
         };
       } catch (error) {
         console.warn(`AI enrichment failed for ${row.district}:`, error.message);
@@ -203,4 +219,8 @@ function extractFirstLink(text) {
   return { label: match[1], url: match[2] };
 }
 
-export default withRateLimit(handler);
+export default withRateLimit(handler, {
+  keyPrefix: 'rl:prioritization-board',
+  limit: 20,
+  windowSecs: 3600,
+});
