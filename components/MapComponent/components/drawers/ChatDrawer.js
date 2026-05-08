@@ -704,7 +704,10 @@ const ChatDrawer = ({
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      height: embedded ? 'calc(100vh - 130px)' : '100%'
+      height: embedded ? 'calc(100vh - 130px)' : 'auto',
+      flex: embedded ? '0 0 auto' : 1,
+      minHeight: 0,
+      overflow: 'hidden'
     }}>
       {/* Messages Area */}
       <div style={{
@@ -1092,7 +1095,9 @@ const ChatDrawer = ({
           width: isExpanded ? `${CHAT_DRAWER_EXPANDED_WIDTH}px` : `${CHAT_DRAWER_WIDTH}px`,
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '90vh'
+          height: '90vh',
+          maxHeight: '90vh',
+          overflow: 'hidden'
         }}
       >
         {/* Header */}
@@ -1101,7 +1106,9 @@ const ChatDrawer = ({
           color: 'white',
           margin: '-20px -20px 0 -20px',
           padding: '20px',
-          flexShrink: 0
+          flexShrink: 0,
+          position: 'relative',
+          zIndex: 2
         }}>
           <div style={{ flex: 1 }}>
             <h3 className="drawer-title" style={{color: 'white', fontFamily: "'Space Grotesk', sans-serif", marginBottom: context?.hasDistricts ? '8px' : '0'}}>
