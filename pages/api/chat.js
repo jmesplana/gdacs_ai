@@ -1105,6 +1105,17 @@ function buildContextSummary(context) {
     const over60 = Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.age60plus || 0), 0);
     const female = Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.female || 0), 0);
     const male = Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.male || 0), 0);
+    const sexByAgeGroups = [
+      ['Under 5', 'under5'],
+      ['Age 5-14', 'age5_14'],
+      ['Age 15-49', 'age15_49'],
+      ['Age 50-59', 'age50_59'],
+      ['Age 60+', 'age60plus'],
+    ].map(([label, key]) => ({
+      label,
+      female: Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.[`${key}Female`] || 0), 0),
+      male: Object.values(context.worldPopData).reduce((sum, d) => sum + (d.ageGroups?.[`${key}Male`] || 0), 0),
+    })).filter((group) => group.female > 0 || group.male > 0);
 
     summary.push(`\n📊 POPULATION OVERVIEW:`);
     summary.push(`   Total Population: ${totalPop.toLocaleString()}`);
@@ -1126,6 +1137,13 @@ function buildContextSummary(context) {
         summary.push(`\n   👥 GENDER BREAKDOWN:`);
         summary.push(`   • Female: ${female.toLocaleString()} (${Math.round((female/totalPop)*100)}%)`);
         summary.push(`   • Male: ${male.toLocaleString()} (${Math.round((male/totalPop)*100)}%)`);
+      }
+
+      if (sexByAgeGroups.length > 0) {
+        summary.push(`\n   👥 SEX BY AGE BREAKDOWN:`);
+        sexByAgeGroups.forEach((group) => {
+          summary.push(`   • ${group.label}: ${group.female.toLocaleString()} female, ${group.male.toLocaleString()} male`);
+        });
       }
 
       const vulnerable = under5 + over60;

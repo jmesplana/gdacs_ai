@@ -1,7 +1,6 @@
 import { withRateLimit } from '../../lib/rateLimit';
-import { assertEnum, assertYear, sendApiError } from '../../lib/validation/apiValidation';
-
-const ALLOWED_DATA_TYPES = ['total', 'agesex'];
+import { assertEnum, sendApiError } from '../../lib/validation/apiValidation';
+import { ALLOWED_WORLDPOP_DATA_TYPES, resolveWorldPopYear } from '../../lib/worldpop/worldpopYears';
 
 export const config = {
   api: { bodyParser: { sizeLimit: '1mb' } },
@@ -69,12 +68,12 @@ async function handler(req, res) {
   }
 
   try {
-    const { year = 2020, dataType = 'total', bounds } = req.body || {};
-    const parsedYear = assertYear(year);
-    const validatedDataType = assertEnum(dataType, 'dataType', ALLOWED_DATA_TYPES);
+    const { year = 'latest', dataType = 'total', bounds } = req.body || {};
+    const validatedDataType = assertEnum(dataType, 'dataType', ALLOWED_WORLDPOP_DATA_TYPES);
 
     await initEE();
     const ee = require('@google/earthengine');
+    const parsedYear = await resolveWorldPopYear(ee, year, validatedDataType);
 
     console.log(`[WorldPop Tiles] Generating tile URL for year=${parsedYear}, dataType=${validatedDataType}`);
 

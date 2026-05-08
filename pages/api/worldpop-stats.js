@@ -1,5 +1,6 @@
 import { withRateLimit } from '../../lib/rateLimit';
-import { assertArray, assertEnum, assertYear, sendApiError } from '../../lib/validation/apiValidation';
+import { assertArray, assertEnum, sendApiError } from '../../lib/validation/apiValidation';
+import { ALLOWED_WORLDPOP_DATA_TYPES, resolveWorldPopYear } from '../../lib/worldpop/worldpopYears';
 import { groupAgeBands } from '../../utils/worldpopHelpers';
 
 export const config = {
@@ -8,7 +9,6 @@ export const config = {
 
 const MAX_DISTRICTS = 200;
 const MAX_COORDINATES_PER_DISTRICT = 5000;
-const ALLOWED_DATA_TYPES = ['total', 'agesex'];
 
 // Cache EE initialization across warm invocations
 let eeInitialized = false;
@@ -244,15 +244,17 @@ async function handler(req, res) {
   }
 
   try {
-    const { districts, year = 2020, dataType = 'total' } = req.body || {};
+    const { districts, year = 'latest', dataType = 'total' } = req.body || {};
 
     assertArray(districts, 'districts', MAX_DISTRICTS);
     if (districts.length === 0) {
       return sendApiError(res, 400, 'INVALID_DISTRICTS', 'districts must include at least one district');
     }
 
-    const parsedYear = assertYear(year);
-    const validatedDataType = assertEnum(dataType, 'dataType', ALLOWED_DATA_TYPES);
+    const validatedDataType = assertEnum(dataType, 'dataType', ALLOWED_WORLDPOP_DATA_TYPES);
+    await initEE();
+    const ee = require('@google/earthengine');
+    const parsedYear = await resolveWorldPopYear(ee, year, validatedDataType);
     districts.forEach(validateDistrictGeometry);
     const geeResult = await fetchWorldPopStats(districts, parsedYear, validatedDataType);
 

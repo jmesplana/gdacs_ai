@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { WORLDPOP_YEARS, AGE_GROUPS, WORLDPOP_TILE_LAYERS, extractCountryFromDistricts, formatPopNumber } from '../../../../utils/worldpopHelpers';
+import React, { useEffect, useState } from 'react';
+import { AGE_GROUPS, WORLDPOP_TILE_LAYERS, extractCountryFromDistricts, formatPopNumber } from '../../../../utils/worldpopHelpers';
 
 const WorldPopDrawer = ({
   isOpen,
@@ -19,15 +19,74 @@ const WorldPopDrawer = ({
   scopeToShapefile,
   toggleScopeToShapefile,
 }) => {
-  const [selectedYear, setSelectedYear] = useState(2020);
+  const [selectedYear, setSelectedYear] = useState('latest');
   const [selectedDataType, setSelectedDataType] = useState('total');
   const [loadAllDistricts, setLoadAllDistricts] = useState(false);
+  const [availableYears, setAvailableYears] = useState([]);
+  const [latestAvailableYear, setLatestAvailableYear] = useState(null);
+  const [yearsLoading, setYearsLoading] = useState(false);
+  const [yearsError, setYearsError] = useState(null);
 
   const country = extractCountryFromDistricts(districts);
   const hasData = Object.keys(worldPopData).length > 0;
   const totalPop = hasData
     ? Object.values(worldPopData).reduce((sum, d) => sum + (d.total || 0), 0)
     : 0;
+  const sexTotals = hasData && lastFetchParams?.dataType === 'agesex'
+    ? Object.values(worldPopData).reduce((totals, district) => ({
+        female: totals.female + (district.ageGroups?.female || 0),
+        male: totals.male + (district.ageGroups?.male || 0),
+      }), { female: 0, male: 0 })
+    : null;
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    async function loadAvailableYears() {
+      setYearsLoading(true);
+      setYearsError(null);
+
+      try {
+        const response = await fetch(`/api/worldpop-years?dataType=${encodeURIComponent(selectedDataType)}`);
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error || 'Failed to load available WorldPop years');
+        }
+
+        if (!cancelled) {
+          const years = Array.isArray(payload.years) ? payload.years : [];
+          setAvailableYears(years);
+          setLatestAvailableYear(payload.latestYear || years[years.length - 1] || null);
+
+          setSelectedYear((currentYear) =>
+            currentYear !== 'latest' && !years.includes(Number(currentYear))
+              ? 'latest'
+              : currentYear
+          );
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setAvailableYears([]);
+          setLatestAvailableYear(null);
+          setYearsError(error.message || 'Failed to load available WorldPop years');
+          setSelectedYear('latest');
+        }
+      } finally {
+        if (!cancelled) {
+          setYearsLoading(false);
+        }
+      }
+    }
+
+    loadAvailableYears();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, selectedDataType]);
 
   const handleFetch = () => {
     const districtsToLoad = loadAllDistricts ? districts : selectedDistricts;
@@ -101,19 +160,29 @@ const WorldPopDrawer = ({
                   <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '4px' }}>Year</label>
                   <select
                     value={selectedYear}
-                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    onChange={(e) => setSelectedYear(e.target.value === 'latest' ? 'latest' : Number(e.target.value))}
+                    disabled={yearsLoading || Boolean(yearsError)}
                     style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '13px', background: 'white' }}
                   >
-                    {WORLDPOP_YEARS.map((y) => (
+                    <option value="latest">
+                      Latest available{latestAvailableYear ? ` (${latestAvailableYear})` : ''}
+                    </option>
+                    {[...availableYears].sort((a, b) => b - a).map((y) => (
                       <option key={y} value={y}>{y}</option>
                     ))}
                   </select>
+                  {yearsLoading && (
+                    <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>Checking available years…</div>
+                  )}
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '4px' }}>Data Type</label>
                   <select
                     value={selectedDataType}
-                    onChange={(e) => setSelectedDataType(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedDataType(e.target.value);
+                      setSelectedYear('latest');
+                    }}
                     style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '13px', background: 'white' }}
                   >
                     <option value="total">Total Population</option>
@@ -121,6 +190,18 @@ const WorldPopDrawer = ({
                   </select>
                 </div>
               </div>
+
+              {yearsError && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '6px', padding: '10px', fontSize: '12px', color: '#991B1B', marginBottom: '12px' }}>
+                  {yearsError}
+                </div>
+              )}
+
+              {!yearsLoading && !yearsError && availableYears.length === 0 && (
+                <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '6px', padding: '10px', fontSize: '12px', color: '#92400E', marginBottom: '12px' }}>
+                  No WorldPop years are available for this data type.
+                </div>
+              )}
 
               {/* District selection toggle */}
               <div style={{ marginBottom: '12px', padding: '10px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '6px' }}>
@@ -172,17 +253,17 @@ const WorldPopDrawer = ({
 
               <button
                 onClick={handleFetch}
-                disabled={isLoading || (!loadAllDistricts && selectedDistricts.length === 0)}
+                disabled={isLoading || yearsLoading || Boolean(yearsError) || availableYears.length === 0 || (!loadAllDistricts && selectedDistricts.length === 0)}
                 style={{
                   width: '100%',
                   padding: '9px',
-                  background: (isLoading || (!loadAllDistricts && selectedDistricts.length === 0)) ? '#94A3B8' : 'var(--aidstack-navy, #1B3A5C)',
+                  background: (isLoading || yearsLoading || yearsError || availableYears.length === 0 || (!loadAllDistricts && selectedDistricts.length === 0)) ? '#94A3B8' : 'var(--aidstack-navy, #1B3A5C)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '7px',
                   fontSize: '13px',
                   fontWeight: 600,
-                  cursor: (isLoading || (!loadAllDistricts && selectedDistricts.length === 0)) ? 'not-allowed' : 'pointer',
+                  cursor: (isLoading || yearsLoading || yearsError || availableYears.length === 0 || (!loadAllDistricts && selectedDistricts.length === 0)) ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -220,7 +301,7 @@ const WorldPopDrawer = ({
               {/* Summary card */}
               <div style={{ background: 'linear-gradient(135deg, #EFF6FF 0%, #F0FDF4 100%)', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 600, color: '#1D4ED8', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Total Population · {lastFetchParams?.year}
+                  WorldPop Global 2 · {lastFetchParams?.year}
                 </div>
                 <div style={{ fontSize: '28px', fontWeight: 700, color: '#1B3A5C', lineHeight: 1 }}>
                   {formatPopNumber(totalPop)}
@@ -228,6 +309,16 @@ const WorldPopDrawer = ({
                 <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
                   across {sortedDistricts.length} admin units
                 </div>
+                {sexTotals && (sexTotals.female > 0 || sexTotals.male > 0) && (
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                    <span style={{ fontSize: '11px', color: '#475569', background: 'rgba(255,255,255,0.8)', border: '1px solid #DBEAFE', borderRadius: '999px', padding: '4px 8px' }}>
+                      <strong style={{ color: '#BE185D' }}>{formatPopNumber(sexTotals.female)}</strong> female
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#475569', background: 'rgba(255,255,255,0.8)', border: '1px solid #DBEAFE', borderRadius: '999px', padding: '4px 8px' }}>
+                      <strong style={{ color: '#2563EB' }}>{formatPopNumber(sexTotals.male)}</strong> male
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Map overlay toggle */}
@@ -306,14 +397,41 @@ const WorldPopDrawer = ({
 
                       {/* Age groups */}
                       {data.ageGroups && (
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
-                          {AGE_GROUPS.map((g) => (
-                            <span key={g.key} style={{ fontSize: '10px', color: '#64748B' }}>
-                              <span style={{ color: g.color, fontWeight: 700 }}>{formatPopNumber(data.ageGroups[g.key])}</span>
-                              {' '}{g.label}
+                        <>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                            <span style={{ fontSize: '10px', color: '#64748B' }}>
+                              <span style={{ color: '#BE185D', fontWeight: 700 }}>{formatPopNumber(data.ageGroups.female)}</span>
+                              {' '}Female
                             </span>
-                          ))}
-                        </div>
+                            <span style={{ fontSize: '10px', color: '#64748B' }}>
+                              <span style={{ color: '#2563EB', fontWeight: 700 }}>{formatPopNumber(data.ageGroups.male)}</span>
+                              {' '}Male
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                            {AGE_GROUPS.map((g) => (
+                              <span key={g.key} style={{ fontSize: '10px', color: '#64748B' }}>
+                                <span style={{ color: g.color, fontWeight: 700 }}>{formatPopNumber(data.ageGroups[g.key])}</span>
+                                {' '}{g.label}
+                              </span>
+                            ))}
+                          </div>
+                          <div style={{ marginTop: '6px', display: 'grid', gridTemplateColumns: '1fr', gap: '4px' }}>
+                            {AGE_GROUPS.map((g) => (
+                              <div key={`${g.key}-sex-split`} style={{ fontSize: '10px', color: '#64748B', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{ minWidth: '52px', color: '#475569', fontWeight: 600 }}>{g.label}</span>
+                                <span>
+                                  <span style={{ color: '#BE185D', fontWeight: 700 }}>{formatPopNumber(data.ageGroups[`${g.key}Female`])}</span>
+                                  {' '}F
+                                </span>
+                                <span>
+                                  <span style={{ color: '#2563EB', fontWeight: 700 }}>{formatPopNumber(data.ageGroups[`${g.key}Male`])}</span>
+                                  {' '}M
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
                       )}
                     </div>
                   );

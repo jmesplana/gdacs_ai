@@ -14,8 +14,6 @@ export const GEE_DATASETS = {
   },
 };
 
-export const WORLDPOP_YEARS = Array.from({ length: 16 }, (_, i) => 2015 + i); // 2015–2030
-
 export const AGE_GROUPS = [
   { key: 'under5',   label: 'Under 5',   color: '#EF4444', bands: ['f_00','m_00','f_01','m_01'] },
   { key: 'age5_14',  label: '5–14',      color: '#F97316', bands: ['f_05','m_05','f_10','m_10'] },
@@ -72,7 +70,16 @@ export function groupAgeBands(rawBands) {
 
   const groups = {};
   for (const group of AGE_GROUPS) {
-    groups[group.key] = group.bands.reduce((sum, band) => sum + get(band), 0);
+    const female = group.bands
+      .filter((band) => band.startsWith('f_'))
+      .reduce((sum, band) => sum + get(band), 0);
+    const male = group.bands
+      .filter((band) => band.startsWith('m_'))
+      .reduce((sum, band) => sum + get(band), 0);
+
+    groups[group.key] = female + male;
+    groups[`${group.key}Female`] = female;
+    groups[`${group.key}Male`] = male;
   }
 
   const female = Object.keys(rawBands)
@@ -113,9 +120,34 @@ export function formatWorldPopForAI(worldPopData, districts, year) {
   // Vulnerable groups aggregate
   const totalUnder5 = entries.reduce((sum, [, d]) => sum + (d.ageGroups?.under5 || 0), 0);
   const total60plus = entries.reduce((sum, [, d]) => sum + (d.ageGroups?.age60plus || 0), 0);
+  const totalFemale = entries.reduce((sum, [, d]) => sum + (d.ageGroups?.female || 0), 0);
+  const totalMale = entries.reduce((sum, [, d]) => sum + (d.ageGroups?.male || 0), 0);
+
+  if (totalPop > 0 && (totalFemale > 0 || totalMale > 0)) {
+    text += `- Sex breakdown: ${totalFemale.toLocaleString()} female (${Math.round((totalFemale / totalPop) * 100)}%), ${totalMale.toLocaleString()} male (${Math.round((totalMale / totalPop) * 100)}%)\n`;
+  }
+
   if (totalPop > 0 && (totalUnder5 > 0 || total60plus > 0)) {
     const vulnPct = Math.round(((totalUnder5 + total60plus) / totalPop) * 100);
     text += `- Vulnerable groups (under 5 + 60+): ${vulnPct}% of total (${(totalUnder5 + total60plus).toLocaleString()} people)\n`;
+  }
+
+  const hasSexByAge = entries.some(([, d]) =>
+    AGE_GROUPS.some((group) =>
+      d.ageGroups?.[`${group.key}Female`] || d.ageGroups?.[`${group.key}Male`]
+    )
+  );
+
+  if (hasSexByAge) {
+    text += `- Sex-by-age breakdown is available. Use it when recommendations differ by age and sex, such as maternal health, protection, vaccination, nutrition, or targeted outreach.\n`;
+    text += `\n### Sex by Age Group Totals\n`;
+    for (const group of AGE_GROUPS) {
+      const female = entries.reduce((sum, [, d]) => sum + (d.ageGroups?.[`${group.key}Female`] || 0), 0);
+      const male = entries.reduce((sum, [, d]) => sum + (d.ageGroups?.[`${group.key}Male`] || 0), 0);
+      if (female > 0 || male > 0) {
+        text += `- ${group.label}: ${female.toLocaleString()} female, ${male.toLocaleString()} male\n`;
+      }
+    }
   }
 
   text += `\n### Population Breakdown by Admin Area\n`;
@@ -129,6 +161,21 @@ export function formatWorldPopForAI(worldPopData, districts, year) {
       const a1549 = (data.ageGroups.age15_49 || 0).toLocaleString();
       const a60p = (data.ageGroups.age60plus || 0).toLocaleString();
       text += `- ${name}: ${total} people | Under 5: ${u5} | 15–49: ${a1549} | 60+: ${a60p}\n`;
+      if (hasSexByAge) {
+        const sexByAge = AGE_GROUPS
+          .map((group) => {
+            const female = data.ageGroups?.[`${group.key}Female`] || 0;
+            const male = data.ageGroups?.[`${group.key}Male`] || 0;
+            if (!female && !male) return null;
+            return `${group.label} ${female.toLocaleString()}F/${male.toLocaleString()}M`;
+          })
+          .filter(Boolean)
+          .join('; ');
+
+        if (sexByAge) {
+          text += `  Sex by age: ${sexByAge}\n`;
+        }
+      }
     } else {
       text += `- ${name}: ${total} people\n`;
     }

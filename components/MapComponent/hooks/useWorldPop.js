@@ -42,6 +42,8 @@ export function useWorldPop() {
         throw new Error(statsData.error || 'Failed to fetch population data');
       }
 
+      const resolvedYear = statsData.year || year;
+
       // Index results by districtId
       const indexed = {};
       for (const result of statsData.results || []) {
@@ -52,7 +54,7 @@ export function useWorldPop() {
       }
 
       setWorldPopData(indexed);
-      setLastFetchParams({ year, dataType });
+      setLastFetchParams({ year: resolvedYear, dataType });
 
       // Calculate bounds from districts (only if scoped)
       const bounds = scopeToShapefile ? calculateBounds(districts) : null;
@@ -67,7 +69,7 @@ export function useWorldPop() {
       const tilesResponse = await fetch('/api/worldpop-tiles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ year, dataType, bounds: scopeToShapefile ? bounds : null }),
+        body: JSON.stringify({ year: resolvedYear, dataType, bounds: scopeToShapefile ? bounds : null }),
       });
 
       const tilesData = await tilesResponse.json();
