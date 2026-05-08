@@ -82,11 +82,11 @@ const FacilityDrawer = ({
     // Apply status filter
     if (statusFilter === 'impacted') {
       result = result.filter(facility =>
-        impactedFacilities.some(imp => imp.facility.name === facility.name)
+        impactedFacilities.some(imp => getFacilityIdentityKey(imp.facility) === getFacilityIdentityKey(facility))
       );
     } else if (statusFilter === 'safe') {
       result = result.filter(facility =>
-        !impactedFacilities.some(imp => imp.facility.name === facility.name)
+        !impactedFacilities.some(imp => getFacilityIdentityKey(imp.facility) === getFacilityIdentityKey(facility))
       );
     }
 
@@ -96,8 +96,8 @@ const FacilityDrawer = ({
     } else if (sortBy === 'distance') {
       // Sort by whether impacted (impacted first)
       result.sort((a, b) => {
-        const aImpacted = impactedFacilities.some(imp => imp.facility.name === a.name);
-        const bImpacted = impactedFacilities.some(imp => imp.facility.name === b.name);
+        const aImpacted = impactedFacilities.some(imp => getFacilityIdentityKey(imp.facility) === getFacilityIdentityKey(a));
+        const bImpacted = impactedFacilities.some(imp => getFacilityIdentityKey(imp.facility) === getFacilityIdentityKey(b));
         if (aImpacted && !bImpacted) return -1;
         if (!aImpacted && bImpacted) return 1;
         return (a.name || '').localeCompare(b.name || '');
@@ -724,7 +724,7 @@ const FacilityDrawer = ({
                 </div>
               ) : (
                 filteredAndSortedFacilities.map((facility, index) => {
-                  const impactedInfo = impactedFacilities.find(imp => imp.facility.name === facility.name);
+                  const impactedInfo = impactedFacilities.find(imp => getFacilityIdentityKey(imp.facility) === getFacilityIdentityKey(facility));
                   const isImpacted = !!impactedInfo;
 
                   return (
@@ -1287,3 +1287,4 @@ const FacilityDrawer = ({
 };
 
 export default FacilityDrawer;
+import { getFacilityIdentityKey } from '../../../../lib/facilityIdentity';

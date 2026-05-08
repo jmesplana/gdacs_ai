@@ -231,7 +231,7 @@ const AnalysisDrawer = ({
     setViabilityLoading(true);
     try {
       const impacts = impactedFacilities.find(
-        impacted => impacted.facility.name === selectedFacility.name
+        impacted => getFacilityIdentityKey(impacted.facility) === getFacilityIdentityKey(selectedFacility)
       )?.impacts || [];
 
       const disasters = impacts.map(impact => impact.disaster);
@@ -265,8 +265,8 @@ const AnalysisDrawer = ({
   };
 
   const selectedFacilityRecommendationsKey = selectedFacility
-    ? `${selectedFacility.name}_${(impactedFacilities.find(
-        impacted => impacted.facility.name === selectedFacility.name
+    ? `${getFacilityIdentityKey(selectedFacility)}_${(impactedFacilities.find(
+        impacted => getFacilityIdentityKey(impacted.facility) === getFacilityIdentityKey(selectedFacility)
       )?.impacts || []).length}`
     : null;
   const hasCurrentRecommendations = selectedFacilityRecommendationsKey === recommendationsFacilityKey;
@@ -277,7 +277,7 @@ const AnalysisDrawer = ({
     try {
       // Get impact data for this facility
       const impacts = impactedFacilities.find(
-        impacted => impacted.facility.name === selectedFacility.name
+        impacted => getFacilityIdentityKey(impacted.facility) === getFacilityIdentityKey(selectedFacility)
       )?.impacts || [];
 
       const response = await fetch('/api/export-brief', {
@@ -342,7 +342,7 @@ const AnalysisDrawer = ({
             <div>
               {(() => {
                 const impacts = impactedFacilities.find(
-                  impacted => impacted.facility.name === selectedFacility.name
+                  impacted => getFacilityIdentityKey(impacted.facility) === getFacilityIdentityKey(selectedFacility)
                 )?.impacts || [];
                 const confidence = buildAssessmentConfidence({
                   impacts,
@@ -872,7 +872,7 @@ const AnalysisDrawer = ({
               <div style={{marginTop: '20px', borderTop: '1px solid #f0f0f0', paddingTop: '15px'}}>
                 {(() => {
                   const impacts = impactedFacilities.find(
-                    impacted => impacted.facility.name === selectedFacility.name
+                    impacted => getFacilityIdentityKey(impacted.facility) === getFacilityIdentityKey(selectedFacility)
                   )?.impacts || [];
                   const hasImpacts = impacts.length > 0;
 
@@ -1133,3 +1133,4 @@ const AnalysisDrawer = ({
 };
 
 export default AnalysisDrawer;
+import { getFacilityIdentityKey } from '../../../../lib/facilityIdentity';

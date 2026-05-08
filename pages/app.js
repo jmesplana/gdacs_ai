@@ -12,6 +12,7 @@ import {
   getScopedWorldPopData,
   filterItemsToDistricts
 } from '../lib/analysisScope';
+import { getFacilityIdentityKey } from '../lib/facilityIdentity';
 import {
   saveWorkspace,
   loadWorkspace,
@@ -488,11 +489,57 @@ export default function Home() {
   const [latestPrioritizationBoard, setLatestPrioritizationBoard] = useState(null);
   const [enabledEvidenceLayers, setEnabledEvidenceLayers] = useState([]);
   const workspaceRestoredRef = useRef(false);
+  const filteredAcledData = useMemo(() => {
+    if (!acledData || acledData.length === 0 || !acledEnabled) {
+      return [];
+    }
+
+    const allDates = acledData
+      .map((event) => new Date(event.event_date))
+      .filter((date) => !isNaN(date.getTime()));
+
+    const mostRecentDate = allDates.length > 0
+      ? new Date(Math.max(...allDates))
+      : new Date();
+
+    const dateRange = acledConfig.dateRange || 60;
+    const cutoffDate = new Date(mostRecentDate);
+    cutoffDate.setDate(cutoffDate.getDate() - dateRange);
+
+    const eventTypeFilter = acledConfig.eventTypes || [];
+    const selectedCountries = acledConfig.selectedCountries || [];
+    const selectedRegions = acledConfig.selectedRegions || [];
+
+    return acledData.filter((event) => {
+      const eventDate = new Date(event.event_date);
+      if (eventDate < cutoffDate) return false;
+
+      if (eventTypeFilter.length > 0 && !eventTypeFilter.includes(event.event_type)) {
+        return false;
+      }
+
+      if (selectedCountries.length > 0 && !selectedCountries.includes(event.country)) {
+        return false;
+      }
+
+      if (selectedRegions.length > 0 && !selectedRegions.includes(event.admin1)) {
+        return false;
+      }
+
+      if (!event.latitude || !event.longitude) return false;
+
+      return true;
+    }).sort((a, b) => {
+      const aTime = new Date(a.event_date).getTime() || 0;
+      const bTime = new Date(b.event_date).getTime() || 0;
+      return bTime - aTime;
+    });
+  }, [acledData, acledEnabled, acledConfig]);
   const scopedAcledData = useMemo(
     () => selectedAnalysisDistricts.length > 0
-      ? filterItemsToDistricts(acledData, selectedAnalysisDistricts, 'latitude', 'longitude')
-      : acledData,
-    [acledData, selectedAnalysisDistricts]
+      ? filterItemsToDistricts(filteredAcledData, selectedAnalysisDistricts, 'latitude', 'longitude')
+      : filteredAcledData,
+    [filteredAcledData, selectedAnalysisDistricts]
   );
   const canUseDistrictDecisionTools = districts.length > 0 && selectedAnalysisDistricts.length > 0;
 
@@ -836,12 +883,16 @@ export default function Home() {
       setImpactStatistics(null);
       setAiAnalysisFields([]);
       setSitrep('');
+      setSitrepTimestamp(null);
       setSelectedFacility(null);
       setRecommendations(null);
+      setRecommendationsAIGenerated(false);
       setDistricts([]);
       setDistrictRawData([]);
       setDistrictAvailableFields([]);
       setDistrictLabelField(null);
+      setSelectedDistrictForForecast(null);
+      setSelectedDistrictForOutlook(null);
       setWorldPopData({});
       setWorldPopLastFetch(null);
       setOsmData(null);
@@ -856,7 +907,19 @@ export default function Home() {
       });
       setSelectedAnalysisDistricts([]);
       setEnabledEvidenceLayers([]);
+      setLatestPrioritizationBoard(null);
       setOperationType('');
+      setCompleteReport(null);
+      setActiveTab('map');
+      setShowChatDrawer(false);
+      setShowPredictions(false);
+      setShowOperationalOutlook(false);
+      setShowPrioritizationBoard(false);
+      setShowTrendAnalysis(false);
+      setShowSitrepModal(false);
+
+      lastImpactPayloadRef.current = '';
+      lastImpactResultRef.current = null;
 
       addToast('All cached data cleared.', 'success');
     } catch (error) {
@@ -1101,35 +1164,57 @@ export default function Home() {
       const disastersToAssess = options.disastersOverride || (filteredDisasters.length > 0 ? filteredDisasters : disasters);
 
       // Include ACLED events only if enabled and available
-      const acledToAssess = options.acledOverride || ((acledEnabled && acledData && acledData.length > 0) ? acledData : []);
-      const impactFacilities = buildImpactFacilitiesPayload(facilityData);
+      const acledToAssess = options.acledOverride || filteredAcledData;
+      const scopedFacilities = selectedAnalysisDistricts.length > 0
+        ? filterFacilitiesToDistricts(facilityData, selectedAnalysisDistricts)
+        : facilityData;
+      const impactFacilities = buildImpactFacilitiesPayload(scopedFacilities);
       const impactDisasters = buildImpactDisastersPayload(disastersToAssess);
       const impactAcledEvents = buildImpactAcledPayload(acledToAssess);
       const requestPayload = {
         facilities: impactFacilities,
         disasters: impactDisasters,
         acledEvents: impactAcledEvents,
-        districts: []
+        districts: selectedAnalysisDistricts
       };
       const payloadJson = JSON.stringify(requestPayload);
 
       console.log(`Impact assessment: ${disastersToAssess.length} GDACS disasters + ${acledToAssess.length} ACLED events`);
       console.log('Impact assessment payload summary:', {
-        facilities: facilityData.length,
+        facilities: scopedFacilities.length,
         disasters: disastersToAssess.length,
         acledEvents: acledToAssess.length,
-        districts: 0,
+        districts: selectedAnalysisDistricts.length,
         bytes: payloadJson.length
       });
 
+      if (scopedFacilities.length === 0) {
+        lastImpactPayloadRef.current = payloadJson;
+        lastImpactResultRef.current = {
+          impactedFacilities: [],
+          statistics: {
+            totalDisasters: disastersToAssess.length,
+            totalFacilities: 0,
+            impactedFacilityCount: 0,
+            percentageImpacted: 0,
+            disasterStats: [],
+            overlappingImpacts: [],
+            affectedDistricts: 0,
+            estimatedAffectedPopulation: null
+          }
+        };
+        applyImpactAssessmentResult(scopedFacilities, lastImpactResultRef.current, disastersToAssess);
+        return;
+      }
+
       if (lastImpactPayloadRef.current === payloadJson && lastImpactResultRef.current) {
         console.log('Impact assessment payload unchanged, reusing cached result');
-        applyImpactAssessmentResult(facilityData, lastImpactResultRef.current, disastersToAssess);
+        applyImpactAssessmentResult(scopedFacilities, lastImpactResultRef.current, disastersToAssess);
         return;
       }
 
       if (payloadJson.length > IMPACT_ASSESSMENT_REMOTE_PAYLOAD_LIMIT_BYTES) {
-        await runImpactAssessmentLocally(requestPayload, facilityData, disastersToAssess);
+        await runImpactAssessmentLocally(requestPayload, scopedFacilities, disastersToAssess);
         return;
       }
 
@@ -1145,14 +1230,14 @@ export default function Home() {
         });
 
         if (response.status === 413) {
-          await runImpactAssessmentLocally(requestPayload, facilityData, disastersToAssess);
+          await runImpactAssessmentLocally(requestPayload, scopedFacilities, disastersToAssess);
           return;
         }
 
         data = await parseApiResponse(response, 'Impact assessment');
       } catch (error) {
         if (String(error?.message || '').includes('status 413')) {
-          await runImpactAssessmentLocally(requestPayload, facilityData, disastersToAssess);
+          await runImpactAssessmentLocally(requestPayload, scopedFacilities, disastersToAssess);
           return;
         }
         throw error;
@@ -1160,7 +1245,7 @@ export default function Home() {
 
       lastImpactPayloadRef.current = payloadJson;
       lastImpactResultRef.current = data;
-      applyImpactAssessmentResult(facilityData, data, disastersToAssess);
+      applyImpactAssessmentResult(scopedFacilities, data, disastersToAssess);
     } catch (error) {
       console.error('Error assessing impact:', error);
       addToast('Failed to assess site impact. Please try again.', 'error');
@@ -1442,10 +1527,11 @@ export default function Home() {
   // Handle facility selection
   const handleFacilitySelect = (facility) => {
     setSelectedFacility(facility);
-    
+    const selectedFacilityKey = getFacilityIdentityKey(facility);
+
     // Find the impacts for this facility
     const facilityImpact = impactedFacilities.find(
-      impact => impact.facility.name === facility.name
+      impact => getFacilityIdentityKey(impact.facility) === selectedFacilityKey
     );
     
     if (facilityImpact) {

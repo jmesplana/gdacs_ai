@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useToast } from './Toast';
+import { getFacilityIdentityKey } from '../lib/facilityIdentity';
 
 const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, onClearCache }) => {
   const { addToast } = useToast();
@@ -142,8 +143,9 @@ const FacilityUploader = ({ onUpload, facilities, impactedFacilities, loading, o
             </thead>
             <tbody>
               {facilities.map((facility, index) => {
+                const facilityKey = getFacilityIdentityKey(facility);
                 const isImpacted = impactedFacilities.some(
-                  impacted => impacted.facility.name === facility.name
+                  impacted => getFacilityIdentityKey(impacted.facility) === facilityKey
                 );
                 
                 return (

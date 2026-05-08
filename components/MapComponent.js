@@ -87,6 +87,7 @@ import { useToast } from './Toast';
 import { getOperationType } from '../config/operationTypes';
 import { buildDistrictRiskIndex } from '../lib/districtRiskScoring';
 import { isPointInDistricts } from '../lib/geo/geometry.js';
+import { getFacilityIdentityKey } from '../lib/facilityIdentity';
 import { getScopedWorldPopData } from '../lib/analysisScope';
 
 // Import constants
@@ -1146,17 +1147,19 @@ const MapComponent = ({
   };
 
   const getRecommendationsCacheKey = (facility) => {
+    const facilityKey = getFacilityIdentityKey(facility);
     const facilityImpacts = impactedFacilities.find(
-      f => f.facility.name === facility?.name
+      f => getFacilityIdentityKey(f.facility) === facilityKey
     )?.impacts || [];
 
-    return `${facility?.name || 'unknown'}_${facilityImpacts.length}`;
+    return `${facilityKey || 'unknown'}_${facilityImpacts.length}`;
   };
 
   // Generate recommendations for a facility
   const handleGenerateRecommendations = async (facility, forceRefresh = false) => {
+    const facilityKey = getFacilityIdentityKey(facility);
     const facilityImpacts = impactedFacilities.find(
-      f => f.facility.name === facility.name
+      f => getFacilityIdentityKey(f.facility) === facilityKey
     )?.impacts || [];
 
     // Check if we have cached recommendations for this facility
@@ -1996,7 +1999,7 @@ const MapComponent = ({
 
     setSelectedFacility(facility);
     const facilityImpacts = impactedFacilities.find(
-      f => f.facility.name === facility.name
+      f => getFacilityIdentityKey(f.facility) === getFacilityIdentityKey(facility)
     )?.impacts || [];
     const analysisDistricts = selectedAnalysisDistricts.map(compactDistrictForAnalysis);
     const scopedWorldPopData = getScopedWorldPopData(worldPopData, analysisDistricts);
@@ -2685,9 +2688,9 @@ const MapComponent = ({
               // Check if any facilities in the cluster are impacted
               const markers = cluster.getAllChildMarkers();
               const hasImpacted = markers.some(marker => {
-                const facilityName = marker.options.title; // We'll set this in the marker
+                const facilityKey = marker.options.facilityKey;
                 return impactedFacilities?.some(
-                  impacted => impacted.facility?.name === facilityName
+                  impacted => getFacilityIdentityKey(impacted.facility) === facilityKey
                 );
               });
 
@@ -2724,9 +2727,10 @@ const MapComponent = ({
             }}
           >
             {showClustering && facilities.map((facility, idx) => {
+              const facilityKey = getFacilityIdentityKey(facility);
               // Fix: impactedFacilities has structure { facility: {...}, impacts: [...] }
               const isImpacted = impactedFacilities?.some(
-                impacted => impacted.facility?.name === facility.name
+                impacted => getFacilityIdentityKey(impacted.facility) === facilityKey
               );
 
               const markerColor = isImpacted ? '#ff4444' : '#4CAF50';
@@ -2753,6 +2757,7 @@ const MapComponent = ({
                   position={[parseFloat(facility.latitude), parseFloat(facility.longitude)]}
                   icon={customIcon}
                   title={facility.name}
+                  facilityKey={facilityKey}
                   eventHandlers={{
                     click: () => {
                       setSelectedFacility(facility);
@@ -2786,8 +2791,9 @@ const MapComponent = ({
           </MarkerClusterGroup>
         )}
         {showFacilitiesLayer && facilities && facilities.length > 0 && !showClustering && facilities.map((facility, idx) => {
+          const facilityKey = getFacilityIdentityKey(facility);
           const isImpacted = impactedFacilities?.some(
-            impacted => impacted.facility?.name === facility.name
+            impacted => getFacilityIdentityKey(impacted.facility) === facilityKey
           );
 
           const markerColor = isImpacted ? '#ff4444' : '#4CAF50';
@@ -2813,6 +2819,7 @@ const MapComponent = ({
               key={`facility-plain-${idx}`}
               position={[parseFloat(facility.latitude), parseFloat(facility.longitude)]}
               icon={customIcon}
+              facilityKey={facilityKey}
               title={facility.name}
               eventHandlers={{
                 click: () => {
@@ -2980,9 +2987,9 @@ const MapComponent = ({
           })),
           aiAnalysisFields: aiAnalysisFields,
           disasters: disasters?.slice(0, 30),
-          impactedFacilities: impactedFacilities?.slice(0, 20),
-          selectedFacilityImpacts: selectedFacility
-            ? (impactedFacilities.find((item) => item?.facility?.name === selectedFacility.name)?.impacts || []).slice(0, 10)
+            impactedFacilities: impactedFacilities?.slice(0, 20),
+            selectedFacilityImpacts: selectedFacility
+            ? (impactedFacilities.find((item) => getFacilityIdentityKey(item?.facility) === getFacilityIdentityKey(selectedFacility))?.impacts || []).slice(0, 10)
             : [],
           impactStatistics: impactStatistics,
           recentAnalysis: analysisData ? JSON.stringify(analysisData).substring(0, 200) : null,
