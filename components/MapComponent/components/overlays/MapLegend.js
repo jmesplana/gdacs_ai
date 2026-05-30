@@ -11,6 +11,7 @@ const MapLegend = ({
   hasFacilities,
   hasStatistics,
   hasAcledData = false,
+  hasOutbreakData = false,
   hasDistricts = false,
   showDistricts,
   setShowDistricts,
@@ -634,6 +635,51 @@ const MapLegend = ({
             </div>
             <span style={{ fontSize: '12px', color: '#666' }}>Response needed</span>
           </div>
+
+          {hasOutbreakData && (
+            <>
+              <div style={{
+                marginTop: '15px',
+                marginBottom: '10px',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                color: '#424242',
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: '#f5f5f5',
+                padding: '6px 10px',
+                borderRadius: '4px'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#be185d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                  <circle cx="12" cy="12" r="4"></circle>
+                  <path d="M12 2v4"></path>
+                  <path d="M12 18v4"></path>
+                  <path d="M2 12h4"></path>
+                  <path d="M18 12h4"></path>
+                </svg>
+                WHO OUTBREAKS
+              </div>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: 'rgba(190, 24, 93, 0.1)',
+                padding: '6px 10px',
+                borderRadius: '4px',
+                border: '1px solid rgba(190, 24, 93, 0.2)'
+              }}>
+                <div style={{
+                  width: '14px',
+                  height: '14px',
+                  borderRadius: '50%',
+                  backgroundColor: '#be185d',
+                  border: '2px solid white',
+                  marginRight: '8px',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                }}></div>
+                <span style={{ fontSize: '12px', color: '#666' }}>WHO Disease Outbreak News</span>
+              </div>
+            </>
+          )}
 
           {hasAcledData && (
             <>

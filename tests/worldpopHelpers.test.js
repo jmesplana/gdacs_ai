@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { formatWorldPopForAI, groupAgeBands } from '../utils/worldpopHelpers.js';
+import { calculateBounds, formatWorldPopForAI, groupAgeBands } from '../utils/worldpopHelpers.js';
 
 test('groupAgeBands returns total, sex totals, and sex split age buckets', () => {
   const grouped = groupAgeBands({
@@ -61,4 +61,50 @@ test('formatWorldPopForAI includes sex-by-age breakdown when available', () => {
   assert.match(text, /Sex by Age Group Totals/);
   assert.match(text, /Under 5: 30 female, 20 male/);
   assert.match(text, /Sex by age: Under 5 30F\/20M/);
+});
+
+test('calculateBounds handles polygon, multipolygon, and malformed coordinate entries', () => {
+  const bounds = calculateBounds([
+    {
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [10, 20],
+            [12, 22],
+            [11, 18],
+            [10, 20],
+          ],
+        ],
+      },
+    },
+    {
+      geometry: {
+        type: 'MultiPolygon',
+        coordinates: [
+          [
+            [
+              [30, -5],
+              [35, -3],
+              [32, -8],
+              [30, -5],
+            ],
+          ],
+        ],
+      },
+    },
+    {
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[null], 'bad-ring'],
+      },
+    },
+  ]);
+
+  assert.deepEqual(bounds, {
+    west: 10,
+    south: -8,
+    east: 35,
+    north: 22,
+  });
 });

@@ -29,6 +29,8 @@ const FilterDrawer = ({
   setShowFacilitiesLayer,
   showAcledLayer,
   setShowAcledLayer,
+  showOutbreakLayer = true,
+  setShowOutbreakLayer,
   showDistrictRiskFill,
   setShowDistrictRiskFill,
   showLabels,
@@ -343,6 +345,53 @@ const FilterDrawer = ({
                     position: 'absolute',
                     top: '2px',
                     left: showClustering ? '22px' : '2px',
+                    transition: 'left 0.3s'
+                  }}
+                  ></div>
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#be185d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                    <circle cx="12" cy="12" r="4"></circle>
+                    <path d="M12 2v4"></path>
+                    <path d="M12 18v4"></path>
+                    <path d="M2 12h4"></path>
+                    <path d="M18 12h4"></path>
+                    <path d="m4.93 4.93 2.83 2.83"></path>
+                    <path d="m16.24 16.24 2.83 2.83"></path>
+                    <path d="m4.93 19.07 2.83-2.83"></path>
+                    <path d="m16.24 7.76 2.83-2.83"></path>
+                  </svg>
+                  <span style={{ fontWeight: 'bold' }}>WHO Outbreaks</span>
+                </div>
+                <div
+                  onClick={() => setShowOutbreakLayer && setShowOutbreakLayer(!showOutbreakLayer)}
+                  style={{
+                    width: '40px',
+                    height: '20px',
+                    backgroundColor: showOutbreakLayer ? '#be185d' : '#e0e0e0',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: showOutbreakLayer ? '22px' : '2px',
                     transition: 'left 0.3s'
                   }}
                   ></div>
@@ -1102,6 +1151,53 @@ const FilterDrawer = ({
                   color: 'var(--aidstack-navy)'
                 }}>
                   {countDisastersSinceHours(72)}
+                </span>
+              </button>
+
+              <button
+                onClick={() => handleDateFilterChange({ target: { value: '30d' }})}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 15px',
+                  borderRadius: '8px',
+                  border: dateFilter === '30d' ? '2px solid var(--aidstack-navy)' : '1px solid #e0e0e0',
+                  backgroundColor: dateFilter === '30d' ? 'rgba(26, 54, 93, 0.1)' : '#f9f9f9',
+                  cursor: 'pointer',
+                  width: '100%',
+                  textAlign: 'left'
+                }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center'
+                }}>
+                  <div style={{
+                    width: '20px',
+                    height: '20px',
+                    backgroundColor: 'rgba(26, 54, 93, 0.1)',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: '10px'
+                  }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                  </div>
+                  <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Last 30 Days</span>
+                </div>
+                <span style={{
+                  fontSize: '12px',
+                  backgroundColor: 'rgba(26, 54, 93, 0.1)',
+                  padding: '3px 8px',
+                  borderRadius: '12px',
+                  fontWeight: 'bold',
+                  color: 'var(--aidstack-navy)'
+                }}>
+                  {countDisastersSinceHours(720)}
                 </span>
               </button>
 

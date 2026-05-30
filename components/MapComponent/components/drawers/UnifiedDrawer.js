@@ -170,7 +170,7 @@ const UnifiedDrawer = ({
           <polyline points="14 2 14 8 20 8"></polyline>
         </svg>
       ),
-      disabled: (impactedFacilities?.length || 0) === 0 && !sitrep
+      disabled: (facilities?.length || 0) === 0 && (impactedFacilities?.length || 0) === 0 && !sitrep
     },
   ];
   const visibleTabIdsByMode = {

@@ -31,6 +31,14 @@ const MapLayersDrawer = ({
   nighttimeBeforeMetadata,
   showRoads,
   setShowRoads,
+  showDisasterIcons,
+  setShowDisasterIcons,
+  showAcledLayer,
+  setShowAcledLayer,
+  showOutbreakLayer,
+  setShowOutbreakLayer,
+  showFacilitiesLayer,
+  setShowFacilitiesLayer,
   showFloodContextLayer,
   setShowFloodContextLayer,
   showDroughtContextLayer,
@@ -66,6 +74,10 @@ const MapLayersDrawer = ({
   // Use either direct props or settings object
   const activeMapLayer = currentMapLayer || settings?.currentMapLayer || 'street';
   const activeShowRoads = showRoads !== undefined ? showRoads : (settings?.showRoads || false);
+  const activeShowDisasterIcons = showDisasterIcons !== undefined ? showDisasterIcons : (settings?.showDisasterIcons ?? true);
+  const activeShowAcledLayer = showAcledLayer !== undefined ? showAcledLayer : (settings?.showAcledLayer ?? true);
+  const activeShowOutbreakLayer = showOutbreakLayer !== undefined ? showOutbreakLayer : (settings?.showOutbreakLayer ?? true);
+  const activeShowFacilitiesLayer = showFacilitiesLayer !== undefined ? showFacilitiesLayer : (settings?.showFacilitiesLayer ?? true);
   const activeShowFloodContextLayer = showFloodContextLayer !== undefined ? showFloodContextLayer : (settings?.showFloodContextLayer || false);
   const activeShowDroughtContextLayer = showDroughtContextLayer !== undefined ? showDroughtContextLayer : (settings?.showDroughtContextLayer || false);
   const activeShowAccessibilityContextLayer = showAccessibilityContextLayer !== undefined ? showAccessibilityContextLayer : (settings?.showAccessibilityContextLayer || false);
@@ -87,6 +99,16 @@ const MapLayersDrawer = ({
       onToggle('showRoads', value);
     } else if (onConfigChange) {
       onConfigChange({ showRoads: value });
+    }
+  };
+
+  const handleOverlayToggle = (key, value, setter) => {
+    if (setter) {
+      setter(value);
+    } else if (onToggle) {
+      onToggle(key, value);
+    } else if (onConfigChange) {
+      onConfigChange({ [key]: value });
     }
   };
 
@@ -360,6 +382,42 @@ const MapLayersDrawer = ({
           <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px', lineHeight: 1.5 }}>
             Turn overlays on and off without changing the basemap.
           </div>
+          <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: activeShowDisasterIcons ? '#e3f2fd' : 'transparent'}}>
+            <input
+              type="checkbox"
+              checked={activeShowDisasterIcons}
+              onChange={(event) => handleOverlayToggle('showDisasterIcons', event.target.checked, setShowDisasterIcons)}
+              style={{marginRight: '10px'}}
+            />
+            <span>GDACS Disasters</span>
+          </label>
+          <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: activeShowAcledLayer ? '#fef3c7' : 'transparent'}}>
+            <input
+              type="checkbox"
+              checked={activeShowAcledLayer}
+              onChange={(event) => handleOverlayToggle('showAcledLayer', event.target.checked, setShowAcledLayer)}
+              style={{marginRight: '10px'}}
+            />
+            <span>ACLED Conflict</span>
+          </label>
+          <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: activeShowOutbreakLayer ? '#fce7f3' : 'transparent'}}>
+            <input
+              type="checkbox"
+              checked={activeShowOutbreakLayer}
+              onChange={(event) => handleOverlayToggle('showOutbreakLayer', event.target.checked, setShowOutbreakLayer)}
+              style={{marginRight: '10px'}}
+            />
+            <span>WHO Outbreaks</span>
+          </label>
+          <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: activeShowFacilitiesLayer ? '#dcfce7' : 'transparent'}}>
+            <input
+              type="checkbox"
+              checked={activeShowFacilitiesLayer}
+              onChange={(event) => handleOverlayToggle('showFacilitiesLayer', event.target.checked, setShowFacilitiesLayer)}
+              style={{marginRight: '10px'}}
+            />
+            <span>Sites</span>
+          </label>
           <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: activeShowRoads ? '#e3f2fd' : 'transparent'}}>
             <input
               type="checkbox"

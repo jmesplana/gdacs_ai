@@ -5,7 +5,7 @@ import { getDisasterTimelineDate } from '../utils/disasterHelpers';
  * Hook for managing timeline playback functionality
  * Handles play/pause, date scrubbing, speed controls, and temporal filtering
  */
-const usePlayback = (disasters = [], acledData = []) => {
+const usePlayback = (disasters = [], acledData = [], outbreaks = []) => {
   const [playbackEnabled, setPlaybackEnabled] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentDate, setCurrentDate] = useState(null);
@@ -18,15 +18,17 @@ const usePlayback = (disasters = [], acledData = []) => {
   useEffect(() => {
     const disasterCount = disasters?.length || 0;
     const acledCount = acledData?.length || 0;
+    const outbreakCount = outbreaks?.length || 0;
 
     const allDates = [];
 
     console.log('Playback: Processing disasters:', disasterCount);
     console.log('Playback: Processing ACLED:', acledCount);
+    console.log('Playback: Processing outbreaks:', outbreakCount);
 
     // Initial app load often mounts playback before async data arrives.
     // Treat that as a neutral empty state rather than a warning condition.
-    if (disasterCount === 0 && acledCount === 0) {
+    if (disasterCount === 0 && acledCount === 0 && outbreakCount === 0) {
       setDateRange({ minDate: null, maxDate: null });
       if (!playbackEnabled) {
         setCurrentDate(null);
@@ -74,6 +76,18 @@ const usePlayback = (disasters = [], acledData = []) => {
       }
     });
 
+    outbreaks?.forEach((outbreak, idx) => {
+      const dateStr = outbreak.filterDate || outbreak.updatedDate || outbreak.reportDate || outbreak.date;
+      if (dateStr) {
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+          allDates.push(date);
+        } else if (idx === 0) {
+          console.log('Playback: Invalid outbreak date format:', dateStr);
+        }
+      }
+    });
+
     console.log('Playback: Total valid dates found:', allDates.length);
     console.log('Playback: Disaster dates found:', disasters?.filter(d => d.pubDate).length || 0);
     console.log('Playback: ACLED dates found:', acledData?.filter(a => a.event_date).length || 0);
@@ -98,7 +112,7 @@ const usePlayback = (disasters = [], acledData = []) => {
     } else {
       console.warn('Playback: No valid dates found in non-empty data set!');
     }
-  }, [disasters, acledData, currentDate, playbackEnabled]); // Added currentDate to dependencies, but with conditional check inside
+  }, [disasters, acledData, outbreaks, currentDate, playbackEnabled]); // Added currentDate to dependencies, but with conditional check inside
 
   // Auto-advance playback
   useEffect(() => {

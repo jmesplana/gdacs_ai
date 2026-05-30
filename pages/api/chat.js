@@ -76,6 +76,7 @@ function shouldUseWebSearch(message = '', context = {}) {
   const hasLoadedOperationalData =
     (context?.facilities?.length || 0) > 0 ||
     (context?.disasters?.length || 0) > 0 ||
+    (context?.outbreaks?.length || 0) > 0 ||
     (context?.acledData?.length || 0) > 0 ||
     Boolean(context?.weatherForecast) ||
     Boolean(context?.worldPopData && Object.keys(context.worldPopData).length > 0) ||
@@ -133,6 +134,7 @@ async function handler(req, res) {
     console.log('Chat API received context:', {
       facilities: context?.facilities?.length,
       disasters: context?.disasters?.length,
+      outbreaks: context?.outbreaks?.length,
       acledData: context?.acledData?.length,
       acledEnabled: context?.acledEnabled,
       osmData: context?.osmData?.features?.length,
@@ -1247,6 +1249,22 @@ function buildContextSummary(context) {
     if (context.disasters.length > 10) {
       summary.push(`... context limited to most relevant disasters for performance`);
     }
+  }
+
+  if (context.outbreaks && context.outbreaks.length > 0) {
+    const diseases = [...new Set(context.outbreaks.map((item) => item.disease).filter(Boolean))];
+    const countries = [...new Set(context.outbreaks.map((item) => item.country).filter(Boolean))];
+    summary.push(`\nWHO DISEASE OUTBREAK NEWS (${context.outbreaks.length} mapped outbreak locations in current filter):`);
+    if (diseases.length > 0) summary.push(`- Diseases: ${diseases.slice(0, 12).join(', ')}`);
+    if (countries.length > 0) summary.push(`- Countries: ${countries.slice(0, 16).join(', ')}`);
+    context.outbreaks.slice(0, 10).forEach((outbreak) => {
+      summary.push(`- ${outbreak.reportDate || 'Unknown date'}: ${outbreak.title || outbreak.disease} (${outbreak.country || 'Unknown country'})`);
+      if (outbreak.metrics?.cases || outbreak.metrics?.deaths || outbreak.metrics?.cfr) {
+        summary.push(`  Metrics: cases ${outbreak.metrics.cases ?? 'unknown'}, deaths ${outbreak.metrics.deaths ?? 'unknown'}, CFR ${outbreak.metrics.cfr ?? 'unknown'}`);
+      }
+      if (outbreak.sourceUrl) summary.push(`  WHO source: ${outbreak.sourceUrl}`);
+    });
+    summary.push('Use these WHO DONS items as loaded workspace context before web search when discussing disease outbreaks.');
   }
 
   // Impact statistics

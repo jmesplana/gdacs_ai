@@ -16,6 +16,7 @@ const SitrepDrawer = ({
 }) => {
   const { addToast } = useToast();
   const [progressMsg, setProgressMsg] = useState('');
+  const canGenerateSitrep = (facilities?.length || 0) > 0 || impactedFacilities.length > 0;
   useEffect(() => {
     if (!sitrepLoading) { setProgressMsg(''); return; }
     const msgs = [
@@ -266,7 +267,7 @@ const SitrepDrawer = ({
                 fontSize: '12px',
                 fontWeight: 700
               }}>
-                {impactedFacilities.length} impacted sites
+                {facilities?.length || impactedFacilities.length} sites, {impactedFacilities.length} impacted
               </div>
               {timestamp && (
                 <div style={{
@@ -304,12 +305,12 @@ const SitrepDrawer = ({
                   Generate or refresh the current report
                 </div>
                 <div style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
-                  Uses the current disaster filter, impacted sites, uploaded ACLED context, OSM context, and population data already loaded in the workspace.
+                  Uses the current disaster filter, uploaded sites, impacted-site results when available, outbreak context, ACLED context, OSM context, and population data already loaded in the workspace.
                 </div>
               </div>
               <button
                 onClick={() => {
-                  if (impactedFacilities.length > 0) {
+                  if (canGenerateSitrep) {
                     onGenerateSitrep(true);
                   }
                 }}
@@ -321,14 +322,14 @@ const SitrepDrawer = ({
                   borderRadius: '10px',
                   fontSize: '14px',
                   fontWeight: '700',
-                  cursor: impactedFacilities.length > 0 && !sitrepLoading ? 'pointer' : 'not-allowed',
+                  cursor: canGenerateSitrep && !sitrepLoading ? 'pointer' : 'not-allowed',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  opacity: impactedFacilities.length > 0 && !sitrepLoading ? 1 : 0.5,
-                  pointerEvents: impactedFacilities.length > 0 && !sitrepLoading ? 'auto' : 'none'
+                  opacity: canGenerateSitrep && !sitrepLoading ? 1 : 0.5,
+                  pointerEvents: canGenerateSitrep && !sitrepLoading ? 'auto' : 'none'
                 }}
-                disabled={impactedFacilities.length === 0 || sitrepLoading}
+                disabled={!canGenerateSitrep || sitrepLoading}
               >
                 {sitrepLoading ? (
                   <>
@@ -350,9 +351,9 @@ const SitrepDrawer = ({
               </button>
             </div>
 
-            {impactedFacilities.length === 0 && (
+            {!canGenerateSitrep && (
               <div style={{ fontSize: '12px', color: '#64748b' }}>
-                Upload sites and run impact assessment first.
+                Upload sites before generating a situation report.
               </div>
             )}
           </div>

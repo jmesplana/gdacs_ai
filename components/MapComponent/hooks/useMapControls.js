@@ -26,6 +26,7 @@ export const useMapControls = () => {
   const [showClustering, setShowClustering] = useState(true);
   const [showFacilitiesLayer, setShowFacilitiesLayer] = useState(true);
   const [showAcledLayer, setShowAcledLayer] = useState(true);
+  const [showOutbreakLayer, setShowOutbreakLayer] = useState(true);
   const [showFloodContextLayer, setShowFloodContextLayer] = useState(false);
   const [showDroughtContextLayer, setShowDroughtContextLayer] = useState(false);
   const [showAccessibilityContextLayer, setShowAccessibilityContextLayer] = useState(false);
@@ -133,6 +134,7 @@ export const useMapControls = () => {
     showClustering,
     showFacilitiesLayer,
     showAcledLayer,
+    showOutbreakLayer,
     showFloodContextLayer,
     showDroughtContextLayer,
     showAccessibilityContextLayer,
@@ -173,6 +175,7 @@ export const useMapControls = () => {
     setShowClustering,
     setShowFacilitiesLayer,
     setShowAcledLayer,
+    setShowOutbreakLayer,
     setShowFloodContextLayer,
     setShowDroughtContextLayer,
     setShowAccessibilityContextLayer,

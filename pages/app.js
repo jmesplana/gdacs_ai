@@ -18,6 +18,7 @@ import {
   loadWorkspace,
   clearWorkspace
 } from '../lib/storage/workspaceStore';
+import { expandOutbreakMapFeatures } from '../lib/whoOutbreaks';
 
 // Import components with dynamic loading (no SSR) for Leaflet compatibility
 const MapComponent = dynamic(() => import('../components/MapComponent'), {
@@ -429,6 +430,9 @@ export default function Home() {
 
   const [disasters, setDisasters] = useState([]);
   const [filteredDisasters, setFilteredDisasters] = useState([]);
+  const [outbreakReports, setOutbreakReports] = useState([]);
+  const [outbreaks, setOutbreaks] = useState([]);
+  const [filteredOutbreaks, setFilteredOutbreaks] = useState([]);
   const [gdacsDiagnostics, setGdacsDiagnostics] = useState(null);
   const [facilities, setFacilities] = useState([]);
   const [impactedFacilities, setImpactedFacilities] = useState([]);
@@ -440,13 +444,14 @@ export default function Home() {
   const [sitrepTimestamp, setSitrepTimestamp] = useState(null);
   const [loading, setLoading] = useState({
     disasters: true,
+    outbreaks: true,
     impact: false,
     recommendations: false,
     sitrep: false
   });
   const [activeTab, setActiveTab] = useState('map');
   const [dataSource, setDataSource] = useState('');
-  const [dateFilter, setDateFilter] = useState('all'); // default to all fetched GDACS events
+  const [dateFilter, setDateFilter] = useState('30d'); // default to recent operational updates
   const [fetchError, setFetchError] = useState(null);
   const [showHelp, setShowHelp] = useState(false); // Help panel visibility
   const [showChatDrawer, setShowChatDrawer] = useState(false); // Chat drawer visibility
@@ -542,6 +547,14 @@ export default function Home() {
     [filteredAcledData, selectedAnalysisDistricts]
   );
   const canUseDistrictDecisionTools = districts.length > 0 && selectedAnalysisDistricts.length > 0;
+  const canOpenSitrep = facilities.length > 0 && (
+    impactedFacilities.length > 0 ||
+    filteredDisasters.length > 0 ||
+    disasters.length > 0 ||
+    filteredOutbreaks.length > 0 ||
+    outbreaks.length > 0 ||
+    districts.length > 0
+  );
 
   // Toast notifications
   const { toasts, addToast, dismissToast } = useToast();
@@ -710,7 +723,11 @@ export default function Home() {
 
   // Filter disasters when disaster data or date filter changes
   useEffect(() => {
+    console.log('🔄 DATE FILTER CHANGED:', dateFilter);
+    console.log('📊 Total outbreaks before filtering:', outbreaks.length);
+
     const nextFilteredDisasters = filterDisastersByDate(dateFilter);
+    filterOutbreaksByDate(dateFilter);
 
     // Debug logging for disaster data
     console.log('Disasters data state:', {
@@ -724,7 +741,7 @@ export default function Home() {
       console.log('Auto-refreshing impact assessment due to filter change');
       assessImpact(facilities, { disastersOverride: nextFilteredDisasters });
     }
-  }, [disasters, dateFilter]);
+  }, [disasters, outbreaks, dateFilter]);
 
   // Re-assess impact when ACLED data or enabled state changes
   useEffect(() => {
@@ -740,6 +757,7 @@ export default function Home() {
   // Initialize with disaster data on mount
   useEffect(() => {
     fetchDisasterData();
+    fetchOutbreakData();
   }, []);
 
   // Fetch GDACS disaster data
@@ -811,6 +829,69 @@ export default function Home() {
     }
   };
 
+  const fetchOutbreakData = async () => {
+    try {
+      setLoading(prev => ({ ...prev, outbreaks: true }));
+
+      const response = await fetch(`/api/who-outbreaks?ts=${Date.now()}`, {
+        cache: 'no-store'
+      });
+      if (!response.ok) {
+        console.warn(`WHO outbreaks unavailable (status ${response.status}). Continuing without outbreak data.`);
+        setOutbreakReports([]);
+        setOutbreaks([]);
+        setFilteredOutbreaks([]);
+        return;
+      }
+
+      const data = await parseApiResponse(response, 'WHO outbreaks');
+      const reports = Array.isArray(data?.reports) ? data.reports : [];
+      const features = Array.isArray(data?.mapFeatures)
+        ? data.mapFeatures
+        : reports.flatMap(expandOutbreakMapFeatures);
+
+      const validFeatures = features
+        .filter((item) => item.latitude !== null && item.longitude !== null)
+        .map((item) => ({
+          ...item,
+          latitude: typeof item.latitude === 'string' ? parseFloat(item.latitude) : item.latitude,
+          longitude: typeof item.longitude === 'string' ? parseFloat(item.longitude) : item.longitude
+        }))
+        .filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+
+      setOutbreakReports(reports);
+      setOutbreaks(validFeatures);
+      const initiallyFilteredOutbreaks = filterOutbreaksByDate(dateFilter, validFeatures, false);
+      setFilteredOutbreaks(initiallyFilteredOutbreaks);
+
+      console.log('🦠 WHO OUTBREAKS LOADED:', {
+        reports: reports.length,
+        mapFeatures: validFeatures.length,
+        filtered: initiallyFilteredOutbreaks.length,
+        dateFilter,
+        diagnostics: data?.diagnostics || null,
+        recentItems: validFeatures
+          .sort((a, b) => new Date(b.filterDate || 0) - new Date(a.filterDate || 0))
+          .slice(0, 5)
+          .map((item) => ({
+            title: item.title,
+            country: item.country,
+            filterDate: item.filterDate,
+            updatedDate: item.updatedDate,
+            reportDate: item.reportDate,
+            daysAgo: item.filterDate ? Math.floor((Date.now() - new Date(item.filterDate).getTime()) / (1000 * 60 * 60 * 24)) : 'N/A'
+          }))
+      });
+    } catch (error) {
+      console.error('Error fetching WHO outbreaks:', error);
+      setOutbreakReports([]);
+      setOutbreaks([]);
+      setFilteredOutbreaks([]);
+    } finally {
+      setLoading(prev => ({ ...prev, outbreaks: false }));
+    }
+  };
+
   // Filter disasters based on the selected date range
   const filterDisastersByDate = (filter, sourceDisasters = disasters, updateState = true) => {
     if (!sourceDisasters || sourceDisasters.length === 0) {
@@ -872,6 +953,100 @@ export default function Home() {
     return filtered;
   };
 
+  const filterOutbreaksByDate = (filter, sourceOutbreaks = outbreaks, updateState = true) => {
+    if (!sourceOutbreaks || sourceOutbreaks.length === 0) {
+      if (updateState) {
+        setFilteredOutbreaks([]);
+      }
+      return [];
+    }
+
+    if (filter === 'all') {
+      if (updateState) {
+        setFilteredOutbreaks(sourceOutbreaks);
+      }
+      return sourceOutbreaks;
+    }
+
+    const now = new Date();
+    let cutoffDate;
+
+    switch (filter) {
+      case '24h':
+        cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        break;
+      case '48h':
+        cutoffDate = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+        break;
+      case '72h':
+        cutoffDate = new Date(now.getTime() - 72 * 60 * 60 * 1000);
+        break;
+      case '7d':
+        cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        cutoffDate = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    }
+
+    // Use the pre-computed WHO publication date from normalizeWhoOutbreakItem.
+    const filtered = sourceOutbreaks.filter((outbreak) => {
+      const filterDate = outbreak.filterDate ? new Date(outbreak.filterDate) : null;
+
+      if (!filterDate || Number.isNaN(filterDate.getTime())) {
+        console.log('Invalid filterDate for outbreak:', {
+          title: outbreak.title,
+          filterDate: outbreak.filterDate,
+          reportDate: outbreak.reportDate,
+          updatedDate: outbreak.updatedDate
+        });
+        return false;
+      }
+
+      const passes = filterDate >= cutoffDate;
+
+      if (!passes && filter !== 'all') {
+        console.log('Outbreak filtered out:', {
+          title: outbreak.title,
+          country: outbreak.country,
+          filterDate: filterDate.toISOString(),
+          cutoffDate: cutoffDate.toISOString(),
+          diff: (cutoffDate - filterDate) / (1000 * 60 * 60 * 24) + ' days'
+        });
+      }
+
+      return passes;
+    });
+
+    console.log('WHO outbreak date filter:', {
+      filter,
+      cutoffDate: cutoffDate.toISOString(),
+      sourceCount: sourceOutbreaks.length,
+      filteredCount: filtered.length,
+      sampleDates: sourceOutbreaks.slice(0, 5).map((outbreak) => ({
+        title: outbreak.title,
+        country: outbreak.country,
+        filterDate: outbreak.filterDate,
+        reportDate: outbreak.reportDate,
+        updatedDate: outbreak.updatedDate,
+        passesFilter: outbreak.filterDate && new Date(outbreak.filterDate) >= cutoffDate
+      }))
+    });
+
+    if (updateState) {
+      console.log('Setting filteredOutbreaks state:', {
+        filter,
+        count: filtered.length,
+        samples: filtered.slice(0, 3).map(o => ({ title: o.title, country: o.country, filterDate: o.filterDate }))
+      });
+      setFilteredOutbreaks(filtered);
+    }
+
+    return filtered;
+  };
+
   // Handle clearing cached facility data
   const handleClearCache = async () => {
     try {
@@ -881,6 +1056,9 @@ export default function Home() {
       setFacilities([]);
       setImpactedFacilities([]);
       setImpactStatistics(null);
+      setOutbreakReports([]);
+      setOutbreaks([]);
+      setFilteredOutbreaks([]);
       setAiAnalysisFields([]);
       setSitrep('');
       setSitrepTimestamp(null);
@@ -1378,6 +1556,21 @@ export default function Home() {
       polygon: Array.isArray(item?.polygon) ? item.polygon.slice(0, 25) : undefined
     }));
 
+  const compactSitrepOutbreaks = (items = [], maxItems = 80) =>
+    (items || []).slice(0, maxItems).map((item) => ({
+      title: item?.title,
+      disease: item?.disease,
+      reportDate: item?.reportDate,
+      updatedDate: item?.updatedDate,
+      country: item?.country,
+      affectedCountries: item?.affectedCountries,
+      latitude: item?.latitude,
+      longitude: item?.longitude,
+      metrics: item?.metrics,
+      source: item?.source,
+      sourceUrl: item?.sourceUrl
+    }));
+
   const compactSitrepAcled = (items = [], maxItems = 100) =>
     (items || []).slice(0, maxItems).map((item) => ({
       event_date: item?.event_date,
@@ -1484,6 +1677,7 @@ export default function Home() {
       const requestBody = JSON.stringify({
         impactedFacilities: compactSitrepImpactedFacilities(impactedFacilities),
         disasters: compactSitrepDisasters(filteredDisasters.length > 0 ? filteredDisasters : disasters),
+        outbreaks: compactSitrepOutbreaks(filteredOutbreaks),
         dateFilter: dateFilter,
         statistics: compactSitrepStatistics(impactStatistics),
         acledData: acledEnabled ? compactSitrepAcled(scopedAcledData) : [],
@@ -1519,7 +1713,7 @@ export default function Home() {
   };
 
   const openSitrepModal = async (forceRefresh = false) => {
-    if (impactedFacilities.length === 0) return;
+    if (!canOpenSitrep) return;
     setShowSitrepModal(true);
     await generateSitrep(forceRefresh);
   };
@@ -2648,11 +2842,13 @@ export default function Home() {
           canUseDistrictDecisionTools={canUseDistrictDecisionTools}
           onOpenSitrep={() => openSitrepModal()}
           sitrepLoading={loading.sitrep}
-          canOpenSitrep={impactedFacilities.length > 0}
+          canOpenSitrep={canOpenSitrep}
         />
 
         <MapComponent
           disasters={filteredDisasters}
+          outbreaks={filteredOutbreaks}
+          outbreakReports={outbreakReports}
           allDisasters={disasters}
           gdacsDiagnostics={gdacsDiagnostics ? {
             ...gdacsDiagnostics,

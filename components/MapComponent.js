@@ -26,6 +26,7 @@ import {
   MapAccess,
   DrawingLayer,
   DisasterMarkers,
+  OutbreakMarkers,
   StatisticsPanel,
   TimelineVisualization,
   AcledMarkers
@@ -730,6 +731,8 @@ const MapComponent = ({
   aiAnalysisFields = [],
   onClearCache,
   acledData = [],
+  outbreaks = [],
+  outbreakReports = [],
   acledEnabled = true,
   acledConfig = {},
   onAcledUpload,
@@ -822,6 +825,7 @@ const MapComponent = ({
     showClustering,
     showFacilitiesLayer,
     showAcledLayer,
+    showOutbreakLayer,
     showFloodContextLayer,
     showDroughtContextLayer,
     showAccessibilityContextLayer,
@@ -856,6 +860,7 @@ const MapComponent = ({
     setShowClustering,
     setShowFacilitiesLayer,
     setShowAcledLayer,
+    setShowOutbreakLayer,
     setShowFloodContextLayer,
     setShowDroughtContextLayer,
     setShowAccessibilityContextLayer,
@@ -910,7 +915,7 @@ const MapComponent = ({
     changeSpeed,
     jumpToDate,
     filterByPlaybackDate
-  } = usePlayback(filteredDisasters, acledData);
+  } = usePlayback(filteredDisasters, acledData, outbreaks);
 
   // WorldPop hook
   const {
@@ -1531,6 +1536,10 @@ const MapComponent = ({
     () => (playbackEnabled ? filterByPlaybackDate(filteredAcledData, 'event_date') : filteredAcledData),
     [playbackEnabled, filterByPlaybackDate, filteredAcledData]
   );
+  const visibleOutbreaks = useMemo(
+    () => (playbackEnabled ? filterByPlaybackDate(outbreaks, 'filterDate') : outbreaks),
+    [playbackEnabled, filterByPlaybackDate, outbreaks]
+  );
   const facilityImpactState = useMemo(() => {
     const keys = new Set();
 
@@ -2145,6 +2154,8 @@ const MapComponent = ({
         setShowFacilitiesLayer={setShowFacilitiesLayer}
         showAcledLayer={showAcledLayer}
         setShowAcledLayer={setShowAcledLayer}
+        showOutbreakLayer={showOutbreakLayer}
+        setShowOutbreakLayer={setShowOutbreakLayer}
         showDistrictRiskFill={showDistrictRiskFill}
         setShowDistrictRiskFill={setShowDistrictRiskFill}
         showLabels={showLabels}
@@ -2269,6 +2280,14 @@ const MapComponent = ({
         nighttimeBeforeMetadata={nighttimeBeforeMetadata}
         showRoads={showRoads}
         setShowRoads={setShowRoads}
+        showDisasterIcons={showDisasterIcons}
+        setShowDisasterIcons={setShowDisasterIcons}
+        showAcledLayer={showAcledLayer}
+        setShowAcledLayer={setShowAcledLayer}
+        showOutbreakLayer={showOutbreakLayer}
+        setShowOutbreakLayer={setShowOutbreakLayer}
+        showFacilitiesLayer={showFacilitiesLayer}
+        setShowFacilitiesLayer={setShowFacilitiesLayer}
         showFloodContextLayer={showFloodContextLayer}
         setShowFloodContextLayer={setShowFloodContextLayer}
         showDroughtContextLayer={showDroughtContextLayer}
@@ -2351,6 +2370,7 @@ const MapComponent = ({
           hasFacilities={facilities && facilities.length > 0}
           hasStatistics={!!impactStatistics}
           hasAcledData={acledEnabled && acledData && acledData.length > 0}
+          hasOutbreakData={outbreaks && outbreaks.length > 0}
           hasDistricts={districts && districts.length > 0}
           showDistricts={showDistricts}
           setShowDistricts={setShowDistricts}
@@ -2653,6 +2673,15 @@ const MapComponent = ({
             acledData={visibleAcledEvents}
             acledEnabled={acledEnabled}
             acledConfig={acledConfig}
+            showClusterCounts={showClusterCounts}
+            showClustering={showClustering}
+          />
+        )}
+
+        {showOutbreakLayer && visibleOutbreaks && visibleOutbreaks.length > 0 && (
+          <OutbreakMarkers
+            key={`outbreak-markers-${showClusterCounts ? 'counts' : 'no-counts'}-${showClustering ? 'clustered' : 'plain'}-${visibleOutbreaks.length}`}
+            outbreaks={visibleOutbreaks}
             showClusterCounts={showClusterCounts}
             showClustering={showClustering}
           />
@@ -2994,6 +3023,26 @@ const MapComponent = ({
           })),
           aiAnalysisFields: aiAnalysisFields,
           disasters: disasters?.slice(0, 30),
+          outbreaks: visibleOutbreaks?.slice(0, 40).map((outbreak) => ({
+            title: outbreak.title,
+            disease: outbreak.disease,
+            reportDate: outbreak.reportDate,
+            updatedDate: outbreak.updatedDate,
+            country: outbreak.country,
+            affectedCountries: outbreak.affectedCountries,
+            metrics: outbreak.metrics,
+            source: outbreak.source,
+            sourceUrl: outbreak.sourceUrl
+          })),
+          outbreakReports: outbreakReports?.slice(0, 20).map((report) => ({
+            title: report.title,
+            disease: report.disease,
+            reportDate: report.reportDate,
+            updatedDate: report.updatedDate,
+            countries: report.countries,
+            metrics: report.metrics,
+            sourceUrl: report.sourceUrl
+          })),
             impactedFacilities: impactedFacilities?.slice(0, 20),
             selectedFacilityImpacts: selectedFacility
             ? (impactedFacilities.find((item) => getFacilityIdentityKey(item?.facility) === getFacilityIdentityKey(selectedFacility))?.impacts || []).slice(0, 10)
@@ -3045,6 +3094,7 @@ const MapComponent = ({
       <CampaignDashboard
         facilities={facilities}
         disasters={visibleDisasters}
+        outbreaks={visibleOutbreaks}
         impactedFacilities={impactedFacilities}
         acledData={filteredAcledData}
         acledEnabled={acledEnabled}

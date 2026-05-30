@@ -24,6 +24,7 @@ async function handler(req, res) {
     const {
       impactedFacilities,
       disasters,
+      outbreaks = [],
       dateFilter,
       statistics,
       acledData = [],
@@ -57,6 +58,7 @@ async function handler(req, res) {
 
     // Generate situation overview
     const situationOverview = createSituationOverview(impactedFacilities, disasters, statistics, scope);
+    const outbreakContext = createOutbreakContext(outbreaks);
 
     let recentExternalContext = null;
     if (includeWebSearch) {
@@ -74,6 +76,7 @@ async function handler(req, res) {
         impactedFacilities,
         disasters,
         situationOverview,
+        outbreakContext,
         dateFilterText,
         statistics,
         acledData,
@@ -119,7 +122,7 @@ async function handler(req, res) {
 }
 
 // Generate situation report using OpenAI
-async function generateAISitrep(impactedFacilities, disasters, situationOverview, dateFilterText, statistics, acledData = [], osmData = null, worldPopData = {}, worldPopYear = null, districts = [], uploadedDataSchema = null, scope = {}, recentExternalContext = null) {
+async function generateAISitrep(impactedFacilities, disasters, situationOverview, outbreakContext = '', dateFilterText, statistics, acledData = [], osmData = null, worldPopData = {}, worldPopYear = null, districts = [], uploadedDataSchema = null, scope = {}, recentExternalContext = null) {
   try {
     // Get current date and time
     const date = new Date().toISOString().split('T')[0];
@@ -127,6 +130,9 @@ async function generateAISitrep(impactedFacilities, disasters, situationOverview
 
     // Build enhanced context
     let enhancedContext = situationOverview;
+    if (outbreakContext) {
+      enhancedContext += outbreakContext;
+    }
 
     // Add ACLED security context
     if (acledData && acledData.length > 0) {
@@ -396,6 +402,53 @@ function createSituationOverview(impactedFacilities, disasters, statistics, scop
   }
   
   return overview;
+}
+
+function createOutbreakContext(outbreaks = []) {
+  if (!Array.isArray(outbreaks) || outbreaks.length === 0) return '';
+
+  const uniqueReports = new Map();
+  outbreaks.forEach((outbreak) => {
+    const key = outbreak.reportId || outbreak.sourceUrl || outbreak.title;
+    if (!key || uniqueReports.has(key)) return;
+    uniqueReports.set(key, outbreak);
+  });
+
+  const reports = Array.from(uniqueReports.values()).slice(0, 20);
+  const countries = new Set();
+  const diseases = new Set();
+  let totalCases = 0;
+  let totalDeaths = 0;
+
+  outbreaks.forEach((outbreak) => {
+    if (outbreak.country) countries.add(outbreak.country);
+    if (outbreak.disease) diseases.add(outbreak.disease);
+    const cases = Number(outbreak.metrics?.cases);
+    const deaths = Number(outbreak.metrics?.deaths);
+    if (Number.isFinite(cases)) totalCases += cases;
+    if (Number.isFinite(deaths)) totalDeaths += deaths;
+  });
+
+  let context = '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+  context += `PUBLIC HEALTH OUTBREAK CONTEXT - WHO DONS (${reports.length} reports, ${outbreaks.length} mapped locations)\n`;
+  context += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+  context += `- Affected countries mapped: ${countries.size > 0 ? Array.from(countries).join(', ') : 'Unknown'}\n`;
+  context += `- Diseases reported: ${diseases.size > 0 ? Array.from(diseases).slice(0, 12).join(', ') : 'Unknown'}\n`;
+  if (totalCases > 0) context += `- Extracted case count across reports: ${totalCases.toLocaleString()}\n`;
+  if (totalDeaths > 0) context += `- Extracted death count across reports: ${totalDeaths.toLocaleString()}\n`;
+  context += '- Use WHO outbreak data as source-linked public-health context. Case/death/CFR extraction may be article-level and should be described as WHO DONS-reported or extracted when cited.\n\n';
+  context += 'Recent WHO DONS reports in current date filter:\n';
+
+  reports.forEach((outbreak) => {
+    const metrics = outbreak.metrics || {};
+    context += `- ${outbreak.reportDate || 'Unknown date'}: ${outbreak.title || outbreak.disease || 'Outbreak report'} (${outbreak.affectedCountries?.join(', ') || outbreak.country || 'Unknown location'})\n`;
+    if (metrics.cases || metrics.deaths || metrics.cfr) {
+      context += `  Metrics: cases ${metrics.cases ?? 'unknown'}, deaths ${metrics.deaths ?? 'unknown'}, CFR ${metrics.cfr ?? 'unknown'}\n`;
+    }
+    if (outbreak.sourceUrl) context += `  Source: ${outbreak.sourceUrl}\n`;
+  });
+
+  return context;
 }
 
 // Simplified fallback sitrep prompt

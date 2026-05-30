@@ -45,24 +45,52 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
       setUploadProgress({ step: 'Extracting files...', progress: 20 });
       const zip = await JSZip.loadAsync(arrayBuffer);
 
-      // Find required files
-      let shpFile = null;
-      let dbfFile = null;
-      let prjFile = null;
+      // Find shapefile components by basename so nested ZIP folders and multiple
+      // shapefiles do not accidentally mix unrelated .shp/.dbf files.
+      const componentGroups = new Map();
+      const foundFiles = [];
 
       for (const [filename, fileData] of Object.entries(zip.files)) {
-        if (filename.toLowerCase().endsWith('.shp')) {
-          shpFile = await fileData.async('arraybuffer');
-        } else if (filename.toLowerCase().endsWith('.dbf')) {
-          dbfFile = await fileData.async('arraybuffer');
-        } else if (filename.toLowerCase().endsWith('.prj')) {
-          prjFile = await fileData.async('arraybuffer');
-          console.log('Found projection file (.prj)');
-        }
+        if (fileData.dir) continue;
+
+        const normalizedName = filename.replace(/\\/g, '/');
+        const displayName = normalizedName.split('/').pop();
+        const match = displayName.match(/^(.+)\.(shp|dbf|prj|shx)$/i);
+        if (!match) continue;
+
+        foundFiles.push(normalizedName);
+        const basename = `${normalizedName.slice(0, normalizedName.length - match[2].length - 1)}`.toLowerCase();
+        const extension = match[2].toLowerCase();
+        const group = componentGroups.get(basename) || { basename, files: {} };
+        group.files[extension] = fileData;
+        componentGroups.set(basename, group);
       }
 
-      if (!shpFile || !dbfFile) {
-        throw new Error('Missing required files. Your ZIP must contain:\n• .shp file (geometry)\n• .dbf file (attributes)\n• .prj file (projection - recommended)\n\nTip: Export from QGIS or ArcGIS as a shapefile and ensure all files are zipped together.');
+      const groups = Array.from(componentGroups.values());
+      const selectedGroup = groups.find(group => group.files.shp && group.files.dbf)
+        || groups.find(group => group.files.shp);
+
+      if (!selectedGroup?.files.shp) {
+        const foundList = foundFiles.length > 0
+          ? `\n\nFiles found in ZIP:\n${foundFiles.slice(0, 20).map(name => `• ${name}`).join('\n')}`
+          : '\n\nNo .shp, .dbf, .prj, or .shx files were found in the ZIP.';
+        throw new Error(`Missing required geometry file. Your ZIP must contain at least a .shp file.${foundList}\n\nTip: Export from QGIS or ArcGIS as an ESRI Shapefile and zip the generated files together.`);
+      }
+
+      const shpFile = await selectedGroup.files.shp.async('arraybuffer');
+      const dbfFile = selectedGroup.files.dbf
+        ? await selectedGroup.files.dbf.async('arraybuffer')
+        : null;
+      const prjFile = selectedGroup.files.prj
+        ? await selectedGroup.files.prj.async('arraybuffer')
+        : null;
+
+      if (prjFile) {
+        console.log('Found projection file (.prj)');
+      }
+
+      if (!dbfFile) {
+        console.warn('No matching .dbf file found; loading shapefile geometry without attributes.');
       }
 
       // Check file sizes
@@ -82,7 +110,9 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
       console.log('Processing shapefile locally in browser...');
 
       // Open shapefile using the shapefile library (works in browser!)
-      const source = await shapefile.open(shpFile, dbfFile);
+      const source = dbfFile
+        ? await shapefile.open(shpFile, dbfFile)
+        : await shapefile.open(shpFile);
 
       let features = [];
       let result = await source.read();

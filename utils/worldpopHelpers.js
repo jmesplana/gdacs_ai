@@ -196,23 +196,38 @@ export function calculateBounds(districts) {
   let south = Infinity;
   let north = -Infinity;
 
+  const includePosition = (position) => {
+    if (!Array.isArray(position) || position.length < 2) return;
+
+    const [lng, lat] = position;
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+
+    if (lng < west) west = lng;
+    if (lng > east) east = lng;
+    if (lat < south) south = lat;
+    if (lat > north) north = lat;
+  };
+
+  const walkCoordinates = (coordinates) => {
+    if (!Array.isArray(coordinates) || coordinates.length === 0) return;
+
+    if (
+      coordinates.length >= 2 &&
+      Number.isFinite(coordinates[0]) &&
+      Number.isFinite(coordinates[1])
+    ) {
+      includePosition(coordinates);
+      return;
+    }
+
+    coordinates.forEach(walkCoordinates);
+  };
+
   for (const district of districts) {
     const geometry = district.geometry;
     if (!geometry || !geometry.coordinates) continue;
 
-    // Handle both Polygon and MultiPolygon
-    const coordArrays = geometry.type === 'MultiPolygon'
-      ? geometry.coordinates.flat(1)
-      : geometry.coordinates;
-
-    for (const ring of coordArrays) {
-      for (const [lng, lat] of ring) {
-        if (lng < west) west = lng;
-        if (lng > east) east = lng;
-        if (lat < south) south = lat;
-        if (lat > north) north = lat;
-      }
-    }
+    walkCoordinates(geometry.coordinates);
   }
 
   // Return null if no valid coordinates found
