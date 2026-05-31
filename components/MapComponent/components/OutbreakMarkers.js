@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -64,6 +64,36 @@ function buildOutbreakIcon() {
 const OutbreakMarkers = ({ outbreaks = [], showClusterCounts = true, showClustering = true }) => {
   const map = useMap();
   const layerRef = useRef(null);
+  const [zoom, setZoom] = useState(() => map.getZoom());
+
+  useEffect(() => {
+    const handleZoom = () => setZoom(map.getZoom());
+    map.on('zoomend', handleZoom);
+    return () => map.off('zoomend', handleZoom);
+  }, [map]);
+
+  const visibleOutbreaks = useMemo(() => {
+    const detailedKeys = new Set();
+    const countryKeys = new Set();
+
+    (outbreaks || []).forEach((outbreak) => {
+      const key = `${outbreak.reportId || outbreak.title || ''}__${outbreak.country || ''}`;
+      if ((outbreak.locationType || '').toLowerCase() === 'country') {
+        countryKeys.add(key);
+      } else {
+        detailedKeys.add(key);
+      }
+    });
+
+    return (outbreaks || []).filter((outbreak) => {
+      const isCountry = (outbreak.locationType || '').toLowerCase() === 'country';
+      const key = `${outbreak.reportId || outbreak.title || ''}__${outbreak.country || ''}`;
+
+      if (!isCountry) return zoom >= 5 || !countryKeys.has(key);
+
+      return zoom < 5 || !detailedKeys.has(key);
+    });
+  }, [outbreaks, zoom]);
 
   useEffect(() => {
     const layer = showClustering
@@ -102,7 +132,7 @@ const OutbreakMarkers = ({ outbreaks = [], showClusterCounts = true, showCluster
 
     const icon = buildOutbreakIcon();
 
-    (outbreaks || []).forEach((outbreak) => {
+    (visibleOutbreaks || []).forEach((outbreak) => {
       const lat = Number(outbreak.latitude);
       const lng = Number(outbreak.longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
@@ -162,7 +192,7 @@ const OutbreakMarkers = ({ outbreaks = [], showClusterCounts = true, showCluster
       }
       layerRef.current = null;
     };
-  }, [map, outbreaks, showClusterCounts, showClustering]);
+  }, [map, visibleOutbreaks, showClusterCounts, showClustering]);
 
   return null;
 };
