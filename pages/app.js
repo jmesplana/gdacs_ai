@@ -445,10 +445,12 @@ export default function Home() {
   const [loading, setLoading] = useState({
     disasters: true,
     outbreaks: true,
+    outbreaksBackfill: false,
     impact: false,
     recommendations: false,
     sitrep: false
   });
+  const outbreakFetchRunRef = useRef(0);
   const [activeTab, setActiveTab] = useState('map');
   const [dataSource, setDataSource] = useState('');
   const [dateFilter, setDateFilter] = useState('30d'); // default to recent operational updates
@@ -829,48 +831,101 @@ export default function Home() {
     }
   };
 
+  const normalizeOutbreakPayload = (data) => {
+    const reports = Array.isArray(data?.reports) ? data.reports : [];
+    const features = Array.isArray(data?.mapFeatures)
+      ? data.mapFeatures
+      : reports.flatMap(expandOutbreakMapFeatures);
+
+    const validFeatures = features
+      .filter((item) => item.latitude !== null && item.longitude !== null)
+      .map((item) => ({
+        ...item,
+        latitude: typeof item.latitude === 'string' ? parseFloat(item.latitude) : item.latitude,
+        longitude: typeof item.longitude === 'string' ? parseFloat(item.longitude) : item.longitude
+      }))
+      .filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+
+    return { reports, validFeatures };
+  };
+
+  const mergeOutbreakReports = (currentReports = [], nextReports = []) => {
+    const byId = new Map();
+    [...currentReports, ...nextReports].forEach((report) => {
+      const key = report.id || report.sourceUrl || report.title;
+      if (key && !byId.has(key)) byId.set(key, report);
+    });
+    return Array.from(byId.values());
+  };
+
+  const mergeOutbreakFeatures = (currentFeatures = [], nextFeatures = []) => {
+    const byId = new Map();
+    [...currentFeatures, ...nextFeatures].forEach((feature) => {
+      const key = feature.id || [
+        feature.reportId,
+        feature.title,
+        feature.locationName,
+        feature.country,
+        feature.latitude,
+        feature.longitude
+      ].filter(Boolean).join('|');
+      if (key) byId.set(key, feature);
+    });
+    return Array.from(byId.values());
+  };
+
+  const fetchOutbreakPage = async ({ limit, skip = 0, geocodeLimit, detailLocations = true, aiLocations = false }) => {
+    const params = new URLSearchParams({
+      ts: String(Date.now()),
+      limit: String(limit),
+      skip: String(skip),
+      detailLocations: detailLocations ? 'true' : 'false',
+      aiLocations: aiLocations ? 'true' : 'false'
+    });
+    if (Number.isFinite(geocodeLimit)) params.set('geocodeLimit', String(geocodeLimit));
+
+    const response = await fetch(`/api/who-outbreaks?${params.toString()}`, {
+      cache: 'no-store'
+    });
+    if (!response.ok) {
+      throw new Error(`WHO outbreaks unavailable (status ${response.status})`);
+    }
+
+    const data = await parseApiResponse(response, 'WHO outbreaks');
+    return {
+      ...normalizeOutbreakPayload(data),
+      diagnostics: data?.diagnostics || null
+    };
+  };
+
   const fetchOutbreakData = async () => {
+    const fetchRunId = outbreakFetchRunRef.current + 1;
+    outbreakFetchRunRef.current = fetchRunId;
+
     try {
       setLoading(prev => ({ ...prev, outbreaks: true }));
 
-      const response = await fetch(`/api/who-outbreaks?ts=${Date.now()}`, {
-        cache: 'no-store'
+      const initialPage = await fetchOutbreakPage({
+        limit: 10,
+        skip: 0,
+        geocodeLimit: 20,
+        detailLocations: false
       });
-      if (!response.ok) {
-        console.warn(`WHO outbreaks unavailable (status ${response.status}). Continuing without outbreak data.`);
-        setOutbreakReports([]);
-        setOutbreaks([]);
-        setFilteredOutbreaks([]);
-        return;
-      }
+      if (outbreakFetchRunRef.current !== fetchRunId) return;
 
-      const data = await parseApiResponse(response, 'WHO outbreaks');
-      const reports = Array.isArray(data?.reports) ? data.reports : [];
-      const features = Array.isArray(data?.mapFeatures)
-        ? data.mapFeatures
-        : reports.flatMap(expandOutbreakMapFeatures);
-
-      const validFeatures = features
-        .filter((item) => item.latitude !== null && item.longitude !== null)
-        .map((item) => ({
-          ...item,
-          latitude: typeof item.latitude === 'string' ? parseFloat(item.latitude) : item.latitude,
-          longitude: typeof item.longitude === 'string' ? parseFloat(item.longitude) : item.longitude
-        }))
-        .filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
-
-      setOutbreakReports(reports);
-      setOutbreaks(validFeatures);
-      const initiallyFilteredOutbreaks = filterOutbreaksByDate(dateFilter, validFeatures, false);
+      setOutbreakReports(initialPage.reports);
+      setOutbreaks(initialPage.validFeatures);
+      const initiallyFilteredOutbreaks = filterOutbreaksByDate(dateFilter, initialPage.validFeatures, false);
       setFilteredOutbreaks(initiallyFilteredOutbreaks);
+      setLoading(prev => ({ ...prev, outbreaks: false, outbreaksBackfill: true }));
 
-      console.log('🦠 WHO OUTBREAKS LOADED:', {
-        reports: reports.length,
-        mapFeatures: validFeatures.length,
+      console.log('🦠 WHO OUTBREAKS INITIAL PAGE LOADED:', {
+        reports: initialPage.reports.length,
+        mapFeatures: initialPage.validFeatures.length,
         filtered: initiallyFilteredOutbreaks.length,
         dateFilter,
-        diagnostics: data?.diagnostics || null,
-        recentItems: validFeatures
+        diagnostics: initialPage.diagnostics,
+        recentItems: initialPage.validFeatures
           .sort((a, b) => new Date(b.filterDate || 0) - new Date(a.filterDate || 0))
           .slice(0, 5)
           .map((item) => ({
@@ -882,13 +937,44 @@ export default function Home() {
             daysAgo: item.filterDate ? Math.floor((Date.now() - new Date(item.filterDate).getTime()) / (1000 * 60 * 60 * 24)) : 'N/A'
           }))
       });
+
+      try {
+        const backfillPage = await fetchOutbreakPage({
+          limit: 100,
+          skip: 0,
+          geocodeLimit: 80,
+          aiLocations: true
+        });
+        if (outbreakFetchRunRef.current !== fetchRunId) return;
+
+        setOutbreakReports((currentReports) => mergeOutbreakReports(currentReports, backfillPage.reports));
+        setOutbreaks((currentFeatures) => {
+          const mergedFeatures = mergeOutbreakFeatures(currentFeatures, backfillPage.validFeatures);
+          setFilteredOutbreaks(filterOutbreaksByDate(dateFilter, mergedFeatures, false));
+          return mergedFeatures;
+        });
+
+        console.log('🦠 WHO OUTBREAKS BACKFILL LOADED:', {
+          reports: backfillPage.reports.length,
+          mapFeatures: backfillPage.validFeatures.length,
+          diagnostics: backfillPage.diagnostics
+        });
+      } catch (backfillError) {
+        console.warn('WHO outbreak background load failed:', backfillError);
+      } finally {
+        if (outbreakFetchRunRef.current === fetchRunId) {
+          setLoading(prev => ({ ...prev, outbreaksBackfill: false }));
+        }
+      }
     } catch (error) {
       console.error('Error fetching WHO outbreaks:', error);
       setOutbreakReports([]);
       setOutbreaks([]);
       setFilteredOutbreaks([]);
     } finally {
-      setLoading(prev => ({ ...prev, outbreaks: false }));
+      if (outbreakFetchRunRef.current === fetchRunId) {
+        setLoading(prev => ({ ...prev, outbreaks: false, outbreaksBackfill: false }));
+      }
     }
   };
 
@@ -1745,6 +1831,7 @@ export default function Home() {
   // Impact reassessment is triggered automatically by the [disasters] effect above
   const handleRefreshData = () => {
     fetchDisasterData();
+    fetchOutbreakData();
   };
 
   // Handle date filter change
@@ -2430,27 +2517,58 @@ export default function Home() {
                   )}
                 </span>
               )}
+              {(loading.outbreaks || loading.outbreaksBackfill || filteredOutbreaks.length > 0) && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: loading.outbreaks ? 'rgba(190, 24, 93, 0.10)' : '#f5f5f5',
+                  padding: '7px 10px',
+                  borderRadius: '999px',
+                  border: '1px solid rgba(190, 24, 93, 0.22)',
+                  fontSize: '12px',
+                  color: '#831843',
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: 700
+                }}>
+                  {(loading.outbreaks || loading.outbreaksBackfill) && (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                      <line x1="12" y1="2" x2="12" y2="6"></line>
+                      <line x1="12" y1="18" x2="12" y2="22"></line>
+                      <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                      <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                      <line x1="2" y1="12" x2="6" y2="12"></line>
+                      <line x1="18" y1="12" x2="22" y2="12"></line>
+                    </svg>
+                  )}
+                  {loading.outbreaks
+                    ? 'Loading WHO outbreaks...'
+                    : loading.outbreaksBackfill
+                      ? `${filteredOutbreaks.length} outbreaks, updating...`
+                      : `${filteredOutbreaks.length} outbreaks`}
+                </span>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <button
                 onClick={handleRefreshData}
-                disabled={loading.disasters}
+                disabled={loading.disasters || loading.outbreaks}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  backgroundColor: loading.disasters ? 'var(--aidstack-slate-light)' : 'var(--aidstack-navy)',
+                  backgroundColor: (loading.disasters || loading.outbreaks) ? 'var(--aidstack-slate-light)' : 'var(--aidstack-navy)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '999px',
                   padding: '7px 11px',
-                  cursor: loading.disasters ? 'not-allowed' : 'pointer',
+                  cursor: (loading.disasters || loading.outbreaks) ? 'not-allowed' : 'pointer',
                   fontSize: '12px',
                   fontWeight: 600,
                   fontFamily: "'Inter', sans-serif"
                 }}
               >
-                {loading.disasters ? (
+                {(loading.disasters || loading.outbreaks) ? (
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', animation: 'spin 1s linear infinite' }}>
                     <line x1="12" y1="2" x2="12" y2="6"></line>
                     <line x1="12" y1="18" x2="12" y2="22"></line>
@@ -2468,7 +2586,7 @@ export default function Home() {
                     <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
                   </svg>
                 )}
-                {loading.disasters ? 'Refreshing...' : 'Refresh Data'}
+                {(loading.disasters || loading.outbreaks) ? 'Refreshing...' : 'Refresh Data'}
               </button>
 
               {/* Prediction Dashboard Button */}
@@ -2855,6 +2973,8 @@ export default function Home() {
           disasters={filteredDisasters}
           outbreaks={filteredOutbreaks}
           outbreakReports={outbreakReports}
+          outbreakLoading={loading.outbreaks}
+          outbreakBackfillLoading={loading.outbreaksBackfill}
           allDisasters={disasters}
           gdacsDiagnostics={gdacsDiagnostics ? {
             ...gdacsDiagnostics,

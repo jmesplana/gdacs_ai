@@ -733,6 +733,8 @@ const MapComponent = ({
   acledData = [],
   outbreaks = [],
   outbreakReports = [],
+  outbreakLoading = false,
+  outbreakBackfillLoading = false,
   acledEnabled = true,
   acledConfig = {},
   onAcledUpload,
@@ -2371,6 +2373,8 @@ const MapComponent = ({
           hasStatistics={!!impactStatistics}
           hasAcledData={acledEnabled && acledData && acledData.length > 0}
           hasOutbreakData={outbreaks && outbreaks.length > 0}
+          outbreakLoading={outbreakLoading}
+          outbreakBackfillLoading={outbreakBackfillLoading}
           hasDistricts={districts && districts.length > 0}
           showDistricts={showDistricts}
           setShowDistricts={setShowDistricts}

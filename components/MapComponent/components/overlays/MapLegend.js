@@ -12,6 +12,8 @@ const MapLegend = ({
   hasStatistics,
   hasAcledData = false,
   hasOutbreakData = false,
+  outbreakLoading = false,
+  outbreakBackfillLoading = false,
   hasDistricts = false,
   showDistricts,
   setShowDistricts,
@@ -636,7 +638,7 @@ const MapLegend = ({
             <span style={{ fontSize: '12px', color: '#666' }}>Response needed</span>
           </div>
 
-          {hasOutbreakData && (
+          {(hasOutbreakData || outbreakLoading || outbreakBackfillLoading) && (
             <>
               <div style={{
                 marginTop: '15px',
@@ -657,7 +659,7 @@ const MapLegend = ({
                   <path d="M2 12h4"></path>
                   <path d="M18 12h4"></path>
                 </svg>
-                WHO OUTBREAKS
+                {outbreakLoading ? 'WHO OUTBREAKS LOADING' : 'WHO OUTBREAKS'}
               </div>
               <div style={{
                 display: 'flex',
@@ -676,7 +678,13 @@ const MapLegend = ({
                   marginRight: '8px',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
                 }}></div>
-                <span style={{ fontSize: '12px', color: '#666' }}>WHO Disease Outbreak News</span>
+                <span style={{ fontSize: '12px', color: '#666' }}>
+                  {outbreakLoading
+                    ? 'Fetching latest WHO Disease Outbreak News'
+                    : outbreakBackfillLoading
+                      ? 'WHO Disease Outbreak News, updating'
+                      : 'WHO Disease Outbreak News'}
+                </span>
               </div>
             </>
           )}
