@@ -1,8 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 const CHAT_DRAWER_WIDTH = 420;
-const CHAT_DRAWER_EXPANDED_WIDTH = 760;
+const CHAT_DRAWER_EXPANDED_WIDTH = 1040;
+const CHAT_ATTACHMENT_CONTEXT_ROWS = 20;
+const CHAT_ATTACHMENT_CONTEXT_COLUMNS = 20;
+const CHAT_ATTACHMENT_MAX_ROWS_RETAINED = 5000;
 
 function compactWorldPopDataForChat(worldPopData = {}, maxEntries = 50) {
   const entries = Object.entries(worldPopData || {}).slice(0, maxEntries);
@@ -15,6 +20,175 @@ function truncateText(value, maxLength = 500) {
   return stringValue.length > maxLength
     ? `${stringValue.slice(0, maxLength - 3)}...`
     : stringValue;
+}
+
+function compactValue(value, maxLength = 120) {
+  if (value === null || value === undefined) return '';
+  return truncateText(String(value).replace(/\s+/g, ' ').trim(), maxLength);
+}
+
+function normalizeTabularRows(rows = []) {
+  return (rows || [])
+    .map((row) => Object.fromEntries(
+      Object.entries(row || {}).map(([key, value]) => [String(key).trim(), value])
+    ))
+    .filter((row) => Object.values(row).some((value) => compactValue(value) !== ''));
+}
+
+function getAttachmentColumns(rows = []) {
+  const columns = [];
+  const seen = new Set();
+  rows.forEach((row) => {
+    Object.keys(row || {}).forEach((key) => {
+      if (!seen.has(key)) {
+        seen.add(key);
+        columns.push(key);
+      }
+    });
+  });
+  return columns;
+}
+
+function inferAttachmentMappings(columns = []) {
+  const findColumn = (patterns) => columns.find((column) => {
+    const normalized = column.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    return patterns.some((pattern) => pattern.test(normalized));
+  }) || null;
+
+  return {
+    latitude: findColumn([/^lat$/, /latitude/, /y_coord/, /gps_lat/]),
+    longitude: findColumn([/^lon$/, /^lng$/, /longitude/, /x_coord/, /gps_lon/, /gps_lng/]),
+    name: findColumn([/^name$/, /site_name/, /community/, /location_name/, /facility_name/, /settlement/]),
+    admin1: findColumn([/^admin1$/, /admin_?1/, /province/, /region/, /state/]),
+    admin2: findColumn([/^admin2$/, /admin_?2/, /district/, /county/, /health_zone/]),
+    date: findColumn([/report_date/, /date_reported/, /onset_date/, /^date$/]),
+    disease: findColumn([/disease/, /syndrome/, /vpd/, /condition/]),
+    status: findColumn([/status/, /verification/, /response_status/])
+  };
+}
+
+function summarizeAttachmentColumns(rows = [], columns = []) {
+  return columns.slice(0, 40).map((column) => {
+    const values = rows
+      .map((row) => row?.[column])
+      .filter((value) => compactValue(value) !== '');
+    const numericCount = values.filter((value) => Number.isFinite(Number(value))).length;
+    const uniqueValues = Array.from(new Set(values.map((value) => compactValue(value, 80)))).slice(0, 6);
+
+    return {
+      name: column,
+      filledRows: values.length,
+      likelyNumeric: values.length > 0 && numericCount / values.length >= 0.8,
+      examples: uniqueValues
+    };
+  });
+}
+
+function compactRowsForAttachment(rows = [], maxRows = 80, maxColumns = 35) {
+  const columns = getAttachmentColumns(rows).slice(0, maxColumns);
+  return rows.slice(0, maxRows).map((row) => Object.fromEntries(
+    columns.map((column) => [column, compactValue(row?.[column])])
+  ));
+}
+
+function getGeoJsonRows(geojson = {}) {
+  const features = Array.isArray(geojson.features) ? geojson.features : [];
+  return features.map((feature, index) => {
+    const props = feature.properties || {};
+    const geometry = feature.geometry || {};
+    const row = {
+      feature_id: props.id || feature.id || index + 1,
+      geometry_type: geometry.type || '',
+      ...props
+    };
+
+    if (geometry.type === 'Point' && Array.isArray(geometry.coordinates)) {
+      row.longitude = geometry.coordinates[0];
+      row.latitude = geometry.coordinates[1];
+    }
+
+    return row;
+  });
+}
+
+async function parseChatAttachment(file) {
+  const fileName = file.name || 'attached-file';
+  const lowerName = fileName.toLowerCase();
+  let rows = [];
+  let fileType = 'table';
+
+  if (lowerName.endsWith('.csv')) {
+    const text = await file.text();
+    const parsed = Papa.parse(text, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: false
+    });
+    if (parsed.errors?.length) {
+      throw new Error(parsed.errors[0].message || 'Unable to parse CSV file.');
+    }
+    rows = normalizeTabularRows(parsed.data);
+    fileType = 'csv';
+  } else if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[firstSheetName];
+    rows = normalizeTabularRows(XLSX.utils.sheet_to_json(sheet, { defval: '' }));
+    fileType = lowerName.endsWith('.xls') ? 'xls' : 'xlsx';
+  } else if (lowerName.endsWith('.geojson') || lowerName.endsWith('.json')) {
+    const parsed = JSON.parse(await file.text());
+    if (parsed.type === 'FeatureCollection') {
+      rows = normalizeTabularRows(getGeoJsonRows(parsed));
+      fileType = 'geojson';
+    } else if (Array.isArray(parsed)) {
+      rows = normalizeTabularRows(parsed);
+      fileType = 'json';
+    } else {
+      rows = normalizeTabularRows([parsed]);
+      fileType = 'json';
+    }
+  } else {
+    throw new Error('Upload a CSV, Excel, JSON, or GeoJSON file.');
+  }
+
+  const retainedRows = rows.slice(0, CHAT_ATTACHMENT_MAX_ROWS_RETAINED);
+  const columns = getAttachmentColumns(retainedRows);
+  const mappings = inferAttachmentMappings(columns);
+
+  return {
+    id: `${Date.now()}-${fileName}`,
+    fileName,
+    fileType,
+    rowCount: rows.length,
+    retainedRowCount: retainedRows.length,
+    columns,
+    mappings,
+    columnSummary: summarizeAttachmentColumns(retainedRows, columns),
+    sampleRows: compactRowsForAttachment(retainedRows, 8, CHAT_ATTACHMENT_CONTEXT_COLUMNS),
+    rows: retainedRows,
+    createdAt: new Date().toISOString(),
+    promoteCandidate: Boolean(mappings.latitude && mappings.longitude)
+  };
+}
+
+function compactChatAttachmentsForContext(attachments = []) {
+  return attachments.map((attachment) => ({
+    id: attachment.id,
+    fileName: attachment.fileName,
+    fileType: attachment.fileType,
+    rowCount: attachment.rowCount,
+    retainedRowCount: attachment.retainedRowCount,
+    columns: attachment.columns.slice(0, 80),
+    mappings: attachment.mappings,
+    columnSummary: attachment.columnSummary,
+    sampleRows: attachment.sampleRows,
+    rows: compactRowsForAttachment(
+      attachment.rows,
+      CHAT_ATTACHMENT_CONTEXT_ROWS,
+      CHAT_ATTACHMENT_CONTEXT_COLUMNS
+    ),
+    promoteCandidate: attachment.promoteCandidate
+  }));
 }
 
 function compactPrioritizationBoardForChat(board = null, maxRows = 10) {
@@ -497,8 +671,8 @@ const ChatDrawer = ({
     {
       role: 'assistant',
       content: context?.hasDistricts
-        ? 'Hello! I\'m your humanitarian aid advisor. I can help you analyze area-level risks, understand how disasters impact your programs, and provide campaign planning guidance. Ask me about the risk levels in your uploaded administrative boundaries, or request to highlight specific admin areas on the map.'
-        : 'Hello! I\'m your humanitarian aid advisor. I can help you understand how disasters might impact your programs and operations. Ask me anything about the current situation, health campaigns, or disaster response planning.',
+        ? 'Hello. I can help analyze your selected admin areas and workspace data. Ask me to compare risk levels, identify priority areas, review attached files, highlight districts on the map, or prepare an operational summary.'
+        : 'Hello. I can help analyze the data in this workspace, including uploaded sites, admin areas, hazards, outbreaks, population layers, security events, and any files you attach here. Ask me to summarize risks, compare areas, review uploaded data, prepare files for mapping, or generate operational briefs.',
       timestamp: Date.now()
     }
   ]);
@@ -506,8 +680,12 @@ const ChatDrawer = ({
   const [loading, setLoading] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const [chatAttachments, setChatAttachments] = useState([]);
+  const [attachmentLoading, setAttachmentLoading] = useState(false);
+  const [attachmentError, setAttachmentError] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -531,6 +709,38 @@ const ChatDrawer = ({
     } catch (err) {
       console.error('Failed to copy:', err);
     }
+  };
+
+  const handleAttachmentUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setAttachmentLoading(true);
+    setAttachmentError('');
+
+    try {
+      const attachment = await parseChatAttachment(file);
+      setChatAttachments((prev) => [attachment, ...prev].slice(0, 3));
+      const retainedNote = attachment.retainedRowCount < attachment.rowCount
+        ? ` I retained the first ${attachment.retainedRowCount.toLocaleString()} rows locally and will send a compact sample to chat.`
+        : '';
+      setMessages((prev) => [...prev, {
+        role: 'assistant',
+        content: `Attached **${attachment.fileName}** with ${attachment.rowCount.toLocaleString()} rows and ${attachment.columns.length.toLocaleString()} columns.${retainedNote} I can use it as chat context for data review, cleaning, schema mapping, and analysis based on the fields in the file.`,
+        timestamp: Date.now(),
+        isAIGenerated: false
+      }]);
+    } catch (error) {
+      console.error('Attachment parse failed:', error);
+      setAttachmentError(error.message || 'Unable to read that file.');
+    } finally {
+      setAttachmentLoading(false);
+      if (event.target) event.target.value = '';
+    }
+  };
+
+  const removeAttachment = (attachmentId) => {
+    setChatAttachments((prev) => prev.filter((attachment) => attachment.id !== attachmentId));
   };
 
   const handleSend = async () => {
@@ -557,7 +767,10 @@ const ChatDrawer = ({
       });
 
       const detailLevel = shouldUseDeepChat(userMessage.content) ? 'deep' : 'compact';
-      const compactContext = compactChatContext(context, detailLevel);
+      const compactContext = {
+        ...compactChatContext(context, detailLevel),
+        chatAttachments: compactChatAttachmentsForContext(chatAttachments)
+      };
 
       console.time('Serializing request body');
       const requestBody = JSON.stringify({
@@ -911,11 +1124,153 @@ const ChatDrawer = ({
           backgroundColor: 'white',
           flexShrink: 0
         }}>
+          {chatAttachments.length > 0 && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              marginBottom: '10px'
+            }}>
+              {chatAttachments.map((attachment) => (
+                <div
+                  key={attachment.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '7px 8px',
+                    backgroundColor: '#f8fafc'
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      minWidth: 0
+                    }}>
+                      <span style={{
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: 'var(--aidstack-navy)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {attachment.fileName}
+                      </span>
+                      {attachment.promoteCandidate && (
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          color: '#166534',
+                          backgroundColor: 'rgba(34, 197, 94, 0.12)',
+                          border: '1px solid rgba(34, 197, 94, 0.24)',
+                          borderRadius: '999px',
+                          padding: '1px 6px',
+                          flexShrink: 0
+                        }}>
+                          map-ready
+                        </span>
+                      )}
+                    </div>
+                    <div style={{
+                      fontSize: '11px',
+                      color: 'var(--aidstack-slate-medium)',
+                      marginTop: '2px'
+                    }}>
+                      {attachment.rowCount.toLocaleString()} rows · {attachment.columns.length.toLocaleString()} columns
+                      {attachment.retainedRowCount < attachment.rowCount ? ` · ${attachment.retainedRowCount.toLocaleString()} retained` : ''}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(attachment.id)}
+                    title="Remove attachment"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      border: 'none',
+                      borderRadius: '6px',
+                      backgroundColor: 'transparent',
+                      color: 'var(--aidstack-slate-medium)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {attachmentError && (
+            <div style={{
+              marginBottom: '8px',
+              color: '#b91c1c',
+              fontSize: '12px',
+              fontFamily: "'Inter', sans-serif"
+            }}>
+              {attachmentError}
+            </div>
+          )}
           <div style={{
             display: 'flex',
             gap: '8px',
             alignItems: 'flex-end'
           }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls,.json,.geojson"
+              onChange={handleAttachmentUpload}
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading || attachmentLoading}
+              title={attachmentLoading ? "Reading file..." : "Attach data file"}
+              style={{
+                width: '40px',
+                height: '40px',
+                padding: '0',
+                backgroundColor: attachmentLoading ? '#e5e7eb' : 'white',
+                color: attachmentLoading ? 'var(--aidstack-slate-light)' : 'var(--aidstack-navy)',
+                border: '1.5px solid #e5e7eb',
+                borderRadius: '12px',
+                cursor: loading || attachmentLoading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {attachmentLoading ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                  <line x1="12" y1="2" x2="12" y2="6"></line>
+                  <line x1="12" y1="18" x2="12" y2="22"></line>
+                  <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                  <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                  <line x1="2" y1="12" x2="6" y2="12"></line>
+                  <line x1="18" y1="12" x2="22" y2="12"></line>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 1 1-2.83-2.83l8.49-8.48"></path>
+                </svg>
+              )}
+            </button>
             <textarea
               ref={inputRef}
               value={input}
@@ -1092,7 +1447,10 @@ const ChatDrawer = ({
         onClick={(e) => e.stopPropagation()}
         style={{
           zIndex: 3000,
-          width: isExpanded ? `${CHAT_DRAWER_EXPANDED_WIDTH}px` : `${CHAT_DRAWER_WIDTH}px`,
+          width: isExpanded
+            ? `min(${CHAT_DRAWER_EXPANDED_WIDTH}px, 92vw)`
+            : `min(${CHAT_DRAWER_WIDTH}px, 92vw)`,
+          maxWidth: '92vw',
           display: 'flex',
           flexDirection: 'column',
           height: '90vh',

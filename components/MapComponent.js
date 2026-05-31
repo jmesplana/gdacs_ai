@@ -552,7 +552,13 @@ const formatMonthLabel = (value) => {
 const FACILITY_BASE_FIELDS = new Set(['name', 'latitude', 'longitude']);
 const FACILITY_SUMMARY_FIELDS = new Set(['refusal_reason', 'refusal_rate', 'refusal', 'target']);
 const CHAT_DRAWER_WIDTH = 420;
-const CHAT_DRAWER_EXPANDED_WIDTH = 760;
+const CHAT_DRAWER_EXPANDED_WIDTH = 1040;
+
+function getResponsiveChatDrawerWidth(isExpanded, viewportWidth) {
+  const targetWidth = isExpanded ? CHAT_DRAWER_EXPANDED_WIDTH : CHAT_DRAWER_WIDTH;
+  if (!viewportWidth) return targetWidth;
+  return Math.min(targetWidth, Math.floor(viewportWidth * 0.92));
+}
 
 function normalizeFacilityFieldKey(key = '') {
   return String(key).replace(/_\d+$/, '');
@@ -766,7 +772,19 @@ const MapComponent = ({
   const hydratedEvidenceLayersRef = useRef(false);
   const [mapInstance, setMapInstance] = useState(null);
   const [chatDrawerExpanded, setChatDrawerExpanded] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 0
+  );
   const { addToast } = useToast();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Use custom hooks
   const {
@@ -2057,7 +2075,7 @@ const MapComponent = ({
 
   // Drawer width (should match the drawer width in CSS)
   const drawerWidth = showChatDrawer
-    ? (chatDrawerExpanded ? CHAT_DRAWER_EXPANDED_WIDTH : CHAT_DRAWER_WIDTH)
+    ? getResponsiveChatDrawerWidth(chatDrawerExpanded, viewportWidth)
     : 400;
 
   return (

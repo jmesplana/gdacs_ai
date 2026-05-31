@@ -135,6 +135,7 @@ async function handler(req, res) {
       facilities: context?.facilities?.length,
       disasters: context?.disasters?.length,
       outbreaks: context?.outbreaks?.length,
+      chatAttachments: context?.chatAttachments?.length,
       acledData: context?.acledData?.length,
       acledEnabled: context?.acledEnabled,
       osmData: context?.osmData?.features?.length,
@@ -869,6 +870,44 @@ function buildContextSummary(context) {
   if (!context) return "No context available.";
 
   let summary = [];
+
+  if (Array.isArray(context.chatAttachments) && context.chatAttachments.length > 0) {
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`USER-ATTACHED CHAT DATASETS`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`These files were uploaded by the user into the chat. They are chat context only unless the user explicitly asks to prepare them for workspace/site upload.`);
+    summary.push(`Infer the dataset purpose from its filename, columns, and sample rows. Use it for schema review, data cleaning advice, analysis, and upload-preparation guidance based on the fields actually present. Do not assume it is health, VPD, CBS, RCCE, site, or surveillance data unless the attached fields support that. Do not claim it is already mapped as workspace sites unless the workspace facility context also includes it.`);
+
+    context.chatAttachments.slice(0, 3).forEach((attachment, attachmentIndex) => {
+      summary.push(`\nAttachment ${attachmentIndex + 1}: ${attachment.fileName || 'Unnamed file'}`);
+      summary.push(`Type: ${attachment.fileType || 'unknown'} | Rows: ${attachment.rowCount || 0} | Columns: ${attachment.columns?.length || 0}`);
+      if (attachment.retainedRowCount && attachment.retainedRowCount < attachment.rowCount) {
+        summary.push(`Client retained rows for local processing: ${attachment.retainedRowCount}. Chat context includes a bounded sample only.`);
+      }
+      if (attachment.promoteCandidate) {
+        summary.push(`Potential workspace upload candidate: yes, latitude/longitude-like fields were detected.`);
+      }
+      if (attachment.mappings) {
+        summary.push(`Detected field mapping candidates: ${JSON.stringify(attachment.mappings)}`);
+      }
+      if (Array.isArray(attachment.columns) && attachment.columns.length > 0) {
+        summary.push(`Columns: ${attachment.columns.slice(0, 80).join(', ')}`);
+      }
+      if (Array.isArray(attachment.columnSummary) && attachment.columnSummary.length > 0) {
+        summary.push(`Column examples:`);
+        attachment.columnSummary.slice(0, 20).forEach((column) => {
+          summary.push(`- ${column.name}: filled ${column.filledRows || 0}; examples ${Array.isArray(column.examples) ? column.examples.join(' | ') : ''}`);
+        });
+      }
+      if (Array.isArray(attachment.rows) && attachment.rows.length > 0) {
+        summary.push(`Sample rows (${attachment.rows.length}):`);
+        attachment.rows.slice(0, 30).forEach((row, index) => {
+          summary.push(`${index + 1}. ${JSON.stringify(row)}`);
+        });
+      }
+    });
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  }
 
   if (context.selectedAnalysisDistricts && context.selectedAnalysisDistricts.length > 0) {
     const selectedNames = context.selectedAnalysisDistricts
