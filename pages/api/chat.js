@@ -1258,10 +1258,17 @@ function buildContextSummary(context) {
     if (diseases.length > 0) summary.push(`- Diseases: ${diseases.slice(0, 12).join(', ')}`);
     if (countries.length > 0) summary.push(`- Countries: ${countries.slice(0, 16).join(', ')}`);
     context.outbreaks.slice(0, 10).forEach((outbreak) => {
-      summary.push(`- ${outbreak.reportDate || 'Unknown date'}: ${outbreak.title || outbreak.disease} (${outbreak.country || 'Unknown country'})`);
+      const locationLabel = [
+        outbreak.locationName && outbreak.locationName !== outbreak.country ? outbreak.locationName : null,
+        outbreak.admin1,
+        outbreak.country
+      ].filter(Boolean).join(', ') || outbreak.country || 'Unknown country';
+      const precision = outbreak.locationType || outbreak.locationConfidence || 'country';
+      summary.push(`- ${outbreak.reportDate || 'Unknown date'}: ${outbreak.title || outbreak.disease} (${locationLabel}; mapped at ${precision} level)`);
       if (outbreak.metrics?.cases || outbreak.metrics?.deaths || outbreak.metrics?.cfr) {
         summary.push(`  Metrics: cases ${outbreak.metrics.cases ?? 'unknown'}, deaths ${outbreak.metrics.deaths ?? 'unknown'}, CFR ${outbreak.metrics.cfr ?? 'unknown'}`);
       }
+      if (outbreak.locationSnippet) summary.push(`  Location evidence: ${outbreak.locationSnippet.slice(0, 220)}`);
       if (outbreak.sourceUrl) summary.push(`  WHO source: ${outbreak.sourceUrl}`);
     });
     summary.push('Use these WHO DONS items as loaded workspace context before web search when discussing disease outbreaks.');

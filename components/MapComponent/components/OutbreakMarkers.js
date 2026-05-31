@@ -112,6 +112,12 @@ const OutbreakMarkers = ({ outbreaks = [], showClusterCounts = true, showCluster
       const affectedCountries = Array.isArray(outbreak.affectedCountries) && outbreak.affectedCountries.length > 0
         ? outbreak.affectedCountries.join(', ')
         : outbreak.country || 'Unknown';
+      const locationLabel = [
+        outbreak.locationName && outbreak.locationName !== outbreak.country ? outbreak.locationName : null,
+        outbreak.admin1,
+        outbreak.country
+      ].filter(Boolean).join(', ') || outbreak.country || 'Unknown';
+      const confidenceLabel = outbreak.locationType || outbreak.locationConfidence || 'country';
 
       const marker = L.marker([lat, lng], {
         icon,
@@ -129,12 +135,14 @@ const OutbreakMarkers = ({ outbreaks = [], showClusterCounts = true, showCluster
           <div style="display: grid; grid-template-columns: 92px 1fr; row-gap: 5px; column-gap: 8px; font-size: 12px; color: #374151;">
             <strong>Disease</strong><span>${escapeHtml(outbreak.disease || 'Unknown')}</span>
             <strong>Report date</strong><span>${escapeHtml(formatDate(outbreak.reportDate))}</span>
-            <strong>Country</strong><span>${escapeHtml(outbreak.country || 'Unknown')}</span>
+            <strong>Location</strong><span>${escapeHtml(locationLabel)}</span>
+            <strong>Precision</strong><span>${escapeHtml(confidenceLabel)}</span>
             <strong>Affected</strong><span>${escapeHtml(affectedCountries)}</span>
             <strong>Cases</strong><span>${escapeHtml(formatMetric(metrics.cases))}</span>
             <strong>Deaths</strong><span>${escapeHtml(formatMetric(metrics.deaths))}</span>
             <strong>CFR</strong><span>${metrics.cfr === null || metrics.cfr === undefined ? 'Unknown' : `${escapeHtml(metrics.cfr)}%`}</span>
           </div>
+          ${outbreak.locationSnippet ? `<p style="margin: 8px 0 0; font-size: 12px; color: #475569; line-height: 1.4;"><strong>Location evidence:</strong> ${escapeHtml(outbreak.locationSnippet).slice(0, 220)}${outbreak.locationSnippet.length > 220 ? '...' : ''}</p>` : ''}
           ${outbreak.summary ? `<p style="margin: 8px 0 0; font-size: 12px; color: #4b5563; line-height: 1.4;">${escapeHtml(outbreak.summary).slice(0, 260)}${outbreak.summary.length > 260 ? '...' : ''}</p>` : ''}
           <a href="${sourceUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; margin-top: 10px; color: #be185d; text-decoration: none; font-weight: 800; font-size: 12px;">
             Open WHO report →

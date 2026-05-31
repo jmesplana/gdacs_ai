@@ -94,7 +94,7 @@ async function handler(req, res) {
         .slice(0, 100);
     }
 
-    const normalized = normalizeWhoOutbreakResponse(data);
+    const normalized = await normalizeWhoOutbreakResponse(data);
     const latestFilterDate = normalized.reports
       .map((report) => report.filterDate || report.updatedDate || report.reportDate)
       .filter(Boolean)

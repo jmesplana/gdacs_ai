@@ -1563,10 +1563,16 @@ export default function Home() {
       reportDate: item?.reportDate,
       updatedDate: item?.updatedDate,
       country: item?.country,
+      locationName: item?.locationName,
+      locationType: item?.locationType,
+      admin1: item?.admin1,
+      locationConfidence: item?.locationConfidence,
+      locationSnippet: item?.locationSnippet,
       affectedCountries: item?.affectedCountries,
       latitude: item?.latitude,
       longitude: item?.longitude,
       metrics: item?.metrics,
+      reportMetrics: item?.reportMetrics,
       source: item?.source,
       sourceUrl: item?.sourceUrl
     }));

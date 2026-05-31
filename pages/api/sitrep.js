@@ -249,7 +249,9 @@ IMPORTANT SCOPING RULES:
 - Do not assume all uploaded sites are the same type. The uploaded data may represent health facilities, PHCs, hospitals, labs, blood banks, immunization sites, malaria campaign sites, or other operational records.
 - When uploaded fields indicate campaign or program metrics such as target population, refusals, refusal rate, doses, stock, coverage, malaria indicators, or service type, explicitly use those metrics in the report.
 - When site types vary, distinguish them in the narrative instead of collapsing everything into one generic category.
-- If web search context is included, use it only to supplement and update the scoped picture. Do not let it broaden the report into a global bulletin.
+	- If web search context is included, use it only to supplement and update the scoped picture. Do not let it broaden the report into a global bulletin.
+	- For WHO outbreak figures, use only the exact "WHO extracted report-level metrics" provided in the WHO DONS context. Do not add mapped-location metrics together. Do not infer, estimate, round up, or import larger outbreak totals from memory or web context.
+	- If WHO metrics conflict or look incomplete, describe the outbreak qualitatively and cite the loaded WHO report date/source rather than inventing a number.
 
 Your SitRep should include:
 1. Scope
@@ -417,16 +419,10 @@ function createOutbreakContext(outbreaks = []) {
   const reports = Array.from(uniqueReports.values()).slice(0, 20);
   const countries = new Set();
   const diseases = new Set();
-  let totalCases = 0;
-  let totalDeaths = 0;
 
   outbreaks.forEach((outbreak) => {
     if (outbreak.country) countries.add(outbreak.country);
     if (outbreak.disease) diseases.add(outbreak.disease);
-    const cases = Number(outbreak.metrics?.cases);
-    const deaths = Number(outbreak.metrics?.deaths);
-    if (Number.isFinite(cases)) totalCases += cases;
-    if (Number.isFinite(deaths)) totalDeaths += deaths;
   });
 
   let context = '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
@@ -434,17 +430,38 @@ function createOutbreakContext(outbreaks = []) {
   context += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
   context += `- Affected countries mapped: ${countries.size > 0 ? Array.from(countries).join(', ') : 'Unknown'}\n`;
   context += `- Diseases reported: ${diseases.size > 0 ? Array.from(diseases).slice(0, 12).join(', ') : 'Unknown'}\n`;
-  if (totalCases > 0) context += `- Extracted case count across reports: ${totalCases.toLocaleString()}\n`;
-  if (totalDeaths > 0) context += `- Extracted death count across reports: ${totalDeaths.toLocaleString()}\n`;
-  context += '- Use WHO outbreak data as source-linked public-health context. Case/death/CFR extraction may be article-level and should be described as WHO DONS-reported or extracted when cited.\n\n';
-  context += 'Recent WHO DONS reports in current date filter:\n';
+  context += '- IMPORTANT: Do not sum mapped-location metrics. One WHO report can create multiple map markers, so mapped locations are not independent outbreak records.\n';
+  context += '- Only cite WHO case/death figures exactly as shown below. If a precise figure is not shown below, say the figure is not available in the loaded WHO context.\n\n';
+  context += 'Recent WHO DONS reports in current date filter (deduplicated by WHO report):\n';
 
-  reports.forEach((outbreak) => {
-    const metrics = outbreak.metrics || {};
-    context += `- ${outbreak.reportDate || 'Unknown date'}: ${outbreak.title || outbreak.disease || 'Outbreak report'} (${outbreak.affectedCountries?.join(', ') || outbreak.country || 'Unknown location'})\n`;
+  reports.forEach((outbreak, index) => {
+    const metrics = outbreak.reportMetrics || outbreak.metrics || {};
+    const reportLocations = outbreaks.filter((item) => {
+      const key = item.reportId || item.sourceUrl || item.title;
+      const reportKey = outbreak.reportId || outbreak.sourceUrl || outbreak.title;
+      return key && reportKey && key === reportKey;
+    });
+    const mappedLocations = reportLocations
+      .map((item) => [
+        item.locationName && item.locationName !== item.country ? item.locationName : null,
+        item.admin1,
+        item.country
+      ].filter(Boolean).join(', '))
+      .filter(Boolean);
+    const locationLabel = [
+      outbreak.locationName && outbreak.locationName !== outbreak.country ? outbreak.locationName : null,
+      outbreak.admin1,
+      outbreak.country
+    ].filter(Boolean).join(', ') || outbreak.affectedCountries?.join(', ') || 'Unknown location';
+    const precision = outbreak.locationType || outbreak.locationConfidence || 'country';
+    context += `- Report ${index + 1}: ${outbreak.reportDate || 'Unknown date'}: ${outbreak.title || outbreak.disease || 'Outbreak report'}\n`;
+    context += `  Mapped locations: ${mappedLocations.length > 0 ? Array.from(new Set(mappedLocations)).join('; ') : `${locationLabel}; mapped at ${precision} level`}\n`;
     if (metrics.cases || metrics.deaths || metrics.cfr) {
-      context += `  Metrics: cases ${metrics.cases ?? 'unknown'}, deaths ${metrics.deaths ?? 'unknown'}, CFR ${metrics.cfr ?? 'unknown'}\n`;
+      context += `  WHO extracted report-level metrics: cases ${metrics.cases ?? 'unknown'}, deaths ${metrics.deaths ?? 'unknown'}, CFR ${metrics.cfr ?? 'unknown'}\n`;
+    } else {
+      context += '  WHO extracted report-level metrics: not available in loaded structured fields\n';
     }
+    if (outbreak.locationSnippet) context += `  Location evidence: ${outbreak.locationSnippet.slice(0, 220)}\n`;
     if (outbreak.sourceUrl) context += `  Source: ${outbreak.sourceUrl}\n`;
   });
 
