@@ -282,6 +282,7 @@ export default function AdminBoundariesLayer({
   onDistrictOutlookClick,
   mapInstance,
   allowDistrictLabels = false,
+  showDistrictBorders = true,
   showDistrictRiskFill = true,
   visibleDisasters = [],
   visibleAcledEvents = [],
@@ -349,7 +350,7 @@ export default function AdminBoundariesLayer({
 
   return (
     <GeoJSON
-      key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistrictKey}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.legendKey || ''}-drawing-${isDrawingMode}`}
+      key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistrictKey}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-borders-${showDistrictBorders}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.legendKey || ''}-drawing-${isDrawingMode}`}
       data={featureCollection}
       pane="overlayPane"
       interactive={!isDrawingMode}
@@ -358,6 +359,7 @@ export default function AdminBoundariesLayer({
         const isHighlighted = highlightedIds.has(String(feature.id));
         const isSelected = selectedIds.has(String(feature.id));
         const hasSelection = selectedIds.size > 0;
+        const shouldShowBorder = showDistrictBorders || isHighlighted || isSelected;
         const fill = getFill(feature, riskLevel);
         const baseFillOpacity = fill.opacity === null
           ? (isHighlighted ? 0.7 : (isSelected ? 0.7 : (hasSelection ? 0.15 : (riskLevel === 'none' ? 0.2 : 0.5))))
@@ -370,9 +372,11 @@ export default function AdminBoundariesLayer({
           : (isHighlighted ? Math.max(baseFillOpacity, 0.7) : (isSelected ? Math.max(baseFillOpacity, 0.7) : baseFillOpacity));
 
         return {
-          color: isHighlighted ? '#FF6B35' : (isSelected ? '#FFFF00' : getRiskBorderColor(riskLevel)),
-          weight: isHighlighted ? 4 : (isSelected ? 5 : 3),
-          opacity: isHighlighted ? 1 : (hasSelection && !isSelected ? 0.3 : 1),
+          color: isHighlighted ? '#FF3B00' : (isSelected ? '#FFFF00' : getRiskBorderColor(riskLevel)),
+          weight: shouldShowBorder ? (isHighlighted ? 7 : (isSelected ? 5 : 3)) : 0,
+          opacity: shouldShowBorder ? (isHighlighted ? 1 : (hasSelection && !isSelected ? 0.3 : 1)) : 0,
+          lineCap: 'round',
+          lineJoin: 'round',
           fillColor: fill.color,
           fillOpacity: finalFillOpacity,
           className: isHighlighted ? 'highlighted-district' : ''
@@ -381,6 +385,12 @@ export default function AdminBoundariesLayer({
       onEachFeature={(feature, layer) => {
         const props = feature.properties;
         const displayName = getDistrictDisplayName(props);
+        const isHighlightedFeature = highlightedIds.has(String(feature.id));
+        if (isHighlightedFeature && typeof layer.bringToFront === 'function') {
+          layer.on('add', () => {
+            layer.bringToFront();
+          });
+        }
         const riskLevel = props.riskLevel || 'none';
         const riskScore = props.riskScore || 0;
         const eventCount = props.eventCount || 0;

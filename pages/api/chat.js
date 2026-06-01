@@ -299,7 +299,7 @@ IMPORTANT:
   2. List specific district names if available
   3. Provide context about why these districts are at that risk level
   4. The system will automatically apply the map action when the request matches a supported command
-- Supported chat map actions include highlighting or selecting admin areas, coloring admin boundaries by risk or a loaded numeric field, placing a pin when coordinates or a named admin area are provided, and clearing chat-added highlights/pins. Do not tell the user you cannot clear chat-added pins/dots/markers; the system can apply that map action.
+- Supported chat map actions include highlighting or selecting admin areas, coloring admin boundaries by risk or a loaded numeric field, placing a pin when coordinates or a named admin area are provided, clearing chat-added highlights/pins, and toggling admin borders or labels. Do not tell the user you cannot clear chat-added pins/dots/markers/highlights or toggle admin labels/borders; the system can apply those map actions.
 - Always frame your district analysis in the context of the uploaded shapefile area (e.g., "In [Country/Region], based on the uploaded administrative boundaries...")
 - Use the risk breakdown percentages to give an overall security picture of the area
 - When discussing campaign planning, reference which districts are safe vs. risky for operations
@@ -581,12 +581,21 @@ Be direct, practical, and specific. Use the context data to give personalized an
 function detectMapIntent(message, context = {}) {
   const lowerMessage = message.toLowerCase();
 
-  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage) && /\b(highlight|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lowerMessage)) {
+  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage) && /\b(highlight|highlights|highlighting)\b/.test(lowerMessage)) {
+    return { action: 'clear_highlights' };
+  }
+
+  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage) && /\b(map|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lowerMessage)) {
     return { action: 'clear_map_annotations' };
   }
 
   if (/\b(clear|reset|remove all)\b/.test(lowerMessage) && /\b(analysis scope|analysis selection|selected admin|selected district|selected districts|selected areas)\b/.test(lowerMessage)) {
     return { action: 'clear_analysis_scope' };
+  }
+
+  const adminDisplayCommand = detectAdminDisplayCommand(message);
+  if (adminDisplayCommand) {
+    return adminDisplayCommand;
   }
 
   const markerCommand = detectMarkerCommand(message, context);
@@ -608,7 +617,7 @@ function detectMapIntent(message, context = {}) {
   const selectKeywords = ['select', 'set scope', 'focus on', 'use only', 'analyze only'];
   const deselectKeywords = ['deselect', 'unselect', 'remove from analysis', 'remove from scope', 'exclude from analysis', 'exclude from scope'];
   const riskKeywords = ['high risk', 'very high risk', 'dangerous', 'unsafe', 'no go', 'no-go', 'risky', 'risk', 'threat'];
-  const safeKeywords = ['safe', 'low risk', 'no risk', 'secure', 'clear', 'safe for operations'];
+  const safeKeywords = ['safe', 'low risk', 'no risk', 'secure', 'safe for operations'];
 
   // Check if the message is asking about districts or areas
   const hasDistrictMention = lowerMessage.includes('district') || lowerMessage.includes('area') || lowerMessage.includes('region') || lowerMessage.includes('location');
@@ -667,6 +676,10 @@ function detectMapIntent(message, context = {}) {
     if (matchedNames.length > 0) {
       criteria.names = matchedNames;
     }
+    const requestedAdminLevel = getRequestedAdminLevel(message);
+    if (requestedAdminLevel) {
+      criteria.adminLevel = requestedAdminLevel;
+    }
 
     // If we detected some criteria, return the intent
     if (Object.keys(criteria).length > 0) {
@@ -679,6 +692,44 @@ function detectMapIntent(message, context = {}) {
   }
 
   return null;
+}
+
+function detectAdminDisplayCommand(message = '') {
+  const lower = String(message).toLowerCase();
+  const hasAdminLayerTerm = /\b(admin|district|boundary|boundaries|border|borders|outline|outlines|label|labels)\b/.test(lower);
+  if (!hasAdminLayerTerm) return null;
+
+  const getTargetVisibility = (targetPattern) => {
+    const hidePattern = new RegExp(`\\b(hide|turn off|switch off|disable|remove)\\b[^.?!]{0,60}\\b(${targetPattern})\\b|\\b(${targetPattern})\\b[^.?!]{0,60}\\b(off|hidden|disabled)\\b`);
+    const showPattern = new RegExp(`\\b(show|turn on|switch on|enable|display)\\b[^.?!]{0,60}\\b(${targetPattern})\\b|\\b(${targetPattern})\\b[^.?!]{0,60}\\b(on|visible|enabled)\\b`);
+    if (hidePattern.test(lower)) return false;
+    if (showPattern.test(lower)) return true;
+    return null;
+  };
+
+  const command = { action: 'set_admin_display' };
+  const hasBorderTerm = /\b(border|borders|outline|outlines|boundary line|boundary lines)\b/.test(lower);
+  const hasLabelTerm = /\b(label|labels|names)\b/.test(lower);
+  const hasBoundaryTerm = /\b(admin layer|admin boundaries|boundaries|boundary layer|district layer)\b/.test(lower) && !hasBorderTerm;
+  const borderVisibility = getTargetVisibility('border|borders|outline|outlines|boundary line|boundary lines');
+  const labelVisibility = getTargetVisibility('label|labels|names');
+  const layerVisibility = getTargetVisibility('admin layer|admin boundaries|boundaries|boundary layer|district layer');
+
+  if (hasBorderTerm && borderVisibility !== null) {
+    command.showBorders = borderVisibility;
+    command.showLayer = true;
+  }
+
+  if (hasLabelTerm && labelVisibility !== null) {
+    command.showLabels = labelVisibility;
+    command.showLayer = true;
+  }
+
+  if (hasBoundaryTerm && layerVisibility !== null) {
+    command.showLayer = layerVisibility;
+  }
+
+  return Object.keys(command).length > 1 ? command : null;
 }
 
 function detectMarkerCommand(message = '', context = {}) {
@@ -773,6 +824,7 @@ function getAdminAreaNamesFromMessage(message = '', context = {}) {
   const normalizedMessage = String(message).toLowerCase().replace(/[^a-z0-9]+/g, ' ');
   const areas = Array.isArray(context.adminAreas) ? context.adminAreas : [];
   const matches = [];
+  const requestedLevel = getRequestedAdminLevel(message);
   const genericAdminTokens = new Set([
     'admin',
     'area',
@@ -790,22 +842,40 @@ function getAdminAreaNamesFromMessage(message = '', context = {}) {
     'health',
     'zone',
     'zones',
+    'sud',
+    'nord',
+    'est',
+    'ouest',
+    'north',
+    'south',
+    'east',
+    'west',
+    'central',
     'highlight',
     'show',
     'map'
   ]);
 
   areas.forEach((area) => {
-    const candidates = [
+    const identityEntries = Array.isArray(area?.identityEntries) ? area.identityEntries : [];
+    const levelEntries = requestedLevel
+      ? identityEntries.filter((entry) => {
+          if (requestedLevel === 'province') return entry.level === 'province';
+          if (requestedLevel === 'district') return entry.level === 'district' || entry.level === 'name';
+          if (requestedLevel === 'health_zone') return entry.level === 'health_zone' || entry.level === 'name';
+          return true;
+        })
+      : identityEntries;
+    const candidates = (levelEntries.length ? levelEntries.map((entry) => entry.value) : [
       area?.name,
       area?.country,
       area?.region,
       ...(Array.isArray(area?.aliases) ? area.aliases : [])
-    ].filter(Boolean);
+    ]).filter(Boolean);
 
     const matchedCandidate = candidates.find((candidate) => {
       const normalized = String(candidate).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      return normalized.length >= 3 && normalizedMessage.includes(normalized);
+      return normalized.length >= 3 && normalizedTextContains(normalizedMessage, normalized);
     });
 
     if (matchedCandidate) {
@@ -816,8 +886,10 @@ function getAdminAreaNamesFromMessage(message = '', context = {}) {
     const messageTokens = normalizedMessage
       .split(/\s+/)
       .filter((token) => token.length >= 3 && !genericAdminTokens.has(token));
-    const searchText = String(area?.searchText || '');
-    const tokenMatch = messageTokens.find((token) => searchText.includes(token));
+    const searchText = requestedLevel && levelEntries.length
+      ? String(levelEntries.map((entry) => entry.value).join(' ')).toLowerCase().replace(/[^a-z0-9]+/g, ' ')
+      : String(area?.searchText || '');
+    const tokenMatch = messageTokens.find((token) => normalizedTextContains(searchText, token));
     if (tokenMatch) {
       matches.push(tokenMatch);
     }
@@ -825,6 +897,21 @@ function getAdminAreaNamesFromMessage(message = '', context = {}) {
 
   return Array.from(new Set(matches))
     .slice(0, 25);
+}
+
+function normalizedTextContains(searchText = '', term = '') {
+  const normalizedSearchText = String(searchText).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const normalizedTerm = String(term).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  if (!normalizedSearchText || !normalizedTerm) return false;
+  return ` ${normalizedSearchText} `.includes(` ${normalizedTerm} `);
+}
+
+function getRequestedAdminLevel(message = '') {
+  const lower = String(message).toLowerCase();
+  if (/\b(province|provinces|adm1|admin 1|admin1)\b/.test(lower)) return 'province';
+  if (/\b(health zone|health zones|zone de sante|zscode)\b/.test(lower)) return 'health_zone';
+  if (/\b(district|districts|territory|territories|adm2|admin 2|admin2)\b/.test(lower)) return 'district';
+  return '';
 }
 
 function tokenizeForMatching(message = '') {

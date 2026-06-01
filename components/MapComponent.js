@@ -115,12 +115,12 @@ const customStyles = `
 
   @keyframes pulse {
     0%, 100% {
-      stroke-width: 4;
+      stroke-width: 7;
       stroke-opacity: 1;
     }
     50% {
-      stroke-width: 6;
-      stroke-opacity: 0.7;
+      stroke-width: 9;
+      stroke-opacity: 0.9;
     }
   }
 
@@ -130,6 +130,7 @@ const customStyles = `
 
   .highlighted-district {
     animation: pulse 2s ease-in-out infinite;
+    filter: drop-shadow(0 0 4px rgba(255, 59, 0, 0.75));
   }
 
   .facility-label {
@@ -331,6 +332,41 @@ function normalizeAdminSearchValue(value = '') {
     .trim();
 }
 
+function adminSearchTextContains(searchText = '', term = '') {
+  const normalizedSearchText = normalizeAdminSearchValue(searchText);
+  const normalizedTerm = normalizeAdminSearchValue(term);
+  if (!normalizedSearchText || !normalizedTerm) return false;
+  return ` ${normalizedSearchText} `.includes(` ${normalizedTerm} `);
+}
+
+function isAdminIdentityKey(key = '') {
+  const normalized = normalizeAdminSearchValue(key).replace(/\s+/g, '');
+  return (
+    normalized === 'name' ||
+    normalized === 'nom' ||
+    normalized === 'displayname' ||
+    normalized === 'province' ||
+    normalized === 'territory' ||
+    normalized === 'district' ||
+    normalized === 'healthzone' ||
+    normalized === 'zone' ||
+    normalized === 'zscode' ||
+    /^adm\d/.test(normalized) ||
+    /^name\d/.test(normalized)
+  );
+}
+
+function getAdminIdentityLevel(key = '') {
+  const normalized = normalizeAdminSearchValue(key).replace(/\s+/g, '');
+  if (normalized === 'province' || normalized === 'adm1' || normalized === 'name1') return 'province';
+  if (normalized === 'territory' || normalized === 'district' || normalized === 'adm2' || normalized === 'name2') return 'district';
+  if (normalized === 'healthzone' || normalized === 'zone' || normalized === 'zscode') return 'health_zone';
+  if (normalized === 'name' || normalized === 'nom' || normalized === 'displayname') return 'name';
+  if (/^adm1/.test(normalized) || /^name1/.test(normalized)) return 'province';
+  if (/^adm2/.test(normalized) || /^name2/.test(normalized)) return 'district';
+  return 'identity';
+}
+
 function getDistrictSearchValues(district = {}) {
   const values = [
     district.id,
@@ -357,9 +393,70 @@ function getDistrictSearchValues(district = {}) {
   ));
 }
 
+function getDistrictIdentityEntries(district = {}) {
+  const entries = [
+    { level: 'id', value: district.id },
+    { level: 'name', value: district.name },
+    { level: 'country', value: district.country },
+    { level: 'region', value: district.region }
+  ];
+
+  Object.entries(district.properties || {}).forEach(([key, value]) => {
+    if (!isAdminIdentityKey(key)) return;
+    if (value === null || value === undefined || value === '') return;
+    if (typeof value === 'string' || typeof value === 'number') {
+      entries.push({ level: getAdminIdentityLevel(key), value });
+    }
+  });
+
+  summarizeDistrictAttributes(district, { maxFields: 120, maxDepth: 4 }).forEach((attribute) => {
+    if (isAdminIdentityKey(attribute.path) || isAdminIdentityKey(attribute.label)) {
+      entries.push({
+        level: getAdminIdentityLevel(attribute.path || attribute.label),
+        value: attribute.value
+      });
+    }
+  });
+
+  const seen = new Set();
+  return entries
+    .map((entry) => ({
+      level: entry.level,
+      value: String(entry.value ?? '').replace(/\s+/g, ' ').trim()
+    }))
+    .filter((entry) => {
+      if (entry.value.length < 2) return false;
+      const key = `${entry.level}:${entry.value}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function getDistrictIdentitySearchValues(district = {}, adminLevel = '') {
+  const entries = getDistrictIdentityEntries(district);
+  const level = normalizeAdminSearchValue(adminLevel).replace(/\s+/g, '_');
+  const values = entries
+    .filter((entry) => {
+      if (!level) return true;
+      if (level === 'province') return entry.level === 'province';
+      if (level === 'district') return entry.level === 'district' || entry.level === 'name';
+      if (level === 'health_zone') return entry.level === 'health_zone' || entry.level === 'name';
+      return true;
+    })
+    .map((entry) => entry.value);
+
+  return Array.from(new Set(
+    values
+      .map((value) => String(value ?? '').replace(/\s+/g, ' ').trim())
+      .filter((value) => value.length >= 2)
+  ));
+}
+
 function buildAdminAreaChatIndex(districts = []) {
   return (districts || []).map((district, index) => {
-    const searchValues = getDistrictSearchValues(district);
+    const identityEntries = getDistrictIdentityEntries(district);
+    const searchValues = identityEntries.map((entry) => entry.value);
     const attributes = summarizeDistrictAttributes(district, { maxFields: 120, maxDepth: 4 });
     return {
       id: district.id ?? index,
@@ -367,6 +464,7 @@ function buildAdminAreaChatIndex(districts = []) {
       country: district.country || null,
       region: district.region || null,
       aliases: searchValues.slice(0, 40),
+      identityEntries: identityEntries.slice(0, 40),
       attributes,
       searchText: normalizeAdminSearchValue(searchValues.join(' '))
     };
@@ -390,6 +488,15 @@ const GENERIC_ADMIN_MATCH_TERMS = new Set([
   'health',
   'zone',
   'zones',
+  'sud',
+  'nord',
+  'est',
+  'ouest',
+  'north',
+  'south',
+  'east',
+  'west',
+  'central',
   'highlight',
   'show',
   'map'
@@ -1110,6 +1217,7 @@ const MapComponent = ({
 
   // District boundaries state (districts is now passed as prop)
   const [showDistricts, setShowDistricts] = useState(true);
+  const [showDistrictBorders, setShowDistrictBorders] = useState(true);
   const [highlightedDistricts, setHighlightedDistricts] = useState([]);
   const [chatMapMarkers, setChatMapMarkers] = useState([]);
 
@@ -1228,12 +1336,12 @@ const MapComponent = ({
     if (criteria.names && criteria.names.length > 0) {
       const requestedNames = criteria.names.filter(isSpecificAdminMatchTerm);
       const nameMatches = districts.filter(district => {
-        const districtSearchText = normalizeAdminSearchValue(getDistrictSearchValues(district).join(' '));
+        const districtSearchText = normalizeAdminSearchValue(getDistrictIdentitySearchValues(district, criteria.adminLevel).join(' '));
         return requestedNames.some(name => {
           const requestedName = normalizeAdminSearchValue(name);
           return requestedName && (
-            districtSearchText.includes(requestedName) ||
-            requestedName.includes(normalizeAdminSearchValue(district.name || ''))
+            adminSearchTextContains(districtSearchText, requestedName) ||
+            adminSearchTextContains(requestedName, district.name || '')
           );
         });
       });
@@ -1303,12 +1411,12 @@ const MapComponent = ({
     if (Array.isArray(criteria.names) && criteria.names.length > 0) {
       const requestedNames = criteria.names.filter(isSpecificAdminMatchTerm);
       const nameMatches = districts.filter((district) => {
-        const districtSearchText = normalizeAdminSearchValue(getDistrictSearchValues(district).join(' '));
+        const districtSearchText = normalizeAdminSearchValue(getDistrictIdentitySearchValues(district, criteria.adminLevel).join(' '));
         return requestedNames.some((name) => {
           const requestedName = normalizeAdminSearchValue(name);
           return requestedName && (
-            districtSearchText.includes(requestedName) ||
-            requestedName.includes(normalizeAdminSearchValue(district.name || ''))
+            adminSearchTextContains(districtSearchText, requestedName) ||
+            adminSearchTextContains(requestedName, district.name || '')
           );
         });
       });
@@ -1435,6 +1543,14 @@ const MapComponent = ({
         }
         return;
       }
+      case 'clear_highlights': {
+        setHighlightedDistricts([]);
+        if (mapInstance) {
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+        addToast('Cleared admin highlights.', 'info');
+        return;
+      }
       case 'clear_map_annotations': {
         setHighlightedDistricts([]);
         setChatMapMarkers([]);
@@ -1442,6 +1558,25 @@ const MapComponent = ({
           window.setTimeout(() => mapInstance.invalidateSize(), 50);
         }
         addToast('Cleared chat map highlights and pins.', 'info');
+        return;
+      }
+      case 'set_admin_display': {
+        if (typeof command.showLayer === 'boolean') {
+          setShowDistricts(command.showLayer);
+        }
+        if (typeof command.showBorders === 'boolean') {
+          setShowDistrictBorders(command.showBorders);
+        }
+        if (typeof command.showLabels === 'boolean') {
+          setShowDistrictLabels(command.showLabels);
+        }
+        if ((command.showBorders === true || command.showLabels === true) && typeof command.showLayer !== 'boolean') {
+          setShowDistricts(true);
+        }
+        if (mapInstance) {
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+        addToast('Updated admin layer display.', 'info');
         return;
       }
       case 'add_marker': {
@@ -2533,6 +2668,10 @@ const MapComponent = ({
         setShowAcledLayer={setShowAcledLayer}
         showOutbreakLayer={showOutbreakLayer}
         setShowOutbreakLayer={setShowOutbreakLayer}
+        showDistricts={showDistricts}
+        setShowDistricts={setShowDistricts}
+        showDistrictBorders={showDistrictBorders}
+        setShowDistrictBorders={setShowDistrictBorders}
         showDistrictRiskFill={showDistrictRiskFill}
         setShowDistrictRiskFill={setShowDistrictRiskFill}
         showLabels={showLabels}
@@ -3050,6 +3189,7 @@ const MapComponent = ({
             onDistrictOutlookClick={onDistrictOutlookClick}
             mapInstance={mapInstance}
             allowDistrictLabels={allowDistrictLabels}
+            showDistrictBorders={showDistrictBorders}
             showDistrictRiskFill={showDistrictRiskFill}
             visibleDisasters={visibleDisasters}
             visibleAcledEvents={visibleAcledEvents}

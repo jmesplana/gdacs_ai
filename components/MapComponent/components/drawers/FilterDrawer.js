@@ -31,6 +31,10 @@ const FilterDrawer = ({
   setShowAcledLayer,
   showOutbreakLayer = true,
   setShowOutbreakLayer,
+  showDistricts = true,
+  setShowDistricts,
+  showDistrictBorders = true,
+  setShowDistrictBorders,
   showDistrictRiskFill,
   setShowDistrictRiskFill,
   showLabels,
@@ -182,7 +186,96 @@ const FilterDrawer = ({
                 </div>
               )}
 
-              {/* Impact Zones Toggle */}
+              {/* Admin Boundaries Toggle */}
+              {setShowDistricts && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px',
+                  borderTop: '1px solid #f0f0f0'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2D5A7B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                      <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+                      <line x1="8" y1="2" x2="8" y2="18"></line>
+                      <line x1="16" y1="6" x2="16" y2="22"></line>
+                    </svg>
+                    <span style={{ fontWeight: 'bold' }}>Admin Boundaries</span>
+                  </div>
+                  <div
+                    onClick={() => setShowDistricts(!showDistricts)}
+                    style={{
+                      width: '40px',
+                      height: '20px',
+                      backgroundColor: showDistricts ? '#2D5A7B' : '#e0e0e0',
+                      borderRadius: '10px',
+                      position: 'relative',
+                      transition: 'background-color 0.3s',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      backgroundColor: 'white',
+                      borderRadius: '50%',
+                      position: 'absolute',
+                      top: '2px',
+                      left: showDistricts ? '22px' : '2px',
+                      transition: 'left 0.3s'
+                    }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {setShowDistrictBorders && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px',
+                  borderTop: '1px solid #f0f0f0'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '10px'}}>
+                      <path d="M3 6h18"></path>
+                      <path d="M3 12h18"></path>
+                      <path d="M3 18h18"></path>
+                    </svg>
+                    <span style={{ fontWeight: 'bold' }}>Admin Borders</span>
+                  </div>
+                  <div
+                    onClick={() => {
+                      setShowDistrictBorders(!showDistrictBorders);
+                      if (!showDistrictBorders && setShowDistricts) setShowDistricts(true);
+                    }}
+                    style={{
+                      width: '40px',
+                      height: '20px',
+                      backgroundColor: showDistrictBorders ? '#475569' : '#e0e0e0',
+                      borderRadius: '10px',
+                      position: 'relative',
+                      transition: 'background-color 0.3s',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      backgroundColor: 'white',
+                      borderRadius: '50%',
+                      position: 'absolute',
+                      top: '2px',
+                      left: showDistrictBorders ? '22px' : '2px',
+                      transition: 'left 0.3s'
+                    }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
