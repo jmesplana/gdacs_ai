@@ -18,6 +18,10 @@ function getWhoPublicationTime(item = {}) {
   return new Date(item.PublicationDateAndTime || item.PublicationDate || item.LastModified || 0).getTime() || 0;
 }
 
+function isAiOutbreakLocationExtractionEnabled() {
+  return process.env.WHO_OUTBREAK_AI_LOCATIONS_ENABLED === 'true' && Boolean(process.env.OPENAI_API_KEY);
+}
+
 function stripHtml(value = '') {
   return String(value)
     .replace(/<[^>]*>/g, ' ')
@@ -155,7 +159,8 @@ async function handler(req, res) {
     const skip = getBoundedInteger(req.query.skip, 0, 0, 1000);
     const maxGeocodeQueries = getBoundedInteger(req.query.geocodeLimit, undefined, 0, 200);
     const includeDetailLocations = req.query.detailLocations !== 'false';
-    const includeAiLocations = req.query.aiLocations === 'true';
+    const includeAiLocationsRequested = req.query.aiLocations === 'true';
+    const includeAiLocations = includeAiLocationsRequested && isAiOutbreakLocationExtractionEnabled();
 
     const query = new URLSearchParams({
       $filter: `PublicationDateAndTime ge ${filterDate}`,
@@ -272,6 +277,8 @@ async function handler(req, res) {
         maxGeocodeQueries: Number.isFinite(maxGeocodeQueries) ? maxGeocodeQueries : null,
         includeDetailLocations,
         includeAiLocations,
+        includeAiLocationsRequested,
+        aiLocationExtractionConfigured: isAiOutbreakLocationExtractionEnabled(),
         aiLocationReports: includeAiLocations ? Math.min(Array.isArray(data.value) ? data.value.length : 0, MAX_AI_LOCATION_REPORTS) : 0
       },
       fetchedAt: new Date().toISOString()
