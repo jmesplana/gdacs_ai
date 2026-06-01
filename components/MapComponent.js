@@ -581,7 +581,12 @@ function compactAcledForAnalysis(events = [], maxItems = 50) {
 }
 
 const LARGE_DISTRICT_COUNT = 80;
-const MAX_DISTRICT_LABELS = 300; // Increased to support larger datasets
+const getAdminLabelMinZoom = (districtCount = 0) => {
+  if (districtCount > 1000) return 8;
+  if (districtCount > 300) return 7;
+  if (districtCount > LARGE_DISTRICT_COUNT) return 6;
+  return 5;
+};
 
 function buildAcledAggregateSummary(events = [], selectedDistricts = []) {
   const scopedEvents = selectedDistricts.length > 0
@@ -1218,6 +1223,7 @@ const MapComponent = ({
   // District boundaries state (districts is now passed as prop)
   const [showDistricts, setShowDistricts] = useState(true);
   const [showDistrictBorders, setShowDistrictBorders] = useState(true);
+  const [forceDistrictLabels, setForceDistrictLabels] = useState(false);
   const [highlightedDistricts, setHighlightedDistricts] = useState([]);
   const [chatMapMarkers, setChatMapMarkers] = useState([]);
 
@@ -1569,6 +1575,7 @@ const MapComponent = ({
         }
         if (typeof command.showLabels === 'boolean') {
           setShowDistrictLabels(command.showLabels);
+          setForceDistrictLabels(command.showLabels);
         }
         if ((command.showBorders === true || command.showLabels === true) && typeof command.showLayer !== 'boolean') {
           setShowDistricts(true);
@@ -2447,7 +2454,8 @@ const MapComponent = ({
     () => buildAdminAreaChatIndex(districts),
     [districts]
   );
-  const allowDistrictLabels = showDistrictLabels && districts.length <= MAX_DISTRICT_LABELS;
+  const allowDistrictLabels = showDistrictLabels;
+  const adminLabelMinZoom = getAdminLabelMinZoom(districts.length);
   const displayDistricts = useMemo(() => {
     const shouldSimplifyForDisplay = districts.length >= LARGE_DISTRICT_COUNT;
 
@@ -2678,6 +2686,8 @@ const MapComponent = ({
         setShowLabels={setShowLabels}
         showDistrictLabels={showDistrictLabels}
         setShowDistrictLabels={setShowDistrictLabels}
+        forceDistrictLabels={forceDistrictLabels}
+        setForceDistrictLabels={setForceDistrictLabels}
         onZoomToFit={handleZoomToFit}
         showZoomIndicator={showZoomIndicator}
         disasters={allDisasters.length > 0 ? allDisasters : disasters}
@@ -3189,6 +3199,7 @@ const MapComponent = ({
             onDistrictOutlookClick={onDistrictOutlookClick}
             mapInstance={mapInstance}
             allowDistrictLabels={allowDistrictLabels}
+            labelMinZoom={adminLabelMinZoom}
             showDistrictBorders={showDistrictBorders}
             showDistrictRiskFill={showDistrictRiskFill}
             visibleDisasters={visibleDisasters}

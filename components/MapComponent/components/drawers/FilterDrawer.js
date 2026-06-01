@@ -41,6 +41,8 @@ const FilterDrawer = ({
   setShowLabels,
   showDistrictLabels,
   setShowDistrictLabels,
+  forceDistrictLabels = false,
+  setForceDistrictLabels,
   visibleDisasterTypes,
   toggleDisasterType,
   severityFilters,
@@ -707,7 +709,13 @@ const FilterDrawer = ({
                   <span style={{ fontWeight: 'bold' }}>District Labels</span>
                 </div>
                 <div
-                  onClick={() => setShowDistrictLabels(!showDistrictLabels)}
+                  onClick={() => {
+                    const nextValue = !showDistrictLabels;
+                    setShowDistrictLabels(nextValue);
+                    if (setForceDistrictLabels) {
+                      setForceDistrictLabels(false);
+                    }
+                  }}
                   style={{
                     width: '40px',
                     height: '20px',
@@ -731,6 +739,16 @@ const FilterDrawer = ({
                   ></div>
                 </div>
               </div>
+              {forceDistrictLabels && (
+                <div style={{
+                  padding: '0 10px 10px 46px',
+                  fontSize: '11px',
+                  color: '#64748b',
+                  lineHeight: 1.4
+                }}>
+                  Labels are enabled from chat and appear as you zoom in.
+                </div>
+              )}
             </div>
 
             {/* Map Legend Control */}

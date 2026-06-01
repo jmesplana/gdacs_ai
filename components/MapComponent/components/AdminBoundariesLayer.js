@@ -282,6 +282,7 @@ export default function AdminBoundariesLayer({
   onDistrictOutlookClick,
   mapInstance,
   allowDistrictLabels = false,
+  labelMinZoom = 7,
   showDistrictBorders = true,
   showDistrictRiskFill = true,
   visibleDisasters = [],
@@ -350,7 +351,7 @@ export default function AdminBoundariesLayer({
 
   return (
     <GeoJSON
-      key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistrictKey}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-borders-${showDistrictBorders}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.legendKey || ''}-drawing-${isDrawingMode}`}
+      key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistrictKey}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-labelzoom-${labelMinZoom}-borders-${showDistrictBorders}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.legendKey || ''}-drawing-${isDrawingMode}`}
       data={featureCollection}
       pane="overlayPane"
       interactive={!isDrawingMode}
@@ -531,7 +532,7 @@ export default function AdminBoundariesLayer({
         }
 
         if (allowDistrictLabels && mapInstance) {
-          const minZoom = 7;
+          const minZoom = Number.isFinite(Number(labelMinZoom)) ? Number(labelMinZoom) : 7;
 
           layer.bindTooltip(displayName, {
             permanent: true,
@@ -540,23 +541,31 @@ export default function AdminBoundariesLayer({
             opacity: 0.9
           });
 
-          layer.on('add', () => {
-            if (mapInstance.getZoom() < minZoom) {
-              layer.closeTooltip();
-            }
-          });
-
-          const onZoomEnd = () => {
+          const updateTooltipVisibility = () => {
             const zoom = mapInstance.getZoom();
-            if (zoom >= minZoom) {
+            let isInView = true;
+            if (typeof layer.getBounds === 'function') {
+              try {
+                isInView = mapInstance.getBounds().pad(0.15).contains(layer.getBounds().getCenter());
+              } catch (error) {
+                isInView = true;
+              }
+            }
+
+            if (zoom >= minZoom && isInView) {
               layer.openTooltip();
             } else {
               layer.closeTooltip();
             }
           };
 
-          mapInstance.on('zoomend', onZoomEnd);
-          layer._zoomEndHandler = onZoomEnd;
+          layer.on('add', updateTooltipVisibility);
+          mapInstance.on('zoomend', updateTooltipVisibility);
+          mapInstance.on('moveend', updateTooltipVisibility);
+          layer.on('remove', () => {
+            mapInstance.off('zoomend', updateTooltipVisibility);
+            mapInstance.off('moveend', updateTooltipVisibility);
+          });
         }
 
         if (onAnalysisDistrictsChange || (canUseDistrictDecisionTools && (onDistrictClick || onDistrictOutlookClick))) {

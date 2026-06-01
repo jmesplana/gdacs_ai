@@ -605,6 +605,7 @@ function detectLocalMarkerCommand(message = '', context = {}) {
 
 function detectLocalAdminDisplayCommand(message = '') {
   const lower = String(message).toLowerCase();
+  if (/\b(analysis|scope|selection)\b/.test(lower)) return null;
   const hasAdminLayerTerm = /\b(admin|district|boundary|boundaries|border|borders|outline|outlines|label|labels)\b/.test(lower);
   if (!hasAdminLayerTerm) return null;
 
@@ -665,12 +666,14 @@ function detectLocalMapCommand(message = '', context = {}) {
   const highlightKeywords = ['highlight', 'show me', 'display', 'point out', 'identify', 'show', 'map', 'visualize'];
   const selectKeywords = ['select', 'set scope', 'focus on', 'use only', 'analyze only'];
   const deselectKeywords = ['deselect', 'unselect', 'remove from analysis', 'remove from scope', 'exclude from analysis', 'exclude from scope'];
+  const hasDeselectPhrase = /\b(remove|exclude|deselect|unselect)\b[\s\S]{0,120}\b(from|for)\s+(?:the\s+)?(analysis|scope|selection)\b/.test(lower) ||
+    /\b(remove|exclude|deselect|unselect)\b[\s\S]{0,120}\b(analysis scope|selected areas|selected admin|selected districts?)\b/.test(lower);
   const riskKeywords = ['high risk', 'very high risk', 'dangerous', 'unsafe', 'no go', 'no-go', 'risky', 'risk', 'threat'];
   const safeKeywords = ['safe', 'low risk', 'no risk', 'secure', 'safe for operations'];
-  const hasDistrictMention = lower.includes('district') || lower.includes('admin') || lower.includes('area') || lower.includes('region') || lower.includes('location');
+  const hasDistrictMention = lower.includes('district') || lower.includes('province') || lower.includes('admin') || lower.includes('area') || lower.includes('region') || lower.includes('location');
   const hasHighlightIntent = highlightKeywords.some((keyword) => lower.includes(keyword));
   const hasSelectIntent = selectKeywords.some((keyword) => lower.includes(keyword));
-  const hasDeselectIntent = deselectKeywords.some((keyword) => lower.includes(keyword));
+  const hasDeselectIntent = hasDeselectPhrase || deselectKeywords.some((keyword) => lower.includes(keyword));
   if (!context?.hasDistricts || (!hasDistrictMention && !hasHighlightIntent && !hasSelectIntent && !hasDeselectIntent)) return null;
 
   const criteria = {};
@@ -712,7 +715,7 @@ function detectLocalMapCommand(message = '', context = {}) {
     criteria.adminLevel = requestedAdminLevel;
   }
 
-  if (!Object.keys(criteria).length && hasSelectIntent && Array.isArray(context.highlightedAdminAreas) && context.highlightedAdminAreas.length > 0) {
+  if (!Object.keys(criteria).length && (hasSelectIntent || hasDeselectIntent) && Array.isArray(context.highlightedAdminAreas) && context.highlightedAdminAreas.length > 0) {
     criteria.ids = context.highlightedAdminAreas.map((area) => area.id);
     criteria.names = context.highlightedAdminAreas.map((area) => area.name).filter(Boolean);
   }

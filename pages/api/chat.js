@@ -616,16 +616,18 @@ function detectMapIntent(message, context = {}) {
   const highlightKeywords = ['highlight', 'show me', 'which districts', 'what districts', 'display', 'point out', 'identify', 'show', 'map', 'visualize'];
   const selectKeywords = ['select', 'set scope', 'focus on', 'use only', 'analyze only'];
   const deselectKeywords = ['deselect', 'unselect', 'remove from analysis', 'remove from scope', 'exclude from analysis', 'exclude from scope'];
+  const hasDeselectPhrase = /\b(remove|exclude|deselect|unselect)\b[\s\S]{0,120}\b(from|for)\s+(?:the\s+)?(analysis|scope|selection)\b/.test(lowerMessage) ||
+    /\b(remove|exclude|deselect|unselect)\b[\s\S]{0,120}\b(analysis scope|selected areas|selected admin|selected districts?)\b/.test(lowerMessage);
   const riskKeywords = ['high risk', 'very high risk', 'dangerous', 'unsafe', 'no go', 'no-go', 'risky', 'risk', 'threat'];
   const safeKeywords = ['safe', 'low risk', 'no risk', 'secure', 'safe for operations'];
 
   // Check if the message is asking about districts or areas
-  const hasDistrictMention = lowerMessage.includes('district') || lowerMessage.includes('area') || lowerMessage.includes('region') || lowerMessage.includes('location');
+  const hasDistrictMention = lowerMessage.includes('district') || lowerMessage.includes('province') || lowerMessage.includes('area') || lowerMessage.includes('region') || lowerMessage.includes('location');
 
   // Check for highlight intent
   const hasHighlightIntent = highlightKeywords.some(keyword => lowerMessage.includes(keyword));
   const hasSelectIntent = selectKeywords.some(keyword => lowerMessage.includes(keyword));
-  const hasDeselectIntent = deselectKeywords.some(keyword => lowerMessage.includes(keyword));
+  const hasDeselectIntent = hasDeselectPhrase || deselectKeywords.some(keyword => lowerMessage.includes(keyword));
 
   // Check if this is a geographic or risk-related query about the districts
   const isGeographicQuery = hasDistrictMention || hasHighlightIntent || hasSelectIntent || hasDeselectIntent;
@@ -696,6 +698,7 @@ function detectMapIntent(message, context = {}) {
 
 function detectAdminDisplayCommand(message = '') {
   const lower = String(message).toLowerCase();
+  if (/\b(analysis|scope|selection)\b/.test(lower)) return null;
   const hasAdminLayerTerm = /\b(admin|district|boundary|boundaries|border|borders|outline|outlines|label|labels)\b/.test(lower);
   if (!hasAdminLayerTerm) return null;
 
