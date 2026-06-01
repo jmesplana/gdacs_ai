@@ -289,7 +289,7 @@ export default function AdminBoundariesLayer({
   isDrawingMode = false
 }) {
   const { addToast } = useToast();
-  const selectedIds = selectedAnalysisDistrictIds || new Set((selectedAnalysisDistricts || []).map(district => district.id));
+  const selectedIds = selectedAnalysisDistrictIds || new Set((selectedAnalysisDistricts || []).map(district => String(district.id)));
   const highlightedIds = useMemo(() => new Set((highlightedDistricts || []).map((id) => String(id))), [highlightedDistricts]);
   const highlightedDistrictKey = useMemo(
     () => (highlightedDistricts || []).map((id) => String(id)).sort().join('_'),
@@ -356,7 +356,7 @@ export default function AdminBoundariesLayer({
       style={(feature) => {
         const riskLevel = feature.properties.riskLevel || 'none';
         const isHighlighted = highlightedIds.has(String(feature.id));
-        const isSelected = selectedIds.has(feature.id);
+        const isSelected = selectedIds.has(String(feature.id));
         const hasSelection = selectedIds.size > 0;
         const fill = getFill(feature, riskLevel);
         const baseFillOpacity = fill.opacity === null
@@ -413,7 +413,7 @@ export default function AdminBoundariesLayer({
           `;
         }
 
-        const isSelectedForAnalysis = selectedIds.has(feature.id);
+        const isSelectedForAnalysis = selectedIds.has(String(feature.id));
         if (onAnalysisDistrictsChange) {
           popupContent += `
             <button
@@ -558,13 +558,13 @@ export default function AdminBoundariesLayer({
                   const fullDistrict = districts.find(district => district.id === feature.id);
                   if (!fullDistrict) return;
 
-                  const nextSelectedDistricts = selectedIds.has(feature.id)
-                    ? selectedAnalysisDistricts.filter(district => district.id !== feature.id)
+                  const nextSelectedDistricts = selectedIds.has(String(feature.id))
+                    ? selectedAnalysisDistricts.filter(district => String(district.id) !== String(feature.id))
                     : [...selectedAnalysisDistricts, fullDistrict];
 
                   onAnalysisDistrictsChange(nextSelectedDistricts);
                   addToast(
-                    selectedIds.has(feature.id)
+                    selectedIds.has(String(feature.id))
                       ? `${displayName} removed from analysis scope.`
                       : `${displayName} added to analysis scope.`,
                     'success'

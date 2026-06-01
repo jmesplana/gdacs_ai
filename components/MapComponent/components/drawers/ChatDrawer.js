@@ -433,6 +433,14 @@ function compactChatContext(context = {}, detailLevel = 'compact') {
       aliases: Array.isArray(area.aliases) ? area.aliases.slice(0, 40) : [],
       searchText: area.searchText
     })),
+    highlightedAdminAreas: Array.isArray(context.highlightedAdminAreas)
+      ? context.highlightedAdminAreas.map((area) => ({
+          id: area.id,
+          name: area.name,
+          country: area.country,
+          region: area.region
+        }))
+      : [],
     prioritizationBoard: compactPrioritizationBoardForChat(context.prioritizationBoard)
   };
 }
@@ -561,8 +569,12 @@ function detectLocalMarkerCommand(message = '', context = {}) {
 function detectLocalMapCommand(message = '', context = {}) {
   const lower = String(message).toLowerCase();
 
-  if (/\b(clear|remove|reset)\b/.test(lower) && /\b(highlight|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lower)) {
+  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lower) && /\b(highlight|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lower)) {
     return { action: 'clear_map_annotations' };
+  }
+
+  if (/\b(clear|reset|remove all)\b/.test(lower) && /\b(analysis scope|analysis selection|selected admin|selected district|selected districts|selected areas)\b/.test(lower)) {
+    return { action: 'clear_analysis_scope' };
   }
 
   const markerCommand = detectLocalMarkerCommand(message, context);
@@ -570,12 +582,14 @@ function detectLocalMapCommand(message = '', context = {}) {
 
   const highlightKeywords = ['highlight', 'show me', 'display', 'point out', 'identify', 'show', 'map', 'visualize'];
   const selectKeywords = ['select', 'set scope', 'focus on', 'use only', 'analyze only'];
+  const deselectKeywords = ['deselect', 'unselect', 'remove from analysis', 'remove from scope', 'exclude from analysis', 'exclude from scope'];
   const riskKeywords = ['high risk', 'very high risk', 'dangerous', 'unsafe', 'no go', 'no-go', 'risky', 'risk', 'threat'];
   const safeKeywords = ['safe', 'low risk', 'no risk', 'secure', 'clear', 'safe for operations'];
   const hasDistrictMention = lower.includes('district') || lower.includes('admin') || lower.includes('area') || lower.includes('region') || lower.includes('location');
   const hasHighlightIntent = highlightKeywords.some((keyword) => lower.includes(keyword));
   const hasSelectIntent = selectKeywords.some((keyword) => lower.includes(keyword));
-  if (!context?.hasDistricts || (!hasDistrictMention && !hasHighlightIntent && !hasSelectIntent)) return null;
+  const hasDeselectIntent = deselectKeywords.some((keyword) => lower.includes(keyword));
+  if (!context?.hasDistricts || (!hasDistrictMention && !hasHighlightIntent && !hasSelectIntent && !hasDeselectIntent)) return null;
 
   const criteria = {};
   if (riskKeywords.some((keyword) => lower.includes(keyword))) {
@@ -612,10 +626,15 @@ function detectLocalMapCommand(message = '', context = {}) {
     criteria.names = matchedNames;
   }
 
+  if (!Object.keys(criteria).length && hasSelectIntent && Array.isArray(context.highlightedAdminAreas) && context.highlightedAdminAreas.length > 0) {
+    criteria.ids = context.highlightedAdminAreas.map((area) => area.id);
+    criteria.names = context.highlightedAdminAreas.map((area) => area.name).filter(Boolean);
+  }
+
   if (!Object.keys(criteria).length) return null;
 
   return {
-    action: hasSelectIntent ? 'select_districts' : 'highlight_districts',
+    action: hasDeselectIntent ? 'deselect_districts' : (hasSelectIntent ? 'select_districts' : 'highlight_districts'),
     criteria
   };
 }
@@ -1576,7 +1595,7 @@ const ChatDrawer = ({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Ask about impacts on your programs..."
+              placeholder="Ask about the map, admin areas, or loaded data..."
               disabled={loading}
               style={{
                 flex: 1,
@@ -1585,13 +1604,15 @@ const ChatDrawer = ({
                 borderRadius: '12px',
                 fontSize: '13px',
                 fontFamily: "'Inter', sans-serif",
+                lineHeight: '18px',
                 resize: 'none',
-                minHeight: '40px',
+                minHeight: '48px',
                 maxHeight: '100px',
+                overflowY: input ? 'auto' : 'hidden',
                 outline: 'none',
                 transition: 'border-color 0.2s'
               }}
-              rows={1}
+              rows={2}
               onInput={(e) => {
                 e.target.style.height = 'auto';
                 e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';

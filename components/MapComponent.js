@@ -1392,8 +1392,46 @@ const MapComponent = ({
         }
 
         if (onAnalysisDistrictsChange) {
-          onAnalysisDistrictsChange(matchingDistricts);
+          const selectedById = new Map((selectedAnalysisDistricts || []).map((district) => [String(district.id), district]));
+          matchingDistricts.forEach((district) => {
+            selectedById.set(String(district.id), district);
+          });
+          onAnalysisDistrictsChange(Array.from(selectedById.values()));
           addToast(`Selected ${matchingDistricts.length} admin area${matchingDistricts.length === 1 ? '' : 's'} from chat.`, 'success');
+        }
+        return;
+      }
+      case 'deselect_districts': {
+        const matchingDistricts = getDistrictsMatchingChatCriteria(command.criteria || {});
+        if (!matchingDistricts.length) {
+          addToast('No matching admin areas found for that chat request.', 'warning');
+          return;
+        }
+
+        const removeIds = new Set(matchingDistricts.map((district) => String(district.id)));
+        const nextSelectedDistricts = (selectedAnalysisDistricts || []).filter((district) => !removeIds.has(String(district.id)));
+        setHighlightedDistricts([]);
+
+        if (onAnalysisDistrictsChange) {
+          onAnalysisDistrictsChange(nextSelectedDistricts);
+          addToast(`Deselected ${matchingDistricts.length} admin area${matchingDistricts.length === 1 ? '' : 's'} from analysis.`, 'success');
+        }
+
+        if (mapInstance) {
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+        return;
+      }
+      case 'clear_analysis_scope': {
+        setHighlightedDistricts([]);
+
+        if (onAnalysisDistrictsChange) {
+          onAnalysisDistrictsChange([]);
+          addToast('Cleared the analysis admin selection.', 'success');
+        }
+
+        if (mapInstance) {
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
         }
         return;
       }
@@ -2267,7 +2305,7 @@ const MapComponent = ({
     ]
   );
   const selectedAnalysisDistrictIds = useMemo(
-    () => new Set((selectedAnalysisDistricts || []).map(district => district.id)),
+    () => new Set((selectedAnalysisDistricts || []).map(district => String(district.id))),
     [selectedAnalysisDistricts]
   );
   const adminAreaChatIndex = useMemo(
@@ -3373,6 +3411,14 @@ const MapComponent = ({
           scopedAcledEvents: prioritizationBoard?.summary?.totalAcledEvents ?? filteredAcledData.length,
           totalDistricts: districts?.length || 0,
           adminAreas: adminAreaChatIndex,
+          highlightedAdminAreas: districts
+            ?.filter((district) => highlightedDistricts.map((id) => String(id)).includes(String(district.id)))
+            .map((district) => ({
+              id: district.id,
+              name: district.name,
+              country: district.country,
+              region: district.region
+            })) || [],
           adminNumericFields: adminNumericFields.map((item) => ({
             field: item.field,
             count: item.count,

@@ -299,7 +299,7 @@ IMPORTANT:
   2. List specific district names if available
   3. Provide context about why these districts are at that risk level
   4. The system will automatically apply the map action when the request matches a supported command
-- Supported chat map actions include highlighting or selecting admin areas, coloring admin boundaries by risk or a loaded numeric field, placing a pin when coordinates are provided, and clearing chat-added highlights/pins.
+- Supported chat map actions include highlighting or selecting admin areas, coloring admin boundaries by risk or a loaded numeric field, placing a pin when coordinates or a named admin area are provided, and clearing chat-added highlights/pins. Do not tell the user you cannot clear chat-added pins/dots/markers; the system can apply that map action.
 - Always frame your district analysis in the context of the uploaded shapefile area (e.g., "In [Country/Region], based on the uploaded administrative boundaries...")
 - Use the risk breakdown percentages to give an overall security picture of the area
 - When discussing campaign planning, reference which districts are safe vs. risky for operations
@@ -581,8 +581,12 @@ Be direct, practical, and specific. Use the context data to give personalized an
 function detectMapIntent(message, context = {}) {
   const lowerMessage = message.toLowerCase();
 
-  if (/\b(clear|remove|reset)\b/.test(lowerMessage) && /\b(highlight|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lowerMessage)) {
+  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage) && /\b(highlight|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lowerMessage)) {
     return { action: 'clear_map_annotations' };
+  }
+
+  if (/\b(clear|reset|remove all)\b/.test(lowerMessage) && /\b(analysis scope|analysis selection|selected admin|selected district|selected districts|selected areas)\b/.test(lowerMessage)) {
+    return { action: 'clear_analysis_scope' };
   }
 
   const markerCommand = detectMarkerCommand(message, context);
@@ -602,6 +606,7 @@ function detectMapIntent(message, context = {}) {
   // Keywords for highlighting/showing districts
   const highlightKeywords = ['highlight', 'show me', 'which districts', 'what districts', 'display', 'point out', 'identify', 'show', 'map', 'visualize'];
   const selectKeywords = ['select', 'set scope', 'focus on', 'use only', 'analyze only'];
+  const deselectKeywords = ['deselect', 'unselect', 'remove from analysis', 'remove from scope', 'exclude from analysis', 'exclude from scope'];
   const riskKeywords = ['high risk', 'very high risk', 'dangerous', 'unsafe', 'no go', 'no-go', 'risky', 'risk', 'threat'];
   const safeKeywords = ['safe', 'low risk', 'no risk', 'secure', 'clear', 'safe for operations'];
 
@@ -611,9 +616,10 @@ function detectMapIntent(message, context = {}) {
   // Check for highlight intent
   const hasHighlightIntent = highlightKeywords.some(keyword => lowerMessage.includes(keyword));
   const hasSelectIntent = selectKeywords.some(keyword => lowerMessage.includes(keyword));
+  const hasDeselectIntent = deselectKeywords.some(keyword => lowerMessage.includes(keyword));
 
   // Check if this is a geographic or risk-related query about the districts
-  const isGeographicQuery = hasDistrictMention || hasHighlightIntent || hasSelectIntent;
+  const isGeographicQuery = hasDistrictMention || hasHighlightIntent || hasSelectIntent || hasDeselectIntent;
 
   if (isGeographicQuery) {
     // Determine what to highlight
@@ -666,7 +672,7 @@ function detectMapIntent(message, context = {}) {
     if (Object.keys(criteria).length > 0) {
       console.log('✅ Map intent detected with criteria:', criteria);
       return {
-        action: hasSelectIntent ? 'select_districts' : 'highlight_districts',
+        action: hasDeselectIntent ? 'deselect_districts' : (hasSelectIntent ? 'select_districts' : 'highlight_districts'),
         criteria: criteria
       };
     }
