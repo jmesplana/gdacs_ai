@@ -4,6 +4,7 @@ import { getDistance } from 'geolib';
 import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
 import { formatOSMForAI } from '../../lib/osmHelpers';
 import { buildChatContextualAnalysis, formatContextualAnalysisForPrompt } from '../../lib/contextualAnalysis';
+import { summarizeDistrictAttributes } from '../../lib/adminProperties';
 
 export const config = {
   api: {
@@ -943,6 +944,31 @@ function buildContextSummary(context) {
       d.rankedDistricts.slice(0, 5).forEach((district, index) => {
         summary.push(`- ${index + 1}. ${district.name} | ${district.level} risk | score ${district.score} | ACLED ${district.acledCount} | GDACS ${district.disasterCount}`);
       });
+    }
+
+    if ((!Array.isArray(context.selectedAnalysisDistricts) || context.selectedAnalysisDistricts.length === 0) && Array.isArray(d.attributeSamples) && d.attributeSamples.length > 0) {
+      summary.push(`\nSample user-uploaded admin attributes from the boundary file:`);
+      d.attributeSamples.slice(0, 5).forEach((sample) => {
+        summary.push(`- ${sample.name}:`);
+        (sample.attributes || []).slice(0, 12).forEach((attribute) => {
+          summary.push(`  - ${attribute.label}: ${attribute.value}`);
+        });
+      });
+      summary.push(`These are bounded samples only. Infer meaning from field names and values; do not assume a fixed GeoJSON or shapefile schema.`);
+    }
+
+    if (Array.isArray(context.selectedAnalysisDistricts) && context.selectedAnalysisDistricts.length > 0) {
+      summary.push(`\nUser-uploaded admin attributes for selected areas:`);
+      context.selectedAnalysisDistricts.slice(0, 8).forEach((district, index) => {
+        const attributes = Array.isArray(district.adminAttributes) && district.adminAttributes.length > 0
+          ? district.adminAttributes
+          : summarizeDistrictAttributes(district, { maxFields: 25, maxDepth: 3 });
+        summary.push(`- ${district.name || `Selected Area ${index + 1}`}:`);
+        attributes.slice(0, 25).forEach((attribute) => {
+          summary.push(`  - ${attribute.label}: ${attribute.value}`);
+        });
+      });
+      summary.push(`Use these uploaded attributes when relevant. Infer their meaning from field names and values; do not assume a fixed GeoJSON or shapefile schema.`);
     }
 
     summary.push(`⚡ IMPORTANT: Use this active-scope district ranking when the user asks which districts to avoid, monitor, prioritize, or treat as unsafe.`);

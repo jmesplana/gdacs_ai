@@ -90,6 +90,7 @@ import { buildDistrictRiskIndex } from '../lib/districtRiskScoring';
 import { isPointInDistricts } from '../lib/geo/geometry.js';
 import { getFacilityIdentityKey } from '../lib/facilityIdentity';
 import { getScopedWorldPopData } from '../lib/analysisScope';
+import { summarizeDistrictAttributes } from '../lib/adminProperties';
 
 // Import constants
 import {
@@ -300,6 +301,7 @@ function simplifyGeometry(geometry = null) {
 
 function compactDistrictForContext(district = {}, index = 0) {
   const props = district.properties || {};
+  const adminAttributes = summarizeDistrictAttributes(district, { maxFields: 20, maxDepth: 3 });
 
   return {
     id: district.id || index,
@@ -316,7 +318,8 @@ function compactDistrictForContext(district = {}, index = 0) {
       district: props.district,
       population: props.population,
       POP: props.POP
-    }
+    },
+    adminAttributes
   };
 }
 
@@ -357,6 +360,7 @@ function simplifyGeometryForAnalysis(geometry = null) {
 
 function compactDistrictForAnalysis(district = {}, index = 0) {
   const props = district.properties || {};
+  const adminAttributes = summarizeDistrictAttributes(district, { maxFields: 25, maxDepth: 3 });
 
   return {
     id: district.id || index,
@@ -370,7 +374,8 @@ function compactDistrictForAnalysis(district = {}, index = 0) {
       NAME: props.NAME,
       name: props.name,
       district: props.district
-    }
+    },
+    adminAttributes
   };
 }
 
@@ -445,6 +450,7 @@ function buildDistrictRiskSummary(districts = [], districtRiskIndex = {}) {
     'none': []
   };
   const rankedDistricts = [];
+  const attributeSamples = [];
   let minLat = Infinity;
   let maxLat = -Infinity;
   let minLng = Infinity;
@@ -469,6 +475,16 @@ function buildDistrictRiskSummary(districts = [], districtRiskIndex = {}) {
     }
 
     rankedDistricts.push(districtEntry);
+
+    if (attributeSamples.length < 5) {
+      const adminAttributes = summarizeDistrictAttributes(district, { maxFields: 12, maxDepth: 3 });
+      if (adminAttributes.length > 0) {
+        attributeSamples.push({
+          name: district.name || `Admin Area ${attributeSamples.length + 1}`,
+          attributes: adminAttributes
+        });
+      }
+    }
 
     if (district.bounds) {
       minLat = Math.min(minLat, district.bounds.minLat);
@@ -496,7 +512,8 @@ function buildDistrictRiskSummary(districts = [], districtRiskIndex = {}) {
     } : null,
     riskBreakdown: riskCounts,
     sampleDistricts: samplesByRisk,
-    rankedDistricts: rankedDistricts.slice(0, 10)
+    rankedDistricts: rankedDistricts.slice(0, 10),
+    attributeSamples
   };
 }
 

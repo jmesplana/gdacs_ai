@@ -26,20 +26,186 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
     return cleaned || fallback;
   };
 
+  const isGeoJsonUpload = (file) => {
+    const name = file?.name?.toLowerCase() || '';
+    return name.endsWith('.geojson') || name.endsWith('.json');
+  };
+
+  const isZipUpload = (file) => file?.name?.toLowerCase().endsWith('.zip');
+
+  const normalizeBoundaryGeometry = (geometry) => {
+    if (!geometry) return null;
+
+    if (geometry.type === 'LineString') {
+      const coords = geometry.coordinates || [];
+      const first = coords[0];
+      const last = coords[coords.length - 1];
+      const isClosed = first && last && first[0] === last[0] && first[1] === last[1];
+      return { type: 'Polygon', coordinates: [isClosed ? coords : [...coords, first]] };
+    }
+
+    if (geometry.type === 'MultiLineString') {
+      return {
+        type: 'MultiPolygon',
+        coordinates: (geometry.coordinates || []).map(lineCoords => {
+          const first = lineCoords[0];
+          const last = lineCoords[lineCoords.length - 1];
+          const isClosed = first && last && first[0] === last[0] && first[1] === last[1];
+          return [isClosed ? lineCoords : [...lineCoords, first]];
+        })
+      };
+    }
+
+    return geometry;
+  };
+
+  const simplifyBoundaryGeometry = (geometry, tolerance, label = 'boundary') => {
+    if (!geometry || !['Polygon', 'MultiPolygon'].includes(geometry.type)) return geometry;
+
+    try {
+      const turfFeature = feature(geometry);
+      return simplify(turfFeature, { tolerance, highQuality: false }).geometry;
+    } catch (e) {
+      console.warn(`Could not simplify geometry for ${label}:`, e);
+      return geometry;
+    }
+  };
+
+  const getDistrictName = (props, index) => sanitizeDistrictLabel(
+    props.NAME || props.DISTRICT || props.District ||
+    props.name || props.district || props.ADM2_EN ||
+    props.ADM2_NAME || props.NAME_2 || props.ADM1_NAME ||
+    props.NAME_1 || props.admin2 || props.admin1,
+    `District ${index + 1}`
+  );
+
+  const isScalarPropertyValue = (value) => (
+    value === null ||
+    value === undefined ||
+    ['string', 'number', 'boolean'].includes(typeof value)
+  );
+
+  const getAvailableLabelFields = (features = []) => {
+    const seen = new Set();
+    const fields = [];
+
+    features.slice(0, 25).forEach((item) => {
+      Object.entries(item.properties || {}).forEach(([key, value]) => {
+        if (!seen.has(key) && isScalarPropertyValue(value)) {
+          seen.add(key);
+          fields.push(key);
+        }
+      });
+    });
+
+    return fields;
+  };
+
+  const buildDistrictFromFeature = (feat, idx, simplifyTolerance) => {
+    const props = feat.properties || {};
+    const districtName = getDistrictName(props, idx);
+    const country = props.COUNTRY || props.Country || props.ADM0_NAME || props.NAME_0;
+    const region = props.REGION || props.Region || props.ADM1_NAME || props.NAME_1;
+    const population = props.POPULATION || props.Population || props.POP;
+    const normalizedGeometry = normalizeBoundaryGeometry(feat.geometry);
+    const simplifiedGeometry = simplifyBoundaryGeometry(normalizedGeometry, simplifyTolerance, districtName);
+    const bounds = simplifiedGeometry?.coordinates ? calculateBounds(simplifiedGeometry) : null;
+
+    return {
+      id: idx,
+      name: districtName,
+      country,
+      region,
+      population,
+      geometry: simplifiedGeometry,
+      bounds,
+      properties: props
+    };
+  };
+
+  const finishDistrictUpload = (districts, availableFields = []) => {
+    if (availableFields && availableFields.length > 0) {
+      setAvailableFields(availableFields);
+      setPendingData({ districts, count: districts.length, availableFields });
+      setUploadProgress({ step: 'Complete!', progress: 100 });
+      setLoading(false);
+    } else {
+      setUploadProgress({ step: 'Complete!', progress: 100 });
+      onDistrictsLoaded(districts);
+      setLoading(false);
+      setUploaded(true);
+    }
+  };
+
+  const processGeoJsonUpload = async (file) => {
+    const fileSizeMB = file.size / 1024 / 1024;
+    const simplifyTolerance = fileSizeMB > 25 ? 0.008
+      : fileSizeMB > 10 ? 0.004
+      : fileSizeMB > 5 ? 0.002
+      : 0.001;
+
+    setUploadProgress({ step: 'Reading GeoJSON file...', progress: 15 });
+    const text = await file.text();
+
+    if (fileSizeMB >= 25) {
+      console.warn(`Large GeoJSON upload (${fileSizeMB.toFixed(1)}MB). Processing may take a moment.`);
+    }
+
+    setUploadProgress({ step: 'Parsing GeoJSON...', progress: 35 });
+    const geojson = JSON.parse(text);
+    const rawFeatures = geojson.type === 'FeatureCollection'
+      ? geojson.features
+      : geojson.type === 'Feature'
+        ? [geojson]
+        : null;
+
+    if (!Array.isArray(rawFeatures) || rawFeatures.length === 0) {
+      throw new Error('GeoJSON must be a FeatureCollection or Feature with at least one feature.');
+    }
+
+    const features = rawFeatures.filter((item) => item?.geometry?.coordinates);
+    if (features.length === 0) {
+      throw new Error('No valid GeoJSON features with geometry were found.');
+    }
+
+    const availableFields = getAvailableLabelFields(features);
+
+    const districts = [];
+    for (let idx = 0; idx < features.length; idx++) {
+      districts.push(buildDistrictFromFeature(features[idx], idx, simplifyTolerance));
+
+      if (idx % 20 === 0) {
+        setUploadProgress({
+          step: `Processing GeoJSON features... (${idx}/${features.length})`,
+          progress: 45 + Math.min((idx / features.length) * 45, 45)
+        });
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+
+    setUploadProgress({ step: 'Finalizing...', progress: 90 });
+    finishDistrictUpload(districts, availableFields);
+  };
+
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.zip')) {
-      setError('Please upload a .zip file containing shapefile (.shp, .dbf, .shx). Make sure your file has a .zip extension.');
+    if (!isZipUpload(file) && !isGeoJsonUpload(file)) {
+      setError('Please upload a .zip shapefile or a GeoJSON file (.geojson or .json).');
       return;
     }
 
     setLoading(true);
     setError(null);
-    setUploadProgress({ step: 'Reading ZIP file...', progress: 10 });
+    setUploadProgress({ step: isGeoJsonUpload(file) ? 'Reading GeoJSON file...' : 'Reading ZIP file...', progress: 10 });
 
     try {
+      if (isGeoJsonUpload(file)) {
+        await processGeoJsonUpload(file);
+        return;
+      }
+
       console.log('Reading shapefile ZIP...');
       const arrayBuffer = await file.arrayBuffer();
       setUploadProgress({ step: 'Extracting files...', progress: 20 });
@@ -195,81 +361,14 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
       setUploadProgress({ step: 'Simplifying geometries...', progress: 70 });
 
       // Extract all unique field names from the first feature
-      const availableFields = features.length > 0
-        ? Object.keys(features[0].properties || {})
-        : [];
+      const availableFields = getAvailableLabelFields(features);
       console.log('Available fields:', availableFields);
 
       // Process districts locally
       const districts = [];
       for (let idx = 0; idx < features.length; idx++) {
         const feat = features[idx];
-        const props = feat.properties || {};
-        let geometry = feat.geometry;
-
-        // Try to find district name from common field names
-        const districtName = sanitizeDistrictLabel(
-          props.NAME || props.DISTRICT || props.District ||
-          props.name || props.district || props.ADM2_EN ||
-          props.ADM2_NAME || props.NAME_2,
-          `District ${idx + 1}`
-        );
-
-        // Get other useful properties
-        const country = props.COUNTRY || props.Country || props.ADM0_NAME || props.NAME_0;
-        const region = props.REGION || props.Region || props.ADM1_NAME || props.NAME_1;
-        const population = props.POPULATION || props.Population || props.POP;
-
-        // Convert LineString to Polygon by closing the ring
-        if (geometry && geometry.type === 'LineString') {
-          const coords = geometry.coordinates;
-          const first = coords[0];
-          const last = coords[coords.length - 1];
-          const isClosed = first[0] === last[0] && first[1] === last[1];
-          geometry = { type: 'Polygon', coordinates: [isClosed ? coords : [...coords, first]] };
-        }
-
-        // Convert MultiLineString to MultiPolygon
-        if (geometry && geometry.type === 'MultiLineString') {
-          geometry = {
-            type: 'MultiPolygon',
-            coordinates: geometry.coordinates.map(lineCoords => {
-              const first = lineCoords[0];
-              const last = lineCoords[lineCoords.length - 1];
-              const isClosed = first[0] === last[0] && first[1] === last[1];
-              return [isClosed ? lineCoords : [...lineCoords, first]];
-            })
-          };
-        }
-
-        // Simplify geometry using adaptive tolerance
-        let simplifiedGeometry = geometry;
-        if (geometry && (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon')) {
-          try {
-            const turfFeature = feature(geometry);
-            const simplified = simplify(turfFeature, { tolerance: simplifyTolerance, highQuality: false });
-            simplifiedGeometry = simplified.geometry;
-          } catch (e) {
-            console.warn(`Could not simplify geometry for ${districtName}:`, e);
-          }
-        }
-
-        // Calculate bounding box for quick spatial queries
-        let bounds = null;
-        if (simplifiedGeometry && simplifiedGeometry.coordinates) {
-          bounds = calculateBounds(simplifiedGeometry);
-        }
-
-        districts.push({
-          id: idx,
-          name: districtName,
-          country,
-          region,
-          population,
-          geometry: simplifiedGeometry,
-          bounds,
-          properties: props
-        });
+        districts.push(buildDistrictFromFeature(feat, idx, simplifyTolerance));
 
         // Yield every 20 features during the heavy simplification step
         if (idx % 20 === 0) {
@@ -284,19 +383,7 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
       console.log(`✅ Processed ${districts.length} administrative boundaries locally`);
       setUploadProgress({ step: 'Finalizing...', progress: 90 });
 
-      // Show field selection if available fields are returned
-      if (availableFields && availableFields.length > 0) {
-        setAvailableFields(availableFields);
-        setPendingData({ districts, count: districts.length, availableFields });
-        setUploadProgress({ step: 'Complete!', progress: 100 });
-        setLoading(false);
-      } else {
-        // No fields available, just load the data
-        setUploadProgress({ step: 'Complete!', progress: 100 });
-        onDistrictsLoaded(districts);
-        setLoading(false);
-        setUploaded(true);
-      }
+      finishDistrictUpload(districts, availableFields);
 
     } catch (err) {
       console.error('Error processing shapefile:', err);
@@ -539,13 +626,13 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
         color: 'var(--aidstack-slate-medium)',
         marginBottom: '15px'
       }}>
-        Upload a shapefile (.zip) with administrative boundaries (districts, provinces, regions, etc.) for risk analysis and campaign planning
+        Upload a shapefile (.zip) or GeoJSON file with administrative boundaries (districts, provinces, regions, etc.) for risk analysis and campaign planning
       </p>
 
       <div style={{ marginBottom: '10px' }}>
         <input
           type="file"
-          accept=".zip"
+          accept=".zip,.geojson,.json"
           onChange={handleFileUpload}
           disabled={loading}
           style={{
@@ -691,11 +778,11 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
         fontSize: '12px',
         color: 'var(--aidstack-slate-medium)'
       }}>
-        <strong>Supported formats:</strong> ESRI Shapefile (.zip containing .shp, .dbf, .prj files)
+        <strong>Supported formats:</strong> ESRI Shapefile (.zip containing .shp, .dbf, .prj files), GeoJSON (.geojson, .json)
         <br />
         <strong>Common field names:</strong> NAME, DISTRICT, ADM1_NAME, ADM2_NAME, etc.
         <br />
-        <strong>Note:</strong> Include .prj file for proper coordinate projection
+        <strong>Note:</strong> Include .prj file for shapefile projection. GeoJSON should use WGS84 longitude/latitude coordinates.
       </div>
     </div>
   );

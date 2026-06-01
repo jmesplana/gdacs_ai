@@ -87,7 +87,11 @@ function formatAdminLabel(key = '') {
     .join(' ');
 }
 
-function formatAdminValue(value) {
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function formatScalarAdminValue(value) {
   if (value === null || value === undefined || value === '') return '';
 
   if (typeof value === 'number') {
@@ -106,6 +110,71 @@ function formatAdminValue(value) {
   return String(value);
 }
 
+function isSameAdminKey(a = '', b = '') {
+  return normalizeAdminKey(a).replace(/_/g, '') === normalizeAdminKey(b).replace(/_/g, '');
+}
+
+function getMeaningfulObjectEntries(value = {}) {
+  return Object.entries(value)
+    .filter(([, entryValue]) => entryValue !== null && entryValue !== undefined && entryValue !== '');
+}
+
+function collapseRepeatedNestedLabel(entryKey, entryValue) {
+  if (!isPlainObject(entryValue)) return entryValue;
+
+  const nestedEntries = getMeaningfulObjectEntries(entryValue);
+  if (nestedEntries.length !== 1) return entryValue;
+
+  const [[nestedKey, nestedValue]] = nestedEntries;
+  return isSameAdminKey(entryKey, nestedKey) ? nestedValue : entryValue;
+}
+
+function formatNestedAdminValue(value, depth = 0, parentKey = '') {
+  if (value === null || value === undefined || value === '') return '';
+
+  if (Array.isArray(value)) {
+    const formattedItems = value
+      .slice(0, 4)
+      .map((item) => formatNestedAdminValue(item, depth + 1, parentKey))
+      .filter(Boolean);
+    const suffix = value.length > 4 ? `, +${value.length - 4} more` : '';
+    return `${formattedItems.join(', ')}${suffix}`;
+  }
+
+  if (isPlainObject(value)) {
+    const directEntries = getMeaningfulObjectEntries(value);
+    if (directEntries.length === 1 && parentKey && isSameAdminKey(parentKey, directEntries[0][0])) {
+      return formatNestedAdminValue(directEntries[0][1], depth + 1, parentKey);
+    }
+
+    const entries = directEntries
+      .slice(0, depth > 0 ? 3 : 5)
+      .map(([entryKey, entryValue]) => {
+        const collapsedValue = collapseRepeatedNestedLabel(entryKey, entryValue);
+        const formattedValue = formatNestedAdminValue(collapsedValue, depth + 1, entryKey);
+        return formattedValue ? `${formatAdminLabel(entryKey)}: ${formattedValue}` : '';
+      })
+      .filter(Boolean);
+
+    const totalEntries = directEntries.length;
+    const suffix = totalEntries > entries.length ? `, +${totalEntries - entries.length} more` : '';
+    return `${entries.join('; ')}${suffix}`;
+  }
+
+  return formatScalarAdminValue(value);
+}
+
+function formatAdminValue(value, key = '') {
+  if (value === null || value === undefined || value === '') return '';
+
+  if (Array.isArray(value) || isPlainObject(value)) {
+    const formatted = formatNestedAdminValue(value, 0, key);
+    return formatted.length > 300 ? `${formatted.slice(0, 297)}...` : formatted;
+  }
+
+  return formatScalarAdminValue(value);
+}
+
 function isTechnicalAdminKey(key = '') {
   return ADMIN_TECHNICAL_KEY_PATTERNS.some((pattern) => pattern.test(key));
 }
@@ -121,12 +190,15 @@ function buildAdminPropertySections(props = {}) {
     if (value === null || value === undefined || value === '') return;
     if (seenNormalizedKeys.has(normalizedKey)) return;
 
+    const formattedValue = formatAdminValue(value, key);
+    if (!formattedValue) return;
+
     seenNormalizedKeys.add(normalizedKey);
     entries.push({
       key,
       normalizedKey,
       label: formatAdminLabel(key),
-      value: formatAdminValue(value),
+      value: formattedValue,
       technical: isTechnicalAdminKey(key) || isTechnicalAdminKey(normalizedKey)
     });
   });
