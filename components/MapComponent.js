@@ -75,6 +75,7 @@ import {
   toggleFullscreen
 } from './MapComponent/utils';
 import {
+  ADMIN_COLOR_PALETTES,
   ADMIN_FILL_MODES,
   buildDatasetColorScale,
   getNumericFields,
@@ -321,6 +322,82 @@ function compactDistrictForContext(district = {}, index = 0) {
     },
     adminAttributes
   };
+}
+
+function normalizeAdminSearchValue(value = '') {
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function getDistrictSearchValues(district = {}) {
+  const values = [
+    district.id,
+    district.name,
+    district.country,
+    district.region
+  ];
+
+  Object.values(district.properties || {}).forEach((value) => {
+    if (value === null || value === undefined || value === '') return;
+    if (typeof value === 'string' || typeof value === 'number') {
+      values.push(value);
+    }
+  });
+
+  summarizeDistrictAttributes(district, { maxFields: 80, maxDepth: 4 }).forEach((attribute) => {
+    values.push(attribute.value);
+  });
+
+  return Array.from(new Set(
+    values
+      .map((value) => String(value ?? '').replace(/\s+/g, ' ').trim())
+      .filter((value) => value.length >= 2)
+  ));
+}
+
+function buildAdminAreaChatIndex(districts = []) {
+  return (districts || []).map((district, index) => {
+    const searchValues = getDistrictSearchValues(district);
+    const attributes = summarizeDistrictAttributes(district, { maxFields: 120, maxDepth: 4 });
+    return {
+      id: district.id ?? index,
+      name: district.name || `Admin Area ${index + 1}`,
+      country: district.country || null,
+      region: district.region || null,
+      aliases: searchValues.slice(0, 40),
+      attributes,
+      searchText: normalizeAdminSearchValue(searchValues.join(' '))
+    };
+  });
+}
+
+const GENERIC_ADMIN_MATCH_TERMS = new Set([
+  'admin',
+  'area',
+  'areas',
+  'boundary',
+  'boundaries',
+  'district',
+  'districts',
+  'province',
+  'provinces',
+  'region',
+  'regions',
+  'territory',
+  'territories',
+  'health',
+  'zone',
+  'zones',
+  'highlight',
+  'show',
+  'map'
+]);
+
+function isSpecificAdminMatchTerm(value = '') {
+  const normalized = normalizeAdminSearchValue(value);
+  return normalized.length >= 3 && !GENERIC_ADMIN_MATCH_TERMS.has(normalized);
 }
 
 function simplifyGeometryForAnalysis(geometry = null) {
@@ -1034,6 +1111,7 @@ const MapComponent = ({
   // District boundaries state (districts is now passed as prop)
   const [showDistricts, setShowDistricts] = useState(true);
   const [highlightedDistricts, setHighlightedDistricts] = useState([]);
+  const [chatMapMarkers, setChatMapMarkers] = useState([]);
 
   // Weather context state for chatbot
   const [weatherContext, setWeatherContext] = useState(null);
@@ -1133,6 +1211,11 @@ const MapComponent = ({
 
     let matchingDistricts = [];
 
+    if (Array.isArray(criteria.ids) && criteria.ids.length > 0) {
+      const requestedIds = new Set(criteria.ids.map((id) => String(id)));
+      matchingDistricts = districts.filter((district) => requestedIds.has(String(district.id)));
+    }
+
     // Filter based on risk level
     if (criteria.riskLevels && criteria.riskLevels.length > 0) {
       matchingDistricts = districts.filter(district => {
@@ -1143,9 +1226,16 @@ const MapComponent = ({
 
     // Filter based on district names
     if (criteria.names && criteria.names.length > 0) {
+      const requestedNames = criteria.names.filter(isSpecificAdminMatchTerm);
       const nameMatches = districts.filter(district => {
-        const districtName = (district.name || '').toLowerCase();
-        return criteria.names.some(name => districtName.includes(name.toLowerCase()));
+        const districtSearchText = normalizeAdminSearchValue(getDistrictSearchValues(district).join(' '));
+        return requestedNames.some(name => {
+          const requestedName = normalizeAdminSearchValue(name);
+          return requestedName && (
+            districtSearchText.includes(requestedName) ||
+            requestedName.includes(normalizeAdminSearchValue(district.name || ''))
+          );
+        });
       });
       matchingDistricts = [...matchingDistricts, ...nameMatches];
     }
@@ -1163,7 +1253,13 @@ const MapComponent = ({
     matchingDistricts = [...new Set(matchingDistricts)];
 
     console.log(`Found ${matchingDistricts.length} districts matching criteria:`, matchingDistricts.map(d => d.name));
+    setShowDistricts(true);
     setHighlightedDistricts(matchingDistricts.map(d => d.id));
+    if (matchingDistricts.length === 0) {
+      addToast('No admin areas matched that highlight request.', 'warning');
+    } else {
+      addToast(`Highlighted ${matchingDistricts.length} admin area${matchingDistricts.length === 1 ? '' : 's'}.`, 'success');
+    }
 
     // Zoom to highlighted districts if any found
     if (matchingDistricts.length > 0 && mapInstance) {
@@ -1179,6 +1275,208 @@ const MapComponent = ({
       if (bounds.isValid()) {
         mapInstance.fitBounds(bounds, { padding: [50, 50] });
       }
+    }
+
+    if (mapInstance) {
+      window.setTimeout(() => mapInstance.invalidateSize(), 50);
+    }
+  };
+
+  const getDistrictsMatchingChatCriteria = (criteria = {}) => {
+    if (!districts || districts.length === 0) return [];
+
+    const risks = calculateDistrictRisks(districts, filteredDisasters, filteredAcledData);
+    let matchingDistricts = [];
+
+    if (Array.isArray(criteria.ids) && criteria.ids.length > 0) {
+      const requestedIds = new Set(criteria.ids.map((id) => String(id)));
+      matchingDistricts = districts.filter((district) => requestedIds.has(String(district.id)));
+    }
+
+    if (Array.isArray(criteria.riskLevels) && criteria.riskLevels.length > 0) {
+      matchingDistricts = districts.filter((district) => {
+        const risk = risks[district.id];
+        return risk && criteria.riskLevels.includes(risk.level);
+      });
+    }
+
+    if (Array.isArray(criteria.names) && criteria.names.length > 0) {
+      const requestedNames = criteria.names.filter(isSpecificAdminMatchTerm);
+      const nameMatches = districts.filter((district) => {
+        const districtSearchText = normalizeAdminSearchValue(getDistrictSearchValues(district).join(' '));
+        return requestedNames.some((name) => {
+          const requestedName = normalizeAdminSearchValue(name);
+          return requestedName && (
+            districtSearchText.includes(requestedName) ||
+            requestedName.includes(normalizeAdminSearchValue(district.name || ''))
+          );
+        });
+      });
+      matchingDistricts = [...matchingDistricts, ...nameMatches];
+    }
+
+    if (criteria.minEventCount !== undefined) {
+      const eventCountMatches = districts.filter((district) => {
+        const risk = risks[district.id];
+        return risk && risk.eventCount >= criteria.minEventCount;
+      });
+      matchingDistricts = [...matchingDistricts, ...eventCountMatches];
+    }
+
+    return Array.from(new Map(matchingDistricts.map((district) => [district.id, district])).values());
+  };
+
+  const zoomToDistricts = (districtsToZoom = []) => {
+    if (!districtsToZoom.length || !mapInstance) return;
+
+    const bounds = L.latLngBounds();
+    districtsToZoom.forEach((district) => {
+      if (district.bounds) {
+        bounds.extend([
+          [district.bounds.minLat, district.bounds.minLng],
+          [district.bounds.maxLat, district.bounds.maxLng]
+        ]);
+      }
+    });
+
+    if (bounds.isValid()) {
+      mapInstance.fitBounds(bounds, { padding: [50, 50] });
+    }
+  };
+
+  const getDistrictCenter = (district = {}) => {
+    if (district.bounds) {
+      const latitude = (Number(district.bounds.minLat) + Number(district.bounds.maxLat)) / 2;
+      const longitude = (Number(district.bounds.minLng) + Number(district.bounds.maxLng)) / 2;
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        return { latitude, longitude };
+      }
+    }
+
+    try {
+      const layer = L.geoJSON({
+        type: 'Feature',
+        properties: district.properties || {},
+        geometry: district.geometry
+      });
+      const center = layer.getBounds().getCenter();
+      if (Number.isFinite(center.lat) && Number.isFinite(center.lng)) {
+        return { latitude: center.lat, longitude: center.lng };
+      }
+    } catch (error) {
+      console.warn('Unable to calculate district center for chat pin:', error);
+    }
+
+    return null;
+  };
+
+  const handleChatMapCommand = (command) => {
+    if (!command?.action) return;
+
+    switch (command.action) {
+      case 'highlight_districts': {
+        handleHighlightDistricts(command.criteria || {});
+        return;
+      }
+      case 'select_districts': {
+        const matchingDistricts = getDistrictsMatchingChatCriteria(command.criteria || {});
+        if (!matchingDistricts.length) {
+          addToast('No matching admin areas found for that chat request.', 'warning');
+          return;
+        }
+
+        setHighlightedDistricts(matchingDistricts.map((district) => district.id));
+        zoomToDistricts(matchingDistricts);
+        if (mapInstance) {
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+
+        if (onAnalysisDistrictsChange) {
+          onAnalysisDistrictsChange(matchingDistricts);
+          addToast(`Selected ${matchingDistricts.length} admin area${matchingDistricts.length === 1 ? '' : 's'} from chat.`, 'success');
+        }
+        return;
+      }
+      case 'clear_map_annotations': {
+        setHighlightedDistricts([]);
+        setChatMapMarkers([]);
+        if (mapInstance) {
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+        addToast('Cleared chat map highlights and pins.', 'info');
+        return;
+      }
+      case 'add_marker': {
+        let latitude = Number(command.latitude ?? command.lat);
+        let longitude = Number(command.longitude ?? command.lng ?? command.lon);
+        let label = command.label || 'Chat marker';
+
+        if ((!Number.isFinite(latitude) || !Number.isFinite(longitude)) && command.criteria) {
+          const matchingDistricts = getDistrictsMatchingChatCriteria(command.criteria || {});
+          const targetDistrict = matchingDistricts[0];
+          const center = targetDistrict ? getDistrictCenter(targetDistrict) : null;
+
+          if (center) {
+            latitude = center.latitude;
+            longitude = center.longitude;
+            label = command.label || targetDistrict.name || label;
+            setShowDistricts(true);
+            setHighlightedDistricts(matchingDistricts.slice(0, 1).map((district) => district.id));
+          }
+        }
+
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          addToast('Chat could not find valid marker coordinates.', 'warning');
+          return;
+        }
+
+        const marker = {
+          id: `${Date.now()}-${chatMapMarkers.length}`,
+          latitude,
+          longitude,
+          label,
+          color: command.color || '#2563eb'
+        };
+        setChatMapMarkers((current) => [...current, marker].slice(-25));
+        addToast(`Dropped pin: ${marker.label}.`, 'success');
+        if (mapInstance) {
+          mapInstance.flyTo([latitude, longitude], Math.max(mapInstance.getZoom(), 9), { duration: 0.8 });
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+        return;
+      }
+      case 'style_admin_by_metric': {
+        const requestedField = String(command.metricField || '').toLowerCase();
+        const metric = adminNumericFields.find((item) => (
+          item.field.toLowerCase() === requestedField ||
+          item.field.toLowerCase().includes(requestedField) ||
+          requestedField.includes(item.field.toLowerCase())
+        ));
+
+        if (!metric) {
+          addToast('No matching numeric field found for chat choropleth styling.', 'warning');
+          return;
+        }
+
+        setShowDistricts(true);
+        setAdminFillMode(ADMIN_FILL_MODES.DATASET);
+        setAdminMetricField(metric.field);
+        setAdminMetricMeaning(metric.suggestedMeaning || suggestMetricMeaning(metric.field));
+        if (command.palette && Object.values(ADMIN_COLOR_PALETTES).includes(command.palette)) {
+          setAdminColorPalette(command.palette);
+        }
+        addToast(`Colored admin areas by ${metric.field}.`, 'success');
+        return;
+      }
+      case 'style_admin_by_risk': {
+        setShowDistricts(true);
+        setAdminFillMode(ADMIN_FILL_MODES.RISK);
+        setShowDistrictRiskFill(true);
+        addToast('Colored admin areas by current risk level.', 'success');
+        return;
+      }
+      default:
+        console.warn('Unsupported chat map command:', command);
     }
   };
 
@@ -1972,6 +2270,10 @@ const MapComponent = ({
     () => new Set((selectedAnalysisDistricts || []).map(district => district.id)),
     [selectedAnalysisDistricts]
   );
+  const adminAreaChatIndex = useMemo(
+    () => buildAdminAreaChatIndex(districts),
+    [districts]
+  );
   const allowDistrictLabels = showDistrictLabels && districts.length <= MAX_DISTRICT_LABELS;
   const displayDistricts = useMemo(() => {
     const shouldSimplifyForDisplay = districts.length >= LARGE_DISTRICT_COUNT;
@@ -2669,6 +2971,32 @@ const MapComponent = ({
           map.on('click', handleMapClick);
         }} />
 
+        {chatMapMarkers.map((marker) => (
+          <CircleMarker
+            key={marker.id}
+            center={[marker.latitude, marker.longitude]}
+            radius={9}
+            pathOptions={{
+              color: '#ffffff',
+              weight: 2,
+              fillColor: marker.color,
+              fillOpacity: 0.95
+            }}
+          >
+            <Tooltip permanent direction="top" offset={[0, -10]}>
+              {marker.label}
+            </Tooltip>
+            <Popup>
+              <div style={{ fontFamily: 'Inter, sans-serif' }}>
+                <strong>{marker.label}</strong>
+                <div style={{ marginTop: 4, color: '#475569' }}>
+                  {marker.latitude.toFixed(5)}, {marker.longitude.toFixed(5)}
+                </div>
+              </div>
+            </Popup>
+          </CircleMarker>
+        ))}
+
         {/* District boundaries layer */}
         {showDistricts && districts && districts.length > 0 && (
           <AdminBoundariesLayer
@@ -3023,6 +3351,7 @@ const MapComponent = ({
           setChatDrawerExpanded(false);
         }}
         onHighlightDistricts={districts && districts.length > 0 ? handleHighlightDistricts : null}
+        onMapCommand={handleChatMapCommand}
         isExpanded={chatDrawerExpanded}
         onToggleExpand={() => setChatDrawerExpanded((current) => !current)}
         context={{
@@ -3043,6 +3372,12 @@ const MapComponent = ({
           totalAcledEvents: acledData?.length || 0,
           scopedAcledEvents: prioritizationBoard?.summary?.totalAcledEvents ?? filteredAcledData.length,
           totalDistricts: districts?.length || 0,
+          adminAreas: adminAreaChatIndex,
+          adminNumericFields: adminNumericFields.map((item) => ({
+            field: item.field,
+            count: item.count,
+            suggestedMeaning: item.suggestedMeaning
+          })),
           selectedAnalysisDistricts: selectedAnalysisDistricts?.map(compactDistrictForContext) || [],
           hasDistricts: districts && districts.length > 0,
           districts: districtSummary,

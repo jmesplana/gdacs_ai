@@ -298,7 +298,8 @@ IMPORTANT:
   1. Explain which districts match their criteria based on the risk breakdown
   2. List specific district names if available
   3. Provide context about why these districts are at that risk level
-  4. The system will AUTOMATICALLY highlight these districts on the map with orange pulsing borders
+  4. The system will automatically apply the map action when the request matches a supported command
+- Supported chat map actions include highlighting or selecting admin areas, coloring admin boundaries by risk or a loaded numeric field, placing a pin when coordinates are provided, and clearing chat-added highlights/pins.
 - Always frame your district analysis in the context of the uploaded shapefile area (e.g., "In [Country/Region], based on the uploaded administrative boundaries...")
 - Use the risk breakdown percentages to give an overall security picture of the area
 - When discussing campaign planning, reference which districts are safe vs. risky for operations
@@ -342,7 +343,8 @@ Be direct, practical, and specific. Use the context data to give personalized an
       console.log('📤 Calling OpenAI API with streaming...');
       console.log('Model:', chatModel);
       console.log('Web search enabled:', useWebSearch);
-      console.time('OpenAI stream start');
+      const streamTimerLabel = `OpenAI stream start ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      console.time(streamTimerLabel);
 
       try {
         const streamResponse = await openai.chat.completions.create(
@@ -354,7 +356,7 @@ Be direct, practical, and specific. Use the context data to give personalized an
           })
         );
 
-        console.timeEnd('OpenAI stream start');
+        console.timeEnd(streamTimerLabel);
         console.log('✅ OpenAI stream started, processing chunks...');
 
       let chunkCount = 0;
@@ -472,12 +474,29 @@ Be direct, practical, and specific. Use the context data to give personalized an
       res.write('data: [DONE]\n\n');
       res.end();
       } catch (streamError) {
+        try {
+          console.timeEnd(streamTimerLabel);
+        } catch {
+          // Timer may already have ended after a successful stream start.
+        }
         console.error('❌ Streaming error:', streamError);
         console.error('Error details:', streamError.message);
         if (streamError.response) {
           console.error('OpenAI error response:', await streamError.response.json());
         }
-        res.write(`data: ${JSON.stringify({ content: `Error: ${streamError.message}` })}\n\n`);
+        const isNetworkError = streamError?.cause?.code === 'ENOTFOUND' ||
+          streamError?.code === 'ENOTFOUND' ||
+          /ENOTFOUND|getaddrinfo|Connection error/i.test(streamError?.message || '');
+        const userMessage = isNetworkError
+          ? 'I could not reach the OpenAI API because DNS/network lookup failed. The map command may still have been applied locally, but the AI text response could not be generated. Please retry once network connectivity is back.'
+          : `The AI response stream failed: ${streamError.message}`;
+        res.write(`data: ${JSON.stringify({
+          error: {
+            message: userMessage,
+            retryable: isNetworkError,
+            code: streamError?.cause?.code || streamError?.code || null
+          }
+        })}\n\n`);
         res.write('data: [DONE]\n\n');
         res.end();
       }
@@ -559,15 +578,30 @@ Be direct, practical, and specific. Use the context data to give personalized an
   }
 }
 
-function detectMapIntent(message, context) {
-  if (!context || !context.hasDistricts) {
-    return null; // No districts loaded, can't perform map actions
+function detectMapIntent(message, context = {}) {
+  const lowerMessage = message.toLowerCase();
+
+  if (/\b(clear|remove|reset)\b/.test(lowerMessage) && /\b(highlight|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lowerMessage)) {
+    return { action: 'clear_map_annotations' };
   }
 
-  const lowerMessage = message.toLowerCase();
+  const markerCommand = detectMarkerCommand(message, context);
+  if (markerCommand) {
+    return markerCommand;
+  }
+
+  const styleCommand = detectAdminStyleCommand(message, context);
+  if (styleCommand) {
+    return styleCommand;
+  }
+
+  if (!context || !context.hasDistricts) {
+    return null; // No districts loaded, can't perform district actions
+  }
 
   // Keywords for highlighting/showing districts
   const highlightKeywords = ['highlight', 'show me', 'which districts', 'what districts', 'display', 'point out', 'identify', 'show', 'map', 'visualize'];
+  const selectKeywords = ['select', 'set scope', 'focus on', 'use only', 'analyze only'];
   const riskKeywords = ['high risk', 'very high risk', 'dangerous', 'unsafe', 'no go', 'no-go', 'risky', 'risk', 'threat'];
   const safeKeywords = ['safe', 'low risk', 'no risk', 'secure', 'clear', 'safe for operations'];
 
@@ -576,9 +610,10 @@ function detectMapIntent(message, context) {
 
   // Check for highlight intent
   const hasHighlightIntent = highlightKeywords.some(keyword => lowerMessage.includes(keyword));
+  const hasSelectIntent = selectKeywords.some(keyword => lowerMessage.includes(keyword));
 
   // Check if this is a geographic or risk-related query about the districts
-  const isGeographicQuery = hasDistrictMention || hasHighlightIntent;
+  const isGeographicQuery = hasDistrictMention || hasHighlightIntent || hasSelectIntent;
 
   if (isGeographicQuery) {
     // Determine what to highlight
@@ -622,17 +657,168 @@ function detectMapIntent(message, context) {
       criteria.minEventCount = parseInt(eventMatch[1]);
     }
 
+    const matchedNames = getAdminAreaNamesFromMessage(message, context);
+    if (matchedNames.length > 0) {
+      criteria.names = matchedNames;
+    }
+
     // If we detected some criteria, return the intent
     if (Object.keys(criteria).length > 0) {
       console.log('✅ Map intent detected with criteria:', criteria);
       return {
-        action: 'highlight_districts',
+        action: hasSelectIntent ? 'select_districts' : 'highlight_districts',
         criteria: criteria
       };
     }
   }
 
   return null;
+}
+
+function detectMarkerCommand(message = '', context = {}) {
+  const lower = String(message).toLowerCase();
+  const wantsMarker = /\b(add|drop|place|put|show|plot|mark)\b/.test(lower) && /\b(pin|marker|dot|point)\b/.test(lower);
+  if (!wantsMarker) return null;
+
+  const coordinateMatch =
+    String(message).match(/(?:lat(?:itude)?\s*[:=]?\s*)?(-?\d{1,2}(?:\.\d+)?)\s*(?:,|;|\s+)\s*(?:lon(?:gitude)?|lng)\s*[:=]?\s*(-?\d{1,3}(?:\.\d+)?)/i) ||
+    String(message).match(/lat(?:itude)?\s*[:=]?\s*(-?\d{1,2}(?:\.\d+)?)[,\s;]+(?:lon(?:gitude)?|lng)\s*[:=]?\s*(-?\d{1,3}(?:\.\d+)?)/i) ||
+    String(message).match(/\b(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\b/);
+  if (!coordinateMatch) {
+    const names = getAdminAreaNamesFromMessage(message, context);
+    if (!names.length) return null;
+
+    return {
+      action: 'add_marker',
+      criteria: { names },
+      label: names[0]
+    };
+  }
+
+  const latitude = Number(coordinateMatch[1]);
+  const longitude = Number(coordinateMatch[2]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+
+  const labelMatch = String(message).match(/(?:called|named|label(?:ed)?(?:\s+as)?|label)\s+["']?([^"',.]+)["']?/i);
+  return {
+    action: 'add_marker',
+    latitude,
+    longitude,
+    label: labelMatch?.[1]?.trim() || 'Chat marker',
+    color: getRequestedColor(message) || '#2563eb'
+  };
+}
+
+function detectAdminStyleCommand(message = '', context = {}) {
+  const lower = String(message).toLowerCase();
+  const asksForColoring = /\b(color|colour|shade|style|choropleth|fill)\b/.test(lower) &&
+    /\b(admin|district|area|boundary|boundaries|map)\b/.test(lower);
+  if (!asksForColoring) return null;
+
+  if (/\b(risk|danger|threat|unsafe|safe)\b/.test(lower)) {
+    return { action: 'style_admin_by_risk' };
+  }
+
+  const fields = Array.isArray(context.adminNumericFields) ? context.adminNumericFields : [];
+  const messageTokens = lower.split(/[^a-z0-9]+/).filter((token) => token.length >= 4);
+  const matchedField = fields.find((item) => {
+    const field = String(item?.field || '').toLowerCase();
+    const fieldText = field.replace(/[_-]+/g, ' ');
+    const fieldTokens = fieldText.split(/[^a-z0-9]+/).filter((token) => token.length >= 4);
+    return field && (
+      lower.includes(field) ||
+      lower.includes(fieldText) ||
+      fieldTokens.some((token) => messageTokens.includes(token))
+    );
+  });
+
+  if (!matchedField) return null;
+
+  return {
+    action: 'style_admin_by_metric',
+    metricField: matchedField.field,
+    palette: getRequestedPalette(message)
+  };
+}
+
+function getRequestedPalette(message = '') {
+  const lower = String(message).toLowerCase();
+  const paletteNames = ['red', 'green', 'blue', 'orange', 'purple', 'gray'];
+  return paletteNames.find((palette) => lower.includes(palette)) || undefined;
+}
+
+function getRequestedColor(message = '') {
+  const lower = String(message).toLowerCase();
+  const colors = {
+    red: '#dc2626',
+    green: '#16a34a',
+    blue: '#2563eb',
+    orange: '#ea580c',
+    purple: '#9333ea',
+    yellow: '#ca8a04',
+    black: '#111827'
+  };
+  const key = Object.keys(colors).find((color) => lower.includes(color));
+  return key ? colors[key] : undefined;
+}
+
+function getAdminAreaNamesFromMessage(message = '', context = {}) {
+  const normalizedMessage = String(message).toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  const areas = Array.isArray(context.adminAreas) ? context.adminAreas : [];
+  const matches = [];
+  const genericAdminTokens = new Set([
+    'admin',
+    'area',
+    'areas',
+    'boundary',
+    'boundaries',
+    'district',
+    'districts',
+    'province',
+    'provinces',
+    'region',
+    'regions',
+    'territory',
+    'territories',
+    'health',
+    'zone',
+    'zones',
+    'highlight',
+    'show',
+    'map'
+  ]);
+
+  areas.forEach((area) => {
+    const candidates = [
+      area?.name,
+      area?.country,
+      area?.region,
+      ...(Array.isArray(area?.aliases) ? area.aliases : [])
+    ].filter(Boolean);
+
+    const matchedCandidate = candidates.find((candidate) => {
+      const normalized = String(candidate).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      return normalized.length >= 3 && normalizedMessage.includes(normalized);
+    });
+
+    if (matchedCandidate) {
+      matches.push(String(matchedCandidate));
+      return;
+    }
+
+    const messageTokens = normalizedMessage
+      .split(/\s+/)
+      .filter((token) => token.length >= 3 && !genericAdminTokens.has(token));
+    const searchText = String(area?.searchText || '');
+    const tokenMatch = messageTokens.find((token) => searchText.includes(token));
+    if (tokenMatch) {
+      matches.push(tokenMatch);
+    }
+  });
+
+  return Array.from(new Set(matches))
+    .slice(0, 25);
 }
 
 function tokenizeForMatching(message = '') {
@@ -910,6 +1096,27 @@ function buildContextSummary(context) {
     summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   }
 
+  if (Array.isArray(context.mentionedAdminAreas) && context.mentionedAdminAreas.length > 0) {
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`MENTIONED ADMIN AREA FULL ATTRIBUTES`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`The user mentioned these uploaded admin areas in the current message. Use these exact key-value attributes to answer field-specific questions. If a requested metric appears here, answer from this section rather than saying the data is unavailable.`);
+
+    context.mentionedAdminAreas.forEach((area, index) => {
+      summary.push(`\n${index + 1}. ${area.name}${area.region ? ` | region ${area.region}` : ''}${area.country ? ` | country ${area.country}` : ''}`);
+      if (area.matchedValue && area.matchedValue !== area.name) {
+        summary.push(`Matched user term: ${area.matchedValue}`);
+      }
+      if (Array.isArray(area.attributes) && area.attributes.length > 0) {
+        area.attributes.forEach((attribute) => {
+          summary.push(`- ${attribute.label}: ${attribute.value}`);
+        });
+      }
+    });
+
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  }
+
   if (context.selectedAnalysisDistricts && context.selectedAnalysisDistricts.length > 0) {
     const selectedNames = context.selectedAnalysisDistricts
       .map((district) => district.name)
@@ -972,6 +1179,24 @@ function buildContextSummary(context) {
     }
 
     summary.push(`⚡ IMPORTANT: Use this active-scope district ranking when the user asks which districts to avoid, monitor, prioritize, or treat as unsafe.`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  }
+
+  if (Array.isArray(context.adminAreas) && context.adminAreas.length > 0) {
+    summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`FULL UPLOADED ADMIN AREA INDEX`);
+    summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    summary.push(`Admin areas indexed: ${context.adminAreas.length}`);
+    summary.push(`Use this full index for questions about whether a province, district, territory, health zone, or other admin subdivision exists in the uploaded boundaries. Do not say an area is missing unless it is absent from this full index.`);
+    summary.push(`Names and aliases:`);
+    context.adminAreas.slice(0, 1200).forEach((area, index) => {
+      const aliases = Array.isArray(area.aliases)
+        ? area.aliases
+            .filter((alias) => alias && alias !== area.name)
+            .slice(0, 8)
+        : [];
+      summary.push(`${index + 1}. ${area.name}${area.region ? ` | region ${area.region}` : ''}${area.country ? ` | country ${area.country}` : ''}${aliases.length ? ` | aliases ${aliases.join(' / ')}` : ''}`);
+    });
     summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   }
 

@@ -425,7 +425,274 @@ function compactChatContext(context = {}, detailLevel = 'compact') {
     districtsForWorldPop: compactDistrictsForWorldPopForChat(context.districtsForWorldPop),
     worldPopData: compactWorldPopDataForChat(context.worldPopData),
     osmData: compactOsmDataForChat(context.osmData),
+    adminAreas: (context.adminAreas || []).map((area) => ({
+      id: area.id,
+      name: area.name,
+      country: area.country,
+      region: area.region,
+      aliases: Array.isArray(area.aliases) ? area.aliases.slice(0, 40) : [],
+      searchText: area.searchText
+    })),
     prioritizationBoard: compactPrioritizationBoardForChat(context.prioritizationBoard)
+  };
+}
+
+function getLocalMapCommandKey(command = null) {
+  if (!command?.action) return '';
+  return JSON.stringify(command);
+}
+
+function getLocalAdminAreaNamesFromMessage(message = '', context = {}) {
+  return getLocalAdminAreaMatchesFromMessage(message, context).map((match) => match.matchedValue || match.name);
+}
+
+function getLocalAdminAreaMatchesFromMessage(message = '', context = {}) {
+  const normalizedMessage = String(message).toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  const areas = Array.isArray(context.adminAreas) ? context.adminAreas : [];
+  const matches = [];
+  const genericAdminTokens = new Set([
+    'admin',
+    'area',
+    'areas',
+    'boundary',
+    'boundaries',
+    'district',
+    'districts',
+    'province',
+    'provinces',
+    'region',
+    'regions',
+    'territory',
+    'territories',
+    'health',
+    'zone',
+    'zones',
+    'highlight',
+    'show',
+    'map'
+  ]);
+
+  areas.forEach((area) => {
+    const candidates = [
+      area?.name,
+      area?.country,
+      area?.region,
+      ...(Array.isArray(area?.aliases) ? area.aliases : [])
+    ].filter(Boolean);
+
+    const matchedCandidate = candidates.find((candidate) => {
+      const normalized = String(candidate).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      return normalized.length >= 3 && normalizedMessage.includes(normalized);
+    });
+
+    if (matchedCandidate) {
+      matches.push({ ...area, matchedValue: String(matchedCandidate) });
+      return;
+    }
+
+    const messageTokens = normalizedMessage
+      .split(/\s+/)
+      .filter((token) => token.length >= 3 && !genericAdminTokens.has(token));
+    const searchText = String(area?.searchText || '');
+    const tokenMatch = messageTokens.find((token) => searchText.includes(token));
+    if (tokenMatch) {
+      matches.push({ ...area, matchedValue: tokenMatch });
+    }
+  });
+
+  return Array.from(
+    new Map(matches.map((match) => [String(match.id ?? match.name), match])).values()
+  )
+    .filter((match) => {
+      const normalized = String(match.matchedValue || match.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      return normalized.length >= 3;
+    })
+    .slice(0, 25);
+}
+
+function getMentionedAdminAreaDetails(message = '', context = {}, maxAreas = 8) {
+  return getLocalAdminAreaMatchesFromMessage(message, context)
+    .slice(0, maxAreas)
+    .map((area) => ({
+      id: area.id,
+      name: area.name,
+      country: area.country,
+      region: area.region,
+      matchedValue: area.matchedValue,
+      attributes: Array.isArray(area.attributes) ? area.attributes.slice(0, 120) : []
+    }))
+    .filter((area) => area.attributes.length > 0);
+}
+
+function detectLocalMarkerCommand(message = '', context = {}) {
+  const lower = String(message).toLowerCase();
+  const wantsMarker = /\b(add|drop|place|put|show|plot|mark)\b/.test(lower) && /\b(pin|marker|dot|point)\b/.test(lower);
+  if (!wantsMarker) return null;
+
+  const coordinateMatch =
+    String(message).match(/(?:lat(?:itude)?\s*[:=]?\s*)?(-?\d{1,2}(?:\.\d+)?)\s*(?:,|;|\s+)\s*(?:lon(?:gitude)?|lng)\s*[:=]?\s*(-?\d{1,3}(?:\.\d+)?)/i) ||
+    String(message).match(/lat(?:itude)?\s*[:=]?\s*(-?\d{1,2}(?:\.\d+)?)[,\s;]+(?:lon(?:gitude)?|lng)\s*[:=]?\s*(-?\d{1,3}(?:\.\d+)?)/i) ||
+    String(message).match(/\b(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\b/);
+  if (!coordinateMatch) {
+    const names = getLocalAdminAreaNamesFromMessage(message, context);
+    if (!names.length) return null;
+
+    return {
+      action: 'add_marker',
+      criteria: { names },
+      label: names[0]
+    };
+  }
+
+  const latitude = Number(coordinateMatch[1]);
+  const longitude = Number(coordinateMatch[2]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+
+  const labelMatch = String(message).match(/(?:called|named|label(?:ed)?(?:\s+as)?|label)\s+["']?([^"',.]+)["']?/i);
+  return {
+    action: 'add_marker',
+    latitude,
+    longitude,
+    label: labelMatch?.[1]?.trim() || 'Chat marker'
+  };
+}
+
+function detectLocalMapCommand(message = '', context = {}) {
+  const lower = String(message).toLowerCase();
+
+  if (/\b(clear|remove|reset)\b/.test(lower) && /\b(highlight|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lower)) {
+    return { action: 'clear_map_annotations' };
+  }
+
+  const markerCommand = detectLocalMarkerCommand(message, context);
+  if (markerCommand) return markerCommand;
+
+  const highlightKeywords = ['highlight', 'show me', 'display', 'point out', 'identify', 'show', 'map', 'visualize'];
+  const selectKeywords = ['select', 'set scope', 'focus on', 'use only', 'analyze only'];
+  const riskKeywords = ['high risk', 'very high risk', 'dangerous', 'unsafe', 'no go', 'no-go', 'risky', 'risk', 'threat'];
+  const safeKeywords = ['safe', 'low risk', 'no risk', 'secure', 'clear', 'safe for operations'];
+  const hasDistrictMention = lower.includes('district') || lower.includes('admin') || lower.includes('area') || lower.includes('region') || lower.includes('location');
+  const hasHighlightIntent = highlightKeywords.some((keyword) => lower.includes(keyword));
+  const hasSelectIntent = selectKeywords.some((keyword) => lower.includes(keyword));
+  if (!context?.hasDistricts || (!hasDistrictMention && !hasHighlightIntent && !hasSelectIntent)) return null;
+
+  const criteria = {};
+  if (riskKeywords.some((keyword) => lower.includes(keyword))) {
+    if (lower.includes('very high')) {
+      criteria.riskLevels = ['very-high'];
+    } else if (lower.includes('high')) {
+      criteria.riskLevels = ['high', 'very-high'];
+    } else if (lower.includes('no go') || lower.includes('no-go')) {
+      criteria.riskLevels = ['very-high', 'high'];
+    } else {
+      criteria.riskLevels = ['high', 'very-high', 'medium'];
+    }
+  }
+
+  if (safeKeywords.some((keyword) => lower.includes(keyword))) {
+    criteria.riskLevels = ['none', 'low'];
+  }
+
+  if (lower.includes('medium risk') || lower.includes('moderate')) {
+    criteria.riskLevels = ['medium'];
+  }
+
+  if ((lower.includes('all') || lower.includes('entire') || lower.includes('whole')) && hasDistrictMention) {
+    criteria.riskLevels = ['very-high', 'high', 'medium', 'low', 'none'];
+  }
+
+  const eventMatch = lower.match(/(\d+)\s*(or more|events|incidents)/);
+  if (eventMatch) {
+    criteria.minEventCount = parseInt(eventMatch[1], 10);
+  }
+
+  const matchedNames = getLocalAdminAreaNamesFromMessage(message, context);
+  if (matchedNames.length > 0) {
+    criteria.names = matchedNames;
+  }
+
+  if (!Object.keys(criteria).length) return null;
+
+  return {
+    action: hasSelectIntent ? 'select_districts' : 'highlight_districts',
+    criteria
+  };
+}
+
+function getExactAdminAreaMatchesFromText(text = '', context = {}) {
+  const areas = Array.isArray(context.adminAreas) ? context.adminAreas : [];
+  const normalizedText = String(text).toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  const lines = String(text)
+    .split('\n')
+    .map((line) => line.replace(/^[-*\d.\s]+/, '').trim())
+    .filter(Boolean);
+
+  const standaloneMatches = [];
+  areas.forEach((area) => {
+    const areaName = String(area?.name || '').trim();
+    if (areaName.length < 3) return;
+    const normalizedAreaName = areaName.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const lineMatch = lines.some((line) => {
+      const normalizedLine = line.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      return normalizedLine === normalizedAreaName ||
+        normalizedLine.startsWith(`${normalizedAreaName} `) ||
+        normalizedLine.includes(` ${normalizedAreaName} `);
+    });
+    if (lineMatch) {
+      standaloneMatches.push({ id: area.id, name: areaName });
+    }
+  });
+
+  if (standaloneMatches.length > 0) {
+    return Array.from(
+      new Map(standaloneMatches.map((match) => [String(match.id), match])).values()
+    ).slice(0, 25);
+  }
+
+  const exactMatches = areas
+    .map((area) => ({ id: area.id, name: String(area?.name || '').trim() }))
+    .filter((area) => {
+      if (area.name.length < 3) return false;
+      const normalizedName = area.name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      return normalizedText.includes(` ${normalizedName} `) ||
+        normalizedText.startsWith(`${normalizedName} `) ||
+        normalizedText.endsWith(` ${normalizedName}`);
+    });
+
+  return Array.from(
+    new Map(exactMatches.map((match) => [String(match.id), match])).values()
+  ).slice(0, 25);
+}
+
+function getExactAdminAreaNamesFromText(text = '', context = {}) {
+  return getExactAdminAreaMatchesFromText(text, context).map((match) => match.name);
+}
+
+function detectAssistantMapCommand(content = '', context = {}, userMessage = '') {
+  const lowerContent = String(content).toLowerCase();
+  const lowerUserMessage = String(userMessage).toLowerCase();
+  const userRequestedHighlight = /\b(highlight|show|map|visualize)\b/.test(lowerUserMessage);
+  const userAskedAdminAnswer = /\b(which|what|where|identify|find|top|largest|highest|most)\b/.test(lowerUserMessage) &&
+    /\b(district|districts|admin|area|areas|province|provinces|health zone|health zones)\b/.test(lowerUserMessage);
+  const assistantClaimsHighlight = /\b(will|have|i'll|i will)\b/.test(lowerContent) &&
+    /\b(highlight|show|map|marked|visual)\b/.test(lowerContent);
+
+  if (!userRequestedHighlight && !assistantClaimsHighlight && !userAskedAdminAnswer) return null;
+
+  let matches = getExactAdminAreaMatchesFromText(content, context);
+  if (!matches.length) return null;
+
+  if (/\b(largest|highest|most)\b/.test(lowerUserMessage)) {
+    matches = matches.slice(0, 5);
+  }
+
+  return {
+    action: 'highlight_districts',
+    criteria: {
+      ids: matches.map((match) => match.id),
+      names: matches.map((match) => match.name)
+    }
   };
 }
 
@@ -663,6 +930,7 @@ const ChatDrawer = ({
   onClose,
   context,
   onHighlightDistricts,
+  onMapCommand,
   isExpanded = false,
   onToggleExpand,
   embedded = false // New prop for when embedded in UnifiedDrawer
@@ -686,6 +954,7 @@ const ChatDrawer = ({
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const lastLocalMapCommandRef = useRef('');
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -769,8 +1038,21 @@ const ChatDrawer = ({
       const detailLevel = shouldUseDeepChat(userMessage.content) ? 'deep' : 'compact';
       const compactContext = {
         ...compactChatContext(context, detailLevel),
-        chatAttachments: compactChatAttachmentsForContext(chatAttachments)
+        chatAttachments: compactChatAttachmentsForContext(chatAttachments),
+        mentionedAdminAreas: getMentionedAdminAreaDetails(userMessage.content, context)
       };
+      const recentAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant');
+      const isGoAhead = /\b(go ahead|do it|yes|please do|proceed)\b/i.test(userMessage.content);
+      const localMapCommand = detectLocalMapCommand(userMessage.content, compactContext) ||
+        (isGoAhead && recentAssistantMessage
+          ? detectAssistantMapCommand(recentAssistantMessage.content, compactContext, 'highlight')
+          : null);
+      if (localMapCommand && onMapCommand) {
+        lastLocalMapCommandRef.current = getLocalMapCommandKey(localMapCommand);
+        onMapCommand(localMapCommand);
+      } else {
+        lastLocalMapCommandRef.current = '';
+      }
 
       console.time('Serializing request body');
       const requestBody = JSON.stringify({
@@ -825,16 +1107,23 @@ const ChatDrawer = ({
             try {
               const parsed = JSON.parse(data);
 
+              if (parsed.error) {
+                throw new Error(parsed.error.message || 'The AI response stream failed.');
+              }
+
               // Check for map commands
               if (parsed.mapCommand) {
                 console.log('📍 Received map command:', parsed.mapCommand);
-                if (onHighlightDistricts) {
+                const serverCommandKey = getLocalMapCommandKey(parsed.mapCommand);
+                if (onMapCommand && serverCommandKey !== lastLocalMapCommandRef.current) {
+                  onMapCommand(parsed.mapCommand);
+                } else if (!onMapCommand && onHighlightDistricts) {
                   console.log('✅ onHighlightDistricts function is available');
                   if (parsed.mapCommand.action === 'highlight_districts') {
                     console.log('🗺️ Calling onHighlightDistricts with criteria:', parsed.mapCommand.criteria);
                     onHighlightDistricts(parsed.mapCommand.criteria);
                   }
-                } else {
+                } else if (!onMapCommand && !onHighlightDistricts) {
                   console.warn('⚠️ onHighlightDistricts function is NOT available - districts may not be loaded');
                 }
               }
@@ -862,6 +1151,17 @@ const ChatDrawer = ({
         timestamp: Date.now(),
         isAIGenerated: true
       };
+
+      const assistantMapCommand = detectAssistantMapCommand(accumulatedContent, compactContext, userMessage.content);
+      const assistantCommandKey = getLocalMapCommandKey(assistantMapCommand);
+      if (
+        assistantMapCommand &&
+        onMapCommand &&
+        assistantCommandKey !== lastLocalMapCommandRef.current
+      ) {
+        lastLocalMapCommandRef.current = assistantCommandKey;
+        onMapCommand(assistantMapCommand);
+      }
 
       setMessages(prev => [...prev, assistantMessage]);
       setStreamingMessage('');

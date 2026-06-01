@@ -290,7 +290,11 @@ export default function AdminBoundariesLayer({
 }) {
   const { addToast } = useToast();
   const selectedIds = selectedAnalysisDistrictIds || new Set((selectedAnalysisDistricts || []).map(district => district.id));
-  const highlightedIds = useMemo(() => new Set(highlightedDistricts), [highlightedDistricts]);
+  const highlightedIds = useMemo(() => new Set((highlightedDistricts || []).map((id) => String(id))), [highlightedDistricts]);
+  const highlightedDistrictKey = useMemo(
+    () => (highlightedDistricts || []).map((id) => String(id)).sort().join('_'),
+    [highlightedDistricts]
+  );
   const featureCollection = useMemo(() => ({
     type: 'FeatureCollection',
     features: displayDistricts
@@ -345,13 +349,13 @@ export default function AdminBoundariesLayer({
 
   return (
     <GeoJSON
-      key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistricts.length}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.legendKey || ''}-drawing-${isDrawingMode}`}
+      key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistrictKey}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.legendKey || ''}-drawing-${isDrawingMode}`}
       data={featureCollection}
       pane="overlayPane"
       interactive={!isDrawingMode}
       style={(feature) => {
         const riskLevel = feature.properties.riskLevel || 'none';
-        const isHighlighted = highlightedIds.has(feature.id);
+        const isHighlighted = highlightedIds.has(String(feature.id));
         const isSelected = selectedIds.has(feature.id);
         const hasSelection = selectedIds.size > 0;
         const fill = getFill(feature, riskLevel);
