@@ -300,6 +300,7 @@ IMPORTANT:
   3. Provide context about why these districts are at that risk level
   4. The system will automatically apply the map action when the request matches a supported command
 - Supported chat map actions include highlighting or selecting admin areas, coloring admin boundaries by risk or a loaded numeric field, placing a pin when coordinates or a named admin area are provided, clearing chat-added highlights/pins, and toggling admin borders or labels. Do not tell the user you cannot clear chat-added pins/dots/markers/highlights or toggle admin labels/borders; the system can apply those map actions.
+- Supported metric map actions include proportional bubbles/circles and choropleths from any loaded numeric map field listed in AVAILABLE NUMERIC MAP FIELDS. When the user asks to draw, map, color, or make bubbles/circles for a metric, do not say you cannot draw it. Identify the exact loaded numeric field name you are using and respond as if the map action is being applied. If the requested wording does not clearly match a listed numeric field, ask a short clarification question and list 2-4 candidate field names instead of guessing. Do not infer a field from a single generic overlap such as "site", "count", "case", or "data".
 - Always frame your district analysis in the context of the uploaded shapefile area (e.g., "In [Country/Region], based on the uploaded administrative boundaries...")
 - Use the risk breakdown percentages to give an overall security picture of the area
 - When discussing campaign planning, reference which districts are safe vs. risky for operations
@@ -581,6 +582,14 @@ Be direct, practical, and specific. Use the context data to give personalized an
 function detectMapIntent(message, context = {}) {
   const lowerMessage = message.toLowerCase();
 
+  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage) && /\b(bubble|bubbles|circle|circles|proportional symbol|proportional symbols)\b/.test(lowerMessage)) {
+    return { action: 'clear_metric_bubbles' };
+  }
+
+  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage) && /\b(metric|metrics|case map|disease layer|choropleth|chlorepleth|color map|colour map)\b/.test(lowerMessage)) {
+    return { action: 'clear_metric_layers' };
+  }
+
   if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage) && /\b(highlight|highlights|highlighting)\b/.test(lowerMessage)) {
     return { action: 'clear_highlights' };
   }
@@ -601,11 +610,6 @@ function detectMapIntent(message, context = {}) {
   const markerCommand = detectMarkerCommand(message, context);
   if (markerCommand) {
     return markerCommand;
-  }
-
-  const styleCommand = detectAdminStyleCommand(message, context);
-  if (styleCommand) {
-    return styleCommand;
   }
 
   if (!context || !context.hasDistricts) {
@@ -693,6 +697,11 @@ function detectMapIntent(message, context = {}) {
     }
   }
 
+  const styleCommand = detectAdminStyleCommand(message, context);
+  if (styleCommand) {
+    return styleCommand;
+  }
+
   return null;
 }
 
@@ -772,28 +781,76 @@ function detectMarkerCommand(message = '', context = {}) {
 
 function detectAdminStyleCommand(message = '', context = {}) {
   const lower = String(message).toLowerCase();
-  const asksForColoring = /\b(color|colour|shade|style|choropleth|fill)\b/.test(lower) &&
-    /\b(admin|district|area|boundary|boundaries|map)\b/.test(lower);
-  if (!asksForColoring) return null;
+  const fields = Array.isArray(context.adminNumericFields) ? context.adminNumericFields : [];
+  if (!context?.hasDistricts) return null;
 
-  if (/\b(risk|danger|threat|unsafe|safe)\b/.test(lower)) {
+  const wantsBubbles = /\b(bubble|bubbles|circle|circles|proportional|symbol|symbols)\b/.test(lower);
+  const wantsChoropleth = /\b(color|colour|shade|style|choropleth|chlorepleth|fill|heat|gradient)\b/.test(lower);
+  const wantsMapMetric = /\b(show|map|display|visualize|plot|make|draw|chart)\b/.test(lower) &&
+    /\b(admin|district|districts|area|areas|boundary|boundaries|map|chart|data)\b/.test(lower);
+  if (!wantsBubbles && !wantsChoropleth && !wantsMapMetric) return null;
+
+  if (/\b(risk|danger|threat|unsafe|safe)\b/.test(lower) && wantsChoropleth) {
     return { action: 'style_admin_by_risk' };
   }
 
-  const fields = Array.isArray(context.adminNumericFields) ? context.adminNumericFields : [];
-  const messageTokens = lower.split(/[^a-z0-9]+/).filter((token) => token.length >= 4);
-  const matchedField = fields.find((item) => {
+  if (!fields.length) return null;
+
+  const normalizeToken = (token = '') => String(token).replace(/s$/, '');
+  const genericMetricTokens = new Set([
+    'site',
+    'count',
+    'total',
+    'case',
+    'death',
+    'number',
+    'value',
+    'data'
+  ]);
+  const messageTokenSet = new Set(
+    lower
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length >= 4)
+      .map(normalizeToken)
+  );
+  const matchedField = fields
+    .map((item) => {
     const field = String(item?.field || '').toLowerCase();
+    const label = String(item?.label || item?.field || '').toLowerCase();
+    const searchableField = `${field} ${label}`;
     const fieldText = field.replace(/[_-]+/g, ' ');
-    const fieldTokens = fieldText.split(/[^a-z0-9]+/).filter((token) => token.length >= 4);
-    return field && (
+    const fieldTokens = searchableField
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length >= 4)
+      .map(normalizeToken);
+    const sharedTokenCount = fieldTokens.filter((token) => messageTokenSet.has(token)).length;
+    const strongSharedTokenCount = fieldTokens.filter((token) => (
+      messageTokenSet.has(token) && !genericMetricTokens.has(token)
+    )).length;
+    const exactScore = searchableField.trim() && (
       lower.includes(field) ||
-      lower.includes(fieldText) ||
-      fieldTokens.some((token) => messageTokens.includes(token))
-    );
-  });
+      lower.includes(label) ||
+      lower.includes(fieldText)
+    ) ? 100 : 0;
+    const confident = exactScore > 0 || sharedTokenCount >= 2 || strongSharedTokenCount >= 1;
+    return {
+      item,
+      confident,
+      score: exactScore + sharedTokenCount * 10 + Math.min(Number(item?.count) || 0, 5)
+    };
+  })
+    .filter((entry) => entry.confident && entry.score > 0)
+    .sort((a, b) => b.score - a.score)[0]?.item || null;
 
   if (!matchedField) return null;
+
+  if (wantsBubbles) {
+    return {
+      action: 'style_admin_metric_bubbles',
+      metricField: matchedField.field,
+      color: getRequestedColor(message)
+    };
+  }
 
   return {
     action: 'style_admin_by_metric',
@@ -878,13 +935,20 @@ function getAdminAreaNamesFromMessage(message = '', context = {}) {
 
     const matchedCandidate = candidates.find((candidate) => {
       const normalized = String(candidate).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      return normalized.length >= 3 && normalizedTextContains(normalizedMessage, normalized);
+      const normalizedLoose = normalizeAdminNameForMatch(candidate);
+      const messageLoose = normalizeAdminNameForMatch(message);
+      return normalized.length >= 3 && (
+        normalizedTextContains(normalizedMessage, normalized) ||
+        normalizedTextContains(messageLoose, normalizedLoose)
+      );
     });
 
     if (matchedCandidate) {
       matches.push(String(matchedCandidate));
       return;
     }
+
+    if (requestedLevel && levelEntries.length) return;
 
     const messageTokens = normalizedMessage
       .split(/\s+/)
@@ -907,6 +971,32 @@ function normalizedTextContains(searchText = '', term = '') {
   const normalizedTerm = String(term).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   if (!normalizedSearchText || !normalizedTerm) return false;
   return ` ${normalizedSearchText} `.includes(` ${normalizedTerm} `);
+}
+
+function normalizeAdminNameForMatch(value = '') {
+  const adminTypeWords = new Set([
+    'admin',
+    'area',
+    'areas',
+    'boundary',
+    'boundaries',
+    'district',
+    'districts',
+    'province',
+    'provinces',
+    'region',
+    'regions',
+    'territory',
+    'territories'
+  ]);
+
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token && !adminTypeWords.has(token))
+    .join(' ')
+    .trim();
 }
 
 function getRequestedAdminLevel(message = '') {
@@ -1824,6 +1914,31 @@ function buildContextSummary(context) {
     summary.push(`   • User can ask you to highlight specific districts, and you can trigger map highlighting`);
     summary.push(`   • Example queries: "highlight high risk districts", "show me no-go areas", "which districts are safe?"`);
     summary.push(`   • When user asks to highlight/show districts, explain which districts match and the system will automatically highlight them on the map`);
+
+    if (Array.isArray(context.adminNumericFields) && context.adminNumericFields.length > 0) {
+      summary.push(`\n📊 AVAILABLE NUMERIC MAP FIELDS:`);
+      context.adminNumericFields.slice(0, 40).forEach((field) => {
+        const sourceLabel = field.source === 'admin_properties' ? 'admin attributes' : 'uploaded rows';
+        summary.push(`   • ${field.label || field.field} (${sourceLabel}, ${field.count} value${field.count === 1 ? '' : 's'})`);
+      });
+      if (context.adminNumericFields.length > 40) {
+        summary.push(`   • +${context.adminNumericFields.length - 40} more numeric fields`);
+      }
+    }
+
+    if (Array.isArray(context.adminMetricValues) && context.adminMetricValues.length > 0) {
+      summary.push(`\n📈 ADMIN NUMERIC FIELD VALUES:`);
+      summary.push(`Use these district/value rows when the user asks for a list, table, ranking, min/max, or metric map from loaded admin data. Do not say the full list is unavailable when the requested field is listed here.`);
+      context.adminMetricValues.slice(0, 30).forEach((metric) => {
+        const sourceLabel = metric.source === 'admin_properties' ? 'admin attributes' : 'uploaded rows';
+        summary.push(`   Field: ${metric.label || metric.field} (${sourceLabel}, ${metric.count} district value${metric.count === 1 ? '' : 's'}${metric.truncated ? ', sample shown' : ''})`);
+        (metric.values || []).slice(0, 80).forEach((item) => {
+          const countSuffix = item.count && item.count > 1 ? ` (${item.count} rows)` : '';
+          summary.push(`      - ${item.district}: ${item.value}${countSuffix}`);
+        });
+      });
+    }
+
     summary.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   }
 

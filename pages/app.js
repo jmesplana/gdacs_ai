@@ -1059,22 +1059,22 @@ export default function Home() {
 
     switch (filter) {
       case '24h':
-        cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
       case '48h':
-        cutoffDate = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+        cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
       case '72h':
-        cutoffDate = new Date(now.getTime() - 72 * 60 * 60 * 1000);
+        cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
       case '7d':
-        cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
       case '30d':
         cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
       default:
-        cutoffDate = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+        cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
     // Use the pre-computed WHO publication date from normalizeWhoOutbreakItem.
@@ -1108,6 +1108,7 @@ export default function Home() {
 
     console.log('WHO outbreak date filter:', {
       filter,
+      effectiveWindow: filter === 'all' ? 'all' : '30d minimum for WHO outbreak reports',
       cutoffDate: cutoffDate.toISOString(),
       sourceCount: sourceOutbreaks.length,
       filteredCount: filtered.length,

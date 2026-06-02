@@ -6,3 +6,4 @@ export { default as OutbreakMarkers } from './OutbreakMarkers';
 export { default as StatisticsPanel } from './StatisticsPanel';
 export { default as TimelineVisualization } from './TimelineVisualization';
 export { default as AcledMarkers } from './AcledMarkers';
+export { default as MetricBubblesLayer } from './MetricBubblesLayer';

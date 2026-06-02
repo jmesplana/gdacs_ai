@@ -434,6 +434,22 @@ function compactChatContext(context = {}, detailLevel = 'compact') {
       identityEntries: Array.isArray(area.identityEntries) ? area.identityEntries.slice(0, 40) : [],
       searchText: area.searchText
     })),
+    adminMetricValues: Array.isArray(context.adminMetricValues)
+      ? context.adminMetricValues.slice(0, 40).map((metric) => ({
+          field: metric.field,
+          label: metric.label,
+          source: metric.source,
+          count: metric.count,
+          truncated: Boolean(metric.truncated),
+          values: Array.isArray(metric.values)
+            ? metric.values.slice(0, 80).map((item) => ({
+                district: item.district,
+                value: item.value,
+                count: item.count
+              }))
+            : []
+        }))
+      : [],
     highlightedAdminAreas: Array.isArray(context.highlightedAdminAreas)
       ? context.highlightedAdminAreas.map((area) => ({
           id: area.id,
@@ -451,6 +467,58 @@ function getLocalMapCommandKey(command = null) {
   return JSON.stringify(command);
 }
 
+function matchNumericFieldFromMessage(message = '', fields = []) {
+  const lower = String(message).toLowerCase();
+  const normalizeToken = (token = '') => String(token).replace(/s$/, '');
+  const genericMetricTokens = new Set([
+    'site',
+    'count',
+    'total',
+    'case',
+    'death',
+    'number',
+    'value',
+    'data'
+  ]);
+  const messageTokenSet = new Set(
+    lower
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length >= 4)
+      .map(normalizeToken)
+  );
+
+  const scoredFields = (fields || []).map((item) => {
+    const field = String(item?.field || item?.label || '').toLowerCase();
+    const label = String(item?.label || item?.field || '').toLowerCase();
+    const searchableField = `${field} ${label}`;
+    const fieldText = field.replace(/[_-]+/g, ' ');
+    const fieldTokens = searchableField
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length >= 4)
+      .map(normalizeToken);
+    const sharedTokenCount = fieldTokens.filter((token) => messageTokenSet.has(token)).length;
+    const strongSharedTokenCount = fieldTokens.filter((token) => (
+      messageTokenSet.has(token) && !genericMetricTokens.has(token)
+    )).length;
+    const exactScore = searchableField.trim() && (
+      lower.includes(field) ||
+      lower.includes(label) ||
+      lower.includes(fieldText)
+    ) ? 100 : 0;
+    const confident = exactScore > 0 || sharedTokenCount >= 2 || strongSharedTokenCount >= 1;
+
+    return {
+      item,
+      confident,
+      score: exactScore + sharedTokenCount * 10 + Math.min(Number(item?.count) || 0, 5)
+    };
+  });
+
+  return scoredFields
+    .filter((entry) => entry.confident && entry.score > 0)
+    .sort((a, b) => b.score - a.score)[0]?.item || null;
+}
+
 function getLocalAdminAreaNamesFromMessage(message = '', context = {}) {
   return getLocalAdminAreaMatchesFromMessage(message, context).map((match) => match.matchedValue || match.name);
 }
@@ -460,6 +528,32 @@ function normalizedTextContains(searchText = '', term = '') {
   const normalizedTerm = String(term).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   if (!normalizedSearchText || !normalizedTerm) return false;
   return ` ${normalizedSearchText} `.includes(` ${normalizedTerm} `);
+}
+
+function normalizeAdminNameForMatch(value = '') {
+  const adminTypeWords = new Set([
+    'admin',
+    'area',
+    'areas',
+    'boundary',
+    'boundaries',
+    'district',
+    'districts',
+    'province',
+    'provinces',
+    'region',
+    'regions',
+    'territory',
+    'territories'
+  ]);
+
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token && !adminTypeWords.has(token))
+    .join(' ')
+    .trim();
 }
 
 function getRequestedAdminLevel(message = '') {
@@ -525,13 +619,20 @@ function getLocalAdminAreaMatchesFromMessage(message = '', context = {}, options
 
     const matchedCandidate = candidates.find((candidate) => {
       const normalized = String(candidate).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      return normalized.length >= 3 && normalizedTextContains(normalizedMessage, normalized);
+      const normalizedLoose = normalizeAdminNameForMatch(candidate);
+      const messageLoose = normalizeAdminNameForMatch(message);
+      return normalized.length >= 3 && (
+        normalizedTextContains(normalizedMessage, normalized) ||
+        normalizedTextContains(messageLoose, normalizedLoose)
+      );
     });
 
     if (matchedCandidate) {
       matches.push({ ...area, matchedValue: String(matchedCandidate) });
       return;
     }
+
+    if (requestedLevel && levelEntries.length) return;
 
     const messageTokens = normalizedMessage
       .split(/\s+/)
@@ -603,6 +704,59 @@ function detectLocalMarkerCommand(message = '', context = {}) {
   };
 }
 
+function getRequestedPalette(message = '') {
+  const lower = String(message).toLowerCase();
+  const paletteNames = ['red', 'green', 'blue', 'orange', 'purple', 'gray'];
+  return paletteNames.find((palette) => lower.includes(palette)) || undefined;
+}
+
+function getRequestedColor(message = '') {
+  const lower = String(message).toLowerCase();
+  const colors = {
+    red: '#dc2626',
+    green: '#16a34a',
+    blue: '#2563eb',
+    orange: '#ea580c',
+    purple: '#9333ea',
+    yellow: '#ca8a04',
+    black: '#111827'
+  };
+  const key = Object.keys(colors).find((color) => lower.includes(color));
+  return key ? colors[key] : undefined;
+}
+
+function detectAdminMetricStyleCommand(message = '', context = {}) {
+  const lower = String(message).toLowerCase();
+  const fields = Array.isArray(context.adminNumericFields) ? context.adminNumericFields : [];
+  if (!context?.hasDistricts || !fields.length) return null;
+
+  const matchedField = matchNumericFieldFromMessage(message, fields);
+  if (!matchedField) return null;
+
+  const wantsBubbles = /\b(bubble|bubbles|circle|circles|proportional|symbol|symbols)\b/.test(lower);
+  const wantsChoropleth = /\b(color|colour|shade|style|choropleth|chlorepleth|fill|heat|gradient)\b/.test(lower);
+  const wantsMapMetric = /\b(show|map|display|visualize|plot|make|draw|chart)\b/.test(lower) &&
+    /\b(admin|district|districts|area|areas|boundary|boundaries|map|chart|data)\b/.test(lower);
+
+  if (wantsBubbles) {
+    return {
+      action: 'style_admin_metric_bubbles',
+      metricField: matchedField.field,
+      color: getRequestedColor(message)
+    };
+  }
+
+  if (wantsChoropleth || wantsMapMetric) {
+    return {
+      action: 'style_admin_by_metric',
+      metricField: matchedField.field,
+      palette: getRequestedPalette(message)
+    };
+  }
+
+  return null;
+}
+
 function detectLocalAdminDisplayCommand(message = '') {
   const lower = String(message).toLowerCase();
   if (/\b(analysis|scope|selection)\b/.test(lower)) return null;
@@ -644,6 +798,14 @@ function detectLocalAdminDisplayCommand(message = '') {
 
 function detectLocalMapCommand(message = '', context = {}) {
   const lower = String(message).toLowerCase();
+
+  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lower) && /\b(bubble|bubbles|circle|circles|proportional symbol|proportional symbols)\b/.test(lower)) {
+    return { action: 'clear_metric_bubbles' };
+  }
+
+  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lower) && /\b(metric|metrics|case map|disease layer|choropleth|chlorepleth|color map|colour map)\b/.test(lower)) {
+    return { action: 'clear_metric_layers' };
+  }
 
   if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lower) && /\b(highlight|highlights|highlighting)\b/.test(lower)) {
     return { action: 'clear_highlights' };
@@ -720,7 +882,11 @@ function detectLocalMapCommand(message = '', context = {}) {
     criteria.names = context.highlightedAdminAreas.map((area) => area.name).filter(Boolean);
   }
 
-  if (!Object.keys(criteria).length) return null;
+  if (!Object.keys(criteria).length) {
+    const metricStyleCommand = detectAdminMetricStyleCommand(message, context);
+    if (metricStyleCommand) return metricStyleCommand;
+    return null;
+  }
 
   return {
     action: hasDeselectIntent ? 'deselect_districts' : (hasSelectIntent ? 'select_districts' : 'highlight_districts'),
@@ -801,6 +967,34 @@ function detectAssistantMapCommand(content = '', context = {}, userMessage = '')
       ids: matches.map((match) => match.id),
       names: matches.map((match) => match.name)
     }
+  };
+}
+
+function detectAssistantMetricMapCommand(content = '', context = {}, userMessage = '') {
+  const lowerUserMessage = String(userMessage).toLowerCase();
+  const fields = Array.isArray(context.adminNumericFields) ? context.adminNumericFields : [];
+  if (!context?.hasDistricts || !fields.length) return null;
+
+  const wantsBubbles = /\b(bubble|bubbles|circle|circles|proportional|symbol|symbols)\b/.test(lowerUserMessage);
+  const wantsChoropleth = /\b(color|colour|shade|style|choropleth|chlorepleth|fill|heat|gradient)\b/.test(lowerUserMessage);
+  const wantsMapMetric = /\b(show|map|display|visualize|plot|make|draw|chart)\b/.test(lowerUserMessage) &&
+    /\b(admin|district|districts|area|areas|boundary|boundaries|map|chart|data)\b/.test(lowerUserMessage);
+  if (!wantsBubbles && !wantsChoropleth && !wantsMapMetric) return null;
+
+  const matchedField = matchNumericFieldFromMessage(content, fields);
+  if (!matchedField) return null;
+
+  if (wantsBubbles) {
+    return {
+      action: 'style_admin_metric_bubbles',
+      metricField: matchedField.field
+    };
+  }
+
+  return {
+    action: 'style_admin_by_metric',
+    metricField: matchedField.field,
+    palette: getRequestedPalette(userMessage)
   };
 }
 
@@ -1263,7 +1457,8 @@ const ChatDrawer = ({
         isAIGenerated: true
       };
 
-      const assistantMapCommand = detectAssistantMapCommand(accumulatedContent, compactContext, userMessage.content);
+      const assistantMapCommand = detectAssistantMetricMapCommand(accumulatedContent, compactContext, userMessage.content) ||
+        detectAssistantMapCommand(accumulatedContent, compactContext, userMessage.content);
       const assistantCommandKey = getLocalMapCommandKey(assistantMapCommand);
       if (
         assistantMapCommand &&

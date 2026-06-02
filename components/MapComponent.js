@@ -29,7 +29,8 @@ import {
   OutbreakMarkers,
   StatisticsPanel,
   TimelineVisualization,
-  AcledMarkers
+  AcledMarkers,
+  MetricBubblesLayer
 } from './MapComponent/components';
 import OSMInfrastructureLayer from './MapComponent/components/OSMInfrastructureLayer';
 import LogisticsOverlaysLayer from './MapComponent/components/LogisticsOverlaysLayer';
@@ -78,10 +79,21 @@ import {
   ADMIN_COLOR_PALETTES,
   ADMIN_FILL_MODES,
   buildDatasetColorScale,
-  getNumericFields,
   suggestMetricMeaning
 } from './MapComponent/utils/adminDatasetStyling';
 import { buildAdminDatasetJoin } from './MapComponent/utils/adminDatasetJoin';
+import {
+  DEFAULT_METRIC_BUBBLE_COLOR,
+  buildMetricBubbleFeatures,
+  buildMetricBubbleJoin,
+  buildMetricBubbleLegend,
+  buildMetricBubbleScale
+} from './MapComponent/utils/metricBubbles';
+import {
+  buildAdminMetricCatalog,
+  buildAdminPropertyMetricJoin,
+  isAdminPropertyMetric
+} from './MapComponent/utils/adminMetricFields';
 
 import buildWeatherContext from '../utils/weatherContextBuilder';
 // import { WORLDPOP_TILE_LAYERS } from '../utils/worldpopHelpers'; // Not needed - using GEE tiles
@@ -445,9 +457,10 @@ function getDistrictIdentitySearchValues(district = {}, adminLevel = '') {
       return true;
     })
     .map((entry) => entry.value);
+  const searchValues = values.length > 0 ? values : getDistrictSearchValues(district);
 
   return Array.from(new Set(
-    values
+    searchValues
       .map((value) => String(value ?? '').replace(/\s+/g, ' ').trim())
       .filter((value) => value.length >= 2)
   ));
@@ -456,7 +469,10 @@ function getDistrictIdentitySearchValues(district = {}, adminLevel = '') {
 function buildAdminAreaChatIndex(districts = []) {
   return (districts || []).map((district, index) => {
     const identityEntries = getDistrictIdentityEntries(district);
-    const searchValues = identityEntries.map((entry) => entry.value);
+    const searchValues = Array.from(new Set([
+      ...identityEntries.map((entry) => entry.value),
+      ...getDistrictSearchValues(district)
+    ]));
     const attributes = summarizeDistrictAttributes(district, { maxFields: 120, maxDepth: 4 });
     return {
       id: district.id ?? index,
@@ -1226,6 +1242,8 @@ const MapComponent = ({
   const [forceDistrictLabels, setForceDistrictLabels] = useState(false);
   const [highlightedDistricts, setHighlightedDistricts] = useState([]);
   const [chatMapMarkers, setChatMapMarkers] = useState([]);
+  const [chatMetricBubbleField, setChatMetricBubbleField] = useState('');
+  const [chatMetricBubbleColor, setChatMetricBubbleColor] = useState(DEFAULT_METRIC_BUBBLE_COLOR);
 
   // Weather context state for chatbot
   const [weatherContext, setWeatherContext] = useState(null);
@@ -1560,10 +1578,31 @@ const MapComponent = ({
       case 'clear_map_annotations': {
         setHighlightedDistricts([]);
         setChatMapMarkers([]);
+        setChatMetricBubbleField('');
         if (mapInstance) {
           window.setTimeout(() => mapInstance.invalidateSize(), 50);
         }
         addToast('Cleared chat map highlights and pins.', 'info');
+        return;
+      }
+      case 'clear_metric_bubbles': {
+        setChatMetricBubbleField('');
+        if (mapInstance) {
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+        addToast('Cleared metric bubbles.', 'info');
+        return;
+      }
+      case 'clear_metric_layers': {
+        setChatMetricBubbleField('');
+        if (adminFillMode === ADMIN_FILL_MODES.DATASET) {
+          setAdminFillMode(ADMIN_FILL_MODES.RISK);
+          setShowDistrictRiskFill(true);
+        }
+        if (mapInstance) {
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+        addToast('Reset chat metric map layers.', 'info');
         return;
       }
       case 'set_admin_display': {
@@ -1646,6 +1685,30 @@ const MapComponent = ({
           setAdminColorPalette(command.palette);
         }
         addToast(`Colored admin areas by ${metric.field}.`, 'success');
+        return;
+      }
+      case 'style_admin_metric_bubbles': {
+        const requestedField = String(command.metricField || '').toLowerCase();
+        const metric = adminNumericFields.find((item) => (
+          item.field.toLowerCase() === requestedField ||
+          item.field.toLowerCase().includes(requestedField) ||
+          requestedField.includes(item.field.toLowerCase())
+        ));
+
+        if (!metric) {
+          addToast('No matching numeric field found for chat bubble styling.', 'warning');
+          return;
+        }
+
+        if (!districts?.length) {
+          addToast('Upload admin boundaries before creating district metric bubbles.', 'warning');
+          return;
+        }
+
+        setShowDistricts(true);
+        setChatMetricBubbleField(metric.field);
+        setChatMetricBubbleColor(command.color || DEFAULT_METRIC_BUBBLE_COLOR);
+        addToast(`Mapped ${metric.field} as proportional bubbles.`, 'success');
         return;
       }
       case 'style_admin_by_risk': {
@@ -2371,13 +2434,47 @@ const MapComponent = ({
     [districts, visibleDisasters, visibleAcledEvents]
   );
   const adminNumericFields = useMemo(
-    () => getNumericFields(facilities),
-    [facilities]
+    () => buildAdminMetricCatalog(facilities, districts),
+    [facilities, districts]
   );
   const selectedAdminMetric = useMemo(
     () => adminNumericFields.find((item) => item.field === adminMetricField) || null,
     [adminNumericFields, adminMetricField]
   );
+  const selectedChatBubbleMetric = useMemo(
+    () => adminNumericFields.find((item) => item.field === chatMetricBubbleField) || null,
+    [adminNumericFields, chatMetricBubbleField]
+  );
+  const adminMetricValueSummaries = useMemo(() => {
+    if (!adminNumericFields.length || !districts?.length) return [];
+
+    return adminNumericFields.slice(0, 40).map((metric) => {
+      const join = isAdminPropertyMetric(metric)
+        ? buildAdminPropertyMetricJoin(districts, metric.field)
+        : buildAdminDatasetJoin(facilities, districts, metric.field);
+      const values = Object.values(join.byDistrictId || {})
+        .map((entry) => {
+          const aggregated = entry?.aggregated?.[metric.field];
+          if (!Number.isFinite(aggregated?.value)) return null;
+          return {
+            district: entry.districtName || 'Unknown admin area',
+            value: aggregated.value,
+            count: aggregated.count || 1
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.district.localeCompare(b.district));
+
+      return {
+        field: metric.field,
+        label: metric.label || metric.field,
+        source: metric.source,
+        count: values.length,
+        values: values.slice(0, values.length <= 80 ? 80 : 25),
+        truncated: values.length > 80
+      };
+    }).filter((summary) => summary.count > 0);
+  }, [adminNumericFields, districts, facilities]);
   useEffect(() => {
     if (adminFillMode !== ADMIN_FILL_MODES.DATASET) return;
     if (!adminNumericFields.length) return;
@@ -2399,9 +2496,13 @@ const MapComponent = ({
         };
       }
 
+      if (isAdminPropertyMetric(selectedAdminMetric)) {
+        return buildAdminPropertyMetricJoin(districts, adminMetricField);
+      }
+
       return buildAdminDatasetJoin(facilities, districts, adminMetricField);
     },
-    [adminFillMode, facilities, districts, adminMetricField]
+    [adminFillMode, facilities, districts, adminMetricField, selectedAdminMetric]
   );
   const adminMetricValues = useMemo(
     () => Object.values(adminDatasetJoin.byDistrictId || {})
@@ -2444,6 +2545,55 @@ const MapComponent = ({
       adminColorPalette,
       adminReverseColors,
       adminMetricValues
+    ]
+  );
+  const chatMetricBubbleJoin = useMemo(
+    () => {
+      if (isAdminPropertyMetric(selectedChatBubbleMetric)) {
+        return buildAdminPropertyMetricJoin(districts, chatMetricBubbleField);
+      }
+
+      return buildMetricBubbleJoin({
+        rows: facilities,
+        districts,
+        metricField: chatMetricBubbleField
+      });
+    },
+    [chatMetricBubbleField, facilities, districts, selectedChatBubbleMetric]
+  );
+  const chatMetricBubbleFeatures = useMemo(
+    () => buildMetricBubbleFeatures({
+      districts,
+      join: chatMetricBubbleJoin,
+      metricField: chatMetricBubbleField,
+      getDistrictCenter
+    }),
+    [chatMetricBubbleField, chatMetricBubbleJoin, districts]
+  );
+  const chatMetricBubbleValues = useMemo(
+    () => chatMetricBubbleFeatures.map((feature) => feature.value).filter((value) => Number.isFinite(value)),
+    [chatMetricBubbleFeatures]
+  );
+  const chatMetricBubbleScale = useMemo(
+    () => buildMetricBubbleScale(chatMetricBubbleValues),
+    [chatMetricBubbleValues]
+  );
+  const chatMetricBubbleLegend = useMemo(
+    () => buildMetricBubbleLegend({
+      metricField: chatMetricBubbleField,
+      color: chatMetricBubbleColor,
+      scale: chatMetricBubbleScale,
+      features: chatMetricBubbleFeatures,
+      selectedMetric: selectedChatBubbleMetric,
+      join: chatMetricBubbleJoin
+    }),
+    [
+      chatMetricBubbleField,
+      chatMetricBubbleScale,
+      chatMetricBubbleColor,
+      chatMetricBubbleFeatures,
+      selectedChatBubbleMetric,
+      chatMetricBubbleJoin
     ]
   );
   const selectedAnalysisDistrictIds = useMemo(
@@ -2911,6 +3061,7 @@ const MapComponent = ({
           adminDatasetLegend={adminDatasetStyle.legend}
           adminMetricField={adminMetricField}
           adminDatasetJoinSummary={adminDatasetJoin}
+          chatMetricBubbleLegend={chatMetricBubbleLegend}
         />
       )}
 
@@ -3183,6 +3334,14 @@ const MapComponent = ({
             </Popup>
           </CircleMarker>
         ))}
+
+        <MetricBubblesLayer
+          features={chatMetricBubbleFeatures}
+          field={chatMetricBubbleField}
+          color={chatMetricBubbleColor}
+          scale={chatMetricBubbleScale}
+          isPercent={Boolean(selectedChatBubbleMetric?.isPercent)}
+        />
 
         {/* District boundaries layer */}
         {showDistricts && districts && districts.length > 0 && (
@@ -3571,10 +3730,14 @@ const MapComponent = ({
               region: district.region
             })) || [],
           adminNumericFields: adminNumericFields.map((item) => ({
+            id: item.id,
             field: item.field,
+            label: item.label || item.field,
+            source: item.source,
             count: item.count,
             suggestedMeaning: item.suggestedMeaning
           })),
+          adminMetricValues: adminMetricValueSummaries,
           selectedAnalysisDistricts: selectedAnalysisDistricts?.map(compactDistrictForContext) || [],
           hasDistricts: districts && districts.length > 0,
           districts: districtSummary,

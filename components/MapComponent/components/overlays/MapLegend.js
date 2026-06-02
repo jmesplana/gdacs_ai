@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ADMIN_FILL_MODES, RISK_COLORS } from '../../utils/adminDatasetStyling';
+import { ADMIN_FILL_MODES, RISK_COLORS, formatMetricValue } from '../../utils/adminDatasetStyling';
 
 const MapLegend = ({
   showLegend,
@@ -25,7 +25,8 @@ const MapLegend = ({
   adminFillMode = ADMIN_FILL_MODES.RISK,
   adminDatasetLegend = [],
   adminMetricField = '',
-  adminDatasetJoinSummary = null
+  adminDatasetJoinSummary = null,
+  chatMetricBubbleLegend = null
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const activeContextLegend = showAccessibilityContextLayer
@@ -281,6 +282,67 @@ const MapLegend = ({
                   Admin fill is off.
                 </div>
               )}
+            </>
+          )}
+
+          {chatMetricBubbleLegend && (
+            <>
+              <div style={{
+                marginBottom: '10px',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                color: '#424242',
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: '#f5f5f5',
+                padding: '6px 10px',
+                borderRadius: '4px'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--aidstack-navy)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <circle cx="12" cy="12" r="4"></circle>
+                </svg>
+                METRIC BUBBLES
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>
+                  {chatMetricBubbleLegend.field}
+                </div>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'end',
+                  gap: '14px',
+                  minHeight: `${Math.max(chatMetricBubbleLegend.maxRadius * 2, 42)}px`,
+                  marginBottom: '8px'
+                }}>
+                  {[
+                    { label: 'Min', value: chatMetricBubbleLegend.min, radius: chatMetricBubbleLegend.minRadius },
+                    { label: 'Max', value: chatMetricBubbleLegend.max, radius: chatMetricBubbleLegend.maxRadius }
+                  ].map((item) => (
+                    <div key={item.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#475569' }}>
+                      <div style={{
+                        width: `${item.radius * 2}px`,
+                        height: `${item.radius * 2}px`,
+                        borderRadius: '50%',
+                        backgroundColor: chatMetricBubbleLegend.color,
+                        opacity: 0.48,
+                        border: '2px solid rgba(15,23,42,0.22)'
+                      }} />
+                      <span>{item.label}</span>
+                      <span style={{ fontWeight: 700 }}>
+                        {formatMetricValue(item.value, { isPercent: chatMetricBubbleLegend.isPercent })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  {chatMetricBubbleLegend.count} mapped admin area{chatMetricBubbleLegend.count === 1 ? '' : 's'}
+                  {Number.isFinite(chatMetricBubbleLegend.totalRows) && chatMetricBubbleLegend.totalRows > 0
+                    ? `; ${chatMetricBubbleLegend.matchedRows} of ${chatMetricBubbleLegend.totalRows} uploaded rows matched`
+                    : ''}
+                </div>
+              </div>
             </>
           )}
 

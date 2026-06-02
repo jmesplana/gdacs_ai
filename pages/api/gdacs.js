@@ -6,6 +6,15 @@ const parseXML = promisify(parseString);
 const GDACS_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (compatible; GDACSFacilitiesApp/1.0)',
 };
+const GDACS_PRIMARY_TIMEOUT_MS = 8000;
+const GDACS_FALLBACK_TIMEOUT_MS = 5000;
+const GDACS_CACHE_TTL_MS = 15 * 60 * 1000;
+const GDACS_STALE_TTL_MS = 6 * 60 * 60 * 1000;
+
+let gdacsMemoryCache = {
+  data: null,
+  timestamp: 0
+};
 
 const TEXT_VALUE_KEYS = ['_', '#text'];
 const CAP_ALERT_KEY = 'cap:alert';
@@ -236,19 +245,26 @@ function parsePrimaryFeedItems(xmlData, sourceLabel) {
 
 export default async function handler(req, res) {
   try {
+    const cacheAge = Date.now() - gdacsMemoryCache.timestamp;
+    if (gdacsMemoryCache.data && cacheAge < GDACS_CACHE_TTL_MS) {
+      res.setHeader('X-GDACS-Cache', 'fresh');
+      res.status(200).json(gdacsMemoryCache.data);
+      return;
+    }
+
     console.log("Fetching GDACS data from CAP feed and JSON API...");
 
     const [capResponse, jsonResponse] = await Promise.allSettled([
       axios.get('https://www.gdacs.org/xml/gdacs_cap.xml', {
         headers: GDACS_HEADERS,
-        timeout: 15000
+        timeout: GDACS_PRIMARY_TIMEOUT_MS
       }),
       axios.get('https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH', {
         headers: {
           'Accept': 'application/json',
           ...GDACS_HEADERS,
         },
-        timeout: 15000
+        timeout: GDACS_PRIMARY_TIMEOUT_MS
       })
     ]);
 
@@ -267,12 +283,13 @@ export default async function handler(req, res) {
       console.warn("CAP feed fetch failed:", capResponse.reason?.message);
     }
 
-    if (primaryEvents.length === 0) {
+    const jsonHasEvents = jsonResponse.status === 'fulfilled' && Array.isArray(jsonResponse.value.data?.features) && jsonResponse.value.data.features.length > 0;
+    if (primaryEvents.length === 0 && !jsonHasEvents) {
       primarySource = 'rss_fallback';
       try {
         const rssResponse = await axios.get('https://www.gdacs.org/xml/rss.xml', {
           headers: GDACS_HEADERS,
-          timeout: 15000
+          timeout: GDACS_FALLBACK_TIMEOUT_MS
         });
         const rssXML = await parseXML(rssResponse.data);
         primaryEvents = parsePrimaryFeedItems(rssXML, 'rss');
@@ -280,6 +297,9 @@ export default async function handler(req, res) {
       } catch (rssError) {
         console.warn("RSS fallback fetch failed:", rssError.message);
       }
+    } else if (primaryEvents.length === 0 && jsonHasEvents) {
+      primarySource = 'json_api';
+      console.log('Skipping RSS fallback because JSON API returned events.');
     }
 
     let jsonEventsMap = new Map();
@@ -455,11 +475,31 @@ export default async function handler(req, res) {
     console.log(`Events with coordinates: ${eventsWithCoordinates}/${processedDisasters.length}`);
     console.log(`Events with geometry URL: ${processedDisasters.filter(e => Boolean(e.geometryUrl)).length}/${processedDisasters.length}`);
 
-    // Return the merged disaster data
+    if (processedDisasters.length > 0) {
+      gdacsMemoryCache = {
+        data: processedDisasters,
+        timestamp: Date.now()
+      };
+    } else if (gdacsMemoryCache.data && cacheAge < GDACS_STALE_TTL_MS) {
+      console.warn('GDACS feeds returned no events; serving stale cached disaster data.');
+      res.setHeader('X-GDACS-Cache', 'stale');
+      res.status(200).json(gdacsMemoryCache.data);
+      return;
+    }
+
+    res.setHeader('X-GDACS-Cache', processedDisasters.length > 0 ? 'refreshed' : 'empty');
     res.status(200).json(processedDisasters);
 
   } catch (error) {
     console.error("Error fetching GDACS data:", error.message);
+
+    const cacheAge = Date.now() - gdacsMemoryCache.timestamp;
+    if (gdacsMemoryCache.data && cacheAge < GDACS_STALE_TTL_MS) {
+      console.warn('GDACS fetch failed; serving stale cached disaster data.');
+      res.setHeader('X-GDACS-Cache', 'stale-error');
+      res.status(200).json(gdacsMemoryCache.data);
+      return;
+    }
 
     // Return error status
     res.status(500).json({
