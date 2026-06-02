@@ -269,6 +269,14 @@ function buildDatasetPopupBlock(datasetStyle, featureId) {
   `;
 }
 
+// Label decluttering state - shared across all district feature layers.
+const labelPlacementCache = {
+  layers: new Set(),
+  placed: [],
+  version: 0,
+  updateScheduled: false
+};
+
 export default function AdminBoundariesLayer({
   districts = [],
   displayDistricts = [],
@@ -541,30 +549,245 @@ export default function AdminBoundariesLayer({
             opacity: 0.9
           });
 
+          // Store label metadata for ranking and collision detection
+          // This function updates metadata dynamically to reflect current selection state
+          const updateLabelMetadata = () => {
+            const isSelectedFeature = selectedIds.has(String(feature.id));
+            const isHighlightedFeature = highlightedIds.has(String(feature.id));
+
+            if (!layer._labelMetadata) {
+              layer._labelMetadata = {};
+            }
+
+            layer._labelMetadata.featureId = feature.id;
+            layer._labelMetadata.displayName = displayName;
+            layer._labelMetadata.riskScore = props.riskScore || 0;
+            layer._labelMetadata.metricValue = getDatasetMetric(feature.id)?.value;
+            layer._labelMetadata.isSelected = isSelectedFeature;
+            layer._labelMetadata.isHighlighted = isHighlightedFeature;
+          };
+
+          // Initialize metadata
+          updateLabelMetadata();
+
           const updateTooltipVisibility = () => {
+            // Refresh metadata to capture current selection/highlight state
+            updateLabelMetadata();
             const zoom = mapInstance.getZoom();
             let isInView = true;
+            let bounds = null;
+
             if (typeof layer.getBounds === 'function') {
               try {
-                isInView = mapInstance.getBounds().pad(0.15).contains(layer.getBounds().getCenter());
+                bounds = layer.getBounds();
+                isInView = mapInstance.getBounds().pad(0.15).contains(bounds.getCenter());
               } catch (error) {
                 isInView = true;
               }
             }
 
-            if (zoom >= minZoom && isInView) {
-              layer.openTooltip();
-            } else {
+            // Quick pass: mark layer as not visible
+            layer._labelMetadata.passedAreaFilter = false;
+
+            if (zoom < minZoom || !isInView || !bounds) {
               layer.closeTooltip();
+              return;
             }
+
+            // 4-Layer Label Decluttering System
+            // Layer 1: Area-based threshold (baseline filter)
+            const nw = mapInstance.latLngToLayerPoint(bounds.getNorthWest());
+            const se = mapInstance.latLngToLayerPoint(bounds.getSouthEast());
+            const widthPx = Math.abs(se.x - nw.x);
+            const heightPx = Math.abs(se.y - nw.y);
+            const areaPx = widthPx * heightPx;
+
+            const areaThresholds = {
+              7: 15000,  8: 10000,  9: 5000,  10: 2000,
+              11: 1000,  12: 500,   13: 200,  14: 50
+            };
+            const areaThreshold = areaThresholds[Math.floor(zoom)] || (zoom < 7 ? 20000 : (zoom >= 15 ? 0 : 50));
+
+            if (areaPx < areaThreshold) {
+              layer.closeTooltip();
+              return;
+            }
+
+            // Store computed values for collision detection
+            const centerPx = mapInstance.latLngToLayerPoint(bounds.getCenter());
+            layer._labelMetadata.areaPx = areaPx;
+            layer._labelMetadata.centerPx = centerPx;
+            layer._labelMetadata.zoom = Math.floor(zoom);
+            layer._labelMetadata.passedAreaFilter = true;
+            return true;
           };
 
-          layer.on('add', updateTooltipVisibility);
-          mapInstance.on('zoomend', updateTooltipVisibility);
-          mapInstance.on('moveend', updateTooltipVisibility);
+          // Debounced batch update for all labels
+          const scheduleUpdateAllLabels = (immediate = false) => {
+            if (immediate) {
+              // Force immediate update (used when labels are toggled on)
+              updateAllLabels();
+              return;
+            }
+
+            if (labelPlacementCache.updateScheduled) return;
+
+            labelPlacementCache.updateScheduled = true;
+            requestAnimationFrame(() => {
+              labelPlacementCache.updateScheduled = false;
+              updateAllLabels();
+            });
+          };
+
+          // Collect all layers and apply ranking, top-N, and collision detection
+          const updateAllLabels = () => {
+            const zoom = Math.floor(mapInstance.getZoom());
+            const registeredLayers = Array.from(labelPlacementCache.layers)
+              .filter((registeredLayer) => registeredLayer?._map === mapInstance && registeredLayer._labelMetadata);
+
+            registeredLayers.forEach((registeredLayer) => {
+              if (typeof registeredLayer._updateDistrictLabelCandidate === 'function') {
+                registeredLayer._updateDistrictLabelCandidate();
+              }
+            });
+
+            // Collect all candidate layers that passed area filter
+            const candidateLayers = registeredLayers.filter((registeredLayer) =>
+              registeredLayer._labelMetadata?.passedAreaFilter &&
+              registeredLayer._labelMetadata.zoom === zoom
+            );
+
+            if (candidateLayers.length === 0) {
+              registeredLayers.forEach((registeredLayer) => registeredLayer.closeTooltip());
+              return;
+            }
+
+            // Reset cache for this update cycle
+            labelPlacementCache.version++;
+            labelPlacementCache.placed = [];
+
+            // Layer 2: Rank by importance (selected/highlighted first, then area, then metric/risk score)
+            candidateLayers.sort((a, b) => {
+              // Priority 1: Selected districts always come first
+              if (a._labelMetadata.isSelected !== b._labelMetadata.isSelected) {
+                return b._labelMetadata.isSelected ? 1 : -1;
+              }
+
+              // Priority 2: Highlighted districts come next
+              if (a._labelMetadata.isHighlighted !== b._labelMetadata.isHighlighted) {
+                return b._labelMetadata.isHighlighted ? 1 : -1;
+              }
+
+              // Priority 3: Larger screen area = more prominent
+              const areaDiff = (b._labelMetadata.areaPx || 0) - (a._labelMetadata.areaPx || 0);
+              if (Math.abs(areaDiff) > 100) return areaDiff;
+
+              // Priority 4: Metric value or risk score
+              const aScore = a._labelMetadata.metricValue ?? a._labelMetadata.riskScore ?? 0;
+              const bScore = b._labelMetadata.metricValue ?? b._labelMetadata.riskScore ?? 0;
+              return bScore - aScore;
+            });
+
+            // Layer 3: Top-N per zoom level (but always include selected/highlighted)
+            const selectedAndHighlighted = candidateLayers.filter(l =>
+              l._labelMetadata.isSelected || l._labelMetadata.isHighlighted
+            );
+            const others = candidateLayers.filter(l =>
+              !l._labelMetadata.isSelected && !l._labelMetadata.isHighlighted
+            );
+
+            const maxLabelsPerZoom = {
+              7: 8,   8: 12,  9: 20,  10: 35,
+              11: 60, 12: 100, 13: 200, 14: 400
+            };
+            const maxLabels = maxLabelsPerZoom[Math.floor(zoom)] || (zoom < 7 ? 5 : (zoom >= 15 ? 10000 : 800));
+
+            // Always include selected/highlighted, then fill remaining slots with others
+            const remainingSlots = Math.max(0, maxLabels - selectedAndHighlighted.length);
+            const topCandidates = [...selectedAndHighlighted, ...others.slice(0, remainingSlots)];
+
+            // Layer 4: Collision detection (simplified for performance)
+            // At high zoom (15+), disable collision detection to show all labels
+            const useCollisionDetection = zoom < 15;
+            const LABEL_PADDING = 6; // px (reduced for smaller labels)
+            const estimateLabelBox = (layer) => {
+              const { centerPx, displayName } = layer._labelMetadata;
+              // Updated for smaller font: ~6px per character (11px font), 14px height
+              const estWidth = (displayName?.length || 10) * 6 + LABEL_PADDING * 2;
+              const estHeight = 14 + LABEL_PADDING * 2;
+
+              return {
+                minX: centerPx.x - estWidth / 2,
+                maxX: centerPx.x + estWidth / 2,
+                minY: centerPx.y - estHeight / 2,
+                maxY: centerPx.y + estHeight / 2
+              };
+            };
+
+            const boxesOverlap = (box1, box2) => {
+              return !(box1.maxX < box2.minX || box1.minX > box2.maxX ||
+                       box1.maxY < box2.minY || box1.minY > box2.maxY);
+            };
+
+            topCandidates.forEach((layer) => {
+              const candidateBox = estimateLabelBox(layer);
+              const isImportant = layer._labelMetadata.isSelected || layer._labelMetadata.isHighlighted;
+
+              // Selected/highlighted districts skip collision detection (always show)
+              if (isImportant || !useCollisionDetection) {
+                layer.openTooltip();
+                labelPlacementCache.placed.push(candidateBox);
+                return;
+              }
+
+              // Regular districts use collision detection at lower zoom levels
+              const hasCollision = labelPlacementCache.placed.some((placedBox) =>
+                boxesOverlap(candidateBox, placedBox)
+              );
+
+              if (!hasCollision) {
+                layer.openTooltip();
+                labelPlacementCache.placed.push(candidateBox);
+              } else {
+                layer.closeTooltip();
+              }
+            });
+
+            // Close tooltips for layers beyond top-N
+            const shownLayers = new Set(topCandidates);
+            candidateLayers.forEach((layer) => {
+              if (!shownLayers.has(layer)) layer.closeTooltip();
+            });
+          };
+
+          // Single event handler setup per layer
+          const handleMapUpdate = () => {
+            scheduleUpdateAllLabels();
+          };
+
+          // Use a longer delay on initial add to ensure all layers are ready
+          let isFirstAdd = true;
+          layer.on('add', () => {
+            labelPlacementCache.layers.add(layer);
+            layer._updateDistrictLabelCandidate = updateTooltipVisibility;
+            if (isFirstAdd) {
+              isFirstAdd = false;
+              // Longer delay for initial render to collect all layers
+              setTimeout(() => scheduleUpdateAllLabels(true), 150);
+            } else {
+              scheduleUpdateAllLabels();
+            }
+          });
+
+          mapInstance.on('zoomend', handleMapUpdate);
+          mapInstance.on('moveend', handleMapUpdate);
+
           layer.on('remove', () => {
-            mapInstance.off('zoomend', updateTooltipVisibility);
-            mapInstance.off('moveend', updateTooltipVisibility);
+            mapInstance.off('zoomend', handleMapUpdate);
+            mapInstance.off('moveend', handleMapUpdate);
+            labelPlacementCache.layers.delete(layer);
+            delete layer._updateDistrictLabelCandidate;
+            layer._labelMetadata.passedAreaFilter = false;
           });
         }
 

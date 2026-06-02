@@ -171,18 +171,18 @@ const customStyles = `
   }
 
   .district-label {
-    background: rgba(33, 150, 243, 0.9) !important;
-    border: 2px solid rgba(25, 118, 210, 0.9) !important;
-    border-radius: 6px !important;
-    padding: 6px 12px !important;
-    font-size: 13px !important;
-    font-weight: 700 !important;
+    background: rgba(33, 150, 243, 0.75) !important;
+    border: 1px solid rgba(25, 118, 210, 0.8) !important;
+    border-radius: 4px !important;
+    padding: 3px 8px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
     font-family: 'Inter', sans-serif !important;
     color: white !important;
     white-space: nowrap !important;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
     pointer-events: none !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4) !important;
   }
 
   .drawer-backdrop {
@@ -3335,14 +3335,6 @@ const MapComponent = ({
           </CircleMarker>
         ))}
 
-        <MetricBubblesLayer
-          features={chatMetricBubbleFeatures}
-          field={chatMetricBubbleField}
-          color={chatMetricBubbleColor}
-          scale={chatMetricBubbleScale}
-          isPercent={Boolean(selectedChatBubbleMetric?.isPercent)}
-        />
-
         {/* District boundaries layer */}
         {showDistricts && districts && districts.length > 0 && (
           <AdminBoundariesLayer
@@ -3367,6 +3359,14 @@ const MapComponent = ({
             isDrawingMode={drawingEnabled && (annotationMode || freehandMode)}
           />
         )}
+
+        <MetricBubblesLayer
+          features={chatMetricBubbleFeatures}
+          field={chatMetricBubbleField}
+          color={chatMetricBubbleColor}
+          scale={chatMetricBubbleScale}
+          isPercent={Boolean(selectedChatBubbleMetric?.isPercent)}
+        />
 
         {/* Heatmap layer */}
         {showHeatmap && <HeatmapLayer disasters={visibleDisasters} />}

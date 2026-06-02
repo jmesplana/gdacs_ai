@@ -1,5 +1,8 @@
-import { CircleMarker, Popup, Tooltip } from 'react-leaflet';
+import { useEffect } from 'react';
+import { CircleMarker, Popup, Tooltip, useMap } from 'react-leaflet';
 import { formatMetricValue } from '../utils/adminDatasetStyling';
+
+const METRIC_BUBBLE_PANE = 'metricBubblePane';
 
 export default function MetricBubblesLayer({
   features = [],
@@ -8,6 +11,15 @@ export default function MetricBubblesLayer({
   scale = null,
   isPercent = false
 }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+    const pane = map.getPane(METRIC_BUBBLE_PANE) || map.createPane(METRIC_BUBBLE_PANE);
+    pane.style.zIndex = '520';
+    pane.style.pointerEvents = 'auto';
+  }, [map]);
+
   if (!field || !scale || !features.length) return null;
 
   return (
@@ -17,6 +29,7 @@ export default function MetricBubblesLayer({
           key={`chat-metric-bubble-${field}-${feature.id}`}
           center={[feature.latitude, feature.longitude]}
           radius={scale.radiusForValue(feature.value)}
+          pane={METRIC_BUBBLE_PANE}
           pathOptions={{
             color: '#ffffff',
             weight: 2,
