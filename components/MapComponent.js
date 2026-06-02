@@ -1579,10 +1579,14 @@ const MapComponent = ({
         setHighlightedDistricts([]);
         setChatMapMarkers([]);
         setChatMetricBubbleField('');
+        if (adminFillMode === ADMIN_FILL_MODES.DATASET) {
+          setAdminFillMode(ADMIN_FILL_MODES.RISK);
+          setShowDistrictRiskFill(true);
+        }
         if (mapInstance) {
           window.setTimeout(() => mapInstance.invalidateSize(), 50);
         }
-        addToast('Cleared chat map highlights and pins.', 'info');
+        addToast('Cleared chat map overlays.', 'info');
         return;
       }
       case 'clear_metric_bubbles': {
@@ -1594,6 +1598,7 @@ const MapComponent = ({
         return;
       }
       case 'clear_metric_layers': {
+        setHighlightedDistricts([]);
         setChatMetricBubbleField('');
         if (adminFillMode === ADMIN_FILL_MODES.DATASET) {
           setAdminFillMode(ADMIN_FILL_MODES.RISK);
