@@ -798,20 +798,27 @@ function detectLocalAdminDisplayCommand(message = '') {
 
 function detectLocalMapCommand(message = '', context = {}) {
   const lower = String(message).toLowerCase();
+  const hasClearVerb = /(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lower);
+  const hasClearOrResetVerb = /\b(clear|reset)\b/.test(lower);
 
-  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lower) && /\b(bubble|bubbles|circle|circles|proportional symbol|proportional symbols)\b/.test(lower)) {
-    return { action: 'clear_metric_bubbles' };
-  }
-
-  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lower) && /\b(metric|metrics|case map|disease layer|choropleth|chlorepleth|color map|colour map)\b/.test(lower)) {
+  if ((hasClearOrResetVerb && /\b(admin|district|districts|boundary|boundaries)\b/.test(lower)) ||
+      (hasClearVerb && /\b(choropleth|chlorepleth|color map|colour map|bubble|bubbles|circle|circles|metric layer|metric layers|case map|disease layer)\b/.test(lower))) {
     return { action: 'clear_metric_layers' };
   }
 
-  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lower) && /\b(highlight|highlights|highlighting)\b/.test(lower)) {
+  if (hasClearVerb && /\b(bubble|bubbles|circle|circles|proportional symbol|proportional symbols)\b/.test(lower)) {
+    return { action: 'clear_metric_bubbles' };
+  }
+
+  if (hasClearVerb && /\b(metric|metrics|case map|disease layer|choropleth|chlorepleth|color map|colour map)\b/.test(lower)) {
+    return { action: 'clear_metric_layers' };
+  }
+
+  if (hasClearVerb && /\b(highlight|highlights|highlighting)\b/.test(lower)) {
     return { action: 'clear_highlights' };
   }
 
-  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lower) && /\b(map|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lower)) {
+  if (hasClearVerb && /\b(map|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lower)) {
     return { action: 'clear_map_annotations' };
   }
 

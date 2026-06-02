@@ -581,20 +581,27 @@ Be direct, practical, and specific. Use the context data to give personalized an
 
 function detectMapIntent(message, context = {}) {
   const lowerMessage = message.toLowerCase();
+  const hasClearVerb = /(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage);
+  const hasClearOrResetVerb = /\b(clear|reset)\b/.test(lowerMessage);
 
-  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage) && /\b(bubble|bubbles|circle|circles|proportional symbol|proportional symbols)\b/.test(lowerMessage)) {
-    return { action: 'clear_metric_bubbles' };
-  }
-
-  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage) && /\b(metric|metrics|case map|disease layer|choropleth|chlorepleth|color map|colour map)\b/.test(lowerMessage)) {
+  if ((hasClearOrResetVerb && /\b(admin|district|districts|boundary|boundaries)\b/.test(lowerMessage)) ||
+      (hasClearVerb && /\b(choropleth|chlorepleth|color map|colour map|bubble|bubbles|circle|circles|metric layer|metric layers|case map|disease layer)\b/.test(lowerMessage))) {
     return { action: 'clear_metric_layers' };
   }
 
-  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage) && /\b(highlight|highlights|highlighting)\b/.test(lowerMessage)) {
+  if (hasClearVerb && /\b(bubble|bubbles|circle|circles|proportional symbol|proportional symbols)\b/.test(lowerMessage)) {
+    return { action: 'clear_metric_bubbles' };
+  }
+
+  if (hasClearVerb && /\b(metric|metrics|case map|disease layer|choropleth|chlorepleth|color map|colour map)\b/.test(lowerMessage)) {
+    return { action: 'clear_metric_layers' };
+  }
+
+  if (hasClearVerb && /\b(highlight|highlights|highlighting)\b/.test(lowerMessage)) {
     return { action: 'clear_highlights' };
   }
 
-  if (/(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage) && /\b(map|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lowerMessage)) {
+  if (hasClearVerb && /\b(map|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lowerMessage)) {
     return { action: 'clear_map_annotations' };
   }
 
