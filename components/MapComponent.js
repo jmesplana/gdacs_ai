@@ -1392,7 +1392,17 @@ const MapComponent = ({
     if (matchingDistricts.length === 0) {
       addToast('No admin areas matched that highlight request.', 'warning');
     } else {
-      addToast(`Highlighted ${matchingDistricts.length} admin area${matchingDistricts.length === 1 ? '' : 's'}.`, 'success');
+      // Show which districts were found if names were requested
+      if (criteria.names && criteria.names.length > 0) {
+        const foundNames = matchingDistricts.map(d => d.name).join(', ');
+        if (matchingDistricts.length < criteria.names.length) {
+          addToast(`Highlighted ${matchingDistricts.length} of ${criteria.names.length} requested areas: ${foundNames}`, 'warning');
+        } else {
+          addToast(`Highlighted ${matchingDistricts.length} admin area${matchingDistricts.length === 1 ? '' : 's'}: ${foundNames}`, 'success');
+        }
+      } else {
+        addToast(`Highlighted ${matchingDistricts.length} admin area${matchingDistricts.length === 1 ? '' : 's'}.`, 'success');
+      }
     }
 
     // Zoom to highlighted districts if any found
@@ -1575,6 +1585,24 @@ const MapComponent = ({
           window.setTimeout(() => mapInstance.invalidateSize(), 50);
         }
         addToast('Cleared admin highlights.', 'info');
+        return;
+      }
+      case 'clear_all_map_overlays': {
+        // Clear everything: highlights, selections, markers, metric layers
+        setHighlightedDistricts([]);
+        setChatMapMarkers([]);
+        setChatMetricBubbleField('');
+        if (adminFillMode === ADMIN_FILL_MODES.DATASET) {
+          setAdminFillMode(ADMIN_FILL_MODES.RISK);
+          setShowDistrictRiskFill(true);
+        }
+        if (onAnalysisDistrictsChange) {
+          onAnalysisDistrictsChange([]);
+        }
+        if (mapInstance) {
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+        addToast('Cleared all map overlays and selections.', 'info');
         return;
       }
       case 'clear_map_annotations': {

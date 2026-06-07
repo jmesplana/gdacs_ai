@@ -801,6 +801,23 @@ function detectLocalMapCommand(message = '', context = {}) {
   const hasClearVerb = /(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lower);
   const hasClearOrResetVerb = /\b(clear|reset)\b/.test(lower);
 
+  // Handle "clear map" or "clear everything" - clears all map overlays
+  if ((hasClearOrResetVerb || /\b(remove all|remove everything)\b/.test(lower)) &&
+      /\b(map|everything|all)\b/.test(lower) &&
+      !/\b(pin|marker|highlight|annotation|bubble|metric|layer|choropleth)\b/.test(lower)) {
+    return { action: 'clear_all_map_overlays' };
+  }
+
+  // Handle "unselect all" or "clear selection" or "deselect all" - clears analysis scope
+  // Must explicitly mention unselect/deselect or have "all" with clear/reset
+  if ((/\b(unselect|deselect)\b/.test(lower) && /\b(all|districts?|admin|areas?|everything|selection)\b/.test(lower)) ||
+      (/\b(clear|reset|remove)\b/.test(lower) && /\b(selection|all districts?|all admin|all areas?)\b/.test(lower))) {
+    // This is a global clear command, not a selective deselect
+    if (!/\b(from analysis|from scope|specific|only|named|called)\b/.test(lower)) {
+      return { action: 'clear_analysis_scope' };
+    }
+  }
+
   if ((hasClearOrResetVerb && /\b(admin|district|districts|boundary|boundaries)\b/.test(lower)) ||
       (hasClearVerb && /\b(choropleth|chlorepleth|color map|colour map|bubble|bubbles|circle|circles|metric layer|metric layers|case map|disease layer)\b/.test(lower))) {
     return { action: 'clear_metric_layers' };
@@ -818,7 +835,7 @@ function detectLocalMapCommand(message = '', context = {}) {
     return { action: 'clear_highlights' };
   }
 
-  if (hasClearVerb && /\b(map|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lower)) {
+  if (hasClearVerb && /\b(pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lower)) {
     return { action: 'clear_map_annotations' };
   }
 
@@ -878,6 +895,7 @@ function detectLocalMapCommand(message = '', context = {}) {
   const matchedNames = getLocalAdminAreaNamesFromMessage(message, context);
   if (matchedNames.length > 0) {
     criteria.names = matchedNames;
+    console.log(`📍 Extracted ${matchedNames.length} district name(s) from message:`, matchedNames);
   }
   const requestedAdminLevel = getRequestedAdminLevel(message);
   if (requestedAdminLevel) {

@@ -299,7 +299,7 @@ IMPORTANT:
   2. List specific district names if available
   3. Provide context about why these districts are at that risk level
   4. The system will automatically apply the map action when the request matches a supported command
-- Supported chat map actions include highlighting or selecting admin areas, coloring admin boundaries by risk or a loaded numeric field, placing a pin when coordinates or a named admin area are provided, clearing chat-added highlights/pins, and toggling admin borders or labels. Do not tell the user you cannot clear chat-added pins/dots/markers/highlights or toggle admin labels/borders; the system can apply those map actions.
+- Supported chat map actions include highlighting or selecting admin areas, coloring admin boundaries by risk or a loaded numeric field, placing a pin when coordinates or a named admin area are provided, clearing chat-added highlights/pins/selections, clearing the entire map, unselecting all districts, and toggling admin borders or labels. Do not tell the user you cannot clear the map, unselect districts, or remove selections; the system can apply those map actions when the user says "clear map", "clear everything", "unselect all", "deselect all", "clear selection", or similar commands.
 - Supported metric map actions include proportional bubbles/circles and choropleths from any loaded numeric map field listed in AVAILABLE NUMERIC MAP FIELDS. When the user asks to draw, map, color, or make bubbles/circles for a metric, do not say you cannot draw it. Identify the exact loaded numeric field name you are using and respond as if the map action is being applied. If the requested wording does not clearly match a listed numeric field, ask a short clarification question and list 2-4 candidate field names instead of guessing. Do not infer a field from a single generic overlap such as "site", "count", "case", or "data".
 - Always frame your district analysis in the context of the uploaded shapefile area (e.g., "In [Country/Region], based on the uploaded administrative boundaries...")
 - Use the risk breakdown percentages to give an overall security picture of the area
@@ -584,6 +584,23 @@ function detectMapIntent(message, context = {}) {
   const hasClearVerb = /(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lowerMessage);
   const hasClearOrResetVerb = /\b(clear|reset)\b/.test(lowerMessage);
 
+  // Handle "clear map" or "clear everything" - clears all map overlays
+  if ((hasClearOrResetVerb || /\b(remove all|remove everything)\b/.test(lowerMessage)) &&
+      /\b(map|everything|all)\b/.test(lowerMessage) &&
+      !/\b(pin|marker|highlight|annotation|bubble|metric|layer|choropleth)\b/.test(lowerMessage)) {
+    return { action: 'clear_all_map_overlays' };
+  }
+
+  // Handle "unselect all" or "clear selection" or "deselect all" - clears analysis scope
+  // Must explicitly mention unselect/deselect or have "all" with clear/reset
+  if ((/\b(unselect|deselect)\b/.test(lowerMessage) && /\b(all|districts?|admin|areas?|everything|selection)\b/.test(lowerMessage)) ||
+      (/\b(clear|reset|remove)\b/.test(lowerMessage) && /\b(selection|all districts?|all admin|all areas?)\b/.test(lowerMessage))) {
+    // This is a global clear command, not a selective deselect
+    if (!/\b(from analysis|from scope|specific|only|named|called)\b/.test(lowerMessage)) {
+      return { action: 'clear_analysis_scope' };
+    }
+  }
+
   if ((hasClearOrResetVerb && /\b(admin|district|districts|boundary|boundaries)\b/.test(lowerMessage)) ||
       (hasClearVerb && /\b(choropleth|chlorepleth|color map|colour map|bubble|bubbles|circle|circles|metric layer|metric layers|case map|disease layer)\b/.test(lowerMessage))) {
     return { action: 'clear_metric_layers' };
@@ -601,7 +618,7 @@ function detectMapIntent(message, context = {}) {
     return { action: 'clear_highlights' };
   }
 
-  if (hasClearVerb && /\b(map|pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lowerMessage)) {
+  if (hasClearVerb && /\b(pin|pins|marker|markers|dot|dots|annotation|annotations)\b/.test(lowerMessage)) {
     return { action: 'clear_map_annotations' };
   }
 
@@ -688,6 +705,7 @@ function detectMapIntent(message, context = {}) {
     const matchedNames = getAdminAreaNamesFromMessage(message, context);
     if (matchedNames.length > 0) {
       criteria.names = matchedNames;
+      console.log(`📍 Extracted ${matchedNames.length} district name(s) from message:`, matchedNames);
     }
     const requestedAdminLevel = getRequestedAdminLevel(message);
     if (requestedAdminLevel) {
