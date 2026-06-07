@@ -25,7 +25,16 @@ async function handler(req, res) {
       console.log('No disasters or ACLED events provided - returning empty impact assessment');
       return res.status(200).json({
         impactedFacilities: [],
-        statistics: { facilitiesImpacted: 0, totalImpacts: 0 }
+        statistics: {
+          totalDisasters: 0,
+          totalFacilities: Array.isArray(facilities) ? facilities.length : 0,
+          impactedFacilityCount: 0,
+          percentageImpacted: 0,
+          disasterStats: [],
+          overlappingImpacts: [],
+          affectedDistricts: 0,
+          estimatedAffectedPopulation: null
+        }
       });
     }
 

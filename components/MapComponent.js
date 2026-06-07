@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
 import { MapContainer, TileLayer, WMSTileLayer, CircleMarker, Marker as ReactLeafletMarker, Popup, Tooltip } from 'react-leaflet';
@@ -2125,6 +2125,8 @@ const MapComponent = ({
     () => (playbackEnabled ? filterByPlaybackDate(outbreaks, 'filterDate') : outbreaks),
     [playbackEnabled, filterByPlaybackDate, outbreaks]
   );
+  const deferredDistricts = useDeferredValue(districts);
+  const deferredFacilities = useDeferredValue(facilities);
   const facilityImpactState = useMemo(() => {
     const keys = new Set();
 
@@ -2437,12 +2439,12 @@ const MapComponent = ({
     }
   }, [geeOverlayError, addToast]);
   const districtRisks = useMemo(
-    () => calculateDistrictRisks(districts, visibleDisasters, visibleAcledEvents),
-    [districts, visibleDisasters, visibleAcledEvents]
+    () => calculateDistrictRisks(deferredDistricts, visibleDisasters, visibleAcledEvents),
+    [deferredDistricts, visibleDisasters, visibleAcledEvents]
   );
   const adminNumericFields = useMemo(
-    () => buildAdminMetricCatalog(facilities, districts),
-    [facilities, districts]
+    () => buildAdminMetricCatalog(deferredFacilities, deferredDistricts),
+    [deferredFacilities, deferredDistricts]
   );
   const selectedAdminMetric = useMemo(
     () => adminNumericFields.find((item) => item.field === adminMetricField) || null,
@@ -2453,12 +2455,12 @@ const MapComponent = ({
     [adminNumericFields, chatMetricBubbleField]
   );
   const adminMetricValueSummaries = useMemo(() => {
-    if (!adminNumericFields.length || !districts?.length) return [];
+    if (!adminNumericFields.length || !deferredDistricts?.length) return [];
 
     return adminNumericFields.slice(0, 40).map((metric) => {
       const join = isAdminPropertyMetric(metric)
-        ? buildAdminPropertyMetricJoin(districts, metric.field)
-        : buildAdminDatasetJoin(facilities, districts, metric.field);
+        ? buildAdminPropertyMetricJoin(deferredDistricts, metric.field)
+        : buildAdminDatasetJoin(deferredFacilities, deferredDistricts, metric.field);
       const values = Object.values(join.byDistrictId || {})
         .map((entry) => {
           const aggregated = entry?.aggregated?.[metric.field];
@@ -2481,7 +2483,7 @@ const MapComponent = ({
         truncated: values.length > 80
       };
     }).filter((summary) => summary.count > 0);
-  }, [adminNumericFields, districts, facilities]);
+  }, [adminNumericFields, deferredDistricts, deferredFacilities]);
   useEffect(() => {
     if (adminFillMode !== ADMIN_FILL_MODES.DATASET) return;
     if (!adminNumericFields.length) return;
@@ -2504,12 +2506,12 @@ const MapComponent = ({
       }
 
       if (isAdminPropertyMetric(selectedAdminMetric)) {
-        return buildAdminPropertyMetricJoin(districts, adminMetricField);
+        return buildAdminPropertyMetricJoin(deferredDistricts, adminMetricField);
       }
 
-      return buildAdminDatasetJoin(facilities, districts, adminMetricField);
+      return buildAdminDatasetJoin(deferredFacilities, deferredDistricts, adminMetricField);
     },
-    [adminFillMode, facilities, districts, adminMetricField, selectedAdminMetric]
+    [adminFillMode, deferredFacilities, deferredDistricts, adminMetricField, selectedAdminMetric]
   );
   const adminMetricValues = useMemo(
     () => Object.values(adminDatasetJoin.byDistrictId || {})
@@ -2557,25 +2559,25 @@ const MapComponent = ({
   const chatMetricBubbleJoin = useMemo(
     () => {
       if (isAdminPropertyMetric(selectedChatBubbleMetric)) {
-        return buildAdminPropertyMetricJoin(districts, chatMetricBubbleField);
+        return buildAdminPropertyMetricJoin(deferredDistricts, chatMetricBubbleField);
       }
 
       return buildMetricBubbleJoin({
-        rows: facilities,
-        districts,
+        rows: deferredFacilities,
+        districts: deferredDistricts,
         metricField: chatMetricBubbleField
       });
     },
-    [chatMetricBubbleField, facilities, districts, selectedChatBubbleMetric]
+    [chatMetricBubbleField, deferredFacilities, deferredDistricts, selectedChatBubbleMetric]
   );
   const chatMetricBubbleFeatures = useMemo(
     () => buildMetricBubbleFeatures({
-      districts,
+      districts: deferredDistricts,
       join: chatMetricBubbleJoin,
       metricField: chatMetricBubbleField,
       getDistrictCenter
     }),
-    [chatMetricBubbleField, chatMetricBubbleJoin, districts]
+    [chatMetricBubbleField, chatMetricBubbleJoin, deferredDistricts]
   );
   const chatMetricBubbleValues = useMemo(
     () => chatMetricBubbleFeatures.map((feature) => feature.value).filter((value) => Number.isFinite(value)),
@@ -2608,33 +2610,33 @@ const MapComponent = ({
     [selectedAnalysisDistricts]
   );
   const adminAreaChatIndex = useMemo(
-    () => buildAdminAreaChatIndex(districts),
-    [districts]
+    () => buildAdminAreaChatIndex(deferredDistricts),
+    [deferredDistricts]
   );
   const allowDistrictLabels = showDistrictLabels;
-  const adminLabelMinZoom = getAdminLabelMinZoom(districts.length);
+  const adminLabelMinZoom = getAdminLabelMinZoom(deferredDistricts.length);
   const displayDistricts = useMemo(() => {
-    const shouldSimplifyForDisplay = districts.length >= LARGE_DISTRICT_COUNT;
+    const shouldSimplifyForDisplay = deferredDistricts.length >= LARGE_DISTRICT_COUNT;
 
-    return districts.map(district => ({
+    return deferredDistricts.map(district => ({
       ...district,
       displayGeometry: shouldSimplifyForDisplay
         ? simplifyGeometry(district.geometry || null)
         : district.geometry
     }));
-  }, [districts]);
+  }, [deferredDistricts]);
   const districtSummary = useMemo(() => {
-    if (!districts || districts.length === 0) return null;
+    if (!deferredDistricts || deferredDistricts.length === 0) return null;
 
-    const summary = buildDistrictRiskSummary(districts, districtRisks);
+    const summary = buildDistrictRiskSummary(deferredDistricts, districtRisks);
     return summary ? {
       ...summary,
-      country: districts[0]?.country || 'Unknown',
-      region: districts[0]?.region || 'Unknown'
+      country: deferredDistricts[0]?.country || 'Unknown',
+      region: deferredDistricts[0]?.region || 'Unknown'
     } : null;
-  }, [districts, districtRisks]);
+  }, [deferredDistricts, districtRisks]);
   const activeDistrictSummary = useMemo(() => {
-    const activeDistricts = selectedAnalysisDistricts?.length ? selectedAnalysisDistricts : districts;
+    const activeDistricts = selectedAnalysisDistricts?.length ? selectedAnalysisDistricts : deferredDistricts;
     if (!activeDistricts || activeDistricts.length === 0) return null;
 
     const summary = buildDistrictRiskSummary(activeDistricts, districtRisks);
@@ -2644,9 +2646,9 @@ const MapComponent = ({
       region: activeDistricts[0]?.region || 'Unknown',
       isSelectedScope: Boolean(selectedAnalysisDistricts?.length)
     } : null;
-  }, [selectedAnalysisDistricts, districts, districtRisks]);
+  }, [selectedAnalysisDistricts, deferredDistricts, districtRisks]);
   const enrichedDistricts = useMemo(
-    () => districts.map(district => {
+    () => deferredDistricts.map(district => {
       const risk = districtRisks[district.id] || { level: 'none', score: 0, eventCount: 0 };
       return {
         ...district,
@@ -2655,7 +2657,7 @@ const MapComponent = ({
         eventCount: risk.eventCount
       };
     }),
-    [districts, districtRisks]
+    [deferredDistricts, districtRisks]
   );
   const hasSelectedAnalysisDistricts = selectedAnalysisDistricts.length > 0;
   const openWorkflowStep = (stepId) => {
@@ -3392,9 +3394,9 @@ const MapComponent = ({
         ))}
 
         {/* District boundaries layer */}
-        {showDistricts && districts && districts.length > 0 && (
+        {showDistricts && deferredDistricts && deferredDistricts.length > 0 && (
           <AdminBoundariesLayer
-            districts={districts}
+            districts={deferredDistricts}
             displayDistricts={displayDistricts}
             districtRisks={districtRisks}
             highlightedDistricts={highlightedDistricts}

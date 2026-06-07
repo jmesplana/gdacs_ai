@@ -10,7 +10,8 @@ import {
   filterFacilitiesToDistricts,
   filterImpactedFacilitiesToDistricts,
   getScopedWorldPopData,
-  filterItemsToDistricts
+  filterItemsToDistricts,
+  filterOsmDataToDistricts
 } from '../lib/analysisScope';
 import { getFacilityIdentityKey } from '../lib/facilityIdentity';
 import {
@@ -19,6 +20,7 @@ import {
   clearWorkspace
 } from '../lib/storage/workspaceStore';
 import { expandOutbreakMapFeatures } from '../lib/whoOutbreaks';
+import { buildDistrictRiskIndex } from '../lib/districtRiskScoring';
 
 // Import components with dynamic loading (no SSR) for Leaflet compatibility
 const MapComponent = dynamic(() => import('../components/MapComponent'), {
@@ -324,6 +326,9 @@ function OperationalContextBar({
 // GDACS Facilities Impact Assessment Tool
 // Developed by John Mark Esplana (https://github.com/jmesplana)
 export default function Home() {
+  const impactWorkerRef = useRef(null);
+  const impactWorkerRunIdRef = useRef(0);
+
   const parseApiResponse = async (response, label) => {
     const contentType = response.headers.get('content-type') || '';
     const raw = await response.text();
@@ -374,6 +379,17 @@ export default function Home() {
     };
   };
 
+  const yieldToBrowser = () => new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve();
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.setTimeout(resolve, 0);
+    });
+  });
+
   const buildImpactFacilitiesPayload = (facilityData) => {
     return facilityData.map((facility) => ({
       name: facility.name,
@@ -407,10 +423,78 @@ export default function Home() {
     }));
   };
 
-  const runImpactAssessmentLocally = async (requestPayload, facilityData, disastersToAssess) => {
-    console.log('Impact assessment: running locally to avoid oversized deployment payload');
+  const runImpactAssessmentOnMainThread = async (requestPayload) => {
     const { runImpactAssessment } = await import('../lib/impactAssessment');
-    const data = runImpactAssessment(requestPayload);
+    return runImpactAssessment(requestPayload, {
+      progressInterval: 100,
+      onProgress: (progress) => setImpactProgress(progress)
+    });
+  };
+
+  const runImpactAssessmentInWorker = (requestPayload) => {
+    if (typeof Worker === 'undefined') {
+      return runImpactAssessmentOnMainThread(requestPayload);
+    }
+
+    return new Promise((resolve, reject) => {
+      const worker = new Worker(new URL('../workers/impactAssessment.worker.js', import.meta.url));
+      const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      impactWorkerRunIdRef.current += 1;
+      const activeRunNumber = impactWorkerRunIdRef.current;
+
+      impactWorkerRef.current?.terminate();
+      impactWorkerRef.current = worker;
+
+      worker.onmessage = (event) => {
+        const { id, type, progress, result, error } = event.data || {};
+        if (id !== runId || activeRunNumber !== impactWorkerRunIdRef.current) return;
+
+        if (type === 'progress') {
+          setImpactProgress(progress);
+          return;
+        }
+
+        worker.terminate();
+        if (impactWorkerRef.current === worker) {
+          impactWorkerRef.current = null;
+        }
+
+        if (type === 'complete') {
+          resolve(result);
+        } else if (type === 'error') {
+          reject(new Error(error?.message || 'Impact assessment worker failed'));
+        }
+      };
+
+      worker.onerror = (error) => {
+        worker.terminate();
+        if (impactWorkerRef.current === worker) {
+          impactWorkerRef.current = null;
+        }
+        reject(new Error(error?.message || 'Impact assessment worker failed'));
+      };
+
+      worker.postMessage({ id: runId, payload: requestPayload });
+    });
+  };
+
+  const runImpactAssessmentLocally = async (requestPayload, facilityData, disastersToAssess) => {
+    console.log('Impact assessment: running in a worker to avoid blocking the UI');
+    setImpactProgress({
+      phase: 'starting',
+      processedFacilities: 0,
+      totalFacilities: requestPayload?.facilities?.length || 0,
+      impactedFacilities: 0
+    });
+
+    let data;
+    try {
+      data = await runImpactAssessmentInWorker(requestPayload);
+    } catch (workerError) {
+      console.warn('Impact assessment worker unavailable, falling back to main thread:', workerError);
+      data = await runImpactAssessmentOnMainThread(requestPayload);
+    }
+
     lastImpactPayloadRef.current = JSON.stringify(requestPayload);
     lastImpactResultRef.current = data;
     applyImpactAssessmentResult(facilityData, data, disastersToAssess);
@@ -450,6 +534,7 @@ export default function Home() {
     recommendations: false,
     sitrep: false
   });
+  const [impactProgress, setImpactProgress] = useState(null);
   const outbreakFetchRunRef = useRef(0);
   const [activeTab, setActiveTab] = useState('map');
   const [dataSource, setDataSource] = useState('');
@@ -496,6 +581,22 @@ export default function Home() {
   const [latestPrioritizationBoard, setLatestPrioritizationBoard] = useState(null);
   const [enabledEvidenceLayers, setEnabledEvidenceLayers] = useState([]);
   const workspaceRestoredRef = useRef(false);
+  const workspaceHydratingRef = useRef(false);
+  const workspaceSaveTimeoutRef = useRef(null);
+  const skipNextAutoImpactAssessmentRef = useRef({ disasters: false, acled: false });
+
+  useEffect(() => {
+    return () => {
+      impactWorkerRunIdRef.current += 1;
+      impactWorkerRef.current?.terminate();
+      impactWorkerRef.current = null;
+      if (workspaceSaveTimeoutRef.current) {
+        window.clearTimeout(workspaceSaveTimeoutRef.current);
+        workspaceSaveTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   const filteredAcledData = useMemo(() => {
     if (!acledData || acledData.length === 0 || !acledEnabled) {
       return [];
@@ -582,10 +683,12 @@ export default function Home() {
 
     const restoreWorkspace = async () => {
       try {
+        workspaceHydratingRef.current = true;
         const cachedWorkspace = await loadWorkspace();
         if (!mounted) return;
 
         if (!cachedWorkspace) {
+          workspaceHydratingRef.current = false;
           workspaceRestoredRef.current = true;
           return;
         }
@@ -595,11 +698,7 @@ export default function Home() {
 
         setFacilities(cachedWorkspace.facilities || []);
         setImpactedFacilities(cachedWorkspace.impactedFacilities || []);
-        setWorldPopData(cachedWorkspace.worldPopData || {});
-        setWorldPopLastFetch(cachedWorkspace.worldPopLastFetch || null);
-        setOsmData(cachedWorkspace.osmData || null);
         setAcledData(cachedWorkspace.acledData || []);
-        setSelectedAnalysisDistricts(cachedWorkspace.selectedAnalysisDistricts || []);
         setEnabledEvidenceLayers(cachedWorkspace.enabledEvidenceLayers || []);
         setOperationType(cachedWorkspace.operationType || '');
         setAiAnalysisFields(Array.isArray(restoredConfig.aiAnalysisFields) ? restoredConfig.aiAnalysisFields : []);
@@ -608,6 +707,9 @@ export default function Home() {
         if (restoredConfig.acledConfig && typeof restoredConfig.acledConfig === 'object') {
           setAcledConfig(restoredConfig.acledConfig);
         }
+
+        await yieldToBrowser();
+        if (!mounted) return;
 
         if (restoredDistricts.length > 0) {
           setDistricts(restoredDistricts);
@@ -621,7 +723,28 @@ export default function Home() {
           setDistrictLabelField(restoredConfig.districtLabelField);
         }
 
+        await yieldToBrowser();
+        if (!mounted) return;
+
+        setSelectedAnalysisDistricts(cachedWorkspace.selectedAnalysisDistricts || []);
+
+        await yieldToBrowser();
+        if (!mounted) return;
+
+        setWorldPopData(cachedWorkspace.worldPopData || {});
+        setWorldPopLastFetch(cachedWorkspace.worldPopLastFetch || null);
+
+        await yieldToBrowser();
+        if (!mounted) return;
+
+        setOsmData(cachedWorkspace.osmData || null);
+
+        await yieldToBrowser();
+        if (!mounted) return;
+
+        workspaceHydratingRef.current = false;
         workspaceRestoredRef.current = true;
+        skipNextAutoImpactAssessmentRef.current = { disasters: true, acled: true };
         console.log('Workspace restored from IndexedDB:', {
           districts: restoredDistricts.length,
           facilities: cachedWorkspace.facilities?.length || 0,
@@ -630,6 +753,7 @@ export default function Home() {
         });
       } catch (error) {
         console.error('Error restoring workspace:', error);
+        workspaceHydratingRef.current = false;
         workspaceRestoredRef.current = true;
       }
     };
@@ -644,14 +768,22 @@ export default function Home() {
 
     return () => {
       mounted = false;
+      workspaceHydratingRef.current = false;
       cancelRestore();
     };
   }, []);
 
   useEffect(() => {
     if (!workspaceRestoredRef.current) return;
+    if (workspaceHydratingRef.current) return;
 
-    saveWorkspace({
+    if (workspaceSaveTimeoutRef.current) {
+      window.clearTimeout(workspaceSaveTimeoutRef.current);
+    }
+
+    workspaceSaveTimeoutRef.current = window.setTimeout(() => {
+      workspaceSaveTimeoutRef.current = null;
+      saveWorkspace({
       districts,
       facilities,
       impactedFacilities,
@@ -668,7 +800,8 @@ export default function Home() {
         aiAnalysisFields,
         districtLabelField
       }
-    });
+      });
+    }, 1200);
   }, [
     districts,
     facilities,
@@ -725,6 +858,8 @@ export default function Home() {
 
   // Filter disasters when disaster data or date filter changes
   useEffect(() => {
+    if (workspaceHydratingRef.current) return;
+
     console.log('🔄 DATE FILTER CHANGED:', dateFilter);
     console.log('📊 Total outbreaks before filtering:', outbreaks.length);
 
@@ -740,6 +875,15 @@ export default function Home() {
 
     // Re-assess impact when filter changes if facilities are available
     if (facilities.length > 0) {
+      if (skipNextAutoImpactAssessmentRef.current.disasters) {
+        skipNextAutoImpactAssessmentRef.current = {
+          ...skipNextAutoImpactAssessmentRef.current,
+          disasters: false
+        };
+        console.log('Skipping initial auto impact assessment after workspace restore');
+        return;
+      }
+
       console.log('Auto-refreshing impact assessment due to filter change');
       assessImpact(facilities, { disastersOverride: nextFilteredDisasters });
     }
@@ -747,7 +891,18 @@ export default function Home() {
 
   // Re-assess impact when ACLED data or enabled state changes
   useEffect(() => {
+    if (workspaceHydratingRef.current) return;
+
     if (facilities.length > 0) {
+      if (skipNextAutoImpactAssessmentRef.current.acled) {
+        skipNextAutoImpactAssessmentRef.current = {
+          ...skipNextAutoImpactAssessmentRef.current,
+          acled: false
+        };
+        console.log('Skipping initial ACLED impact assessment after workspace restore');
+        return;
+      }
+
       console.log('ACLED data/state changed - re-assessing facility impacts...', {
         acledEvents: acledData.length,
         acledEnabled: acledEnabled
@@ -1424,6 +1579,7 @@ export default function Home() {
     try {
       assessImpactRef.current = true;
       setLoading(prev => ({ ...prev, impact: true }));
+      setImpactProgress(null);
 
       // Use filtered disasters instead of all disasters
       const disastersToAssess = options.disastersOverride || (filteredDisasters.length > 0 ? filteredDisasters : disasters);
@@ -1516,6 +1672,7 @@ export default function Home() {
       addToast('Failed to assess site impact. Please try again.', 'error');
     } finally {
       assessImpactRef.current = false;
+      setImpactProgress(null);
       setLoading(prev => ({ ...prev, impact: false }));
     }
   };
@@ -1724,6 +1881,57 @@ export default function Home() {
   const compactSitrepWorldPopData = (data = {}, maxEntries = 100) =>
     Object.fromEntries(Object.entries(data || {}).slice(0, maxEntries));
 
+  const buildSitrepDistrictRiskSummary = (districtScope = [], disasterScope = [], acledScope = [], maxRows = 20) => {
+    if (!Array.isArray(districtScope) || districtScope.length === 0) {
+      return null;
+    }
+
+    const riskIndex = buildDistrictRiskIndex(districtScope, {
+      disasters: disasterScope || [],
+      acledData: acledScope || []
+    });
+    const seenDistrictIds = new Set();
+    const rows = districtScope.map((district, index) => {
+      const props = district?.properties || {};
+      const districtName = district.name || props.ADM2_EN || props.NAME_2 || props.NAME || props.name || props.district || `Admin area ${index + 1}`;
+      const risk = riskIndex[district.id] || riskIndex[districtName] || { level: 'none', score: 0, eventCount: 0, disasterCount: 0, acledCount: 0 };
+      const stableId = String(district.id ?? districtName);
+      if (seenDistrictIds.has(stableId)) return null;
+      seenDistrictIds.add(stableId);
+
+      return {
+        district: districtName,
+        region: district.region || props.ADM1_EN || props.NAME_1 || props.region || props.province || null,
+        country: district.country || props.ADM0_EN || props.NAME_0 || props.country || null,
+        level: risk.level || 'none',
+        score: risk.score || 0,
+        eventCount: risk.eventCount || 0,
+        disasterCount: risk.disasterCount || 0,
+        acledCount: risk.acledCount || 0
+      };
+    }).filter(Boolean);
+
+    const riskBreakdown = rows.reduce((acc, row) => {
+      acc[row.level] = (acc[row.level] || 0) + 1;
+      return acc;
+    }, { none: 0, low: 0, medium: 0, high: 0, 'very-high': 0 });
+
+    const activeRows = rows
+      .filter((row) => row.eventCount > 0 || row.score > 0)
+      .sort((a, b) => b.score - a.score || b.eventCount - a.eventCount)
+      .slice(0, maxRows);
+
+    return {
+      totalAdminAreas: rows.length,
+      riskBreakdown,
+      hazardSignalAdminAreas: rows.filter((row) => row.disasterCount > 0).length,
+      securitySignalAdminAreas: rows.filter((row) => row.acledCount > 0).length,
+      totalDisasterSignals: rows.reduce((sum, row) => sum + row.disasterCount, 0),
+      totalSecuritySignals: rows.reduce((sum, row) => sum + row.acledCount, 0),
+      topAdminAreas: activeRows
+    };
+  };
+
   const compactSitrepOsmData = (data = null, maxFeatures = 250) => {
     const features = data?.features || [];
     if (!features.length) return null;
@@ -1767,18 +1975,53 @@ export default function Home() {
 
       setLoading(prev => ({ ...prev, sitrep: true }));
 
+      const sitrepDistrictScope = selectedAnalysisDistricts.length > 0
+        ? selectedAnalysisDistricts
+        : (districtRawData || []);
+      const hasAdminSitrepScope = sitrepDistrictScope.length > 0;
+      const sitrepFacilitiesScope = hasAdminSitrepScope
+        ? filterFacilitiesToDistricts(facilities, sitrepDistrictScope)
+        : facilities;
+      const sitrepImpactedScope = hasAdminSitrepScope
+        ? filterImpactedFacilitiesToDistricts(impactedFacilities, sitrepDistrictScope)
+        : impactedFacilities;
+      const sitrepBaseDisasters = filteredDisasters.length > 0 ? filteredDisasters : disasters;
+      const sitrepDisasterScope = hasAdminSitrepScope
+        ? filterItemsToDistricts(sitrepBaseDisasters, sitrepDistrictScope, 'latitude', 'longitude')
+        : sitrepBaseDisasters;
+      const sitrepOutbreakScope = hasAdminSitrepScope
+        ? filterItemsToDistricts(filteredOutbreaks, sitrepDistrictScope, 'latitude', 'longitude')
+        : filteredOutbreaks;
+      const sitrepAcledScope = acledEnabled && hasAdminSitrepScope
+        ? filterItemsToDistricts(filteredAcledData, sitrepDistrictScope, 'latitude', 'longitude')
+        : scopedAcledData;
+      const sitrepOsmScope = hasAdminSitrepScope
+        ? filterOsmDataToDistricts(osmData, sitrepDistrictScope)
+        : osmData;
+      const sitrepWorldPopScope = hasAdminSitrepScope
+        ? getScopedWorldPopData(worldPopData, sitrepDistrictScope)
+        : worldPopData;
+      const sitrepDistrictRiskSummary = buildSitrepDistrictRiskSummary(
+        sitrepDistrictScope,
+        sitrepDisasterScope,
+        sitrepAcledScope
+      );
+
       const requestBody = JSON.stringify({
-        impactedFacilities: compactSitrepImpactedFacilities(impactedFacilities),
-        disasters: compactSitrepDisasters(filteredDisasters.length > 0 ? filteredDisasters : disasters),
-        outbreaks: compactSitrepOutbreaks(filteredOutbreaks),
+        impactedFacilities: compactSitrepImpactedFacilities(sitrepImpactedScope),
+        disasters: compactSitrepDisasters(sitrepDisasterScope),
+        outbreaks: compactSitrepOutbreaks(sitrepOutbreakScope),
         dateFilter: dateFilter,
         statistics: compactSitrepStatistics(impactStatistics),
-        acledData: acledEnabled ? compactSitrepAcled(scopedAcledData) : [],
-        osmData: compactSitrepOsmData(osmData),
-        worldPopData: compactSitrepWorldPopData(worldPopData),
+        acledData: acledEnabled ? compactSitrepAcled(sitrepAcledScope) : [],
+        osmData: compactSitrepOsmData(sitrepOsmScope),
+        worldPopData: compactSitrepWorldPopData(sitrepWorldPopScope),
         worldPopYear: worldPopLastFetch?.year || null,
-        districts: compactSitrepDistricts(districtRawData || []),
-        uploadedDataSchema: buildSitrepSchemaSummary(impactedFacilities.length > 0 ? impactedFacilities : facilities)
+        districts: compactSitrepDistricts(sitrepDistrictScope),
+        uploadedDistrictCount: sitrepDistrictScope.length,
+        uploadedSiteCount: sitrepFacilitiesScope.length,
+        districtRiskSummary: sitrepDistrictRiskSummary,
+        uploadedDataSchema: buildSitrepSchemaSummary(sitrepFacilitiesScope)
       });
 
       console.log(`Sitrep request body size: ${(requestBody.length / 1024).toFixed(2)} KB`);
@@ -2309,6 +2552,10 @@ export default function Home() {
     }
   };
 
+  const impactProgressPercent = impactProgress?.totalFacilities > 0
+    ? Math.min(100, Math.round(((impactProgress.processedFacilities || 0) / impactProgress.totalFacilities) * 100))
+    : null;
+
   return (
     <ErrorBoundary>
     <div className="container">
@@ -2345,6 +2592,43 @@ export default function Home() {
                 fontSize: '12px', fontWeight: 600, cursor: 'pointer', marginLeft: '12px',
               }}
             >Retry</button>
+          </div>
+        )}
+        {loading.impact && impactProgress && (
+          <div style={{
+            background: '#EFF6FF',
+            border: '1px solid #BFDBFE',
+            borderRadius: '6px',
+            padding: '10px 16px',
+            marginBottom: '8px',
+            fontFamily: "'Inter', sans-serif",
+            fontSize: '13px',
+            color: '#1E3A8A'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700 }}>
+                Assessing site impacts{impactProgressPercent !== null ? ` (${impactProgressPercent}%)` : ''}
+              </span>
+              <span>
+                {(impactProgress.processedFacilities || 0).toLocaleString()} of {(impactProgress.totalFacilities || 0).toLocaleString()} sites checked
+                {impactProgress.impactedFacilities !== undefined ? ` · ${impactProgress.impactedFacilities.toLocaleString()} impacted so far` : ''}
+              </span>
+            </div>
+            <div style={{
+              height: '6px',
+              borderRadius: '999px',
+              overflow: 'hidden',
+              background: 'rgba(191, 219, 254, 0.8)',
+              marginTop: '8px'
+            }}>
+              <div style={{
+                width: impactProgressPercent !== null ? `${Math.max(impactProgressPercent, 3)}%` : '30%',
+                height: '100%',
+                borderRadius: '999px',
+                background: '#2563EB',
+                transition: 'width 0.2s ease'
+              }} />
+            </div>
           </div>
         )}
         <div className="header">

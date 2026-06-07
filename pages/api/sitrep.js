@@ -32,6 +32,9 @@ async function handler(req, res) {
       worldPopData = {},
       worldPopYear = null,
       districts = [],
+      uploadedDistrictCount = null,
+      uploadedSiteCount = null,
+      districtRiskSummary = null,
       uploadedDataSchema = null,
       includeWebSearch = true
     } = req.body;
@@ -54,7 +57,10 @@ async function handler(req, res) {
       return res.status(503).json({ error: 'AI sitrep generation unavailable. Please check your API key configuration.' });
     }
 
-    const scope = buildSitrepScope(impactedFacilities, disasters, districts);
+    const scope = buildSitrepScope(impactedFacilities, disasters, districts, {
+      uploadedDistrictCount,
+      uploadedSiteCount: uploadedSiteCount ?? uploadedDataSchema?.recordCount
+    });
 
     // Generate situation overview
     const situationOverview = createSituationOverview(impactedFacilities, disasters, statistics, scope);
@@ -85,6 +91,7 @@ async function handler(req, res) {
         worldPopYear,
         districts,
         uploadedDataSchema,
+        districtRiskSummary,
         scope,
         recentExternalContext
       );
@@ -122,7 +129,7 @@ async function handler(req, res) {
 }
 
 // Generate situation report using OpenAI
-async function generateAISitrep(impactedFacilities, disasters, situationOverview, outbreakContext = '', dateFilterText, statistics, acledData = [], osmData = null, worldPopData = {}, worldPopYear = null, districts = [], uploadedDataSchema = null, scope = {}, recentExternalContext = null) {
+async function generateAISitrep(impactedFacilities, disasters, situationOverview, outbreakContext = '', dateFilterText, statistics, acledData = [], osmData = null, worldPopData = {}, worldPopYear = null, districts = [], uploadedDataSchema = null, districtRiskSummary = null, scope = {}, recentExternalContext = null) {
   try {
     // Get current date and time
     const date = new Date().toISOString().split('T')[0];
@@ -132,6 +139,29 @@ async function generateAISitrep(impactedFacilities, disasters, situationOverview
     let enhancedContext = situationOverview;
     if (outbreakContext) {
       enhancedContext += outbreakContext;
+    }
+
+    if (districtRiskSummary && districtRiskSummary.totalAdminAreas > 0) {
+      const riskBreakdown = districtRiskSummary.riskBreakdown || {};
+      enhancedContext += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      enhancedContext += 'ADMIN-AREA RISK SIGNALS\n';
+      enhancedContext += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+      enhancedContext += `- Admin areas in risk model: ${districtRiskSummary.totalAdminAreas}\n`;
+      enhancedContext += `- Risk breakdown: none ${riskBreakdown.none || 0}, low ${riskBreakdown.low || 0}, medium ${riskBreakdown.medium || 0}, high ${riskBreakdown.high || 0}, very-high ${riskBreakdown['very-high'] || 0}\n`;
+      enhancedContext += `- Admin areas with natural-hazard signals: ${districtRiskSummary.hazardSignalAdminAreas || 0}\n`;
+      enhancedContext += `- Admin areas with security signals: ${districtRiskSummary.securitySignalAdminAreas || 0}\n`;
+      enhancedContext += `- Total natural-hazard signals inside admin scope: ${districtRiskSummary.totalDisasterSignals || 0}\n`;
+      enhancedContext += `- Total security signals inside admin scope: ${districtRiskSummary.totalSecuritySignals || 0}\n`;
+
+      if (districtRiskSummary.topAdminAreas?.length > 0) {
+        enhancedContext += '- Highest admin-area risk signals:\n';
+        districtRiskSummary.topAdminAreas.slice(0, 10).forEach((area) => {
+          const location = [area.district, area.region, area.country].filter(Boolean).join(', ') || 'Unnamed admin area';
+          enhancedContext += `  - ${location}: ${area.level} risk, score ${area.score}, natural hazards ${area.disasterCount}, security events ${area.acledCount}\n`;
+        });
+      }
+
+      enhancedContext += '\n**NOTE**: Admin-area risk signals are broader geography-level hazards. Keep them separate from confirmed uploaded-site impacts.\n';
     }
 
     // Add ACLED security context
@@ -232,8 +262,11 @@ WORKSPACE SCOPE:
 - Countries: ${scope.countries?.join(', ') || 'Unknown'}
 - Regions/Admin units: ${scope.regions?.slice(0, 8).join(', ') || 'Not specified'}
 - District count: ${scope.districtCount || 0}
+- District/admin names supplied: ${scope.districtNames?.length || 0}${(scope.districtCount || 0) > (scope.districtNames?.length || 0) ? ' compact sample, not the full uploaded list' : ''}
 - Sites assessed: ${scope.siteCount || 0}
 - Impacted sites: ${scope.impactedSiteCount || 0}
+- Admin areas with natural-hazard signals: ${districtRiskSummary?.hazardSignalAdminAreas || 0}
+- Admin areas with security signals: ${districtRiskSummary?.securitySignalAdminAreas || 0}
 - Uploaded site record types: ${uploadedDataSchema?.typeBreakdown?.map((entry) => `${entry.label} (${entry.count})`).join(', ') || 'Not specified'}
 - Uploaded key fields: ${uploadedDataSchema?.keyFields?.join(', ') || 'Not specified'}
 
@@ -246,6 +279,7 @@ IMPORTANT SCOPING RULES:
 - Do not reference unrelated disasters in other countries or regions.
 - Use the word "site" or "sites" in the report, not "facility" or "facilities", unless directly quoting an external source.
 - The primary narrative is operational impact on the user's sites and covered geography.
+- Do not say there are no natural hazards in scope when ADMIN-AREA RISK SIGNALS reports natural-hazard signals. Instead, state that hazards exist in the admin scope while distinguishing whether any uploaded sites are confirmed impacted.
 - Do not assume all uploaded sites are the same type. The uploaded data may represent health facilities, PHCs, hospitals, labs, blood banks, immunization sites, malaria campaign sites, or other operational records.
 - When uploaded fields indicate campaign or program metrics such as target population, refusals, refusal rate, doses, stock, coverage, malaria indicators, or service type, explicitly use those metrics in the report.
 - When site types vary, distinguish them in the narrative instead of collapsing everything into one generic category.
@@ -260,6 +294,7 @@ Your SitRep should include:
 4. Site Impact Summary (adapt to the uploaded record types and include any meaningful uploaded metrics)
 5. Security Context (must explicitly use the uploaded ACLED data: event counts, main hotspots, most relevant event types, fatalities if present, and recent notable incidents)
 6. Threat Overview
+   - Cover admin-area hazard signals and confirmed site impacts separately.
 7. Population and Access Context
 8. Operational Implications
 9. Immediate Actions
@@ -298,7 +333,7 @@ function createSituationOverview(impactedFacilities, disasters, statistics, scop
   overview += `- ${scope.summary || 'Current operational workspace'}\n`;
   overview += `- Sites assessed: ${scope.siteCount || 0}\n`;
   overview += `- Impacted sites: ${scope.impactedSiteCount || 0}\n`;
-  overview += `- Districts loaded: ${scope.districtCount || 0}\n`;
+  overview += `- Admin areas in scope: ${scope.districtCount || 0}\n`;
   overview += `- Countries in scope: ${scope.countries?.join(', ') || 'Unknown'}\n`;
   overview += `\nACTIVE DISASTERS IN SCOPE (${disasters.length}):\n`;
   
@@ -568,10 +603,16 @@ function extractLocationFromDistrict(district) {
   return { country, region, districtName };
 }
 
-function buildSitrepScope(impactedFacilities = [], disasters = [], districts = []) {
+function buildSitrepScope(impactedFacilities = [], disasters = [], districts = [], options = {}) {
   const countrySet = new Set();
   const regionSet = new Set();
   const districtSet = new Set();
+  const districtCount = Number.isFinite(Number(options.uploadedDistrictCount))
+    ? Number(options.uploadedDistrictCount)
+    : districts.length;
+  const siteCount = Number.isFinite(Number(options.uploadedSiteCount))
+    ? Number(options.uploadedSiteCount)
+    : impactedFacilities.length;
 
   districts.forEach((district) => {
     const location = extractLocationFromDistrict(district);
@@ -589,11 +630,11 @@ function buildSitrepScope(impactedFacilities = [], disasters = [], districts = [
   const countries = Array.from(countrySet);
   const regions = Array.from(regionSet);
   const districtNames = Array.from(districtSet);
-  const scopeType = districtNames.length > 0 ? 'district' : countries.length > 0 ? 'country' : 'facility';
+  const scopeType = districtCount > 0 ? 'district' : countries.length > 0 ? 'country' : 'facility';
 
   let summary = 'Site-centered operational workspace';
-  if (districtNames.length > 0) {
-    summary = `${districtNames.length} district(s) in ${countries.join(', ') || 'the selected area'}`;
+  if (districtCount > 0) {
+    summary = `${districtCount} admin area(s) in ${countries.join(', ') || 'the selected area'}`;
   } else if (regions.length > 0 || countries.length > 0) {
     summary = `${regions.slice(0, 3).join(', ') || countries.join(', ')} operational workspace`;
   } else if (impactedFacilities.length > 0) {
@@ -612,10 +653,10 @@ function buildSitrepScope(impactedFacilities = [], disasters = [], districts = [
     countries,
     regions,
     districtNames,
-    districtCount: districts.length,
-    facilityCount: impactedFacilities.length,
+    districtCount,
+    facilityCount: siteCount,
     impactedFacilityCount: impactedFacilities.length,
-    siteCount: impactedFacilities.length,
+    siteCount,
     impactedSiteCount: impactedFacilities.length,
     threatTypes
   };

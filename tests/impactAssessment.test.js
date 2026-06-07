@@ -198,3 +198,28 @@ test('Polygon already using latitude/longitude objects should still work', () =>
   assert.equal(impactedFacility.impacts[0].impactMethod, 'confirmed_polygon');
   assert.equal(impactedFacility.impacts[0].confidence, 'high');
 });
+
+test('No threats returns the standard impact statistics shape', () => {
+  const result = runAssessment({
+    facilities: [
+      {
+        name: 'Unthreatened Facility',
+        latitude: 15,
+        longitude: 15,
+      },
+    ],
+    disasters: [],
+  });
+
+  assert.deepEqual(result.impactedFacilities, []);
+  assert.deepEqual(result.statistics, {
+    totalDisasters: 0,
+    totalFacilities: 1,
+    impactedFacilityCount: 0,
+    percentageImpacted: 0,
+    disasterStats: [],
+    overlappingImpacts: [],
+    affectedDistricts: 0,
+    estimatedAffectedPopulation: null,
+  });
+});
