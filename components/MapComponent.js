@@ -1197,6 +1197,8 @@ const MapComponent = ({
     osmLayerVisibility,
     showOSMLayer,
     fetchOSMInfrastructure,
+    beginOSMBatch,
+    endOSMBatch,
     refreshOSM,
     clearOSMCategory,
     toggleLayer,
@@ -2983,7 +2985,7 @@ const MapComponent = ({
         osmLoading={osmLoading}
         osmLayerVisibility={osmLayerVisibility}
         onOSMSelectionChange={onAnalysisDistrictsChange}
-        onLoadOSM={async (selectedDistricts, selectedCategories) => {
+        onLoadOSM={async (selectedDistricts, selectedCategories, progress = {}) => {
           console.log('🚀 onLoadOSM called!', {
             districtsCount: selectedDistricts?.length,
             categoriesCount: selectedCategories?.length,
@@ -3000,16 +3002,65 @@ const MapComponent = ({
             return;
           }
 
-          // Load each district sequentially with clear logging
-          for (let index = 0; index < districtsWithGeometry.length; index += 1) {
-            const district = districtsWithGeometry[index];
-            const districtName = district.name || district.properties?.name || district.properties?.NAME || `District ${index + 1}`;
+          const categoriesToLoad = Array.isArray(selectedCategories) ? selectedCategories : [];
+          const totalTasks = districtsWithGeometry.length * categoriesToLoad.length;
+          let completedTasks = 0;
+          let loadedFeatures = 0;
 
-            console.log(`📍 Loading OSM data for: ${districtName} (${index + 1}/${districtsWithGeometry.length})`);
+          beginOSMBatch();
+          progress.onProgress?.({
+            status: 'running',
+            completedTasks,
+            totalTasks,
+            loadedFeatures,
+            districtName: districtsWithGeometry[0]?.name || 'Selected admin area',
+            categoryId: categoriesToLoad[0] || null
+          });
 
-            await fetchOSMInfrastructure(district.geometry, selectedCategories, {
-              mergeWithExisting: index > 0
-            });
+          try {
+            for (let districtIndex = 0; districtIndex < districtsWithGeometry.length; districtIndex += 1) {
+              const district = districtsWithGeometry[districtIndex];
+              const districtName = district.name || district.properties?.name || district.properties?.NAME || `District ${districtIndex + 1}`;
+
+              for (let categoryIndex = 0; categoryIndex < categoriesToLoad.length; categoryIndex += 1) {
+                const categoryId = categoriesToLoad[categoryIndex];
+
+                console.log(`📍 Loading OSM ${categoryId} for: ${districtName} (${completedTasks + 1}/${totalTasks})`);
+                progress.onProgress?.({
+                  status: 'running',
+                  completedTasks,
+                  totalTasks,
+                  loadedFeatures,
+                  districtName,
+                  categoryId,
+                  districtIndex,
+                  categoryIndex
+                });
+
+                const result = await fetchOSMInfrastructure(district.geometry, [categoryId], {
+                  mergeWithExisting: completedTasks > 0,
+                  timeoutMs: 20000,
+                  maxRetries: 0,
+                  disableBboxFallback: true,
+                  requestTimeoutMs: 28000
+                });
+
+                completedTasks += 1;
+                loadedFeatures = result?.features?.length || loadedFeatures;
+                progress.onProgress?.({
+                  status: 'running',
+                  completedTasks,
+                  totalTasks,
+                  loadedFeatures,
+                  districtName,
+                  categoryId,
+                  districtIndex,
+                  categoryIndex
+                });
+              }
+            }
+          } finally {
+            endOSMBatch();
           }
         }}
         onToggleOSMLayerVisibility={toggleLayerVisibility}

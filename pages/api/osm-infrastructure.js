@@ -29,6 +29,14 @@ const MAX_BOUNDARY_AREA_KM2 = 10000; // Subdivide if larger
 const CACHE_TTL_HOURS = 24;
 const OVERPASS_TIMEOUT_MS = 45000;
 const MAX_RETRIES = 1;
+const MIN_OVERPASS_TIMEOUT_MS = 5000;
+const MAX_OVERPASS_TIMEOUT_MS = 60000;
+
+function getBoundedNumber(value, fallback, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -66,15 +74,12 @@ module.exports = async function handler(req, res) {
   const cacheKey = generateCacheKey(boundary, layers, options);
   const cached = await getCachedOSM(cacheKey);
   if (cached && !options.forceRefresh) {
-    if ((cached.features || []).length > 0) {
-      console.log('OSM cache hit:', cacheKey);
-      return res.status(200).json({
-        success: true,
-        data: { ...cached, metadata: { ...cached.metadata, cached: true } }
-      });
-    }
-
-    console.log('OSM cache contained empty result, refetching:', cacheKey);
+    console.log('OSM cache hit:', cacheKey);
+    return res.status(200).json({
+      success: true,
+      data: { ...cached, metadata: { ...cached.metadata, cached: true } },
+      warning: cached.metadata?.warnings?.join(' ') || undefined
+    });
   }
 
   try {
@@ -178,6 +183,8 @@ module.exports = async function handler(req, res) {
       };
 
       console.log(`OSM query complete: no matching features in ${Date.now() - startTime}ms`);
+
+      await setCachedOSM(cacheKey, emptyResponse, Math.min(CACHE_TTL_HOURS, 6));
 
       return res.status(200).json({
         success: true,
@@ -305,7 +312,7 @@ async function queryLayerWithFallback(boundary, layer, options) {
   try {
     return await queryOverpassWithRetry(boundary, [layer], layerOptions);
   } catch (error) {
-    if (layerOptions.useBboxOnly) throw error;
+    if (layerOptions.useBboxOnly || layerOptions.disableBboxFallback) throw error;
 
     console.warn(`Retrying OSM layer with bbox fallback (${layer}):`, error.message);
     return queryOverpassWithRetry(boundary, [layer], {
@@ -355,12 +362,19 @@ function summarizeErrors(errors = []) {
 async function queryOverpassWithRetry(boundary, layers, options, retries = 0) {
   const endpoint = OVERPASS_ENDPOINTS[retries % OVERPASS_ENDPOINTS.length];
   const query = buildOverpassQuery(boundary, layers, options);
+  const timeoutMs = getBoundedNumber(
+    options.timeoutMs,
+    OVERPASS_TIMEOUT_MS,
+    MIN_OVERPASS_TIMEOUT_MS,
+    MAX_OVERPASS_TIMEOUT_MS
+  );
+  const maxRetries = getBoundedNumber(options.maxRetries, MAX_RETRIES, 0, OVERPASS_ENDPOINTS.length - 1);
 
-  console.log(`Querying Overpass (attempt ${retries + 1}): ${endpoint}`);
+  console.log(`Querying Overpass (attempt ${retries + 1}, timeout ${timeoutMs}ms): ${endpoint}`);
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), OVERPASS_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -414,7 +428,7 @@ async function queryOverpassWithRetry(boundary, layers, options, retries = 0) {
   } catch (error) {
     console.error(`Overpass query error (attempt ${retries + 1}):`, error.message);
 
-    if (retries < MAX_RETRIES) {
+    if (retries < maxRetries) {
       // Wait before retry (exponential backoff)
       const delay = 1000 * (retries + 1);
       console.log(`Retrying in ${delay}ms...`);

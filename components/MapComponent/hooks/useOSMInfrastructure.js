@@ -140,6 +140,7 @@ export function useOSMInfrastructure() {
   const [showOSMLayer, setShowOSMLayer] = useState(true);
   const osmDataRef = useRef(null);
   const osmBoundaryRef = useRef(null);
+  const osmBatchDepthRef = useRef(0);
 
   useEffect(() => {
     osmDataRef.current = osmData;
@@ -232,7 +233,11 @@ export function useOSMInfrastructure() {
 
       // OSM requests may query several selected infrastructure layers in sequence.
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000);
+      const { requestTimeoutMs: _requestTimeoutMs, ...serverOptions } = options;
+      const requestTimeoutMs = Number.isFinite(Number(_requestTimeoutMs))
+        ? Number(_requestTimeoutMs)
+        : 120000;
+      const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs);
 
       const response = await fetch('/api/osm-infrastructure', {
         method: 'POST',
@@ -243,7 +248,7 @@ export function useOSMInfrastructure() {
           options: {
             maxFeatures: 5000,
             includeMetadata: true,
-            ...options
+            ...serverOptions
           }
         }),
         signal: controller.signal
@@ -309,6 +314,8 @@ export function useOSMInfrastructure() {
           ? mergeOsmData(currentOsmData, result.data)
           : result.data;
 
+        osmDataRef.current = nextData;
+        osmBoundaryRef.current = shouldMergeWithExisting && currentBoundary ? currentBoundary : cleanBoundary;
         setOsmData(nextData);
         setOsmStats(nextData.metadata.byLayer);
         setOsmTimestamp(nextData.metadata.timestamp);
@@ -341,9 +348,25 @@ export function useOSMInfrastructure() {
       return null;
     } finally {
       console.log('🏁 Fetch completed, setting loading to false');
-      setOsmLoading(false);
+      if (osmBatchDepthRef.current === 0) {
+        setOsmLoading(false);
+      }
     }
   }, [osmLayers]);
+
+  const beginOSMBatch = useCallback(() => {
+    osmBatchDepthRef.current += 1;
+    setOsmLoading(true);
+    setOsmError(null);
+    setOsmWarning(null);
+  }, []);
+
+  const endOSMBatch = useCallback(() => {
+    osmBatchDepthRef.current = Math.max(0, osmBatchDepthRef.current - 1);
+    if (osmBatchDepthRef.current === 0) {
+      setOsmLoading(false);
+    }
+  }, []);
 
   // Refresh with current boundary
   const refreshOSM = useCallback((forceRefresh = false) => {
@@ -451,5 +474,7 @@ export function useOSMInfrastructure() {
     toggleAllOSM,
     setOsmLayers,
     setOsmLayerVisibility,
+    beginOSMBatch,
+    endOSMBatch,
   };
 }

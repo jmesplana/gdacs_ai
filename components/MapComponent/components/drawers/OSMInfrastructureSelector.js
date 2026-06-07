@@ -74,6 +74,7 @@ export default function OSMInfrastructureSelector({
   const [selectedDistricts, setSelectedDistricts] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [activeRequest, setActiveRequest] = useState(null);
+  const [loadProgress, setLoadProgress] = useState(null);
   const [requestStartedAt, setRequestStartedAt] = useState(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastCompletedLoad, setLastCompletedLoad] = useState(null);
@@ -89,6 +90,10 @@ export default function OSMInfrastructureSelector({
   const layerCounts = useMemo(
     () => osmData?.metadata?.byLayer || osmStats?.byLayer || osmStats || {},
     [osmData, osmStats]
+  );
+  const requestedLayerIds = useMemo(
+    () => osmData?.metadata?.requestedLayers || [],
+    [osmData]
   );
 
   const syncSelectionToParent = (nextSelectedDistrictIds) => {
@@ -123,6 +128,7 @@ export default function OSMInfrastructureSelector({
       });
 
       setActiveRequest(null);
+      setLoadProgress(null);
       setRequestStartedAt(null);
       setElapsedSeconds(0);
     }
@@ -132,6 +138,7 @@ export default function OSMInfrastructureSelector({
     setSelectedDistricts([]);
     setSelectedCategories([]);
     setActiveRequest(null);
+    setLoadProgress(null);
     setLastCompletedLoad(null);
   }, [districtSignature]);
 
@@ -226,11 +233,19 @@ export default function OSMInfrastructureSelector({
     }
 
     setActiveRequest({
-      districtCount: selectedDistricts.length,
+      districtCount: districtsToLoad.length,
       categoryCount: categoriesToLoad.length,
       categoryIds: categoriesToLoad,
       categoryNames: categoriesToLoad
-        .map(categoryId => INFRASTRUCTURE_CATEGORIES.find(category => category.id === categoryId)?.name || categoryId)
+        .map(categoryId => INFRASTRUCTURE_CATEGORIES.find(category => category.id === categoryId)?.name || categoryId),
+      totalTasks: districtsToLoad.length * categoriesToLoad.length
+    });
+    setLoadProgress({
+      completedTasks: 0,
+      totalTasks: districtsToLoad.length * categoriesToLoad.length,
+      loadedFeatures: osmData?.features?.length || 0,
+      districtName: districtsToLoad[0]?.name || null,
+      categoryId: categoriesToLoad[0] || null
     });
     setLastCompletedLoad(null);
     setRequestStartedAt(Date.now());
@@ -239,7 +254,14 @@ export default function OSMInfrastructureSelector({
     if (onLoadOSM) {
       console.log('✅ Calling onLoadOSM callback...');
       try {
-        await onLoadOSM(districtsToLoad, categoriesToLoad);
+        await onLoadOSM(districtsToLoad, categoriesToLoad, {
+          onProgress: (nextProgress) => {
+            setLoadProgress(previous => ({
+              ...(previous || {}),
+              ...nextProgress
+            }));
+          }
+        });
         setSelectedCategories([]);
       } catch (error) {
         console.error('❌ OSM load callback failed:', error);
@@ -252,7 +274,7 @@ export default function OSMInfrastructureSelector({
   // Get loaded categories
   const loadedCategories = INFRASTRUCTURE_CATEGORIES
     .map(category => category.id)
-    .filter(categoryId => getCategoryFeatureCount(layerCounts, categoryId) > 0);
+    .filter(categoryId => requestedLayerIds.includes(categoryId) || getCategoryFeatureCount(layerCounts, categoryId) > 0);
   const remainingCategories = INFRASTRUCTURE_CATEGORIES
     .map(category => category.id)
     .filter(categoryId => !loadedCategories.includes(categoryId));
@@ -260,6 +282,14 @@ export default function OSMInfrastructureSelector({
     categoryId => !loadedCategories.includes(categoryId)
   );
   const pendingCategoryCount = pendingCategories.length;
+  const progressTotal = loadProgress?.totalTasks || activeRequest?.totalTasks || 0;
+  const progressCompleted = Math.min(loadProgress?.completedTasks || 0, progressTotal);
+  const progressPercent = progressTotal > 0
+    ? Math.min(100, Math.round((progressCompleted / progressTotal) * 100))
+    : 0;
+  const currentCategoryName = loadProgress?.categoryId
+    ? INFRASTRUCTURE_CATEGORIES.find(category => category.id === loadProgress.categoryId)?.name || loadProgress.categoryId
+    : null;
 
   // Debug logging
   console.log('🔍 OSMInfrastructureSelector render:', {
@@ -314,7 +344,7 @@ export default function OSMInfrastructureSelector({
               borderRadius: '999px',
               padding: '5px 10px'
             }}>
-              {elapsedSeconds > 0 ? `${elapsedSeconds}s elapsed` : 'Starting request...'}
+              {progressTotal > 0 ? `${progressPercent}%` : (elapsedSeconds > 0 ? `${elapsedSeconds}s elapsed` : 'Starting request...')}
             </div>
           </div>
           <div style={{ fontSize: '13px', color: '#7c2d12', lineHeight: 1.55 }}>
@@ -322,13 +352,26 @@ export default function OSMInfrastructureSelector({
               ? `Fetching ${activeRequest.categoryCount} infrastructure ${activeRequest.categoryCount === 1 ? 'type' : 'types'} for ${activeRequest.districtCount} ${activeRequest.districtCount === 1 ? 'admin area' : 'admin areas'}.`
               : 'Fetching the selected infrastructure layers for the selected admin areas.'}
           </div>
+          {progressTotal > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#9a3412', lineHeight: 1.55 }}>
+              {progressCompleted.toLocaleString()} of {progressTotal.toLocaleString()} requests complete
+              {loadProgress?.loadedFeatures !== undefined
+                ? ` · ${Number(loadProgress.loadedFeatures || 0).toLocaleString()} features available on the map`
+                : ''}
+            </div>
+          )}
+          {(loadProgress?.districtName || currentCategoryName) && progressCompleted < progressTotal && (
+            <div style={{ marginTop: '6px', fontSize: '12px', color: '#7c2d12' }}>
+              Current: {[loadProgress?.districtName, currentCategoryName].filter(Boolean).join(' · ')}
+            </div>
+          )}
           {activeRequest?.categoryNames?.length > 0 && (
             <div style={{ marginTop: '8px', fontSize: '12px', color: '#9a3412', fontWeight: 600 }}>
               {activeRequest.categoryNames.join(', ')}
             </div>
           )}
           <div style={{ marginTop: '10px', fontSize: '12px', color: '#7c2d12' }}>
-            {estimatedTimeLabel}
+            {elapsedSeconds > 0 ? `${elapsedSeconds}s elapsed. ` : ''}{estimatedTimeLabel}
           </div>
           <div style={{
             marginTop: '12px',
@@ -339,11 +382,12 @@ export default function OSMInfrastructureSelector({
             border: '1px solid rgba(255, 107, 53, 0.14)'
           }}>
             <div style={{
-              width: '35%',
+              width: progressTotal > 0 ? `${Math.max(progressPercent, 4)}%` : '35%',
               height: '100%',
               borderRadius: '999px',
               background: 'linear-gradient(90deg, var(--aidstack-orange) 0%, #ff9a5f 100%)',
-              animation: 'osm-loading-slide 1.4s ease-in-out infinite'
+              transition: 'width 0.25s ease',
+              animation: progressTotal > 0 ? 'none' : 'osm-loading-slide 1.4s ease-in-out infinite'
             }} />
           </div>
         </div>
