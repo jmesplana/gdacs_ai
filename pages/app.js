@@ -535,6 +535,7 @@ export default function Home() {
     sitrep: false
   });
   const [impactProgress, setImpactProgress] = useState(null);
+  const [workspaceRestoreProgress, setWorkspaceRestoreProgress] = useState(null);
   const outbreakFetchRunRef = useRef(0);
   const [activeTab, setActiveTab] = useState('map');
   const [dataSource, setDataSource] = useState('');
@@ -583,6 +584,7 @@ export default function Home() {
   const workspaceRestoredRef = useRef(false);
   const workspaceHydratingRef = useRef(false);
   const workspaceSaveTimeoutRef = useRef(null);
+  const workspaceRestoreClearTimeoutRef = useRef(null);
   const skipNextAutoImpactAssessmentRef = useRef({ disasters: false, acled: false });
 
   useEffect(() => {
@@ -594,8 +596,24 @@ export default function Home() {
         window.clearTimeout(workspaceSaveTimeoutRef.current);
         workspaceSaveTimeoutRef.current = null;
       }
+      if (workspaceRestoreClearTimeoutRef.current) {
+        window.clearTimeout(workspaceRestoreClearTimeoutRef.current);
+        workspaceRestoreClearTimeoutRef.current = null;
+      }
     };
   }, []);
+
+  const updateWorkspaceRestoreProgress = (nextProgress) => {
+    setWorkspaceRestoreProgress((previous) => ({
+      phase: 'Restoring saved workspace',
+      step: 0,
+      totalSteps: 1,
+      percent: 0,
+      counts: {},
+      ...previous,
+      ...nextProgress
+    }));
+  };
 
   const filteredAcledData = useMemo(() => {
     if (!acledData || acledData.length === 0 || !acledEnabled) {
@@ -684,21 +702,52 @@ export default function Home() {
     const restoreWorkspace = async () => {
       try {
         workspaceHydratingRef.current = true;
+        updateWorkspaceRestoreProgress({
+          phase: 'Reading saved workspace',
+          step: 1,
+          totalSteps: 7,
+          percent: 8
+        });
+        await yieldToBrowser();
+
         const cachedWorkspace = await loadWorkspace();
         if (!mounted) return;
 
         if (!cachedWorkspace) {
           workspaceHydratingRef.current = false;
           workspaceRestoredRef.current = true;
+          setWorkspaceRestoreProgress(null);
           return;
         }
 
         const restoredDistricts = cachedWorkspace.districts || [];
         const restoredConfig = cachedWorkspace.config || {};
+        const restoredFacilities = cachedWorkspace.facilities || [];
+        const restoredImpactedFacilities = cachedWorkspace.impactedFacilities || [];
+        const restoredAcledData = cachedWorkspace.acledData || [];
+        const restoredSelectedDistricts = cachedWorkspace.selectedAnalysisDistricts || [];
+        const restoredWorldPopData = cachedWorkspace.worldPopData || {};
+        const restoredOsmData = cachedWorkspace.osmData || null;
 
-        setFacilities(cachedWorkspace.facilities || []);
-        setImpactedFacilities(cachedWorkspace.impactedFacilities || []);
-        setAcledData(cachedWorkspace.acledData || []);
+        updateWorkspaceRestoreProgress({
+          phase: 'Restoring sites and security events',
+          step: 2,
+          totalSteps: 7,
+          percent: 24,
+          counts: {
+            sites: restoredFacilities.length,
+            impactedSites: restoredImpactedFacilities.length,
+            acledEvents: restoredAcledData.length,
+            adminAreas: restoredDistricts.length,
+            selectedAdminAreas: restoredSelectedDistricts.length,
+            worldPopAreas: Object.keys(restoredWorldPopData || {}).length,
+            osmFeatures: restoredOsmData?.features?.length || 0
+          }
+        });
+
+        setFacilities(restoredFacilities);
+        setImpactedFacilities(restoredImpactedFacilities);
+        setAcledData(restoredAcledData);
         setEnabledEvidenceLayers(cachedWorkspace.enabledEvidenceLayers || []);
         setOperationType(cachedWorkspace.operationType || '');
         setAiAnalysisFields(Array.isArray(restoredConfig.aiAnalysisFields) ? restoredConfig.aiAnalysisFields : []);
@@ -710,6 +759,13 @@ export default function Home() {
 
         await yieldToBrowser();
         if (!mounted) return;
+
+        updateWorkspaceRestoreProgress({
+          phase: 'Restoring admin boundaries',
+          step: 3,
+          totalSteps: 7,
+          percent: 42
+        });
 
         if (restoredDistricts.length > 0) {
           setDistricts(restoredDistricts);
@@ -726,35 +782,68 @@ export default function Home() {
         await yieldToBrowser();
         if (!mounted) return;
 
-        setSelectedAnalysisDistricts(cachedWorkspace.selectedAnalysisDistricts || []);
+        updateWorkspaceRestoreProgress({
+          phase: 'Restoring selected analysis scope',
+          step: 4,
+          totalSteps: 7,
+          percent: 58
+        });
+
+        setSelectedAnalysisDistricts(restoredSelectedDistricts);
 
         await yieldToBrowser();
         if (!mounted) return;
 
-        setWorldPopData(cachedWorkspace.worldPopData || {});
+        updateWorkspaceRestoreProgress({
+          phase: 'Restoring population context',
+          step: 5,
+          totalSteps: 7,
+          percent: 72
+        });
+
+        setWorldPopData(restoredWorldPopData);
         setWorldPopLastFetch(cachedWorkspace.worldPopLastFetch || null);
 
         await yieldToBrowser();
         if (!mounted) return;
 
-        setOsmData(cachedWorkspace.osmData || null);
+        updateWorkspaceRestoreProgress({
+          phase: 'Restoring OSM infrastructure',
+          step: 6,
+          totalSteps: 7,
+          percent: 86
+        });
+
+        setOsmData(restoredOsmData);
 
         await yieldToBrowser();
         if (!mounted) return;
 
+        updateWorkspaceRestoreProgress({
+          phase: 'Preparing map layers',
+          step: 7,
+          totalSteps: 7,
+          percent: 100
+        });
+
         workspaceHydratingRef.current = false;
         workspaceRestoredRef.current = true;
         skipNextAutoImpactAssessmentRef.current = { disasters: true, acled: true };
+        workspaceRestoreClearTimeoutRef.current = window.setTimeout(() => {
+          workspaceRestoreClearTimeoutRef.current = null;
+          setWorkspaceRestoreProgress(null);
+        }, 900);
         console.log('Workspace restored from IndexedDB:', {
           districts: restoredDistricts.length,
-          facilities: cachedWorkspace.facilities?.length || 0,
-          impactedFacilities: cachedWorkspace.impactedFacilities?.length || 0,
-          acledEvents: cachedWorkspace.acledData?.length || 0
+          facilities: restoredFacilities.length,
+          impactedFacilities: restoredImpactedFacilities.length,
+          acledEvents: restoredAcledData.length
         });
       } catch (error) {
         console.error('Error restoring workspace:', error);
         workspaceHydratingRef.current = false;
         workspaceRestoredRef.current = true;
+        setWorkspaceRestoreProgress(null);
       }
     };
 
@@ -2555,6 +2644,22 @@ export default function Home() {
   const impactProgressPercent = impactProgress?.totalFacilities > 0
     ? Math.min(100, Math.round(((impactProgress.processedFacilities || 0) / impactProgress.totalFacilities) * 100))
     : null;
+  const workspaceRestorePercent = workspaceRestoreProgress
+    ? Math.min(100, Math.max(0, Math.round(
+      workspaceRestoreProgress.percent ??
+      ((workspaceRestoreProgress.step || 0) / Math.max(1, workspaceRestoreProgress.totalSteps || 1)) * 100
+    )))
+    : null;
+  const workspaceRestoreCounts = workspaceRestoreProgress?.counts || {};
+  const workspaceRestoreDetails = workspaceRestoreProgress
+    ? [
+      workspaceRestoreCounts.adminAreas ? `${workspaceRestoreCounts.adminAreas.toLocaleString()} admin areas` : null,
+      workspaceRestoreCounts.sites ? `${workspaceRestoreCounts.sites.toLocaleString()} sites` : null,
+      workspaceRestoreCounts.acledEvents ? `${workspaceRestoreCounts.acledEvents.toLocaleString()} ACLED events` : null,
+      workspaceRestoreCounts.worldPopAreas ? `${workspaceRestoreCounts.worldPopAreas.toLocaleString()} population areas` : null,
+      workspaceRestoreCounts.osmFeatures ? `${workspaceRestoreCounts.osmFeatures.toLocaleString()} OSM features` : null
+    ].filter(Boolean).join(' · ')
+    : '';
 
   return (
     <ErrorBoundary>
@@ -2573,6 +2678,53 @@ export default function Home() {
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       <main style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+
+        {workspaceRestoreProgress && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 12000,
+              background: '#F8FAFC',
+              border: '1px solid #CBD5E1',
+              borderRadius: '6px',
+              padding: '10px 16px',
+              marginBottom: '8px',
+              boxShadow: '0 8px 20px rgba(15, 23, 42, 0.12)',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '13px',
+              color: '#0F172A'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700 }}>
+                {workspaceRestoreProgress.phase || 'Restoring saved workspace'}
+                {workspaceRestorePercent !== null ? ` (${workspaceRestorePercent}%)` : ''}
+              </span>
+              <span style={{ color: '#475569' }}>
+                Step {workspaceRestoreProgress.step || 1} of {workspaceRestoreProgress.totalSteps || 1}
+                {workspaceRestoreDetails ? ` · ${workspaceRestoreDetails}` : ''}
+              </span>
+            </div>
+            <div style={{
+              height: '6px',
+              borderRadius: '999px',
+              overflow: 'hidden',
+              background: '#E2E8F0',
+              marginTop: '8px'
+            }}>
+              <div style={{
+                width: workspaceRestorePercent !== null ? `${Math.max(workspaceRestorePercent, 4)}%` : '12%',
+                height: '100%',
+                borderRadius: '999px',
+                background: '#0F766E',
+                transition: 'width 0.25s ease'
+              }} />
+            </div>
+          </div>
+        )}
 
         {/* GDACS data unavailable banner */}
         {fetchError && !loading.disasters && (
