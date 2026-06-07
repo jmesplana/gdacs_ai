@@ -1204,6 +1204,8 @@ const MapComponent = ({
     toggleLayer,
     toggleLayerVisibility,
     toggleAllOSM,
+    setOsmLayerVisibility,
+    setShowOSMLayer,
   } = useOSMInfrastructure();
   const [showOSMDrawer, setShowOSMDrawer] = useState(false);
 
@@ -1588,7 +1590,7 @@ const MapComponent = ({
         return;
       }
       case 'clear_all_map_overlays': {
-        // Clear everything: highlights, selections, markers, metric layers
+        // Clear everything: highlights, selections, markers, metric layers, AND OSM data
         setHighlightedDistricts([]);
         setChatMapMarkers([]);
         setChatMetricBubbleField('');
@@ -1599,10 +1601,14 @@ const MapComponent = ({
         if (onAnalysisDistrictsChange) {
           onAnalysisDistrictsChange([]);
         }
+        // Also clear OSM data
+        if (osmData || osmLayers.length > 0) {
+          clearOSM();
+        }
         if (mapInstance) {
           window.setTimeout(() => mapInstance.invalidateSize(), 50);
         }
-        addToast('Cleared all map overlays and selections.', 'info');
+        addToast('Cleared all map overlays, selections, and OSM infrastructure.', 'info');
         return;
       }
       case 'clear_map_annotations': {
@@ -1744,6 +1750,123 @@ const MapComponent = ({
         setChatMetricBubbleField(metric.field);
         setChatMetricBubbleColor(command.color || DEFAULT_METRIC_BUBBLE_COLOR);
         addToast(`Mapped ${metric.field} as proportional bubbles.`, 'success');
+        return;
+      }
+      case 'show_osm_layer': {
+        const category = command.category;
+        if (!category) {
+          addToast('No OSM category specified.', 'warning');
+          return;
+        }
+
+        // Check if we have selected analysis districts
+        if (!selectedAnalysisDistricts || selectedAnalysisDistricts.length === 0) {
+          addToast('Please select an analysis area first to load OSM infrastructure.', 'warning');
+          return;
+        }
+
+        // Set visibility to true first
+        const categories = category === 'hospitals' ? ['hospital', 'clinic'] : [category.replace(/s$/, '')];
+        setOsmLayerVisibility(prev => {
+          const next = { ...prev };
+          categories.forEach(cat => {
+            next[cat] = true;
+          });
+          return next;
+        });
+
+        // Ensure OSM layer is shown
+        setShowOSMLayer(true);
+
+        // Fetch the OSM data - replicate the onLoadOSM flow
+        addToast(`Loading ${category}...`, 'info');
+
+        (async () => {
+          const districtsWithGeometry = selectedAnalysisDistricts.filter((district) =>
+            district?.geometry?.coordinates
+          );
+
+          if (districtsWithGeometry.length === 0) {
+            addToast('Selected districts have no geometry data.', 'error');
+            return;
+          }
+
+          beginOSMBatch();
+
+          try {
+            for (let districtIndex = 0; districtIndex < districtsWithGeometry.length; districtIndex += 1) {
+              const district = districtsWithGeometry[districtIndex];
+              const districtName = district.name || district.properties?.name || district.properties?.NAME || `District ${districtIndex + 1}`;
+
+              console.log(`📍 Loading OSM ${category} for: ${districtName}`);
+
+              await fetchOSMInfrastructure(district.geometry, [category], {
+                mergeWithExisting: districtIndex > 0,
+                timeoutMs: 20000,
+                maxRetries: 0,
+                disableBboxFallback: true,
+                requestTimeoutMs: 28000
+              });
+            }
+
+            addToast(`${category} loaded successfully.`, 'success');
+          } catch (err) {
+            console.error('Failed to load OSM category:', err);
+            addToast(`Failed to load ${category}.`, 'error');
+          } finally {
+            endOSMBatch();
+          }
+        })();
+
+        return;
+      }
+      case 'hide_osm_layer': {
+        const category = command.category;
+        if (!category) {
+          addToast('No OSM category specified.', 'warning');
+          return;
+        }
+
+        // Set visibility to false (keeps data, just hides)
+        const categories = category === 'hospitals' ? ['hospital', 'clinic'] : [category.replace(/s$/, '')];
+        setOsmLayerVisibility(prev => {
+          const next = { ...prev };
+          categories.forEach(cat => {
+            next[cat] = false;
+          });
+          return next;
+        });
+
+        addToast(`Hid ${category} from map.`, 'info');
+        return;
+      }
+      case 'remove_osm_layer': {
+        const category = command.category;
+        if (!category) {
+          addToast('No OSM category specified.', 'warning');
+          return;
+        }
+
+        // Remove from data completely
+        clearOSMCategory(category);
+
+        // Remove from osmLayers
+        if (osmLayers.includes(category)) {
+          toggleLayer(category);
+        }
+
+        addToast(`Removed ${category} data.`, 'info');
+        return;
+      }
+      case 'remove_all_osm': {
+        // Clear ALL OSM data
+        if (osmData || osmLayers.length > 0) {
+          // Clear all OSM data
+          clearOSM();
+          addToast('Removed all OSM infrastructure data.', 'success');
+        } else {
+          addToast('No OSM data to remove.', 'info');
+        }
         return;
       }
       case 'style_admin_by_risk': {

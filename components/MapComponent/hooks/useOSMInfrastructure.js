@@ -474,6 +474,7 @@ export function useOSMInfrastructure() {
     toggleAllOSM,
     setOsmLayers,
     setOsmLayerVisibility,
+    setShowOSMLayer,
     beginOSMBatch,
     endOSMBatch,
   };

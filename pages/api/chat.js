@@ -299,7 +299,8 @@ IMPORTANT:
   2. List specific district names if available
   3. Provide context about why these districts are at that risk level
   4. The system will automatically apply the map action when the request matches a supported command
-- Supported chat map actions include highlighting or selecting admin areas, coloring admin boundaries by risk or a loaded numeric field, placing a pin when coordinates or a named admin area are provided, clearing chat-added highlights/pins/selections, clearing the entire map, unselecting all districts, and toggling admin borders or labels. Do not tell the user you cannot clear the map, unselect districts, or remove selections; the system can apply those map actions when the user says "clear map", "clear everything", "unselect all", "deselect all", "clear selection", or similar commands.
+- Supported chat map actions include highlighting or selecting admin areas, coloring admin boundaries by risk or a loaded numeric field, placing a pin when coordinates or a named admin area are provided, clearing chat-added highlights/pins/selections, clearing the entire map, unselecting all districts, toggling admin borders or labels, and controlling OSM infrastructure layers. Do not tell the user you cannot clear the map, unselect districts, or remove selections; the system can apply those map actions when the user says "clear map", "clear everything", "unselect all", "deselect all", "clear selection", or similar commands.
+- OSM infrastructure control: You can show, hide, or remove OSM infrastructure layers via chat. Available categories: hospitals (includes clinics), schools, roads, bridges, water, power, fuel, pharmacies, airports. Commands: "show schools" / "map hospitals" (loads & displays), "hide roads" (keeps data, hides from map), "remove bridges" (clears data completely). IMPORTANT: When the user asks to show/map/display any OSM infrastructure type, respond as if the data is being loaded right now, even if it's not currently in the context. Say something like "Loading schools now..." or "Mapping hospitals in the selected area..." - the system will automatically trigger the data load. Do not say the data is not available or ask them to provide it.
 - Supported metric map actions include proportional bubbles/circles and choropleths from any loaded numeric map field listed in AVAILABLE NUMERIC MAP FIELDS. When the user asks to draw, map, color, or make bubbles/circles for a metric, do not say you cannot draw it. Identify the exact loaded numeric field name you are using and respond as if the map action is being applied. If the requested wording does not clearly match a listed numeric field, ask a short clarification question and list 2-4 candidate field names instead of guessing. Do not infer a field from a single generic overlap such as "site", "count", "case", or "data".
 - Always frame your district analysis in the context of the uploaded shapefile area (e.g., "In [Country/Region], based on the uploaded administrative boundaries...")
 - Use the risk breakdown percentages to give an overall security picture of the area
@@ -563,7 +564,8 @@ Be direct, practical, and specific. Use the context data to give personalized an
 
       res.status(200).json({
         response: finalResponse.content,
-        isAIGenerated: true
+        isAIGenerated: true,
+        mapIntent: mapIntent || undefined
       });
     }
 
@@ -634,6 +636,11 @@ function detectMapIntent(message, context = {}) {
   const markerCommand = detectMarkerCommand(message, context);
   if (markerCommand) {
     return markerCommand;
+  }
+
+  const osmCommand = detectOSMCommand(message, context);
+  if (osmCommand) {
+    return osmCommand;
   }
 
   if (!context || !context.hasDistricts) {
@@ -903,6 +910,71 @@ function getRequestedColor(message = '') {
   };
   const key = Object.keys(colors).find((color) => lower.includes(color));
   return key ? colors[key] : undefined;
+}
+
+function detectOSMCommand(message = '', context = {}) {
+  const lower = String(message).toLowerCase();
+
+  // Check for "clear/remove ALL OSM/infrastructure" commands first
+  const hasClearVerb = /\b(clear|remove|delete|hide|unload)\b/.test(lower);
+  const hasAllOSMPattern = /\b(all|everything)\b/.test(lower) && /\b(osm|openstreetmap|infrastructure|facilities)\b/.test(lower);
+  const hasOSMDataPattern = /\b(osm data|osm infrastructure|infrastructure data|infrastructure layers?|osm layers?)\b/.test(lower);
+
+  if (hasClearVerb && (hasAllOSMPattern || hasOSMDataPattern)) {
+    return {
+      action: 'remove_all_osm',
+      category: 'all'
+    };
+  }
+
+  // OSM category keywords with synonyms - order matters for matching priority
+  const osmCategories = {
+    hospitals: /\b(hospital|hospitals|clinic|clinics|health center|health centres|health facility|health facilities|medical center|medical centres|healthsite|healthsites)\b/,
+    water: /\b(water source|water sources|water point|water points|water station|water stations|water supply|water facilities|well|wells|borehole|boreholes|water)\b/,
+    schools: /\b(school|schools|education|educational facility|university|universities|college|colleges|learning center|learning centre)\b/,
+    power: /\b(power station|power stations|power plant|power plants|electricity|electric|power line|power lines|electrical grid|substation|substations|power)\b/,
+    pharmacies: /\b(pharmacy|pharmacies|drugstore|drugstores|drug store|drug stores|chemist|chemists)\b/,
+    airports: /\b(airport|airports|airfield|airfields|airstrip|airstrips|aerodrome|aerodromes|landing strip)\b/,
+    roads: /\b(major road|major roads|main road|main roads|highway|highways|motorway|motorways|road|roads|street|streets)\b/,
+    fuel: /\b(fuel station|fuel stations|gas station|gas stations|petrol station|petrol stations|filling station|service station|fuel|petrol|gasoline)\b/,
+    bridges: /\b(bridge|bridges)\b/
+  };
+
+  // Detect which category is mentioned
+  const matchedCategory = Object.keys(osmCategories).find(category =>
+    osmCategories[category].test(lower)
+  );
+
+  if (!matchedCategory) return null;
+
+  // Determine action type
+  const hasShowVerb = /\b(show|map|display|add|load|get|fetch|visualize|plot)\b/.test(lower);
+  const hasHideVerb = /\b(hide|don't show|stop showing|turn off|switch off)\b/.test(lower);
+  const hasRemoveVerb = /\b(remove|delete|clear|unload)\b/.test(lower);
+
+  // Priority: remove > hide > show
+  if (hasRemoveVerb) {
+    return {
+      action: 'remove_osm_layer',
+      category: matchedCategory
+    };
+  }
+
+  if (hasHideVerb) {
+    return {
+      action: 'hide_osm_layer',
+      category: matchedCategory
+    };
+  }
+
+  if (hasShowVerb || /\b(all|the)\b/.test(lower)) {
+    return {
+      action: 'show_osm_layer',
+      category: matchedCategory
+    };
+  }
+
+  return null;
 }
 
 function getAdminAreaNamesFromMessage(message = '', context = {}) {
