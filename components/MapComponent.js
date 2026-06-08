@@ -466,6 +466,82 @@ function getDistrictIdentitySearchValues(district = {}, adminLevel = '') {
   ));
 }
 
+function districtIdentityValueMatches(value = '', requestedName = '') {
+  const normalizedValue = normalizeAdminSearchValue(value);
+  const normalizedRequest = normalizeAdminSearchValue(requestedName);
+  if (!normalizedValue || !normalizedRequest) return false;
+
+  return normalizedValue === normalizedRequest ||
+    adminSearchTextContains(normalizedValue, normalizedRequest) ||
+    adminSearchTextContains(normalizedRequest, normalizedValue);
+}
+
+function districtIdentityValueEquals(value = '', requestedName = '') {
+  const normalizedValue = normalizeAdminSearchValue(value);
+  const normalizedRequest = normalizeAdminSearchValue(requestedName);
+  return Boolean(normalizedValue && normalizedRequest && normalizedValue === normalizedRequest);
+}
+
+function getDistrictsMatchingRequestedNames(districts = [], requestedNames = [], adminLevel = '') {
+  const specificNames = requestedNames.filter(isSpecificAdminMatchTerm);
+  if (!specificNames.length) return [];
+
+  const getPrimaryValues = (district) => [
+    district.name,
+    ...getDistrictIdentityEntries(district)
+      .filter((entry) => entry.level === 'name')
+      .map((entry) => entry.value)
+  ];
+
+  const primaryExactMatches = districts.filter((district) => {
+    const primaryValues = getPrimaryValues(district);
+
+    return specificNames.some((name) =>
+      primaryValues.some((value) => districtIdentityValueEquals(value, name))
+    );
+  });
+
+  if (primaryExactMatches.length > 0 && !adminLevel) {
+    return primaryExactMatches;
+  }
+
+  const primaryLooseMatches = districts.filter((district) => {
+    if (primaryExactMatches.some((match) => String(match.id) === String(district.id))) return false;
+    const primaryValues = getPrimaryValues(district);
+
+    return specificNames.some((name) =>
+      primaryValues.some((value) => districtIdentityValueMatches(value, name))
+    );
+  });
+
+  if (primaryLooseMatches.length > 0 && !adminLevel) {
+    return primaryLooseMatches;
+  }
+
+  const identityExactMatches = districts.filter((district) => {
+    const identityValues = getDistrictIdentitySearchValues(district, adminLevel);
+    return specificNames.some((name) =>
+      identityValues.some((value) => districtIdentityValueEquals(value, name))
+    );
+  });
+
+  if (identityExactMatches.length > 0) {
+    return identityExactMatches;
+  }
+
+  const identityLooseMatches = districts.filter((district) => {
+    const primaryValues = [
+      ...getDistrictIdentitySearchValues(district, adminLevel)
+    ];
+
+    return specificNames.some((name) =>
+      primaryValues.some((value) => districtIdentityValueMatches(value, name))
+    );
+  });
+
+  return identityLooseMatches;
+}
+
 function buildAdminAreaChatIndex(districts = []) {
   return (districts || []).map((district, index) => {
     const identityEntries = getDistrictIdentityEntries(district);
@@ -1249,6 +1325,7 @@ const MapComponent = ({
   const [chatMapMarkers, setChatMapMarkers] = useState([]);
   const [chatMetricBubbleField, setChatMetricBubbleField] = useState('');
   const [chatMetricBubbleColor, setChatMetricBubbleColor] = useState(DEFAULT_METRIC_BUBBLE_COLOR);
+  const [adminDatasetScopeSelectedOnly, setAdminDatasetScopeSelectedOnly] = useState(false);
 
   // Weather context state for chatbot
   const [weatherContext, setWeatherContext] = useState(null);
@@ -1363,17 +1440,7 @@ const MapComponent = ({
 
     // Filter based on district names
     if (criteria.names && criteria.names.length > 0) {
-      const requestedNames = criteria.names.filter(isSpecificAdminMatchTerm);
-      const nameMatches = districts.filter(district => {
-        const districtSearchText = normalizeAdminSearchValue(getDistrictIdentitySearchValues(district, criteria.adminLevel).join(' '));
-        return requestedNames.some(name => {
-          const requestedName = normalizeAdminSearchValue(name);
-          return requestedName && (
-            adminSearchTextContains(districtSearchText, requestedName) ||
-            adminSearchTextContains(requestedName, district.name || '')
-          );
-        });
-      });
+      const nameMatches = getDistrictsMatchingRequestedNames(districts, criteria.names, criteria.adminLevel);
       matchingDistricts = [...matchingDistricts, ...nameMatches];
     }
 
@@ -1448,17 +1515,7 @@ const MapComponent = ({
     }
 
     if (Array.isArray(criteria.names) && criteria.names.length > 0) {
-      const requestedNames = criteria.names.filter(isSpecificAdminMatchTerm);
-      const nameMatches = districts.filter((district) => {
-        const districtSearchText = normalizeAdminSearchValue(getDistrictIdentitySearchValues(district, criteria.adminLevel).join(' '));
-        return requestedNames.some((name) => {
-          const requestedName = normalizeAdminSearchValue(name);
-          return requestedName && (
-            adminSearchTextContains(districtSearchText, requestedName) ||
-            adminSearchTextContains(requestedName, district.name || '')
-          );
-        });
-      });
+      const nameMatches = getDistrictsMatchingRequestedNames(districts, criteria.names, criteria.adminLevel);
       matchingDistricts = [...matchingDistricts, ...nameMatches];
     }
 
@@ -1521,6 +1578,63 @@ const MapComponent = ({
     if (!command?.action) return;
 
     switch (command.action) {
+      case 'set_base_map': {
+        const requestedLayer = String(command.layer || '').toLowerCase();
+        const layerExists = Object.values(MAP_LAYERS).some((layer) => layer.id === requestedLayer);
+
+        if (!layerExists) {
+          addToast('Chat requested an unsupported map layer.', 'warning');
+          return;
+        }
+
+        setCurrentMapLayer(requestedLayer);
+
+        if (command.resetContextOverlays) {
+          setShowFloodContextLayer(false);
+          setShowDroughtContextLayer(false);
+          setShowAccessibilityContextLayer(false);
+        }
+
+        if (mapInstance) {
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+
+        const nextLayer = Object.values(MAP_LAYERS).find((layer) => layer.id === requestedLayer);
+        addToast(`Switched map to ${nextLayer?.name || requestedLayer}.`, 'success');
+        return;
+      }
+      case 'set_context_overlays': {
+        const overlays = Array.isArray(command.overlays) ? command.overlays : [];
+        const visible = command.visible !== false;
+        const supportedOverlays = {
+          flood_context: setShowFloodContextLayer,
+          drought_context: setShowDroughtContextLayer,
+          accessibility_context: setShowAccessibilityContextLayer
+        };
+        const labels = {
+          flood_context: 'Flood Context',
+          drought_context: 'Drought Context',
+          accessibility_context: 'Accessibility / Hard-to-Reach'
+        };
+        const appliedOverlays = overlays.filter((overlay) => supportedOverlays[overlay]);
+
+        if (!appliedOverlays.length) {
+          addToast('Chat requested an unsupported context overlay.', 'warning');
+          return;
+        }
+
+        appliedOverlays.forEach((overlay) => supportedOverlays[overlay](visible));
+
+        if (mapInstance) {
+          window.setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+
+        addToast(
+          `${visible ? 'Showing' : 'Hiding'} ${appliedOverlays.map((overlay) => labels[overlay]).join(', ')} overlay${appliedOverlays.length === 1 ? '' : 's'}.`,
+          'success'
+        );
+        return;
+      }
       case 'highlight_districts': {
         handleHighlightDistricts(command.criteria || {});
         return;
@@ -1595,6 +1709,7 @@ const MapComponent = ({
         setHighlightedDistricts([]);
         setChatMapMarkers([]);
         setChatMetricBubbleField('');
+        setAdminDatasetScopeSelectedOnly(false);
         if (adminFillMode === ADMIN_FILL_MODES.DATASET) {
           setAdminFillMode(ADMIN_FILL_MODES.RISK);
           setShowDistrictRiskFill(true);
@@ -1616,6 +1731,7 @@ const MapComponent = ({
         setHighlightedDistricts([]);
         setChatMapMarkers([]);
         setChatMetricBubbleField('');
+        setAdminDatasetScopeSelectedOnly(false);
         if (adminFillMode === ADMIN_FILL_MODES.DATASET) {
           setAdminFillMode(ADMIN_FILL_MODES.RISK);
           setShowDistrictRiskFill(true);
@@ -1637,6 +1753,7 @@ const MapComponent = ({
       case 'clear_metric_layers': {
         setHighlightedDistricts([]);
         setChatMetricBubbleField('');
+        setAdminDatasetScopeSelectedOnly(false);
         if (adminFillMode === ADMIN_FILL_MODES.DATASET) {
           setAdminFillMode(ADMIN_FILL_MODES.RISK);
           setShowDistrictRiskFill(true);
@@ -1723,6 +1840,8 @@ const MapComponent = ({
         setAdminFillMode(ADMIN_FILL_MODES.DATASET);
         setAdminMetricField(metric.field);
         setAdminMetricMeaning(metric.suggestedMeaning || suggestMetricMeaning(metric.field));
+        setAdminDatasetScopeSelectedOnly((selectedAnalysisDistricts || []).length > 0);
+        setHighlightedDistricts([]);
         if (command.palette && Object.values(ADMIN_COLOR_PALETTES).includes(command.palette)) {
           setAdminColorPalette(command.palette);
         }
@@ -1873,6 +1992,7 @@ const MapComponent = ({
       case 'style_admin_by_risk': {
         setShowDistricts(true);
         setAdminFillMode(ADMIN_FILL_MODES.RISK);
+        setAdminDatasetScopeSelectedOnly(false);
         setShowDistrictRiskFill(true);
         addToast('Colored admin areas by current risk level.', 'success');
         return;
@@ -2690,6 +2810,7 @@ const MapComponent = ({
       noDataStyle: adminNoDataStyle,
       scale: adminDatasetScale,
       isPercent: Boolean(selectedAdminMetric?.isPercent),
+      scopeSelectedOnly: adminDatasetScopeSelectedOnly,
       legend: adminFillMode === ADMIN_FILL_MODES.DATASET ? adminDatasetScale.legend : [],
       legendKey: `${adminMetricField}-${adminMetricMeaning}-${adminClassification}-${adminClassCount}-${adminColorPalette}-${adminReverseColors}-${adminMetricValues.length}-${adminMetricValues[0] || 0}-${adminMetricValues[adminMetricValues.length - 1] || 0}`
     }),
@@ -2700,6 +2821,7 @@ const MapComponent = ({
       adminNoDataStyle,
       adminDatasetScale,
       selectedAdminMetric,
+      adminDatasetScopeSelectedOnly,
       adminMetricMeaning,
       adminClassification,
       adminClassCount,

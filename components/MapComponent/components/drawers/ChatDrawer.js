@@ -620,7 +620,6 @@ function getRequestedAdminLevel(message = '') {
 function getLocalAdminAreaMatchesFromMessage(message = '', context = {}, options = {}) {
   const normalizedMessage = String(message).toLowerCase().replace(/[^a-z0-9]+/g, ' ');
   const areas = Array.isArray(context.adminAreas) ? context.adminAreas : [];
-  const matches = [];
   const requestedLevel = options.adminLevel || getRequestedAdminLevel(message);
   const genericAdminTokens = new Set([
     'admin',
@@ -653,6 +652,62 @@ function getLocalAdminAreaMatchesFromMessage(message = '', context = {}, options
     'map'
   ]);
 
+  const messageLoose = normalizeAdminNameForMatch(message);
+  const getExactCandidateMatch = (candidates = []) => {
+    return candidates.filter(Boolean).find((candidate) => {
+      const normalized = String(candidate).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      return normalized.length >= 3 && normalizedTextContains(normalizedMessage, normalized);
+    });
+  };
+  const getCandidateMatch = (area, candidates = []) => {
+    return candidates.filter(Boolean).find((candidate) => {
+      const normalized = String(candidate).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const normalizedLoose = normalizeAdminNameForMatch(candidate);
+      return normalized.length >= 3 && (
+        normalizedTextContains(normalizedMessage, normalized) ||
+        normalizedTextContains(messageLoose, normalizedLoose)
+      );
+    });
+  };
+
+  if (!requestedLevel) {
+    const getPrimaryCandidates = (area) => [
+      area?.name,
+      ...(Array.isArray(area?.identityEntries)
+        ? area.identityEntries
+            .filter((entry) => entry.level === 'name')
+            .map((entry) => entry.value)
+        : [])
+    ];
+    const primaryExactMatches = areas
+      .map((area) => {
+        const matchedCandidate = getExactCandidateMatch(getPrimaryCandidates(area));
+        return matchedCandidate ? { ...area, matchedValue: String(matchedCandidate) } : null;
+      })
+      .filter(Boolean);
+
+    if (primaryExactMatches.length > 0) {
+      return Array.from(
+        new Map(primaryExactMatches.map((match) => [String(match.id ?? match.name), match])).values()
+      ).slice(0, 25);
+    }
+
+    const primaryLooseMatches = areas
+      .map((area) => {
+        const matchedCandidate = getCandidateMatch(area, getPrimaryCandidates(area));
+        return matchedCandidate ? { ...area, matchedValue: String(matchedCandidate) } : null;
+      })
+      .filter(Boolean);
+
+    if (primaryLooseMatches.length > 0) {
+      return Array.from(
+        new Map(primaryLooseMatches.map((match) => [String(match.id ?? match.name), match])).values()
+      ).slice(0, 25);
+    }
+  }
+
+  const matches = [];
+
   areas.forEach((area) => {
     const identityEntries = Array.isArray(area?.identityEntries) ? area.identityEntries : [];
     const levelEntries = requestedLevel
@@ -670,15 +725,7 @@ function getLocalAdminAreaMatchesFromMessage(message = '', context = {}, options
       ...(Array.isArray(area?.aliases) ? area.aliases : [])
     ]).filter(Boolean);
 
-    const matchedCandidate = candidates.find((candidate) => {
-      const normalized = String(candidate).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      const normalizedLoose = normalizeAdminNameForMatch(candidate);
-      const messageLoose = normalizeAdminNameForMatch(message);
-      return normalized.length >= 3 && (
-        normalizedTextContains(normalizedMessage, normalized) ||
-        normalizedTextContains(messageLoose, normalizedLoose)
-      );
-    });
+    const matchedCandidate = getCandidateMatch(area, candidates);
 
     if (matchedCandidate) {
       matches.push({ ...area, matchedValue: String(matchedCandidate) });
@@ -914,10 +961,101 @@ function detectLocalOSMCommand(message = '', context = {}) {
   return null;
 }
 
+function detectMapLayerControlCommand(message = '', context = {}) {
+  const lower = String(message).toLowerCase();
+
+  const hasSwitchVerb = /\b(switch|change|set|use)\b/.test(lower);
+  const hasShowVerb = /\b(show|display|add|load|overlay|turn on|switch on|enable)\b/.test(lower);
+  const hasHideVerb = /\b(hide|remove|clear|unload|turn off|switch off|disable)\b/.test(lower);
+  const wantsResetMap = /\b(reset|restore)\b[^.?!]{0,30}\b(map|basemap|base map|map layer|layers?)\b/.test(lower) ||
+    /\b(map|basemap|base map|map layer|layers?)\b[^.?!]{0,30}\b(reset|restore)\b/.test(lower);
+  const wantsBasemapSwitch = /\b(switch|change|set|use|show|display)\b[^.?!]{0,60}\b(map|basemap|base map|view|layer)\b/.test(lower) ||
+    /\b(map|basemap|base map|view|layer)\b[^.?!]{0,60}\b(switch|change|set|use|show|display)\b/.test(lower);
+
+  if (wantsResetMap) {
+    return { action: 'set_base_map', layer: 'street', resetContextOverlays: true };
+  }
+
+  const overlayMatches = [];
+  const overlayDefinitions = [
+    {
+      layer: 'flood_context',
+      pattern: /\b(flood context|flood overlay|flood layer|flood-prone|flood prone)\b/
+    },
+    {
+      layer: 'drought_context',
+      pattern: /\b(drought context|drought overlay|drought layer|dryness|rainfall context)\b/
+    },
+    {
+      layer: 'accessibility_context',
+      pattern: /\b(accessibility|hard to reach|hard-to-reach|reachability|travel time|access friction)\b/
+    }
+  ];
+
+  overlayDefinitions.forEach((definition) => {
+    if (definition.pattern.test(lower)) overlayMatches.push(definition.layer);
+  });
+
+  if ((hasShowVerb || hasHideVerb) && /\b(all context overlays?|all evidence layers?|context overlays?|evidence layers?|these ones|them|all overlays?)\b/.test(lower)) {
+    const enabledEvidenceLayers = Array.isArray(context.enabledEvidenceLayers) ? context.enabledEvidenceLayers : [];
+    const contextOverlayIds = ['flood_context', 'drought_context', 'accessibility_context'];
+    const targetOverlays = hasHideVerb
+      ? (enabledEvidenceLayers.filter((layer) => contextOverlayIds.includes(layer)).length
+          ? enabledEvidenceLayers.filter((layer) => contextOverlayIds.includes(layer))
+          : contextOverlayIds)
+      : contextOverlayIds;
+
+    return {
+      action: 'set_context_overlays',
+      overlays: targetOverlays,
+      visible: !hasHideVerb
+    };
+  }
+
+  if (overlayMatches.length > 0 && (hasShowVerb || hasHideVerb)) {
+    return {
+      action: 'set_context_overlays',
+      overlays: overlayMatches,
+      visible: !hasHideVerb
+    };
+  }
+
+  if (/\b(nighttime lights|night time lights|nightime lights|night lights|viirs)\b/.test(lower) && (wantsBasemapSwitch || hasSwitchVerb || hasShowVerb || hasHideVerb)) {
+    if (hasHideVerb) {
+      return { action: 'set_base_map', layer: 'street' };
+    }
+    return { action: 'set_base_map', layer: 'nighttime_lights' };
+  }
+
+  const basemapDefinitions = [
+    { layer: 'satellite', pattern: /\b(satellite|imagery|world imagery)\b/ },
+    { layer: 'street', pattern: /\b(street map|streetmap|osm|openstreetmap|default map|standard map)\b/ },
+    { layer: 'terrain', pattern: /\b(terrain|topographic|topo)\b/ },
+    { layer: 'dark', pattern: /\b(dark map|dark mode|dark basemap)\b/ },
+    { layer: 'light_minimal', pattern: /\b(light map|light basemap|minimal map)\b/ },
+    { layer: 'recent_clear', pattern: /\b(recent clear|sentinel-2|sentinel 2|clear imagery)\b/ },
+    { layer: 'radar_change', pattern: /\b(radar change|sentinel-1|sentinel 1|radar)\b/ },
+    { layer: 'recent_imagery', pattern: /\b(recent imagery|daily imagery|nasa imagery|viirs true color)\b/ }
+  ];
+  const matchedBasemap = basemapDefinitions.find((definition) => definition.pattern.test(lower));
+
+  if (matchedBasemap && (wantsBasemapSwitch || hasShowVerb || /\b(view|basemap|base map|map)\b/.test(lower))) {
+    return { action: 'set_base_map', layer: matchedBasemap.layer };
+  }
+
+  return null;
+}
+
 function detectLocalMapCommand(message = '', context = {}) {
   const lower = String(message).toLowerCase();
   const hasClearVerb = /(?:\bclear\b|\breset\b|\b[a-z]*remove\b)/.test(lower);
   const hasClearOrResetVerb = /\b(clear|reset)\b/.test(lower);
+
+  const mapLayerControlCommand = detectMapLayerControlCommand(message, context);
+  if (mapLayerControlCommand) return mapLayerControlCommand;
+
+  const metricStyleCommand = detectAdminMetricStyleCommand(message, context);
+  if (metricStyleCommand) return metricStyleCommand;
 
   // Handle "clear map" or "clear everything" - clears all map overlays
   if ((hasClearOrResetVerb || /\b(remove all|remove everything)\b/.test(lower)) &&
@@ -1030,8 +1168,6 @@ function detectLocalMapCommand(message = '', context = {}) {
   }
 
   if (!Object.keys(criteria).length) {
-    const metricStyleCommand = detectAdminMetricStyleCommand(message, context);
-    if (metricStyleCommand) return metricStyleCommand;
     return null;
   }
 

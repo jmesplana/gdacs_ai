@@ -336,6 +336,13 @@ export default function AdminBoundariesLayer({
 
   const getFill = (feature, riskLevel) => {
     if (datasetStyle?.mode === ADMIN_FILL_MODES.DATASET) {
+      if (datasetStyle.scopeSelectedOnly && selectedIds.size > 0 && !selectedIds.has(String(feature.id))) {
+        return {
+          color: '#ffffff',
+          opacity: 0
+        };
+      }
+
       const metric = getDatasetMetric(feature.id);
       if (!metric) {
         return {
@@ -359,7 +366,7 @@ export default function AdminBoundariesLayer({
 
   return (
     <GeoJSON
-      key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistrictKey}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-labelzoom-${labelMinZoom}-borders-${showDistrictBorders}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.legendKey || ''}-drawing-${isDrawingMode}`}
+      key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistrictKey}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-labelzoom-${labelMinZoom}-borders-${showDistrictBorders}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.scopeSelectedOnly ? 'scoped' : 'all'}-${datasetStyle?.legendKey || ''}-drawing-${isDrawingMode}`}
       data={featureCollection}
       pane="overlayPane"
       interactive={!isDrawingMode}
