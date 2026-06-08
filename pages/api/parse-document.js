@@ -10,7 +10,7 @@ export const config = {
   }
 };
 
-const MAX_DOCUMENT_UPLOAD_BYTES = 15 * 1024 * 1024;
+const MAX_DOCUMENT_UPLOAD_BYTES = 4 * 1024 * 1024;
 const MAX_EXTRACTED_TEXT_CHARS = 60000;
 const DOCUMENT_CHUNK_SIZE = 2200;
 const MAX_DOCUMENT_CHUNKS = 12;
@@ -124,7 +124,9 @@ export default async function handler(req, res) {
     const fileSize = uploadedFile.size || 0;
 
     if (fileSize > MAX_DOCUMENT_UPLOAD_BYTES) {
-      return res.status(413).json({ error: 'Document uploads are limited to 15 MB.' });
+      return res.status(413).json({
+        error: 'Document uploads on Vercel are limited to 4 MB. Upload a smaller PDF or DOCX.'
+      });
     }
 
     if (!lowerName.endsWith('.pdf') && !lowerName.endsWith('.docx')) {
@@ -162,7 +164,7 @@ export default async function handler(req, res) {
     console.error('Document parse failed:', error);
 
     const message = error?.code === 'LIMIT_FILE_SIZE'
-      ? 'Document uploads are limited to 15 MB.'
+      ? 'Document uploads on Vercel are limited to 4 MB. Upload a smaller PDF or DOCX.'
       : error?.message || 'Unable to parse that document.';
 
     return res.status(error?.code === 'LIMIT_FILE_SIZE' ? 413 : 500).json({ error: message });
