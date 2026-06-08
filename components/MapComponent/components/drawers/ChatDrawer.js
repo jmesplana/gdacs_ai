@@ -8,6 +8,12 @@ const CHAT_DRAWER_EXPANDED_WIDTH = 1040;
 const CHAT_ATTACHMENT_CONTEXT_ROWS = 20;
 const CHAT_ATTACHMENT_CONTEXT_COLUMNS = 20;
 const CHAT_ATTACHMENT_MAX_ROWS_RETAINED = 5000;
+const CHAT_DOCUMENT_CONTEXT_CHUNKS = 6;
+
+function isDocumentAttachment(fileName = '') {
+  const lowerName = fileName.toLowerCase();
+  return lowerName.endsWith('.pdf') || lowerName.endsWith('.docx');
+}
 
 function compactWorldPopDataForChat(worldPopData = {}, maxEntries = 50) {
   const entries = Object.entries(worldPopData || {}).slice(0, maxEntries);
@@ -91,6 +97,43 @@ function compactRowsForAttachment(rows = [], maxRows = 80, maxColumns = 35) {
   ));
 }
 
+async function parseDocumentAttachment(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch('/api/parse-document', {
+    method: 'POST',
+    body: formData
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.error || 'Unable to parse that document.');
+  }
+
+  const documentChunks = Array.isArray(payload.documentChunks)
+    ? payload.documentChunks
+    : [];
+
+  return {
+    id: `${Date.now()}-${payload.fileName || file.name || 'attached-document'}`,
+    fileName: payload.fileName || file.name || 'attached-document',
+    fileType: payload.fileType || (file.name?.toLowerCase().endsWith('.pdf') ? 'pdf' : 'docx'),
+    attachmentKind: 'document',
+    rowCount: 0,
+    retainedRowCount: 0,
+    columns: [],
+    mappings: {},
+    columnSummary: [],
+    sampleRows: [],
+    rows: [],
+    documentStats: payload.documentStats || {},
+    documentChunks,
+    createdAt: new Date().toISOString(),
+    promoteCandidate: false
+  };
+}
+
 function getGeoJsonRows(geojson = {}) {
   const features = Array.isArray(geojson.features) ? geojson.features : [];
   return features.map((feature, index) => {
@@ -116,6 +159,10 @@ async function parseChatAttachment(file) {
   const lowerName = fileName.toLowerCase();
   let rows = [];
   let fileType = 'table';
+
+  if (isDocumentAttachment(fileName)) {
+    return parseDocumentAttachment(file);
+  }
 
   if (lowerName.endsWith('.csv')) {
     const text = await file.text();
@@ -148,7 +195,7 @@ async function parseChatAttachment(file) {
       fileType = 'json';
     }
   } else {
-    throw new Error('Upload a CSV, Excel, JSON, or GeoJSON file.');
+    throw new Error('Upload a CSV, Excel, JSON, GeoJSON, PDF, or Word document (.docx).');
   }
 
   const retainedRows = rows.slice(0, CHAT_ATTACHMENT_MAX_ROWS_RETAINED);
@@ -159,6 +206,7 @@ async function parseChatAttachment(file) {
     id: `${Date.now()}-${fileName}`,
     fileName,
     fileType,
+    attachmentKind: 'dataset',
     rowCount: rows.length,
     retainedRowCount: retainedRows.length,
     columns,
@@ -176,17 +224,22 @@ function compactChatAttachmentsForContext(attachments = []) {
     id: attachment.id,
     fileName: attachment.fileName,
     fileType: attachment.fileType,
+    attachmentKind: attachment.attachmentKind || 'dataset',
     rowCount: attachment.rowCount,
     retainedRowCount: attachment.retainedRowCount,
-    columns: attachment.columns.slice(0, 80),
+    columns: (attachment.columns || []).slice(0, 80),
     mappings: attachment.mappings,
     columnSummary: attachment.columnSummary,
     sampleRows: attachment.sampleRows,
     rows: compactRowsForAttachment(
-      attachment.rows,
+      attachment.rows || [],
       CHAT_ATTACHMENT_CONTEXT_ROWS,
       CHAT_ATTACHMENT_CONTEXT_COLUMNS
     ),
+    documentStats: attachment.documentStats || null,
+    documentChunks: Array.isArray(attachment.documentChunks)
+      ? attachment.documentChunks.slice(0, CHAT_DOCUMENT_CONTEXT_CHUNKS)
+      : [],
     promoteCandidate: attachment.promoteCandidate
   }));
 }
@@ -1431,12 +1484,16 @@ const ChatDrawer = ({
     try {
       const attachment = await parseChatAttachment(file);
       setChatAttachments((prev) => [attachment, ...prev].slice(0, 3));
-      const retainedNote = attachment.retainedRowCount < attachment.rowCount
+      const isDocument = attachment.attachmentKind === 'document';
+      const retainedNote = !isDocument && attachment.retainedRowCount < attachment.rowCount
         ? ` I retained the first ${attachment.retainedRowCount.toLocaleString()} rows locally and will send a compact sample to chat.`
         : '';
+      const attachmentDescription = isDocument
+        ? `Attached **${attachment.fileName}** with ${Number(attachment.documentStats?.wordCount || 0).toLocaleString()} extracted words across ${attachment.documentChunks.length.toLocaleString()} text chunks. I can use it as chat context for summarization, question answering, and comparison against the workspace data.`
+        : `Attached **${attachment.fileName}** with ${attachment.rowCount.toLocaleString()} rows and ${attachment.columns.length.toLocaleString()} columns.${retainedNote} I can use it as chat context for data review, cleaning, schema mapping, and analysis based on the fields in the file.`;
       setMessages((prev) => [...prev, {
         role: 'assistant',
-        content: `Attached **${attachment.fileName}** with ${attachment.rowCount.toLocaleString()} rows and ${attachment.columns.length.toLocaleString()} columns.${retainedNote} I can use it as chat context for data review, cleaning, schema mapping, and analysis based on the fields in the file.`,
+        content: attachmentDescription,
         timestamp: Date.now(),
         isAIGenerated: false
       }]);
@@ -1907,6 +1964,20 @@ const ChatDrawer = ({
                       }}>
                         {attachment.fileName}
                       </span>
+                      {attachment.attachmentKind === 'document' && (
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          color: '#334155',
+                          backgroundColor: 'rgba(100, 116, 139, 0.12)',
+                          border: '1px solid rgba(100, 116, 139, 0.24)',
+                          borderRadius: '999px',
+                          padding: '1px 6px',
+                          flexShrink: 0
+                        }}>
+                          document
+                        </span>
+                      )}
                       {attachment.promoteCandidate && (
                         <span style={{
                           fontSize: '10px',
@@ -1927,8 +1998,10 @@ const ChatDrawer = ({
                       color: 'var(--aidstack-slate-medium)',
                       marginTop: '2px'
                     }}>
-                      {attachment.rowCount.toLocaleString()} rows · {attachment.columns.length.toLocaleString()} columns
-                      {attachment.retainedRowCount < attachment.rowCount ? ` · ${attachment.retainedRowCount.toLocaleString()} retained` : ''}
+                      {attachment.attachmentKind === 'document'
+                        ? `${Number(attachment.documentStats?.wordCount || 0).toLocaleString()} words · ${attachment.documentChunks?.length || 0} chunks`
+                        : `${attachment.rowCount.toLocaleString()} rows · ${attachment.columns.length.toLocaleString()} columns`}
+                      {attachment.attachmentKind !== 'document' && attachment.retainedRowCount < attachment.rowCount ? ` · ${attachment.retainedRowCount.toLocaleString()} retained` : ''}
                     </div>
                   </div>
                   <button
@@ -1976,7 +2049,7 @@ const ChatDrawer = ({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,.xlsx,.xls,.json,.geojson"
+              accept=".csv,.xlsx,.xls,.json,.geojson,.pdf,.docx"
               onChange={handleAttachmentUpload}
               style={{ display: 'none' }}
             />

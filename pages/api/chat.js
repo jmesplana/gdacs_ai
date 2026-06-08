@@ -1369,7 +1369,23 @@ function buildContextSummary(context) {
     summary.push(`Infer the dataset purpose from its filename, columns, and sample rows. Use it for schema review, data cleaning advice, analysis, and upload-preparation guidance based on the fields actually present. Do not assume it is health, VPD, CBS, RCCE, site, or surveillance data unless the attached fields support that. Do not claim it is already mapped as workspace sites unless the workspace facility context also includes it.`);
 
     context.chatAttachments.slice(0, 3).forEach((attachment, attachmentIndex) => {
+      const attachmentKind = attachment.attachmentKind || 'dataset';
       summary.push(`\nAttachment ${attachmentIndex + 1}: ${attachment.fileName || 'Unnamed file'}`);
+      if (attachmentKind === 'document') {
+        const stats = attachment.documentStats || {};
+        summary.push(`Type: ${attachment.fileType || 'unknown'} document | Extracted words: ${stats.wordCount || 0} | Extracted characters: ${stats.characterCount || 0}${stats.pageCount ? ` | Pages: ${stats.pageCount}` : ''}${stats.truncated ? ' | Text was truncated for chat context' : ''}`);
+        summary.push('This is an extracted-text document attachment. Use it for summarization, question answering, cross-checking against workspace data, and identifying possible entities or indicators. Do not treat it as a structured workspace dataset unless the user asks to extract and prepare tabular data from it.');
+
+        if (Array.isArray(attachment.documentChunks) && attachment.documentChunks.length > 0) {
+          summary.push(`Document excerpts (${attachment.documentChunks.length} chunks):`);
+          attachment.documentChunks.slice(0, 8).forEach((chunk, index) => {
+            summary.push(`Chunk ${chunk.index || index + 1}: ${chunk.text}`);
+          });
+        }
+
+        return;
+      }
+
       summary.push(`Type: ${attachment.fileType || 'unknown'} | Rows: ${attachment.rowCount || 0} | Columns: ${attachment.columns?.length || 0}`);
       if (attachment.retainedRowCount && attachment.retainedRowCount < attachment.rowCount) {
         summary.push(`Client retained rows for local processing: ${attachment.retainedRowCount}. Chat context includes a bounded sample only.`);
