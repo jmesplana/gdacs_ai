@@ -242,12 +242,6 @@ const DisasterMarkers = ({ disasters, showImpactZones, showDisasterIcons = true,
     const markers = [];
 
     if (disasters && disasters.length > 0) {
-      console.log(`Adding ${disasters.length} disaster markers directly to map`);
-
-      // Debug: Check if any disasters have polygon data
-      const disastersWithPolygons = disasters.filter(d => d.polygon && d.polygon.length > 2);
-      console.log(`Found ${disastersWithPolygons.length} disasters with polygon data out of ${disasters.length} total`);
-
       // Always rebuild the cluster group from scratch on disaster-list changes
       if (clusterGroupRef.current && map.hasLayer(clusterGroupRef.current)) {
         map.removeLayer(clusterGroupRef.current);
@@ -255,7 +249,9 @@ const DisasterMarkers = ({ disasters, showImpactZones, showDisasterIcons = true,
 
       if (showDisasterIcons) {
         clusterGroupRef.current = L.markerClusterGroup({
-          chunkedLoading: false,
+          chunkedLoading: true,
+          chunkInterval: 80,
+          chunkDelay: 30,
           spiderfyOnMaxZoom: true,
           showCoverageOnHover: true,
           zoomToBoundsOnClick: true,
@@ -338,8 +334,6 @@ const DisasterMarkers = ({ disasters, showImpactZones, showDisasterIcons = true,
             console.log(`Invalid coordinates for disaster: ${disaster.title}`);
             return;
           }
-
-          console.log(`Adding disaster marker at [${lat}, ${lng}]: ${disaster.title}`);
 
           // Get disaster type info (for icon)
           const disasterInfo = getDisasterInfo(disaster.eventType);
@@ -589,8 +583,6 @@ const DisasterMarkers = ({ disasters, showImpactZones, showDisasterIcons = true,
           } else {
             // Fallback to circle if no polygon data (only if impact zones enabled)
             if (showImpactZones) {
-              console.log(`No polygon data, using circle for disaster: ${disaster.title}`);
-
               // Convert km to meters for the circle
               const radiusInMeters = impactRadius * 1000;
 

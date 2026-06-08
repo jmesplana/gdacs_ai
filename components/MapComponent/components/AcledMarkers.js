@@ -1,10 +1,31 @@
 import { useMemo } from 'react';
 import { CircleMarker, Popup } from 'react-leaflet';
 import MarkerClusterGroup from '@changey/react-leaflet-markercluster';
+import L from 'leaflet';
 
 function formatField(value) {
   if (value === null || value === undefined || value === '') return null;
   return String(value);
+}
+
+const EVENT_COLORS = {
+  'Battles': '#d32f2f',
+  'Explosions/Remote violence': '#ff6f00',
+  'Violence against civilians': '#c62828',
+  'Protests': '#fbc02d',
+  'Riots': '#f57c00',
+  'Strategic developments': '#1976d2'
+};
+
+function getEventColor(eventType) {
+  return EVENT_COLORS[eventType] || '#757575';
+}
+
+function getSeverityIcon(fatalities) {
+  if (fatalities >= 50) return '🔴';
+  if (fatalities >= 10) return '🟠';
+  if (fatalities >= 1) return '🟡';
+  return '⚪';
 }
 
 /**
@@ -14,7 +35,6 @@ function formatField(value) {
 const AcledMarkers = ({
   acledData = [],
   acledEnabled = false,
-  acledConfig = {},
   showClusterCounts = true,
   showClustering = true
 }) => {
@@ -23,90 +43,7 @@ const AcledMarkers = ({
     return null;
   }
 
-  // Get date range filter from config (default: last 60 days)
-  const dateRange = acledConfig.dateRange || 60;
-
-  // Memoize filtered events to prevent re-computing on every render
-  const filteredEvents = useMemo(() => {
-    // Find the most recent date in the dataset to use as reference
-    const allDates = acledData
-      .map(e => new Date(e.event_date))
-      .filter(d => !isNaN(d.getTime()));
-
-    const mostRecentDate = allDates.length > 0
-      ? new Date(Math.max(...allDates))
-      : new Date();
-
-    // Calculate cutoff date from the most recent event in dataset
-    const cutoffDate = new Date(mostRecentDate);
-    cutoffDate.setDate(cutoffDate.getDate() - dateRange);
-
-    // Get filters from config
-    const eventTypeFilter = acledConfig.eventTypes || [];
-    const selectedCountries = acledConfig.selectedCountries || [];
-    const selectedRegions = acledConfig.selectedRegions || [];
-
-    // Filter ACLED data based on config
-    return acledData.filter(event => {
-      // Date filter
-      const eventDate = new Date(event.event_date);
-      if (eventDate < cutoffDate) return false;
-
-      // Event type filter (if specified)
-      if (eventTypeFilter.length > 0 && !eventTypeFilter.includes(event.event_type)) {
-        return false;
-      }
-
-      // Country filter (if countries are selected)
-      if (selectedCountries.length > 0 && !selectedCountries.includes(event.country)) {
-        return false;
-      }
-
-      // Region filter (if regions are selected)
-      if (selectedRegions.length > 0 && !selectedRegions.includes(event.admin1)) {
-        return false;
-      }
-
-      // Ensure valid coordinates
-      if (!event.latitude || !event.longitude) return false;
-
-      return true;
-    });
-  }, [acledData, dateRange, acledConfig.eventTypes, acledConfig.selectedCountries, acledConfig.selectedRegions]);
-
-  // Log filtering results
-  const filterInfo = [];
-  filterInfo.push(`${dateRange} days`);
-  if (acledConfig.selectedCountries?.length > 0) {
-    filterInfo.push(`${acledConfig.selectedCountries.length} countries`);
-  }
-  if (acledConfig.selectedRegions?.length > 0) {
-    filterInfo.push(`${acledConfig.selectedRegions.length} regions`);
-  }
-  console.log(`ACLED: Filtered ${filteredEvents.length} events from ${acledData.length} total (${filterInfo.join(', ')})`);
-
-  // Color mapping for event types
-  const getEventColor = (eventType) => {
-    const colors = {
-      'Battles': '#d32f2f',                          // Dark red
-      'Explosions/Remote violence': '#ff6f00',       // Dark orange
-      'Violence against civilians': '#c62828',       // Crimson
-      'Protests': '#fbc02d',                         // Yellow
-      'Riots': '#f57c00',                            // Amber
-      'Strategic developments': '#1976d2'            // Blue
-    };
-    return colors[eventType] || '#757575'; // Gray for unknown types
-  };
-
-  // Get severity icon based on fatalities
-  const getSeverityIcon = (fatalities) => {
-    if (fatalities >= 50) return '🔴';
-    if (fatalities >= 10) return '🟠';
-    if (fatalities >= 1) return '🟡';
-    return '⚪';
-  };
-
-  const renderedMarkers = filteredEvents.map((event, idx) => {
+  const renderedMarkers = useMemo(() => acledData.map((event, idx) => {
     const lat = parseFloat(event.latitude);
     const lng = parseFloat(event.longitude);
 
@@ -248,7 +185,7 @@ const AcledMarkers = ({
         </Popup>
       </CircleMarker>
     );
-  });
+  }), [acledData]);
 
   if (!showClustering) {
     return <>{renderedMarkers}</>;
@@ -258,6 +195,9 @@ const AcledMarkers = ({
     <MarkerClusterGroup
       showCoverageOnHover={false}
       maxClusterRadius={showClusterCounts ? 50 : 20}
+      chunkedLoading
+      chunkInterval={80}
+      chunkDelay={30}
       iconCreateFunction={(cluster) => {
         const count = cluster.getChildCount();
         const size = count < 10 ? 'small' : count < 50 ? 'medium' : 'large';

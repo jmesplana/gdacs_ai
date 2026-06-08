@@ -3648,6 +3648,9 @@ const MapComponent = ({
             key={`facility-clusters-${showClusterCounts ? 'counts' : 'no-counts'}-${showClustering ? 'clustered' : 'plain'}-${facilities.length}-${facilityImpactState.signature}`}
             showCoverageOnHover={false}
             maxClusterRadius={showClusterCounts ? 50 : 22}
+            chunkedLoading
+            chunkInterval={80}
+            chunkDelay={30}
             iconCreateFunction={(cluster) => {
               const count = cluster.getChildCount();
               const size = count < 10 ? 'small' : count < 50 ? 'medium' : 'large';
