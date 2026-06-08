@@ -1200,6 +1200,7 @@ const MapComponent = ({
     beginOSMBatch,
     endOSMBatch,
     refreshOSM,
+    clearOSM,
     clearOSMCategory,
     toggleLayer,
     toggleLayerVisibility,
