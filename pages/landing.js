@@ -3,9 +3,9 @@ import LandingPage from '../components/LandingPage';
 
 export default function Landing() {
   const siteUrl = 'https://disasters.aidstack.ai';
-  const title = 'Aidstack Disasters - AI-Powered Humanitarian Intelligence Platform';
-  const description = 'Admin-level humanitarian analysis from uploaded boundary shapefiles. Combine GDACS, ACLED, WorldPop, OSM infrastructure, Earth Engine hazard context, and temporal trend analysis in one auditable workspace for forecast, operational outlook, and prioritization.';
-  const keywords = 'humanitarian technology, disaster response, GDACS, ACLED, WorldPop, Google Earth Engine, admin boundary analysis, prioritization board, operational outlook, emergency response platform, humanitarian operations, conflict mapping, population data, OSM infrastructure, logistics assessment, trend analysis, temporal patterns';
+  const title = 'Aidstack Disasters - Geospatial Operational Intelligence';
+  const description = 'Admin-area operational intelligence from uploaded boundary shapefiles. Combine GDACS disasters, WHO outbreak reports, uploaded ACLED events, WorldPop, OSM infrastructure, Earth Engine hazard context, and temporal trend analysis in one auditable workspace for crisis response, public health, field operations, forecast, outlook, prioritization, and sitrep workflows.';
+  const keywords = 'geospatial operational intelligence, crisis response, public health operations, field operations, humanitarian technology, disaster response, GDACS, WHO outbreaks, ACLED CSV upload, WorldPop, Google Earth Engine, admin boundary analysis, prioritization board, operational outlook, situation report, emergency response platform, conflict mapping, population data, OSM infrastructure, logistics assessment, trend analysis, temporal patterns';
 
   return (
     <>
@@ -70,7 +70,8 @@ export default function Landing() {
               },
               featureList: [
                 'Real-time GDACS disaster monitoring',
-                'ACLED conflict event tracking',
+                'WHO outbreak report mapping',
+                'Uploaded ACLED conflict event tracking',
                 'WorldPop population demographics',
                 'Admin boundary shapefile analysis',
                 'District hazard analysis with auditable drivers',
@@ -78,7 +79,7 @@ export default function Landing() {
                 'Operation viability analysis',
                 'Six Google Earth Engine context layers (nighttime lights, Sentinel-2, Sentinel-1, flood/drought, accessibility)',
                 'Healthcare accessibility overlay (Oxford MAP travel time)',
-                'IndexedDB persistence for offline capability (50MB+ storage)',
+                'IndexedDB workspace persistence for low-connectivity workflows',
                 'Error boundary crash protection',
                 'Enhanced choropleth styling with 7 color palettes',
                 'Batch site assessment',

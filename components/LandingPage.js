@@ -195,7 +195,7 @@ const LandingPage = () => {
                   letterSpacing: '0.5px',
                   marginTop: '2px'
                 }}>
-                  Intelligence for impact workers
+                  Operational intelligence for field teams
                 </div>
               </div>
             </div>
@@ -283,7 +283,7 @@ const LandingPage = () => {
                 fontWeight: 600,
                 color: 'white'
               }}>
-                Live GDACS & ACLED Integration
+                Live GDACS & WHO, Uploaded ACLED
               </span>
             </div>
 
@@ -296,7 +296,7 @@ const LandingPage = () => {
               marginBottom: '24px',
               letterSpacing: '-0.02em'
             }}>
-              Admin-Level Intelligence
+              Geospatial Operational Intelligence
               <br />
               <span style={{
                 background: 'linear-gradient(90deg, #FF6B35 0%, #FFA366 100%)',
@@ -304,7 +304,7 @@ const LandingPage = () => {
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text'
               }}>
-                for Humanitarian Operations
+                for Crisis, Health, and Field Operations
               </span>
             </h1>
             <p style={{
@@ -314,7 +314,7 @@ const LandingPage = () => {
               marginBottom: '32px',
               maxWidth: '540px'
             }}>
-              Upload administrative boundaries, select the admin areas that matter, and combine live disasters, conflict data, population, OSM infrastructure, and Earth Engine hazard context in one auditable workspace.
+              Upload administrative boundaries, select the admin areas that matter, and combine live disasters, outbreak reports, conflict data, population, OSM infrastructure, and Earth Engine hazard context in one auditable workspace.
             </p>
             <div style={{
               display: 'inline-flex',
@@ -578,7 +578,7 @@ const LandingPage = () => {
                 }}>
                   {[
                     { label: 'Flood corridor', color: '#F97316' },
-                    { label: 'ACLED loaded', color: '#7C3AED' },
+                    { label: 'WHO reports', color: '#BE185D' },
                     { label: 'WorldPop active', color: '#1D4ED8' }
                   ].map((chip) => (
                     <div key={chip.label} style={{
@@ -608,7 +608,7 @@ const LandingPage = () => {
                 {[
                   { top: '24%', left: '65%', color: '#EF4444', label: 'Flood' },
                   { top: '34%', left: '58%', color: '#F97316', label: 'Bridge risk' },
-                  { top: '58%', left: '31%', color: '#7C3AED', label: 'ACLED' }
+                  { top: '58%', left: '31%', color: '#BE185D', label: 'WHO' }
                 ].map((marker, idx) => (
                   <div key={idx} style={{
                     position: 'absolute',
@@ -1320,6 +1320,7 @@ const LandingPage = () => {
               }}>
                 <li>Live GDACS disaster data</li>
                 <li>CAP XML polygon impact zones</li>
+                <li>WHO outbreak report mapping</li>
                 <li>ACLED CSV upload support</li>
                 <li>Automatic updates every refresh</li>
               </ul>
@@ -1534,7 +1535,7 @@ const LandingPage = () => {
                 title: 'Operation Viability Assessment',
                 experimental: true,
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-                description: 'GO/CAUTION/DELAY/NOGO decisions for humanitarian operations at site or batch level',
+                description: 'GO/CAUTION/DELAY/NOGO decisions for field operations at site or batch level',
                 features: [
                   'Multi-site batch assessment',
                   'Area-level operation readiness',
@@ -1641,7 +1642,7 @@ const LandingPage = () => {
               {
                 title: 'Multiple Operation Types',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg>,
-                description: 'Pre-configured analysis templates for major humanitarian operations',
+                description: 'Pre-configured analysis templates for crisis response, health, and field operations',
                 features: [
                   'Immunization campaigns',
                   'Malaria control',
@@ -1652,15 +1653,15 @@ const LandingPage = () => {
                 ]
               },
               {
-                title: 'Persistent Data Storage',
+                title: 'Persistent Workspace Storage',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
-                description: 'IndexedDB-powered client-side storage for offline capability and low-connectivity environments',
+                description: 'IndexedDB-powered client-side workspace restore for low-connectivity environments',
                 features: [
                   'Store 50MB+ of operational data locally',
                   'Districts, WorldPop, OSM, and ACLED cached automatically',
                   'Storage statistics dashboard with clear controls',
-                  'Works offline after initial data load',
-                  'Perfect for field operations in remote areas'
+                  'Restores loaded context after refresh',
+                  'Reduces repeated data loading in remote environments'
                 ]
               },
               {
@@ -1682,7 +1683,7 @@ const LandingPage = () => {
                   'HTML/PDF export',
                   'Individual site briefs',
                   'System-wide readiness reports',
-                  'Custom report templates'
+                  'Situation report workspace'
                 ]
               }
             ].map((feature, idx) => (
@@ -1783,7 +1784,7 @@ const LandingPage = () => {
                 color: '#475569',
                 marginBottom: '20px'
               }}>
-                Humanitarian organizations struggle to quickly assess which of their sites are at risk when disasters strike. Manual monitoring across multiple data sources wastes critical response time.
+                Response teams, public health programs, and field operations groups struggle to see which areas, sites, and routes are exposed when hazards, outbreaks, conflict, and access constraints overlap. Manual monitoring across multiple data sources slows operational decisions.
               </p>
             </div>
             <div>
@@ -1802,7 +1803,7 @@ const LandingPage = () => {
                 color: '#475569',
                 marginBottom: '32px'
               }}>
-                Aidstack Disasters consolidates global disaster data, district-scoped evidence, and AI decision support in one visual interface so operators can move from raw signals to reviewable judgments faster.
+                Aidstack Disasters consolidates global disaster data, outbreak reports, admin-area evidence, infrastructure context, and AI decision support in one visual interface so operators can move from raw signals to reviewable judgments faster.
               </p>
               <div style={{
                 display: 'grid',
@@ -1898,7 +1899,7 @@ const LandingPage = () => {
               margin: '0 auto',
               lineHeight: '1.7'
             }}>
-              From emergency response to strategic planning, get real-time intelligence for every critical decision
+              Use the same admin-area evidence workflow across crisis response, public health, access, logistics, and field program planning without switching tools.
             </p>
           </div>
           <div style={{
@@ -1910,37 +1911,37 @@ const LandingPage = () => {
               {
                 title: 'Immunization Campaigns',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2l4 4M7.5 12.5l-4 4M4.5 16.5L2 19l3 3 2.5-2.5M9 6l6 6M16.5 7.5l3-3L22 7l-3 3"/><path d="M7 7l9 9"/></svg>,
-                description: 'Track vaccination coverage, map refusals, quantify missed children, and pause campaigns in conflict zones',
-                features: ['Campaign coverage tracking', 'Refusal hotspot mapping', 'Conflict impact analysis', 'Catch-up needs calculation'],
-                example: 'Calculate total missed children in admin areas affected by 14+ day interruptions'
+                description: 'Assess campaign feasibility with admin boundaries, site data, conflict exposure, population context, and operation-specific decision rules',
+                features: ['Campaign site assessment', 'Conflict exposure review', 'Catch-up prioritization', 'Population-at-risk context'],
+                example: 'Prioritize selected admin areas where campaign sites overlap recent hazards or uploaded conflict events'
               },
               {
                 title: 'Cholera/OCV Response',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>,
-                description: 'Joint WASH-OCV planning for flood-affected areas with disease surveillance integration',
-                features: ['Flood-cholera correlation', 'WASH access mapping', 'OCV prioritization', 'Emergency response targeting'],
-                example: 'Identify admin areas with floods + low WASH + high cholera cases needing urgent intervention'
+                description: 'Review flood context, WHO outbreak reports, population exposure, and nearby infrastructure for OCV and WASH planning',
+                features: ['Flood context review', 'WHO outbreak visibility', 'OCV prioritization', 'Emergency response targeting'],
+                example: 'Identify selected admin areas where flood context and outbreak reports require closer coordination'
               },
               {
                 title: 'Humanitarian Access',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
-                description: 'Safety assessments for field teams with real-time conflict tracking and admin-area risk scoring',
-                features: ['ACLED conflict events', 'No-go zone identification', 'Route safety scoring', 'Access timeline planning'],
-                example: 'Show which supply routes are safe this week based on recent security incidents'
+                description: 'Assess access constraints with uploaded ACLED events, OSM logistics layers, and admin-area risk scoring',
+                features: ['Uploaded ACLED events', 'Security proximity zones', 'Logistics layer review', 'Access constraint notes'],
+                example: 'Flag selected admin areas where recent uploaded conflict events raise field movement concerns'
               },
               {
                 title: 'Supply Chain Risk',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
-                description: 'Identify warehouse vulnerabilities and predict disruptions from disasters and conflict',
-                features: ['Pre-positioning recommendations', 'Route risk assessment', 'Disruption forecasting', 'Multi-hazard analysis'],
-                example: 'Predict supply disruptions for next 2 weeks based on weather patterns and conflict trends'
+                description: 'Compare warehouses, roads, airports, fuel points, hazards, and conflict signals before pre-positioning decisions',
+                features: ['Pre-positioning recommendations', 'Infrastructure coverage review', 'Hazard exposure screening', 'Multi-signal analysis'],
+                example: 'Review which selected admin areas have logistics gaps before a forecast or current hazard escalates'
               },
               {
                 title: 'Disease Surveillance',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
-                description: 'Map outbreak hotspots, track transmission patterns, and plan rapid response deployments',
-                features: ['Case clustering analysis', 'Transmission corridors', 'Coverage gap correlation', 'Zero-dose targeting'],
-                example: 'Identify polio transmission corridors and recommend rapid response team locations'
+                description: 'Map WHO outbreak reports alongside admin boundaries, hazards, population, and site data for rapid response planning',
+                features: ['WHO outbreak report mapping', 'Admin-area exposure review', 'Population context', 'Rapid response prioritization'],
+                example: 'Review outbreak reports near selected admin areas and generate a sitrep for coordination'
               },
               {
                 title: 'Multi-Sector Assessment',
@@ -1952,9 +1953,9 @@ const LandingPage = () => {
               {
                 title: 'Malaria Control',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z"/><path d="M12 6v6l4 2"/></svg>,
-                description: 'ITN distribution planning with environmental risk assessment',
-                features: ['Vector breeding site analysis', 'Seasonal transmission forecasting', 'Distribution network optimization', 'Flood impact on ITN campaigns'],
-                example: 'Identify high-transmission zones requiring urgent ITN distribution before rainy season'
+                description: 'ITN distribution planning with admin boundaries, flood context, population exposure, and logistics review',
+                features: ['Environmental context review', 'Population exposure screening', 'Distribution site assessment', 'Flood impact on ITN campaigns'],
+                example: 'Identify selected admin areas where population exposure and access constraints should shape ITN planning'
               },
               {
                 title: 'WASH Interventions',
@@ -1973,9 +1974,9 @@ const LandingPage = () => {
               {
                 title: 'Nutrition/RUTF Distribution',
                 icon: <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>,
-                description: 'Acute malnutrition response with supply chain optimization',
-                features: ['Drought-malnutrition correlation', 'RUTF cold chain risk assessment', 'Distribution site accessibility', 'SAM case load forecasting'],
-                example: 'Predict SAM caseload increase in drought-affected admin areas and plan RUTF pre-positioning'
+                description: 'Nutrition/RUTF planning with drought context, access constraints, site data, and population exposure',
+                features: ['Drought context review', 'RUTF access constraint assessment', 'Distribution site accessibility', 'Admin-area prioritization'],
+                example: 'Prioritize drought-affected admin areas where access and population exposure create delivery risk'
               }
             ].map((useCase, idx) => (
               <div key={idx} style={{
@@ -2324,42 +2325,6 @@ const LandingPage = () => {
             </div>
           </div>
 
-          {/* Documentation Link */}
-          <div style={{
-            marginTop: '48px',
-            textAlign: 'center'
-          }}>
-            <a
-              href="https://github.com/jmesplana/gdacs_ai/blob/main/IMMUNIZATION_USE_CASE.md"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ textDecoration: 'none' }}
-            >
-              <button style={{
-                background: 'white',
-                border: '2px solid #FF6B35',
-                color: '#FF6B35',
-                padding: '14px 32px',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                fontFamily: "'Space Grotesk', sans-serif"
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = '#FF6B35';
-                e.target.style.color = 'white';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = 'white';
-                e.target.style.color = '#FF6B35';
-              }}
-              >
-                📖 Read the Immunization Use Case Guide
-              </button>
-            </a>
-          </div>
         </div>
       </section>
 
@@ -2377,7 +2342,7 @@ const LandingPage = () => {
             color: 'white',
             marginBottom: '60px'
           }}>
-            Intelligence for Every Stage of Response
+            Operational Intelligence for Every Stage of Response
           </h2>
           <div style={{
             display: 'grid',
@@ -2386,7 +2351,7 @@ const LandingPage = () => {
           }}>
             {[
               {
-                title: 'Humanitarian Organizations',
+                title: 'Response Organizations',
                 description: 'Protect field staff by identifying high-risk areas before deployment'
               },
               {
@@ -2394,12 +2359,12 @@ const LandingPage = () => {
                 description: 'Prioritize which sites need immediate assistance during multi-disaster events'
               },
               {
-                title: 'Program Managers',
-                description: 'Determine operation feasibility by analyzing security, hazard, and access risks'
+                title: 'Public Health Programs',
+                description: 'Plan campaigns and surveillance around outbreaks, population exposure, access, and security'
               },
               {
-                title: 'Logistics Coordinators',
-                description: 'Optimize supply routes by avoiding disaster impact zones'
+                title: 'Field Operations Teams',
+                description: 'Determine operation feasibility by analyzing security, hazard, infrastructure, and access risks'
               }
             ].map((useCase, idx) => (
               <div key={idx} style={{
@@ -2683,6 +2648,64 @@ const LandingPage = () => {
               </div>
             </div>
 
+            {/* WHO */}
+            <div style={{
+              background: 'white',
+              padding: '36px',
+              borderRadius: '12px',
+              border: '1px solid #94A3B8'
+            }}>
+              <h3 style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontWeight: 700,
+                fontSize: '24px',
+                color: '#1A365D',
+                marginBottom: '12px'
+              }}>
+                WHO
+              </h3>
+              <p style={{
+                fontSize: '13px',
+                color: '#94A3B8',
+                marginBottom: '18px',
+                fontStyle: 'italic'
+              }}>
+                Disease Outbreak News
+              </p>
+              <ul style={{
+                color: '#475569',
+                fontSize: '15px',
+                lineHeight: '1.8',
+                paddingLeft: '20px',
+                margin: 0
+              }}>
+                <li>Outbreak reports loaded from WHO</li>
+                <li>Map features expanded by reported locations</li>
+                <li>Date filtering with background backfill</li>
+                <li>Included in sitrep and admin-area context</li>
+              </ul>
+              <div style={{ marginTop: '20px' }}>
+                <a
+                  href="https://www.who.int/emergencies/disease-outbreak-news"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#1A365D',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    fontFamily: "'Inter', sans-serif"
+                  }}
+                >
+                  Visit WHO outbreak news
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </div>
+            </div>
+
             {/* WorldPop */}
             <div style={{
               background: 'white',
@@ -2804,7 +2827,7 @@ const LandingPage = () => {
               },
               {
                 question: 'What is Operation Viability Assessment?',
-                answer: 'Operation Viability provides GO/CAUTION/DELAY/NOGO decisions for humanitarian operations. You can assess individual sites or batch-process 1000+ sites simultaneously. The system evaluates security risks, disaster impacts, accessibility, and population data to generate decision briefs exportable as HTML/PDF.'
+                answer: 'Operation Viability provides GO/CAUTION/DELAY/NOGO decisions for field operations. You can assess individual sites or batch-process 1000+ sites simultaneously. The system evaluates security risks, disaster impacts, accessibility, and population data to generate decision briefs exportable as HTML/PDF.'
               },
               {
                 question: 'How does weather forecast integration work?',
@@ -2816,7 +2839,7 @@ const LandingPage = () => {
               },
               {
                 question: 'How does the AI use real-time web search?',
-                answer: 'The AI assistant can search the web for current humanitarian events, guidance, and breaking developments to supplement the loaded data. This is secondary to the in-app evidence and should still be reviewed by an operator before action.'
+                answer: 'The AI assistant can search the web for current crisis events, public health guidance, access constraints, and breaking developments to supplement the loaded data. This is secondary to the in-app evidence and should still be reviewed by an operator before action.'
               },
               {
                 question: 'What are the drawing tools used for?',
@@ -2844,7 +2867,7 @@ const LandingPage = () => {
               },
               {
                 question: 'Is my data stored on servers?',
-                answer: 'Site data is cached locally in your browser only. No server-side storage. However, when using AI features, data is temporarily sent to OpenAI for analysis. Drawings and annotations are stored in browser local storage.'
+                answer: 'Uploaded site data, admin boundaries, selected districts, WorldPop summaries, OSM data, and uploaded ACLED events are cached locally in your browser for workspace restore. There is no app database storing your workspace on the server. When using AI features, the relevant context is temporarily sent to OpenAI for analysis, and drawings are stored in browser local storage.'
               },
               {
                 question: 'How do flood and drought context layers work?',
@@ -3000,7 +3023,7 @@ const LandingPage = () => {
                 lineHeight: '1.6',
                 margin: 0
               }}>
-                Part of Aidstack.ai - Intelligence for impact workers
+                Part of Aidstack.ai - Operational intelligence for field teams
               </p>
             </div>
 

@@ -1,26 +1,26 @@
-# Disaster, Conflict, and Operational Prioritization Platform
+# Geospatial Operational Intelligence for Crisis, Health, and Field Operations
 
 **Live Demo:** [https://disasters.aidstack.ai](https://disasters.aidstack.ai)
 
-A web-based humanitarian operations workspace for combining **GDACS disasters**, **ACLED conflict data**, **administrative boundaries**, **facility datasets**, **WorldPop population layers**, and **OSM infrastructure** into one scoped operational view. The platform supports impact assessment, operational viability, logistics analysis, forward-looking outlooks, situation reporting, and ranked action prioritization.
+A web-based operational intelligence workspace for combining **GDACS disasters**, **WHO outbreak reports**, **uploaded ACLED conflict data**, **administrative boundaries**, **site datasets**, **WorldPop population layers**, **OSM infrastructure**, and **Google Earth Engine hazard context** into one scoped operational view. The platform supports impact assessment, operation viability, logistics and security analysis, forward-looking outlooks, situation reporting, and ranked action prioritization.
 
 ---
 
 ## Overview
 
-This application is built for responders who need to answer a practical question quickly:
+This application is built for response teams, public health programs, and field operations groups that need to answer a practical question quickly:
 
 **What is happening in the area we care about, who is exposed, what access still works, and what should we do next?**
 
 The app is designed around an area-based workflow:
 
 1. Load a shapefile or GeoJSON boundary for the operational geography.
-2. Upload facilities and optional ACLED data.
-3. Filter to the district or admin area that matters for the response.
-4. Enrich that area with WorldPop and OSM infrastructure.
+2. Upload sites or facilities and optional ACLED data.
+3. Filter to the district or admin area that matters for the operation.
+4. Enrich that area with WorldPop, OSM infrastructure, and Earth Engine context layers.
 5. Run analysis tools on the scoped area rather than on all global events.
 
-This keeps global GDACS alerts useful for awareness while letting operations stay focused on a specific response geography.
+This keeps global disaster and outbreak signals useful for awareness while letting operations stay focused on a specific admin-area geography.
 
 ---
 
@@ -28,9 +28,10 @@ This keeps global GDACS alerts useful for awareness while letting operations sta
 
 ### Mapping and data layers
 - GDACS disaster alerts with polygons and impact zones
-- ACLED conflict event overlays with filtering by event type and recency
+- WHO outbreak reports with mapped locations and background backfill
+- Uploaded ACLED conflict event overlays with filtering by event type, recency, country, and region
 - Uploaded administrative boundaries from shapefiles or GeoJSON
-- Uploaded facilities or sites from CSV
+- Uploaded facilities or sites from CSV or Excel
 - Heatmap and timeline playback for disaster and conflict activity
 - Drawing and annotation tools for routes, zones, and operational notes
 - Street, satellite, and terrain base maps
@@ -39,7 +40,7 @@ This keeps global GDACS alerts useful for awareness while letting operations sta
 - Facility impact assessment against GDACS disasters and optional ACLED events
 - District-level risk scoring from disaster and conflict context
 - Facility-level AI analysis and recommendations
-- Operation-specific viability scoring for immunization, malaria, WASH, nutrition, medical supply, shelter, and general humanitarian operations
+- Operation-specific viability scoring for immunization, malaria, WASH, nutrition, medical supply, shelter, and general field operations
 - Security assessment with ACLED-aware movement considerations
 - Logistics assessment using OSM roads, bridges, airports, fuel, and other infrastructure
 - Forward-looking operational outlooks and predictive dashboards
@@ -49,8 +50,9 @@ This keeps global GDACS alerts useful for awareness while letting operations sta
 ### Enrichment layers
 - WorldPop population statistics and age-sex breakdowns through Google Earth Engine
 - OSM selective infrastructure loading for chosen admin areas and categories
+- Earth Engine context layers for flood, drought, accessibility, nighttime lights, Sentinel imagery, and radar change context
 - Weather-aware analysis and forecast context
-- AI chat with current workspace context, including districts, facilities, disasters, ACLED, WorldPop, weather, and OSM when available
+- AI chat with current workspace context, including districts, facilities, disasters, WHO outbreaks, uploaded ACLED, WorldPop, weather, and OSM when available
 
 ---
 
@@ -59,6 +61,7 @@ This keeps global GDACS alerts useful for awareness while letting operations sta
 Compared with the earlier GDACS-focused tool, the current app includes:
 
 - ACLED upload, filtering, and map visualization
+- WHO outbreak report mapping and sitrep context
 - District/admin boundary upload and district-level risk analysis
 - WorldPop integration via Google Earth Engine
 - Selective OSM infrastructure loading by admin area and category
@@ -69,6 +72,7 @@ Compared with the earlier GDACS-focused tool, the current app includes:
 - SitRep generation and decision-brief export APIs
 - Prioritization Board for ranked next actions in a scoped response area
 - Shared area-based workflow so WorldPop, OSM, and prioritization all depend on the same selected operational geography
+- Evidence-gated flood, drought, accessibility, and nighttime-lights context so hazard scores show drivers, sources, and limitations
 
 ---
 
@@ -126,14 +130,15 @@ When those layers are missing, the board shows lower-confidence / missing-signal
 ### 3. Outbreak and WASH response
 - Upload case or intervention sites as facilities
 - Use district boundaries to define the analysis area
+- Review WHO outbreak reports near the selected geography
 - Load WorldPop for population exposure and demographic context
 - Combine flood/disaster context with WASH and health datasets
 - Use the outlook and forecast tools for forward planning
 
-### 4. Multi-sector operational planning
-- Combine facilities from health, WASH, education, shelter, or logistics
+### 4. Public health and field operations planning
+- Combine sites from health, WASH, education, shelter, logistics, surveillance, or campaign datasets
 - Filter to the actual operational geography
-- Use ACLED, GDACS, WorldPop, and OSM as layered context
+- Use WHO, ACLED, GDACS, WorldPop, OSM, and Earth Engine layers as operational context
 - Generate SitReps, decision briefs, and ranked operational actions
 
 ---
@@ -144,10 +149,15 @@ When those layers are missing, the board shows lower-confidence / missing-signal
 - Automatically loaded disaster alerts
 - Used for map visualization, facility impact assessment, forecasting context, and district risk scoring
 
+### WHO Disease Outbreak News
+- Automatically loaded outbreak reports
+- Expanded into map features where reported locations can be resolved
+- Used for outbreak visibility, sitrep context, and selected-area review
+
 ### ACLED
 - Upload CSV exports from ACLED
 - Used for security overlays, district risk scoring, viability logic, logistics context, and prioritization when present
-- ACLED data is not persisted in browser cache due to file size constraints
+- Uploaded ACLED events are included in local browser workspace restore through IndexedDB
 
 ### Administrative boundaries
 - Upload shapefiles (`.zip`) or GeoJSON
@@ -155,7 +165,7 @@ When those layers are missing, the board shows lower-confidence / missing-signal
 - Required for WorldPop, OSM area loading, district-level analysis, and the Prioritization Board
 
 ### Facilities
-- Upload any CSV with at least:
+- Upload any CSV or Excel file with at least:
   - `name`
   - `latitude`
   - `longitude`
@@ -171,6 +181,10 @@ When those layers are missing, the board shows lower-confidence / missing-signal
 - Categories include hospitals, schools, roads, bridges, water, power, fuel, pharmacies, and airports
 - Used in logistics assessment and other operational context layers
 
+### Earth Engine context layers
+- Includes nighttime lights, Sentinel imagery, radar change context, flood context, drought context, and accessibility context
+- Used as visual evidence and readiness gates for admin-level hazard scoring
+
 ---
 
 ## Typical User Flow
@@ -180,13 +194,13 @@ When those layers are missing, the board shows lower-confidence / missing-signal
 2. Confirm districts render on the map
 
 ### Step 2: Add operational context
-1. Upload facilities
+1. Upload sites or facilities
 2. Optionally upload ACLED
 3. Set the operation type
 
 ### Step 3: Select the area you actually care about
 1. Use the admin-area selector in the OSM / map layers workflow
-2. Select the district or set of districts relevant to the response
+2. Select the district or set of districts relevant to the operation
 3. Load WorldPop or OSM for that scoped area if needed
 
 ### Step 4: Run analysis
@@ -234,7 +248,7 @@ When those layers are missing, the board shows lower-confidence / missing-signal
 
 ### Operational Outlook
 - Most likely, escalation, and stabilization scenarios
-- Humanitarian drivers
+- Operational drivers
 - Early warning indicators
 - Operational implications for the selected area
 
@@ -298,7 +312,7 @@ Important considerations:
 - OpenAI-backed APIs run server-side through Vercel functions
 - WorldPop requires `GEE_SERVICE_ACCOUNT_KEY` to be configured in Vercel environment variables
 - OSM infrastructure loading is area-scoped to reduce request size and keep responses practical for serverless deployment
-- ACLED uploads can be large and are intentionally not browser-cached
+- Uploaded ACLED events are restored from the local IndexedDB workspace with the rest of the saved context
 - The Prioritization Board endpoint is lightweight because it scores already-scoped client state rather than querying global datasets directly
 
 ---
@@ -333,6 +347,7 @@ District B Warehouse,2.345,33.678,30000,60,12,warehouse,MoH
 
 ### Data sources
 - GDACS
+- WHO Disease Outbreak News
 - ACLED
 - WorldPop
 - OpenStreetMap
@@ -342,7 +357,6 @@ District B Warehouse,2.345,33.678,30000,60,12,warehouse,MoH
 
 ## Related Documentation
 
-- [IMMUNIZATION_USE_CASE.md](IMMUNIZATION_USE_CASE.md)
 - [OPERATIONAL_OUTLOOK.md](OPERATIONAL_OUTLOOK.md)
 - [WORLDPOP_INTEGRATION_PLAN.md](WORLDPOP_INTEGRATION_PLAN.md)
 - [OSM_SELECTIVE_LOADING_IMPLEMENTATION.md](OSM_SELECTIVE_LOADING_IMPLEMENTATION.md)
@@ -365,4 +379,4 @@ For issues or feature requests:
 
 ---
 
-Built for humanitarian response workflows where geographic scope, operational context, and next-action prioritization matter more than raw alert volume.
+Built for crisis response, public health, humanitarian access, logistics, and field operations workflows where geographic scope, operational context, and next-action prioritization matter more than raw alert volume.
