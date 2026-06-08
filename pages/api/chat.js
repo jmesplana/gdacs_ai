@@ -218,6 +218,13 @@ Use web search ONLY for:
 - NEVER present 2021, 2022, or 2023 data as if it describes the current situation without clearly stating the year it's from.
 - For security situations, disease outbreaks, and conflict data: always search for the most recent 3-6 months of information.
 
+**🔗 SOURCE LINK RULES — STRICTLY FOLLOW THESE**:
+- When you use web search, news articles, external situation reports, WHO/CDC/ministry guidance, or any external webpage, include the website/source name and a clickable markdown link.
+- Prefer this format: "According to [Website or Organization - article/report title](https://example.com/source-url), ..."
+- End answers that rely on external web information with a short "Sources" section containing 1-4 markdown links. Include publication/update dates when available.
+- Do not say "an article says" or "a source says" without naming and linking the source.
+- If you cannot access or identify the source URL, say that clearly instead of implying a clickable citation exists.
+
 **🌤️ WEATHER FORECAST DATA**: You have access to weather forecast data in your context when facilities or districts are loaded:
 - Regional weather forecasts cover the operational area (center point of all facilities)
 - District-level forecasts (when administrative boundaries are uploaded)
@@ -648,7 +655,7 @@ function detectMapIntent(message, context = {}) {
   }
 
   // Keywords for highlighting/showing districts
-  const highlightKeywords = ['highlight', 'show me', 'which districts', 'what districts', 'display', 'point out', 'identify', 'show', 'map', 'visualize'];
+  const highlightKeywords = ['highlight', 'show on map', 'display on map', 'point out on map', 'map', 'visualize'];
   const selectKeywords = ['select', 'set scope', 'focus on', 'use only', 'analyze only'];
   const deselectKeywords = ['deselect', 'unselect', 'remove from analysis', 'remove from scope', 'exclude from analysis', 'exclude from scope'];
   const hasDeselectPhrase = /\b(remove|exclude|deselect|unselect)\b[\s\S]{0,120}\b(from|for)\s+(?:the\s+)?(analysis|scope|selection)\b/.test(lowerMessage) ||
@@ -665,7 +672,7 @@ function detectMapIntent(message, context = {}) {
   const hasDeselectIntent = hasDeselectPhrase || deselectKeywords.some(keyword => lowerMessage.includes(keyword));
 
   // Check if this is a geographic or risk-related query about the districts
-  const isGeographicQuery = hasDistrictMention || hasHighlightIntent || hasSelectIntent || hasDeselectIntent;
+  const isGeographicQuery = hasHighlightIntent || hasSelectIntent || hasDeselectIntent;
 
   if (isGeographicQuery) {
     // Determine what to highlight
@@ -697,7 +704,8 @@ function detectMapIntent(message, context = {}) {
     }
 
     // Check for "all districts" or general area questions
-    if ((lowerMessage.includes('all') || lowerMessage.includes('entire') || lowerMessage.includes('whole')) &&
+    if (hasHighlightIntent &&
+        (lowerMessage.includes('all') || lowerMessage.includes('entire') || lowerMessage.includes('whole')) &&
         (lowerMessage.includes('district') || lowerMessage.includes('area') || lowerMessage.includes('region'))) {
       // Show all districts regardless of risk
       criteria.riskLevels = ['very-high', 'high', 'medium', 'low', 'none'];
@@ -709,10 +717,11 @@ function detectMapIntent(message, context = {}) {
       criteria.minEventCount = parseInt(eventMatch[1]);
     }
 
-    const matchedNames = getAdminAreaNamesFromMessage(message, context);
-    if (matchedNames.length > 0) {
-      criteria.names = matchedNames;
-      console.log(`📍 Extracted ${matchedNames.length} district name(s) from message:`, matchedNames);
+    const matchedAreas = getAdminAreaMatchesFromMessage(message, context);
+    if (matchedAreas.length > 0) {
+      criteria.ids = matchedAreas.map((area) => area.id).filter((id) => id !== undefined && id !== null);
+      criteria.names = matchedAreas.map((area) => area.name || area.matchedValue).filter(Boolean);
+      console.log(`📍 Extracted ${matchedAreas.length} district name(s) from message:`, criteria.names);
     }
     const requestedAdminLevel = getRequestedAdminLevel(message);
     if (requestedAdminLevel) {
@@ -978,6 +987,11 @@ function detectOSMCommand(message = '', context = {}) {
 }
 
 function getAdminAreaNamesFromMessage(message = '', context = {}) {
+  return getAdminAreaMatchesFromMessage(message, context)
+    .map((match) => match.matchedValue || match.name);
+}
+
+function getAdminAreaMatchesFromMessage(message = '', context = {}) {
   const normalizedMessage = String(message).toLowerCase().replace(/[^a-z0-9]+/g, ' ');
   const areas = Array.isArray(context.adminAreas) ? context.adminAreas : [];
   const matches = [];
@@ -1041,7 +1055,7 @@ function getAdminAreaNamesFromMessage(message = '', context = {}) {
     });
 
     if (matchedCandidate) {
-      matches.push(String(matchedCandidate));
+      matches.push({ ...area, matchedValue: String(matchedCandidate) });
       return;
     }
 
@@ -1055,11 +1069,17 @@ function getAdminAreaNamesFromMessage(message = '', context = {}) {
       : String(area?.searchText || '');
     const tokenMatch = messageTokens.find((token) => normalizedTextContains(searchText, token));
     if (tokenMatch) {
-      matches.push(tokenMatch);
+      matches.push({ ...area, matchedValue: tokenMatch });
     }
   });
 
-  return Array.from(new Set(matches))
+  return Array.from(
+    new Map(matches.map((match) => [String(match.id ?? match.name), match])).values()
+  )
+    .filter((match) => {
+      const normalized = String(match.matchedValue || match.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      return normalized.length >= 3;
+    })
     .slice(0, 25);
 }
 

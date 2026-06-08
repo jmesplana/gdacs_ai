@@ -917,7 +917,7 @@ function detectLocalMapCommand(message = '', context = {}) {
   const osmCommand = detectLocalOSMCommand(message, context);
   if (osmCommand) return osmCommand;
 
-  const highlightKeywords = ['highlight', 'show me', 'display', 'point out', 'identify', 'show', 'map', 'visualize'];
+  const highlightKeywords = ['highlight', 'show on map', 'display on map', 'point out on map', 'map', 'visualize'];
   const selectKeywords = ['select', 'set scope', 'focus on', 'use only', 'analyze only'];
   const deselectKeywords = ['deselect', 'unselect', 'remove from analysis', 'remove from scope', 'exclude from analysis', 'exclude from scope'];
   const hasDeselectPhrase = /\b(remove|exclude|deselect|unselect)\b[\s\S]{0,120}\b(from|for)\s+(?:the\s+)?(analysis|scope|selection)\b/.test(lower) ||
@@ -928,7 +928,7 @@ function detectLocalMapCommand(message = '', context = {}) {
   const hasHighlightIntent = highlightKeywords.some((keyword) => lower.includes(keyword));
   const hasSelectIntent = selectKeywords.some((keyword) => lower.includes(keyword));
   const hasDeselectIntent = hasDeselectPhrase || deselectKeywords.some((keyword) => lower.includes(keyword));
-  if (!context?.hasDistricts || (!hasDistrictMention && !hasHighlightIntent && !hasSelectIntent && !hasDeselectIntent)) return null;
+  if (!context?.hasDistricts || (!hasHighlightIntent && !hasSelectIntent && !hasDeselectIntent)) return null;
 
   const criteria = {};
   if (riskKeywords.some((keyword) => lower.includes(keyword))) {
@@ -951,7 +951,7 @@ function detectLocalMapCommand(message = '', context = {}) {
     criteria.riskLevels = ['medium'];
   }
 
-  if ((lower.includes('all') || lower.includes('entire') || lower.includes('whole')) && hasDistrictMention) {
+  if ((lower.includes('all') || lower.includes('entire') || lower.includes('whole')) && hasDistrictMention && hasHighlightIntent) {
     criteria.riskLevels = ['very-high', 'high', 'medium', 'low', 'none'];
   }
 
@@ -960,10 +960,11 @@ function detectLocalMapCommand(message = '', context = {}) {
     criteria.minEventCount = parseInt(eventMatch[1], 10);
   }
 
-  const matchedNames = getLocalAdminAreaNamesFromMessage(message, context);
-  if (matchedNames.length > 0) {
-    criteria.names = matchedNames;
-    console.log(`📍 Extracted ${matchedNames.length} district name(s) from message:`, matchedNames);
+  const matchedAreas = getLocalAdminAreaMatchesFromMessage(message, context);
+  if (matchedAreas.length > 0) {
+    criteria.ids = matchedAreas.map((area) => area.id).filter((id) => id !== undefined && id !== null);
+    criteria.names = matchedAreas.map((area) => area.name || area.matchedValue).filter(Boolean);
+    console.log(`📍 Extracted ${matchedAreas.length} district name(s) from message:`, criteria.names);
   }
   const requestedAdminLevel = getRequestedAdminLevel(message);
   if (requestedAdminLevel) {
@@ -1037,15 +1038,11 @@ function getExactAdminAreaNamesFromText(text = '', context = {}) {
 }
 
 function detectAssistantMapCommand(content = '', context = {}, userMessage = '') {
-  const lowerContent = String(content).toLowerCase();
   const lowerUserMessage = String(userMessage).toLowerCase();
-  const userRequestedHighlight = /\b(highlight|show|map|visualize)\b/.test(lowerUserMessage);
-  const userAskedAdminAnswer = /\b(which|what|where|identify|find|top|largest|highest|most)\b/.test(lowerUserMessage) &&
-    /\b(district|districts|admin|area|areas|province|provinces|health zone|health zones)\b/.test(lowerUserMessage);
-  const assistantClaimsHighlight = /\b(will|have|i'll|i will)\b/.test(lowerContent) &&
-    /\b(highlight|show|map|marked|visual)\b/.test(lowerContent);
+  const userRequestedHighlight = /\b(highlight|map|visualize)\b/.test(lowerUserMessage) ||
+    /\b(show|display|point out)\b[\s\S]{0,40}\b(on|in)\s+(?:the\s+)?map\b/.test(lowerUserMessage);
 
-  if (!userRequestedHighlight && !assistantClaimsHighlight && !userAskedAdminAnswer) return null;
+  if (!userRequestedHighlight) return null;
 
   let matches = getExactAdminAreaMatchesFromText(content, context);
   if (!matches.length) return null;
@@ -1165,6 +1162,52 @@ function isNumericTableCell(value = '') {
   return /^-?\d+(\.\d+)?$/.test(normalized);
 }
 
+function getUrlHost(url = '') {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
+function linkifyPlainUrls(markdown = '') {
+  return String(markdown).replace(
+    /(^|[\s[{>])((https?:\/\/)[^\s<>()]+[^\s<>().,;:!?])/g,
+    (match, prefix, url, _protocol, offset, source) => {
+      if (prefix === '(' && source[offset - 1] === ']') return match;
+      const label = getUrlHost(url) || url;
+      return `${prefix}[${label}](${url})`;
+    }
+  );
+}
+
+function markdownLinkComponent({ node, href, children, ...props }) {
+  const safeHref = typeof href === 'string' && /^https?:\/\//i.test(href) ? href : undefined;
+
+  if (!safeHref) {
+    return <span {...props}>{children}</span>;
+  }
+
+  return (
+    <a
+      href={safeHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={safeHref}
+      style={{
+        color: 'var(--aidstack-orange)',
+        fontWeight: 700,
+        textDecoration: 'underline',
+        textUnderlineOffset: '2px',
+        overflowWrap: 'anywhere'
+      }}
+      {...props}
+    >
+      {children}
+    </a>
+  );
+}
+
 function getNumericColumns(rows = []) {
   if (!rows.length) return new Set();
 
@@ -1192,10 +1235,11 @@ function renderInlineMarkdown(content, key) {
         p: ({ node, ...props }) => <span {...props} />,
         strong: ({ node, ...props }) => <strong style={{ fontWeight: 700, color: '#0f172a' }} {...props} />,
         em: ({ node, ...props }) => <em {...props} />,
+        a: markdownLinkComponent,
         code: ({ node, inline, ...props }) => <code style={{ backgroundColor: 'rgba(15,23,42,0.06)', padding: '1px 4px', borderRadius: '4px', fontSize: '0.92em' }} {...props} />
       }}
     >
-      {content}
+      {linkifyPlainUrls(content)}
     </ReactMarkdown>
   );
 }
@@ -1205,6 +1249,7 @@ function markdownComponents() {
     p: ({ node, ...props }) => <p style={{ margin: '0.5em 0' }} {...props} />,
     strong: ({ node, ...props }) => <strong style={{ fontWeight: 600 }} {...props} />,
     em: ({ node, ...props }) => <em {...props} />,
+    a: markdownLinkComponent,
     ul: ({ node, ordered, ...props }) => <ul style={{ marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em' }} {...props} />,
     ol: ({ node, ordered, ...props }) => <ol style={{ marginLeft: '1.2em', marginTop: '0.5em', marginBottom: '0.5em' }} {...props} />,
     li: ({ node, ordered, ...props }) => <li style={{ marginBottom: '0.3em' }} {...props} />,
@@ -1314,7 +1359,7 @@ function renderMarkdownWithTables(content, keyPrefix = 'md') {
 
     return (
       <ReactMarkdown key={`${keyPrefix}-markdown-${index}`} components={markdownComponents()}>
-        {block.content}
+        {linkifyPlainUrls(block.content)}
       </ReactMarkdown>
     );
   });
