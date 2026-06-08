@@ -9,7 +9,6 @@ const CHAT_ATTACHMENT_CONTEXT_ROWS = 20;
 const CHAT_ATTACHMENT_CONTEXT_COLUMNS = 20;
 const CHAT_ATTACHMENT_MAX_ROWS_RETAINED = 5000;
 const CHAT_DOCUMENT_CONTEXT_CHUNKS = 6;
-const CHAT_DOCUMENT_SERVER_UPLOAD_BYTES = 4 * 1024 * 1024;
 const CHAT_PDF_BROWSER_MAX_BYTES = 50 * 1024 * 1024;
 const CHAT_DOCUMENT_MAX_TEXT_CHARS = 60000;
 const CHAT_DOCUMENT_CHUNK_SIZE = 2200;
@@ -150,49 +149,45 @@ async function parseDocumentAttachment(file) {
   const lowerName = (file.name || '').toLowerCase();
 
   if (lowerName.endsWith('.pdf')) {
-    const shouldUseBrowserParser = file.size > CHAT_DOCUMENT_SERVER_UPLOAD_BYTES;
-
     if (file.size > CHAT_PDF_BROWSER_MAX_BYTES) {
       throw new Error('PDF uploads are limited to 50 MB for browser-based parsing.');
     }
 
-    if (shouldUseBrowserParser) {
-      const { extractPdfTextInBrowser } = await import('../../../../lib/clientPdfText');
-      const extracted = await extractPdfTextInBrowser(await file.arrayBuffer());
-      const normalizedText = normalizeDocumentText(extracted.text);
+    const { extractPdfTextInBrowser } = await import('../../../../lib/clientPdfText');
+    const extracted = await extractPdfTextInBrowser(await file.arrayBuffer());
+    const normalizedText = normalizeDocumentText(extracted.text);
 
-      if (!normalizedText) {
-        throw new Error('No readable text could be extracted from this PDF. Scanned PDFs may need OCR before upload.');
-      }
-
-      const truncated = normalizedText.length > CHAT_DOCUMENT_MAX_TEXT_CHARS;
-      const retainedText = truncated
-        ? normalizedText.slice(0, CHAT_DOCUMENT_MAX_TEXT_CHARS).trim()
-        : normalizedText;
-
-      return {
-        id: `${Date.now()}-${file.name || 'attached-document'}`,
-        fileName: file.name || 'attached-document',
-        fileType: 'pdf',
-        attachmentKind: 'document',
-        rowCount: 0,
-        retainedRowCount: 0,
-        columns: [],
-        mappings: {},
-        columnSummary: [],
-        sampleRows: [],
-        rows: [],
-        documentStats: getDocumentStats(retainedText, {
-          pageCount: extracted.pageCount,
-          parsedPageCount: extracted.parsedPageCount,
-          truncated,
-          truncatedPages: extracted.truncatedPages
-        }),
-        documentChunks: chunkDocumentText(retainedText),
-        createdAt: new Date().toISOString(),
-        promoteCandidate: false
-      };
+    if (!normalizedText) {
+      throw new Error('No readable text could be extracted from this PDF. Scanned PDFs may need OCR before upload.');
     }
+
+    const truncated = normalizedText.length > CHAT_DOCUMENT_MAX_TEXT_CHARS;
+    const retainedText = truncated
+      ? normalizedText.slice(0, CHAT_DOCUMENT_MAX_TEXT_CHARS).trim()
+      : normalizedText;
+
+    return {
+      id: `${Date.now()}-${file.name || 'attached-document'}`,
+      fileName: file.name || 'attached-document',
+      fileType: 'pdf',
+      attachmentKind: 'document',
+      rowCount: 0,
+      retainedRowCount: 0,
+      columns: [],
+      mappings: {},
+      columnSummary: [],
+      sampleRows: [],
+      rows: [],
+      documentStats: getDocumentStats(retainedText, {
+        pageCount: extracted.pageCount,
+        parsedPageCount: extracted.parsedPageCount,
+        truncated,
+        truncatedPages: extracted.truncatedPages
+      }),
+      documentChunks: chunkDocumentText(retainedText),
+      createdAt: new Date().toISOString(),
+      promoteCandidate: false
+    };
   }
 
   const formData = new FormData();
