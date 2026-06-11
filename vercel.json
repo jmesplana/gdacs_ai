@@ -1,10 +1,6 @@
 {
   "framework": "nextjs",
   "functions": {
-    "pages/api/process-shapefile.js": {
-      "maxDuration": 60,
-      "memory": 3008
-    },
     "pages/api/parse-document.js": {
       "maxDuration": 60,
       "memory": 1024

@@ -21,6 +21,7 @@ import {
 } from '../lib/storage/workspaceStore';
 import { expandOutbreakMapFeatures } from '../lib/whoOutbreaks';
 import { buildDistrictRiskIndex } from '../lib/districtRiskScoring';
+import { saveOutbreaks, loadOutbreaks, saveGdacs, loadGdacs } from '../lib/dataStore';
 
 // Import components with dynamic loading (no SSR) for Leaflet compatibility
 const MapComponent = dynamic(() => import('../components/MapComponent'), {
@@ -528,7 +529,7 @@ export default function Home() {
   const [sitrepTimestamp, setSitrepTimestamp] = useState(null);
   const [loading, setLoading] = useState({
     disasters: true,
-    outbreaks: true,
+    outbreaks: false,
     outbreaksBackfill: false,
     impact: false,
     recommendations: false,
@@ -1000,10 +1001,15 @@ export default function Home() {
     }
   }, [acledData, acledEnabled]);
 
-  // Initialize with disaster data on mount
+  // Initialize with disaster data on mount.
+  // GDACS is required for baseline context; outbreaks are gated behind the
+  // Map Layers "WHO Outbreaks" toggle and fired via onOutbreakLayerEnable.
   useEffect(() => {
-    fetchDisasterData();
-    fetchOutbreakData();
+    (async () => {
+      await hydrateGdacsFromCache();
+      fetchDisasterData();
+    })();
+    hydrateOutbreaksFromCache();
   }, []);
 
   // Fetch GDACS disaster data
@@ -1046,6 +1052,7 @@ export default function Home() {
       setDisasters(processedData);
       setFilteredDisasters(initiallyFilteredDisasters);
       setDataSource(`Live GDACS data (${processedData.length} events)`);
+      saveGdacs({ disasters: processedData }).catch(() => {});
       const primarySourceLabel = processedData[0]?.primarySource === 'rss_fallback' ? 'RSS fallback' : 'CAP/RSS feed';
       setGdacsDiagnostics({
         fetchedTotal: processedData.length,
@@ -1142,6 +1149,30 @@ export default function Home() {
     };
   };
 
+  const hydrateGdacsFromCache = async () => {
+    try {
+      const cached = await loadGdacs();
+      if (!cached || !Array.isArray(cached.disasters) || cached.disasters.length === 0) return;
+      setDisasters(cached.disasters);
+      setFilteredDisasters(filterDisastersByDate(dateFilter, cached.disasters, false));
+      setDataSource(`Cached GDACS data (${cached.disasters.length} events, refreshing…)`);
+    } catch (error) {
+      console.warn('GDACS cache hydrate failed:', error);
+    }
+  };
+
+  const hydrateOutbreaksFromCache = async () => {
+    try {
+      const cached = await loadOutbreaks();
+      if (!cached || !Array.isArray(cached.features) || cached.features.length === 0) return;
+      setOutbreakReports(cached.reports || []);
+      setOutbreaks(cached.features);
+      setFilteredOutbreaks(filterOutbreaksByDate(dateFilter, cached.features, false));
+    } catch (error) {
+      console.warn('Outbreak cache hydrate failed:', error);
+    }
+  };
+
   const fetchOutbreakData = async () => {
     const fetchRunId = outbreakFetchRunRef.current + 1;
     outbreakFetchRunRef.current = fetchRunId;
@@ -1191,12 +1222,21 @@ export default function Home() {
         });
         if (outbreakFetchRunRef.current !== fetchRunId) return;
 
-        setOutbreakReports((currentReports) => mergeOutbreakReports(currentReports, backfillPage.reports));
+        let mergedReports;
+        setOutbreakReports((currentReports) => {
+          mergedReports = mergeOutbreakReports(currentReports, backfillPage.reports);
+          return mergedReports;
+        });
+        let mergedFeatures;
         setOutbreaks((currentFeatures) => {
-          const mergedFeatures = mergeOutbreakFeatures(currentFeatures, backfillPage.validFeatures);
+          mergedFeatures = mergeOutbreakFeatures(currentFeatures, backfillPage.validFeatures);
           setFilteredOutbreaks(filterOutbreaksByDate(dateFilter, mergedFeatures, false));
           return mergedFeatures;
         });
+
+        if (mergedFeatures?.length) {
+          saveOutbreaks({ features: mergedFeatures, reports: mergedReports || [] }).catch(() => {});
+        }
 
         console.log('🦠 WHO OUTBREAKS BACKFILL LOADED:', {
           reports: backfillPage.reports.length,
@@ -3412,6 +3452,7 @@ export default function Home() {
           outbreakReports={outbreakReports}
           outbreakLoading={loading.outbreaks}
           outbreakBackfillLoading={loading.outbreaksBackfill}
+          onOutbreakLayerEnable={fetchOutbreakData}
           allDisasters={disasters}
           gdacsDiagnostics={gdacsDiagnostics ? {
             ...gdacsDiagnostics,

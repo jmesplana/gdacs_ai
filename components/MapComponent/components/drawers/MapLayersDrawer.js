@@ -76,7 +76,7 @@ const MapLayersDrawer = ({
   const activeShowRoads = showRoads !== undefined ? showRoads : (settings?.showRoads || false);
   const activeShowDisasterIcons = showDisasterIcons !== undefined ? showDisasterIcons : (settings?.showDisasterIcons ?? true);
   const activeShowAcledLayer = showAcledLayer !== undefined ? showAcledLayer : (settings?.showAcledLayer ?? true);
-  const activeShowOutbreakLayer = showOutbreakLayer !== undefined ? showOutbreakLayer : (settings?.showOutbreakLayer ?? true);
+  const activeShowOutbreakLayer = showOutbreakLayer !== undefined ? showOutbreakLayer : (settings?.showOutbreakLayer ?? false);
   const activeShowFacilitiesLayer = showFacilitiesLayer !== undefined ? showFacilitiesLayer : (settings?.showFacilitiesLayer ?? true);
   const activeShowFloodContextLayer = showFloodContextLayer !== undefined ? showFloodContextLayer : (settings?.showFloodContextLayer || false);
   const activeShowDroughtContextLayer = showDroughtContextLayer !== undefined ? showDroughtContextLayer : (settings?.showDroughtContextLayer || false);
@@ -407,7 +407,7 @@ const MapLayersDrawer = ({
               onChange={(event) => handleOverlayToggle('showOutbreakLayer', event.target.checked, setShowOutbreakLayer)}
               style={{marginRight: '10px'}}
             />
-            <span>WHO Outbreaks</span>
+            <span>WHO Outbreaks <span style={{ fontSize: '11px', color: '#888' }}>(loads on enable)</span></span>
           </label>
           <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', borderRadius: '4px', backgroundColor: activeShowFacilitiesLayer ? '#dcfce7' : 'transparent'}}>
             <input

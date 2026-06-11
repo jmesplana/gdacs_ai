@@ -26,7 +26,7 @@ export const useMapControls = () => {
   const [showClustering, setShowClustering] = useState(true);
   const [showFacilitiesLayer, setShowFacilitiesLayer] = useState(true);
   const [showAcledLayer, setShowAcledLayer] = useState(true);
-  const [showOutbreakLayer, setShowOutbreakLayer] = useState(true);
+  const [showOutbreakLayer, setShowOutbreakLayer] = useState(false);
   const [showFloodContextLayer, setShowFloodContextLayer] = useState(false);
   const [showDroughtContextLayer, setShowDroughtContextLayer] = useState(false);
   const [showAccessibilityContextLayer, setShowAccessibilityContextLayer] = useState(false);

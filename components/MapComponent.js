@@ -1039,6 +1039,7 @@ const MapComponent = ({
   outbreakReports = [],
   outbreakLoading = false,
   outbreakBackfillLoading = false,
+  onOutbreakLayerEnable,
   acledEnabled = true,
   acledConfig = {},
   onAcledUpload,
@@ -1208,6 +1209,14 @@ const MapComponent = ({
     toggleAnalysisDrawer,
     closeAllOverlays
   } = useMapControls();
+
+  const outbreakLoadFiredRef = useRef(false);
+  useEffect(() => {
+    if (showOutbreakLayer && !outbreakLoadFiredRef.current && onOutbreakLayerEnable) {
+      outbreakLoadFiredRef.current = true;
+      onOutbreakLayerEnable();
+    }
+  }, [showOutbreakLayer, onOutbreakLayerEnable]);
 
   const {
     selectedFacility,
