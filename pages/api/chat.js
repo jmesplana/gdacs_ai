@@ -1863,10 +1863,15 @@ function buildContextSummary(context) {
   if (context.outbreaks && context.outbreaks.length > 0) {
     const diseases = [...new Set(context.outbreaks.map((item) => item.disease).filter(Boolean))];
     const countries = [...new Set(context.outbreaks.map((item) => item.country).filter(Boolean))];
-    summary.push(`\nWHO DISEASE OUTBREAK NEWS (${context.outbreaks.length} mapped outbreak locations in current filter):`);
+    const outbreakRecency = (item = {}) => {
+      const ts = new Date(item.reportDate || item.filterDate || item.updatedDate || 0).getTime();
+      return Number.isFinite(ts) ? ts : 0;
+    };
+    const sortedOutbreaks = context.outbreaks.slice().sort((a, b) => outbreakRecency(b) - outbreakRecency(a));
+    summary.push(`\nWHO DISEASE OUTBREAK NEWS (${context.outbreaks.length} mapped outbreak locations in current filter, sorted newest first):`);
     if (diseases.length > 0) summary.push(`- Diseases: ${diseases.slice(0, 12).join(', ')}`);
     if (countries.length > 0) summary.push(`- Countries: ${countries.slice(0, 16).join(', ')}`);
-    context.outbreaks.slice(0, 10).forEach((outbreak) => {
+    sortedOutbreaks.slice(0, 20).forEach((outbreak) => {
       const locationLabel = [
         outbreak.locationName && outbreak.locationName !== outbreak.country ? outbreak.locationName : null,
         outbreak.admin1,

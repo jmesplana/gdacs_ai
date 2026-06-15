@@ -669,13 +669,16 @@ export default function Home() {
     [filteredAcledData, selectedAnalysisDistricts]
   );
   const canUseDistrictDecisionTools = districts.length > 0 && selectedAnalysisDistricts.length > 0;
-  const canOpenSitrep = facilities.length > 0 && (
+  const hasSitrepContext = (
     impactedFacilities.length > 0 ||
     filteredDisasters.length > 0 ||
     disasters.length > 0 ||
     filteredOutbreaks.length > 0 ||
     outbreaks.length > 0 ||
     districts.length > 0
+  );
+  const canOpenSitrep = hasSitrepContext && (
+    facilities.length > 0 || selectedAnalysisDistricts.length > 0
   );
 
   // Toast notifications
@@ -3626,6 +3629,7 @@ export default function Home() {
                   onGenerateSitrep={openSitrepModal}
                   impactedFacilities={impactedFacilities}
                   facilities={facilities}
+                  selectedAnalysisDistrictCount={selectedAnalysisDistricts.length}
                 />
               </div>
             </div>

@@ -22,6 +22,18 @@ function formatDate(value) {
   });
 }
 
+function formatShortDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function outbreakSortDate(outbreak = {}) {
+  const ts = new Date(outbreak.reportDate || outbreak.filterDate || outbreak.updatedDate || 0).getTime();
+  return Number.isFinite(ts) ? ts : 0;
+}
+
 function formatMetric(value) {
   if (value === null || value === undefined || value === '') return 'Unknown';
   return Number.isFinite(Number(value)) ? Number(value).toLocaleString() : String(value);
@@ -101,11 +113,18 @@ const OutbreakMarkers = ({ outbreaks = [], showClusterCounts = true, showCluster
           chunkedLoading: false,
           spiderfyOnMaxZoom: true,
           showCoverageOnHover: true,
-          zoomToBoundsOnClick: true,
+          zoomToBoundsOnClick: false,
           maxClusterRadius: showClusterCounts ? 45 : 20,
           iconCreateFunction: (cluster) => {
             const count = cluster.getChildCount();
-            const dimension = count < 10 ? 34 : count < 50 ? 42 : 50;
+            const dimension = count < 10 ? 38 : count < 50 ? 46 : 54;
+            const children = cluster.getAllChildMarkers();
+            const latest = children.reduce((max, marker) => {
+              const ts = outbreakSortDate(marker.options.outbreakData || {});
+              return ts > max ? ts : max;
+            }, 0);
+            const latestLabel = showClusterCounts && latest ? formatShortDate(latest) : '';
+            const countFontSize = count < 10 ? 13 : 15;
             return L.divIcon({
               className: 'who-outbreak-cluster',
               iconSize: L.point(dimension, dimension),
@@ -119,16 +138,86 @@ const OutbreakMarkers = ({ outbreaks = [], showClusterCounts = true, showCluster
                   box-shadow: 0 3px 9px rgba(15, 23, 42, 0.35);
                   color: white;
                   display: flex;
+                  flex-direction: column;
                   align-items: center;
                   justify-content: center;
-                  font-size: ${count < 10 ? 13 : 15}px;
+                  line-height: 1;
                   font-weight: 800;
-                ">${showClusterCounts ? count : ''}</div>
+                ">
+                  <div style="font-size: ${countFontSize}px;">${showClusterCounts ? count : ''}</div>
+                  ${latestLabel ? `<div style="font-size: 9px; font-weight: 700; opacity: 0.95; margin-top: 2px; letter-spacing: 0.02em;">${escapeHtml(latestLabel)}</div>` : ''}
+                </div>
               `
             });
           }
         })
       : L.layerGroup();
+
+    if (showClustering) {
+      layer.on('clusterclick', (event) => {
+        const cluster = event.layer;
+        const children = cluster.getAllChildMarkers();
+        const sorted = children
+          .map((marker) => marker.options.outbreakData)
+          .filter(Boolean)
+          .sort((a, b) => outbreakSortDate(b) - outbreakSortDate(a));
+
+        if (sorted.length === 0) {
+          cluster.zoomToBounds();
+          return;
+        }
+
+        const rows = sorted.map((o) => {
+          const dateLabel = formatDate(o.reportDate);
+          const location = [
+            o.locationName && o.locationName !== o.country ? o.locationName : null,
+            o.admin1,
+            o.country
+          ].filter(Boolean).join(', ') || o.country || 'Unknown';
+          const href = escapeHtml(o.sourceUrl || 'https://www.who.int/emergencies/disease-outbreak-news');
+          return `
+            <li style="padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+              <div style="font-size: 10px; font-weight: 700; color: #be185d; letter-spacing: 0.04em; text-transform: uppercase;">
+                ${escapeHtml(dateLabel)}
+              </div>
+              <a href="${href}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 2px; color: #111827; text-decoration: none; font-size: 12px; font-weight: 600; line-height: 1.3;">
+                ${escapeHtml(o.title || 'WHO outbreak report')}
+              </a>
+              <div style="font-size: 11px; color: #475569; margin-top: 2px;">${escapeHtml(location)}</div>
+            </li>
+          `;
+        }).join('');
+
+        const popupHtml = `
+          <div style="max-width: 320px;">
+            <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.04em; color: #be185d; text-transform: uppercase; margin-bottom: 6px;">
+              ${sorted.length} WHO reports · newest first
+            </div>
+            <ul style="margin: 0; padding: 0; list-style: none; max-height: 260px; overflow-y: auto;">
+              ${rows}
+            </ul>
+            <button type="button" data-outbreak-zoom="1" style="margin-top: 10px; background: none; border: 1px solid #be185d; color: #be185d; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer;">
+              Zoom to cluster
+            </button>
+          </div>
+        `;
+
+        const popup = L.popup({ maxWidth: 340 })
+          .setLatLng(cluster.getLatLng())
+          .setContent(popupHtml)
+          .openOn(map);
+
+        setTimeout(() => {
+          const node = popup.getElement()?.querySelector('[data-outbreak-zoom="1"]');
+          if (node) {
+            node.addEventListener('click', () => {
+              map.closePopup(popup);
+              cluster.zoomToBounds();
+            });
+          }
+        }, 0);
+      });
+    }
 
     const icon = buildOutbreakIcon();
 
@@ -151,7 +240,8 @@ const OutbreakMarkers = ({ outbreaks = [], showClusterCounts = true, showCluster
 
       const marker = L.marker([lat, lng], {
         icon,
-        zIndexOffset: -850
+        zIndexOffset: -850,
+        outbreakData: outbreak
       });
 
       marker.bindPopup(`

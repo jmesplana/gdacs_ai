@@ -12,11 +12,14 @@ const SitrepDrawer = ({
   disasters,
   facilities,
   impactedFacilities = [],
+  selectedAnalysisDistrictCount = 0,
   embedded = false
 }) => {
   const { addToast } = useToast();
   const [progressMsg, setProgressMsg] = useState('');
-  const canGenerateSitrep = (facilities?.length || 0) > 0 || impactedFacilities.length > 0;
+  const hasFacilities = (facilities?.length || 0) > 0 || impactedFacilities.length > 0;
+  const hasAnalysisArea = selectedAnalysisDistrictCount > 0;
+  const canGenerateSitrep = hasFacilities || hasAnalysisArea;
   useEffect(() => {
     if (!sitrepLoading) { setProgressMsg(''); return; }
     const msgs = [
@@ -353,7 +356,7 @@ const SitrepDrawer = ({
 
             {!canGenerateSitrep && (
               <div style={{ fontSize: '12px', color: '#64748b' }}>
-                Upload sites before generating a situation report.
+                Select an admin area or upload sites before generating a situation report.
               </div>
             )}
           </div>
