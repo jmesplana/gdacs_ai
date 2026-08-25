@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
 
 const CHAT_DRAWER_WIDTH = 420;
 const CHAT_DRAWER_EXPANDED_WIDTH = 1040;
@@ -269,6 +268,8 @@ async function parseChatAttachment(file) {
     rows = normalizeTabularRows(parsed.data);
     fileType = 'csv';
   } else if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+    // Lazy-load xlsx (~400KB) only when an Excel attachment is parsed.
+    const XLSX = await import('xlsx');
     const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
     const firstSheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[firstSheetName];

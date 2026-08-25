@@ -112,3 +112,6 @@ scripts/create-poster.sh
 public/videos/aidstack-demo.mp4
 public/videos/aidstack-demo-poster.jpg
 public/videos/README.md
+
+# Archived/orphaned code (kept locally, not tracked)
+/archive/

@@ -3516,6 +3516,7 @@ const MapComponent = ({
         ref={mapRef}
         center={DEFAULT_MAP_CENTER}
         zoom={DEFAULT_MAP_ZOOM}
+        preferCanvas={true}
         style={{
           height: isFullscreen ? '100vh' : '100%',
           width: '100%',

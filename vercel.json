@@ -8,6 +8,15 @@
     "pages/api/worldpop-stats.js": {
       "maxDuration": 120,
       "memory": 1024
+    },
+    "pages/api/sitrep.js": {
+      "maxDuration": 60
+    },
+    "pages/api/operational-outlook.js": {
+      "maxDuration": 60
+    },
+    "pages/api/logistics-assessment.js": {
+      "maxDuration": 60
     }
   }
 }

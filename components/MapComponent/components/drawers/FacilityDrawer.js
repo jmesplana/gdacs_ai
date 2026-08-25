@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
 import ShapefileUploader from '../../../ShapefileUploader';
 import CollapsibleSection from './CollapsibleSection';
 import AdminStyleControls from './AdminStyleControls';
@@ -60,6 +59,16 @@ const FacilityDrawer = ({
   const [sortBy, setSortBy] = useState('name'); // 'name', 'distance'
   const [dataHubTab, setDataHubTab] = useState(activeSection === 'boundaries' ? 'boundaries' : 'sites');
 
+  // Index impacted facilities by identity key once, so membership/lookup is O(1)
+  // instead of an O(n) .some()/.find() scan per facility on every filter/sort/render.
+  const impactedByKey = useMemo(() => {
+    const map = new Map();
+    impactedFacilities.forEach(imp => {
+      map.set(getFacilityIdentityKey(imp.facility), imp);
+    });
+    return map;
+  }, [impactedFacilities]);
+
   // Filter and sort facilities
   const filteredAndSortedFacilities = useMemo(() => {
     if (facilities.length === 0) return [];
@@ -81,13 +90,9 @@ const FacilityDrawer = ({
 
     // Apply status filter
     if (statusFilter === 'impacted') {
-      result = result.filter(facility =>
-        impactedFacilities.some(imp => getFacilityIdentityKey(imp.facility) === getFacilityIdentityKey(facility))
-      );
+      result = result.filter(facility => impactedByKey.has(getFacilityIdentityKey(facility)));
     } else if (statusFilter === 'safe') {
-      result = result.filter(facility =>
-        !impactedFacilities.some(imp => getFacilityIdentityKey(imp.facility) === getFacilityIdentityKey(facility))
-      );
+      result = result.filter(facility => !impactedByKey.has(getFacilityIdentityKey(facility)));
     }
 
     // Apply sorting
@@ -96,8 +101,8 @@ const FacilityDrawer = ({
     } else if (sortBy === 'distance') {
       // Sort by whether impacted (impacted first)
       result.sort((a, b) => {
-        const aImpacted = impactedFacilities.some(imp => getFacilityIdentityKey(imp.facility) === getFacilityIdentityKey(a));
-        const bImpacted = impactedFacilities.some(imp => getFacilityIdentityKey(imp.facility) === getFacilityIdentityKey(b));
+        const aImpacted = impactedByKey.has(getFacilityIdentityKey(a));
+        const bImpacted = impactedByKey.has(getFacilityIdentityKey(b));
         if (aImpacted && !bImpacted) return -1;
         if (!aImpacted && bImpacted) return 1;
         return (a.name || '').localeCompare(b.name || '');
@@ -105,7 +110,7 @@ const FacilityDrawer = ({
     }
 
     return result;
-  }, [facilities, searchQuery, statusFilter, sortBy, impactedFacilities]);
+  }, [facilities, searchQuery, statusFilter, sortBy, impactedByKey]);
 
   const handleFileUploadClick = () => {
     // Create a file input element
@@ -136,8 +141,10 @@ const FacilityDrawer = ({
     a.click();
   };
 
-  const downloadExcelSample = (e) => {
+  const downloadExcelSample = async (e) => {
     e.preventDefault();
+    // Lazy-load xlsx (~400KB) only when exporting the Excel sample.
+    const XLSX = await import('xlsx');
     // Create a workbook with sample data
     const wb = XLSX.utils.book_new();
     const wsData = [
@@ -724,7 +731,7 @@ const FacilityDrawer = ({
                 </div>
               ) : (
                 filteredAndSortedFacilities.map((facility, index) => {
-                  const impactedInfo = impactedFacilities.find(imp => getFacilityIdentityKey(imp.facility) === getFacilityIdentityKey(facility));
+                  const impactedInfo = impactedByKey.get(getFacilityIdentityKey(facility));
                   const isImpacted = !!impactedInfo;
 
                   return (

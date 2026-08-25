@@ -326,10 +326,13 @@ function normalizeHazardLabel(value = '') {
  * Web search function using DuckDuckGo (same as chat.js)
  */
 async function performWebSearch(query) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7000);
   try {
     const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
 
     const response = await fetch(searchUrl, {
+      signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
@@ -371,8 +374,14 @@ async function performWebSearch(query) {
     ).join('\n\n');
 
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.warn('Web search timed out after 7s');
+      return 'Web search unavailable: request timed out.';
+    }
     console.error('Web search error:', error);
     return `Web search unavailable: ${error.message}`;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

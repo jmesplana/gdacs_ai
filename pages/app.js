@@ -1015,6 +1015,28 @@ export default function Home() {
     hydrateOutbreaksFromCache();
   }, []);
 
+  // On a live-fetch failure, fall back to the last cached GDACS feed instead of
+  // blanking the map. Returns true if cached data was applied.
+  const fallbackToCachedGdacs = async (reason) => {
+    try {
+      const cached = await loadGdacs();
+      if (cached && Array.isArray(cached.disasters) && cached.disasters.length > 0) {
+        setDisasters(cached.disasters);
+        setFilteredDisasters(filterDisastersByDate(dateFilter, cached.disasters, false));
+        setDataSource(`Cached GDACS data (${cached.disasters.length} events — live feed unavailable)`);
+        setFetchError(`${reason} Showing the last cached disaster data.`);
+        return true;
+      }
+    } catch (cacheError) {
+      console.warn('GDACS cache fallback failed:', cacheError);
+    }
+    setDisasters([]);
+    setFilteredDisasters([]);
+    setDataSource('GDACS data unavailable');
+    setFetchError(`${reason} No cached disaster data is available.`);
+    return false;
+  };
+
   // Fetch GDACS disaster data
   const fetchDisasterData = async () => {
     try {
@@ -1023,20 +1045,15 @@ export default function Home() {
 
       const response = await fetch('/api/gdacs');
       if (!response.ok) {
-        console.warn(`GDACS API unavailable (status ${response.status}). Continuing without disaster data.`);
-        setDisasters([]);
-        setFilteredDisasters([]);
-        setDataSource('GDACS temporarily unavailable');
-        setFetchError('GDACS servers are temporarily unavailable. App functionality continues without disaster data.');
+        console.warn(`GDACS API unavailable (status ${response.status}). Falling back to cached disaster data.`);
+        await fallbackToCachedGdacs('GDACS servers are temporarily unavailable.');
         return;
       }
 
       const data = await parseApiResponse(response, 'GDACS API');
       if (!data || !Array.isArray(data)) {
-        console.warn('Invalid GDACS data format. Continuing without disaster data.');
-        setDisasters([]);
-        setFilteredDisasters([]);
-        setDataSource('GDACS data unavailable');
+        console.warn('Invalid GDACS data format. Falling back to cached disaster data.');
+        await fallbackToCachedGdacs('GDACS returned invalid data.');
         return;
       }
 
@@ -1078,8 +1095,7 @@ export default function Home() {
 
     } catch (error) {
       console.error('Error fetching disaster data:', error);
-      setFetchError(error.message);
-      setDataSource('GDACS data unavailable');
+      await fallbackToCachedGdacs('Could not reach the GDACS feed.');
     } finally {
       setLoading(prev => ({ ...prev, disasters: false }));
     }
@@ -2778,7 +2794,7 @@ export default function Home() {
             alignItems: 'center', justifyContent: 'space-between',
             fontFamily: "'Inter', sans-serif", fontSize: '13px', color: '#92400E',
           }}>
-            <span>⚠️ Live GDACS data unavailable — disaster map may be empty. Check your connection or try refreshing.</span>
+            <span>⚠️ {fetchError} Check your connection or try refreshing.</span>
             <button
               onClick={handleRefreshData}
               style={{

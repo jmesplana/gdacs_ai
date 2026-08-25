@@ -668,17 +668,26 @@ async function fetchBreakingDevelopments(locationContext) {
   }
 
   const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-  const response = await fetch(searchUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7000);
+  let html;
+  try {
+    const response = await fetch(searchUrl, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
 
-  if (!response.ok) {
-    throw new Error(`Search failed: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`);
+    }
+
+    html = await response.text();
+  } finally {
+    clearTimeout(timeout);
   }
 
-  const html = await response.text();
   const results = parseDuckDuckGoResults(html)
     .filter(result => isCredibleNewsUrl(result.url))
     .slice(0, 5);

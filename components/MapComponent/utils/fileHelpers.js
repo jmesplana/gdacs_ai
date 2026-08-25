@@ -1,5 +1,3 @@
-import * as XLSX from 'xlsx';
-
 /**
  * Process uploaded Excel/CSV file
  * @param {File} file - The uploaded file
@@ -9,8 +7,10 @@ export const processUploadedFile = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
+        // Lazy-load xlsx (~400KB) only when a file is actually parsed.
+        const XLSX = await import('xlsx');
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
 

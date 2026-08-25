@@ -183,19 +183,12 @@ async function handler(req, res) {
     console.log('Fetching WHO outbreaks since:', filterDate);
     console.log('Query URL:', sortedUrl);
 
-    let response = await fetch(sortedUrl, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; Aidstack/1.0)',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
-      },
-      cache: 'no-store'
-    });
-
-    if (!response.ok) {
-      console.warn(`WHO DONS filtered query returned ${response.status}; retrying sorted feed.`);
-      response = await fetch(fallbackUrl, {
+    const whoController = new AbortController();
+    const whoTimeout = setTimeout(() => whoController.abort(), 8000);
+    let data;
+    try {
+      let response = await fetch(sortedUrl, {
+        signal: whoController.signal,
         headers: {
           Accept: 'application/json',
           'User-Agent': 'Mozilla/5.0 (compatible; Aidstack/1.0)',
@@ -204,13 +197,29 @@ async function handler(req, res) {
         },
         cache: 'no-store'
       });
-    }
 
-    if (!response.ok) {
-      throw new Error(`WHO DONS API returned ${response.status}`);
-    }
+      if (!response.ok) {
+        console.warn(`WHO DONS filtered query returned ${response.status}; retrying sorted feed.`);
+        response = await fetch(fallbackUrl, {
+          signal: whoController.signal,
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'Mozilla/5.0 (compatible; Aidstack/1.0)',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          },
+          cache: 'no-store'
+        });
+      }
 
-    const data = await response.json();
+      if (!response.ok) {
+        throw new Error(`WHO DONS API returned ${response.status}`);
+      }
+
+      data = await response.json();
+    } finally {
+      clearTimeout(whoTimeout);
+    }
 
     // Debug: Log the most recent items from WHO API
     if (Array.isArray(data.value) && data.value.length > 0) {
