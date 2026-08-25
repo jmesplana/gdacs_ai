@@ -56,6 +56,10 @@ const StorageStatusPanel = dynamic(() => import('../components/StorageStatusPane
   ssr: false,
 });
 
+const DataFreshnessBar = dynamic(() => import('../components/DataFreshnessBar'), {
+  ssr: false,
+});
+
 const TrendAnalysisDashboard = dynamic(() => import('../components/TrendAnalysisDashboard'), {
   ssr: false,
 });
@@ -851,13 +855,16 @@ export default function Home() {
       }
     };
 
+    // Restore the user's saved workspace shortly after first paint. This is the
+    // data the user is actually waiting for, so keep the pre-delay small — just
+    // enough to let the initial frame render — rather than a full second.
     const cancelRestore = scheduleCacheRestore(() => {
       if (!shouldSkipCacheRestore()) {
         restoreWorkspace();
       } else {
         workspaceRestoredRef.current = true;
       }
-    }, 1000);
+    }, 250);
 
     return () => {
       mounted = false;
@@ -945,26 +952,52 @@ export default function Home() {
     
     // Then update every minute
     const interval = setInterval(updateTimeSince, 60000);
-    
+
     return () => clearInterval(interval);
   }, [lastUpdated]);
+
+  // Per-layer freshness state for the DataFreshnessBar. Each layer reports an
+  // honest state (live / cached / loading / unavailable / off) so field users
+  // can see at a glance whether the data behind a decision is fresh or stale.
+  const dataLayers = useMemo(() => {
+    const updatedTs = lastUpdated ? lastUpdated.getTime() : null;
+
+    // GDACS: infer state from the human-readable dataSource string the fetch sets.
+    let gdacsState = 'off';
+    if (loading.disasters) {
+      gdacsState = 'loading';
+    } else if (/cached/i.test(dataSource)) {
+      gdacsState = 'cached';
+    } else if (/unavailable/i.test(dataSource)) {
+      gdacsState = 'unavailable';
+    } else if (disasters.length > 0) {
+      gdacsState = 'live';
+    }
+
+    let outbreaksState = 'off';
+    if (loading.outbreaks) outbreaksState = 'loading';
+    else if (outbreaks.length > 0) outbreaksState = 'live';
+
+    let acledState = 'off';
+    if (acledEnabled && acledData.length > 0) acledState = 'live';
+
+    let districtsState = 'off';
+    if (districts.length > 0) districtsState = 'live';
+
+    return [
+      { name: 'Disasters', state: gdacsState, count: disasters.length, timestamp: updatedTs },
+      { name: 'Outbreaks', state: outbreaksState, count: outbreaks.length },
+      { name: 'ACLED', state: acledState, count: acledData.length, detail: acledEnabled ? undefined : 'disabled in analysis' },
+      { name: 'Districts', state: districtsState, count: districts.length },
+    ];
+  }, [loading.disasters, loading.outbreaks, dataSource, disasters.length, outbreaks.length, acledEnabled, acledData.length, districts.length, lastUpdated]);
 
   // Filter disasters when disaster data or date filter changes
   useEffect(() => {
     if (workspaceHydratingRef.current) return;
 
-    console.log('🔄 DATE FILTER CHANGED:', dateFilter);
-    console.log('📊 Total outbreaks before filtering:', outbreaks.length);
-
     const nextFilteredDisasters = filterDisastersByDate(dateFilter);
     filterOutbreaksByDate(dateFilter);
-
-    // Debug logging for disaster data
-    console.log('Disasters data state:', {
-      totalDisasters: disasters.length,
-      disastersWithCoordinates: disasters.filter(d => d.latitude && d.longitude).length,
-      dateFilter: dateFilter
-    });
 
     // Re-assess impact when filter changes if facilities are available
     if (facilities.length > 0) {
@@ -973,11 +1006,9 @@ export default function Home() {
           ...skipNextAutoImpactAssessmentRef.current,
           disasters: false
         };
-        console.log('Skipping initial auto impact assessment after workspace restore');
         return;
       }
 
-      console.log('Auto-refreshing impact assessment due to filter change');
       assessImpact(facilities, { disastersOverride: nextFilteredDisasters });
     }
   }, [disasters, outbreaks, dateFilter]);
@@ -1326,14 +1357,6 @@ export default function Home() {
       if (!disasterDate) return false;
       return disasterDate >= cutoffDate;
     });
-    
-    console.log(`Filtered disasters from ${sourceDisasters.length} to ${filtered.length}`);
-    console.log('First few filtered disasters:', filtered.slice(0, 3).map(d => ({
-      title: d.title,
-      lat: d.latitude,
-      lng: d.longitude,
-      date: getDisasterTimelineDate(d)?.toISOString() || null
-    })));
 
     if (updateState) {
       setFilteredDisasters(filtered);
@@ -2978,6 +3001,7 @@ export default function Home() {
                   </span>
                 </div>
               </div>
+              <DataFreshnessBar layers={dataLayers} />
               {lastUpdated && (
                 <span style={{
                   display: 'inline-flex',

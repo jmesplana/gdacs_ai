@@ -366,7 +366,11 @@ export default function AdminBoundariesLayer({
 
   return (
     <GeoJSON
-      key={`districts-${districts.length}-${visibleDisasters.length}-${visibleAcledEvents.length}-${highlightedDistrictKey}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-labelzoom-${labelMinZoom}-borders-${showDistrictBorders}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.scopeSelectedOnly ? 'scoped' : 'all'}-${datasetStyle?.legendKey || ''}-drawing-${isDrawingMode}`}
+      // NOTE: disaster/ACLED counts are intentionally NOT in this key. Risk-fill
+      // updates flow through the `data` prop (featureCollection is memoized on
+      // districtRisks, which already tracks those counts), so remounting the whole
+      // layer on every count tick just re-parses all polygons for no visual gain.
+      key={`districts-${districts.length}-${highlightedDistrictKey}-selected-${selectedAnalysisDistricts.map(district => district.id).join('_')}-labels-${allowDistrictLabels}-labelzoom-${labelMinZoom}-borders-${showDistrictBorders}-fill-${datasetStyle?.mode || ADMIN_FILL_MODES.RISK}-${datasetStyle?.metricField || 'none'}-${datasetStyle?.scopeSelectedOnly ? 'scoped' : 'all'}-${datasetStyle?.legendKey || ''}-drawing-${isDrawingMode}`}
       data={featureCollection}
       pane="overlayPane"
       interactive={!isDrawingMode}

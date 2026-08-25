@@ -63,14 +63,6 @@ const MapLayersDrawer = ({
   onToggleOSMLayerVisibility,
   onClearOSMCategory
 }) => {
-  console.log('🗺️ MapLayersDrawer render:', {
-    isOpen,
-    embedded,
-    hasDistricts: !!districts?.length,
-    districtsCount: districts?.length,
-    osmLoading,
-    hasOnLoadOSM: !!onLoadOSM
-  });
   // Use either direct props or settings object
   const activeMapLayer = currentMapLayer || settings?.currentMapLayer || 'street';
   const activeShowRoads = showRoads !== undefined ? showRoads : (settings?.showRoads || false);

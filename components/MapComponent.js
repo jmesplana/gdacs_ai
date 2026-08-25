@@ -291,6 +291,23 @@ function simplifyRing(ring = [], maxPoints = 250) {
   return simplified;
 }
 
+// Cache simplified display geometry keyed by the source geometry object, so the
+// expensive coordinate decimation runs once per district for the lifetime of the
+// loaded data instead of on every re-render of the displayDistricts memo. The
+// source geometry reference is stable across renders (it comes from the stored
+// districts array), so this turns O(districts) simplification per render into
+// O(new-or-changed districts).
+const displayGeometryCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+
+function simplifyGeometryCached(geometry = null) {
+  if (!geometry || !displayGeometryCache) return simplifyGeometry(geometry);
+  const cached = displayGeometryCache.get(geometry);
+  if (cached !== undefined) return cached;
+  const simplified = simplifyGeometry(geometry);
+  displayGeometryCache.set(geometry, simplified);
+  return simplified;
+}
+
 function simplifyGeometry(geometry = null) {
   if (!geometry?.type || !geometry?.coordinates) return geometry;
 
@@ -2904,7 +2921,7 @@ const MapComponent = ({
     return deferredDistricts.map(district => ({
       ...district,
       displayGeometry: shouldSimplifyForDisplay
-        ? simplifyGeometry(district.geometry || null)
+        ? simplifyGeometryCached(district.geometry || null)
         : district.geometry
     }));
   }, [deferredDistricts]);

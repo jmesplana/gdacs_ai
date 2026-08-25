@@ -7,6 +7,10 @@ const GDACS_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (compatible; GDACSFacilitiesApp/1.0)',
 };
 const GDACS_PRIMARY_TIMEOUT_MS = 8000;
+// The JSON API only adds enrichment (geometry URLs for tracks/shakemaps). It is
+// not the primary map source, so give it a tight timeout — when it's slow or
+// down, we must not hold the whole response hostage waiting for it.
+const GDACS_ENRICHMENT_TIMEOUT_MS = 3000;
 const GDACS_FALLBACK_TIMEOUT_MS = 5000;
 const GDACS_CACHE_TTL_MS = 15 * 60 * 1000;
 const GDACS_STALE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -244,6 +248,14 @@ function parsePrimaryFeedItems(xmlData, sourceLabel) {
 }
 
 export default async function handler(req, res) {
+  // Let the CDN/browser serve the last response instantly while a fresh copy is
+  // fetched in the background, so users almost never wait on GDACS's own
+  // (often multi-second) upstream latency. 15m fresh, 1h stale-while-revalidate.
+  res.setHeader(
+    'Cache-Control',
+    'public, s-maxage=900, stale-while-revalidate=3600'
+  );
+
   try {
     const cacheAge = Date.now() - gdacsMemoryCache.timestamp;
     if (gdacsMemoryCache.data && cacheAge < GDACS_CACHE_TTL_MS) {
@@ -264,7 +276,7 @@ export default async function handler(req, res) {
           'Accept': 'application/json',
           ...GDACS_HEADERS,
         },
-        timeout: GDACS_PRIMARY_TIMEOUT_MS
+        timeout: GDACS_ENRICHMENT_TIMEOUT_MS
       })
     ]);
 
@@ -501,6 +513,8 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Don't let the CDN cache an error response.
+    res.setHeader('Cache-Control', 'no-store');
     // Return error status
     res.status(500).json({
       error: "Failed to fetch GDACS data",

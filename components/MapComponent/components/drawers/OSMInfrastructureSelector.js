@@ -291,16 +291,6 @@ export default function OSMInfrastructureSelector({
     ? INFRASTRUCTURE_CATEGORIES.find(category => category.id === loadProgress.categoryId)?.name || loadProgress.categoryId
     : null;
 
-  // Debug logging
-  console.log('🔍 OSMInfrastructureSelector render:', {
-    osmLoading,
-    hasOsmData: !!osmData,
-    osmDataFeatures: osmData?.features?.length,
-    osmStats,
-    selectedDistricts: selectedDistricts.length,
-    selectedCategories: selectedCategories.length
-  });
-
   return (
     <div style={{ padding: '0' }}>
       <h4 style={{ marginTop: 0, marginBottom: '16px', fontSize: '14px', color: '#333' }}>

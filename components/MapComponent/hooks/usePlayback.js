@@ -22,10 +22,6 @@ const usePlayback = (disasters = [], acledData = [], outbreaks = []) => {
 
     const allDates = [];
 
-    console.log('Playback: Processing disasters:', disasterCount);
-    console.log('Playback: Processing ACLED:', acledCount);
-    console.log('Playback: Processing outbreaks:', outbreakCount);
-
     // Initial app load often mounts playback before async data arrives.
     // Treat that as a neutral empty state rather than a warning condition.
     if (disasterCount === 0 && acledCount === 0 && outbreakCount === 0) {
@@ -36,69 +32,38 @@ const usePlayback = (disasters = [], acledData = [], outbreaks = []) => {
       return;
     }
 
-    // Log first disaster to see what fields are available
-    if (disasters && disasters.length > 0) {
-      console.log('Playback: First disaster object:', disasters[0]);
-      console.log('Playback: Available keys:', Object.keys(disasters[0]));
-    }
-
     // Get dates from disasters using the same date precedence as the top-level filter.
-    disasters?.forEach((disaster, idx) => {
+    disasters?.forEach((disaster) => {
       const date = getDisasterTimelineDate(disaster);
-
       if (date) {
         allDates.push(date);
-        if (idx === 0) console.log('Playback: Successfully parsed disaster timeline date:', date.toISOString());
-      } else if (idx === 0) {
-        console.log('Playback: No valid disaster timeline date found for first item');
       }
     });
 
     // Get dates from ACLED events
-    acledData?.forEach((event, idx) => {
-      let dateStr = null;
-
-      if (event.event_date) {
-        dateStr = event.event_date;
-      } else if (event.date) {
-        dateStr = event.date;
-      }
-
+    acledData?.forEach((event) => {
+      const dateStr = event.event_date || event.date || null;
       if (dateStr) {
         const date = new Date(dateStr);
         if (!isNaN(date.getTime())) {
           allDates.push(date);
-        } else {
-          if (idx === 0) console.log('Playback: Invalid ACLED date format:', dateStr);
         }
-      } else {
-        if (idx === 0) console.log('Playback: Sample ACLED object:', event);
       }
     });
 
-    outbreaks?.forEach((outbreak, idx) => {
+    outbreaks?.forEach((outbreak) => {
       const dateStr = outbreak.filterDate || outbreak.updatedDate || outbreak.reportDate || outbreak.date;
       if (dateStr) {
         const date = new Date(dateStr);
         if (!isNaN(date.getTime())) {
           allDates.push(date);
-        } else if (idx === 0) {
-          console.log('Playback: Invalid outbreak date format:', dateStr);
         }
       }
     });
 
-    console.log('Playback: Total valid dates found:', allDates.length);
-    console.log('Playback: Disaster dates found:', disasters?.filter(d => d.pubDate).length || 0);
-    console.log('Playback: ACLED dates found:', acledData?.filter(a => a.event_date).length || 0);
-
     if (allDates.length > 0) {
       const minDate = new Date(Math.min(...allDates));
       const maxDate = new Date(Math.max(...allDates));
-
-      console.log('Playback: Date range:', minDate.toISOString(), 'to', maxDate.toISOString());
-      console.log('Playback: Min date:', minDate.toLocaleDateString());
-      console.log('Playback: Max date:', maxDate.toLocaleDateString());
 
       setDateRange({
         minDate: minDate.toISOString().split('T')[0],
@@ -216,11 +181,6 @@ const usePlayback = (disasters = [], acledData = [], outbreaks = []) => {
       // Show events that occurred in the past up to windowDays ago
       return daysDiff >= 0 && daysDiff <= windowDays;
     }) || [];
-
-    // Log filtering results periodically
-    if (Math.random() < 0.1) { // Only log 10% of the time to avoid spam
-      console.log(`Playback filter: ${items?.length || 0} items → ${filtered.length} filtered (date: ${currentDate}, field: ${dateField})`);
-    }
 
     return filtered;
   }, [playbackEnabled, currentDate]);
