@@ -2740,9 +2740,15 @@ const MapComponent = ({
     () => calculateDistrictRisks(deferredDistricts, visibleDisasters, visibleAcledEvents),
     [deferredDistricts, visibleDisasters, visibleAcledEvents]
   );
+  const shouldBuildAdminMetrics = unifiedDrawerOpen ||
+    showChatDrawer ||
+    adminFillMode === ADMIN_FILL_MODES.DATASET ||
+    Boolean(chatMetricBubbleField);
   const adminNumericFields = useMemo(
-    () => buildAdminMetricCatalog(deferredFacilities, deferredDistricts),
-    [deferredFacilities, deferredDistricts]
+    () => shouldBuildAdminMetrics
+      ? buildAdminMetricCatalog(deferredFacilities, deferredDistricts)
+      : [],
+    [shouldBuildAdminMetrics, deferredFacilities, deferredDistricts]
   );
   const selectedAdminMetric = useMemo(
     () => adminNumericFields.find((item) => item.field === adminMetricField) || null,
@@ -2753,6 +2759,7 @@ const MapComponent = ({
     [adminNumericFields, chatMetricBubbleField]
   );
   const adminMetricValueSummaries = useMemo(() => {
+    if (!showChatDrawer) return [];
     if (!adminNumericFields.length || !deferredDistricts?.length) return [];
 
     return adminNumericFields.slice(0, 40).map((metric) => {
@@ -2781,7 +2788,7 @@ const MapComponent = ({
         truncated: values.length > 80
       };
     }).filter((summary) => summary.count > 0);
-  }, [adminNumericFields, deferredDistricts, deferredFacilities]);
+  }, [showChatDrawer, adminNumericFields, deferredDistricts, deferredFacilities]);
   useEffect(() => {
     if (adminFillMode !== ADMIN_FILL_MODES.DATASET) return;
     if (!adminNumericFields.length) return;
@@ -2910,8 +2917,8 @@ const MapComponent = ({
     [selectedAnalysisDistricts]
   );
   const adminAreaChatIndex = useMemo(
-    () => buildAdminAreaChatIndex(deferredDistricts),
-    [deferredDistricts]
+    () => showChatDrawer ? buildAdminAreaChatIndex(deferredDistricts) : [],
+    [showChatDrawer, deferredDistricts]
   );
   const allowDistrictLabels = showDistrictLabels;
   const adminLabelMinZoom = getAdminLabelMinZoom(deferredDistricts.length);

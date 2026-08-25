@@ -75,6 +75,10 @@ const matrixTone = {
 };
 
 const IMPACT_ASSESSMENT_REMOTE_PAYLOAD_LIMIT_BYTES = 3_500_000;
+const GDACS_CLIENT_CACHE_MS = 30_000;
+
+let gdacsClientRequestPromise = null;
+let gdacsClientRequestCache = null;
 
 function formatCompactCount(value) {
   if (value === null || value === undefined) return 'Unknown';
@@ -589,6 +593,7 @@ export default function Home() {
   const workspaceRestoredRef = useRef(false);
   const workspaceHydratingRef = useRef(false);
   const workspaceSaveTimeoutRef = useRef(null);
+  const skipNextWorkspaceSaveRef = useRef(false);
   const workspaceRestoreClearTimeoutRef = useRef(null);
   const skipNextAutoImpactAssessmentRef = useRef({ disasters: false, acled: false });
 
@@ -836,6 +841,7 @@ export default function Home() {
 
         workspaceHydratingRef.current = false;
         workspaceRestoredRef.current = true;
+        skipNextWorkspaceSaveRef.current = true;
         skipNextAutoImpactAssessmentRef.current = { disasters: true, acled: true };
         workspaceRestoreClearTimeoutRef.current = window.setTimeout(() => {
           workspaceRestoreClearTimeoutRef.current = null;
@@ -876,6 +882,10 @@ export default function Home() {
   useEffect(() => {
     if (!workspaceRestoredRef.current) return;
     if (workspaceHydratingRef.current) return;
+    if (skipNextWorkspaceSaveRef.current) {
+      skipNextWorkspaceSaveRef.current = false;
+      return;
+    }
 
     if (workspaceSaveTimeoutRef.current) {
       window.clearTimeout(workspaceSaveTimeoutRef.current);
@@ -1074,14 +1084,41 @@ export default function Home() {
       setLoading(prev => ({ ...prev, disasters: true }));
       setFetchError(null);
 
-      const response = await fetch('/api/gdacs');
-      if (!response.ok) {
-        console.warn(`GDACS API unavailable (status ${response.status}). Falling back to cached disaster data.`);
-        await fallbackToCachedGdacs('GDACS servers are temporarily unavailable.');
-        return;
+      const cacheAge = gdacsClientRequestCache
+        ? Date.now() - gdacsClientRequestCache.savedAt
+        : Number.POSITIVE_INFINITY;
+      let data;
+
+      if (gdacsClientRequestCache && cacheAge < GDACS_CLIENT_CACHE_MS) {
+        data = gdacsClientRequestCache.data;
+      } else {
+        if (!gdacsClientRequestPromise) {
+          gdacsClientRequestPromise = fetch('/api/gdacs', { cache: 'no-store' })
+            .then(async (response) => {
+              if (!response.ok) {
+                throw new Error(`GDACS API unavailable (status ${response.status})`);
+              }
+              const payload = await parseApiResponse(response, 'GDACS API');
+              gdacsClientRequestCache = {
+                data: payload,
+                savedAt: Date.now()
+              };
+              return payload;
+            })
+            .finally(() => {
+              gdacsClientRequestPromise = null;
+            });
+        }
+
+        try {
+          data = await gdacsClientRequestPromise;
+        } catch (requestError) {
+          console.warn(`${requestError.message}. Falling back to cached disaster data.`);
+          await fallbackToCachedGdacs('GDACS servers are temporarily unavailable.');
+          return;
+        }
       }
 
-      const data = await parseApiResponse(response, 'GDACS API');
       if (!data || !Array.isArray(data)) {
         console.warn('Invalid GDACS data format. Falling back to cached disaster data.');
         await fallbackToCachedGdacs('GDACS returned invalid data.');
