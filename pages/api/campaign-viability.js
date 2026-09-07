@@ -697,7 +697,7 @@ ${opConfig.digitalTools.map(t => `   - ${t}`).join('\n')}
 Be concrete and actionable. Use bullet points. Focus on practical field operations.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4-turbo-preview',
+    model: 'gpt-4o',
     messages: [
       {
         role: 'system',

@@ -166,7 +166,7 @@ Ensure your recommendations are:
 `;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini",
       messages: [
         {role: "system", content: "You are a disaster management expert providing structured recommendations in JSON format. Avoid using JSON symbols like {}, [], or quotes within your text content. Provide clean, readable text for humans."},
         {role: "user", content: prompt}
@@ -283,7 +283,7 @@ async function generateFallbackRecommendations(facility, impacts, hasImpacts, wo
   `;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-3.5-turbo",
+    model: "gpt-4o-mini",
     messages: [
       {role: "system", content: "You are a disaster management expert providing structured recommendations in JSON format."},
       {role: "user", content: prompt}

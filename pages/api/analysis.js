@@ -136,7 +136,7 @@ If Accessibility Context is enabled, use it as modeled travel-time evidence for 
 `;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini",
       messages: [
         {role: "system", content: "You are a disaster risk analysis expert providing structured analysis in JSON format. Avoid using JSON symbols like {}, [], or quotes within your text content. Provide clean, readable text for humans."},
         {role: "user", content: prompt}
@@ -211,7 +211,7 @@ async function generateFallbackAnalysis(facility, impacts, contextualAnalysis, l
     
     // Call OpenAI API
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini",
       messages: [
         {role: "system", content: "You are a disaster risk analysis expert providing structured analysis in JSON format."},
         {role: "user", content: prompt}

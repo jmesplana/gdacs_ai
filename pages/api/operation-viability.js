@@ -482,7 +482,7 @@ Provide detailed, actionable recommendations for this ${opConfig.name.toLowerCas
 Be concrete and actionable. Use bullet points. Focus on practical field operations following ${opConfig.assessmentMethod} guidance.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4-turbo-preview',
+    model: 'gpt-4o',
     messages: [
       {
         role: 'system',

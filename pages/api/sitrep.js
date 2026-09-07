@@ -735,7 +735,11 @@ async function gatherRecentExternalContext(scope, disasters = []) {
 
   if (!query) return null;
 
-  const response = await openai.responses.create({
+  // The web search runs before (and feeds) the main SitRep generation, so a slow
+  // search directly delays the report. Bound it: if it doesn't return in time,
+  // proceed without external context rather than stalling the whole SitRep.
+  const SEARCH_TIMEOUT_MS = 8000;
+  const searchPromise = openai.responses.create({
     model: process.env.OPENAI_WEB_SEARCH_MODEL || 'gpt-4.1-mini',
     tools: [{ type: 'web_search' }],
     input: `Find up-to-date, recent humanitarian context relevant to this operational scope only: ${query}.
@@ -746,6 +750,19 @@ Return a concise markdown summary with:
 - No generic global background
 - Include short source attributions inline when possible`
   });
+
+  let response;
+  try {
+    response = await Promise.race([
+      searchPromise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('web search timed out')), SEARCH_TIMEOUT_MS)
+      )
+    ]);
+  } catch (timeoutError) {
+    console.warn('SitRep web search skipped:', timeoutError.message);
+    return null;
+  }
 
   return {
     query,

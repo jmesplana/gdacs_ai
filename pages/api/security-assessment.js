@@ -202,7 +202,7 @@ Provide:
 Be specific and actionable. Reference the actual incident data provided.`;
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -380,7 +380,7 @@ Based on your knowledge of security situations, conflict zones, and access const
 Format your response in clear sections with bullet points. Be specific and actionable.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4-turbo-preview',
+    model: 'gpt-4o',
     messages: [
       {
         role: 'system',
