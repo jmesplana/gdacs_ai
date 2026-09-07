@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import Papa from 'papaparse';
+import { MAP_LAYERS } from '../../constants/mapConstants';
 
 const CHAT_DRAWER_WIDTH = 420;
 const CHAT_DRAWER_EXPANDED_WIDTH = 1040;
@@ -1128,7 +1129,7 @@ function detectMapLayerControlCommand(message = '', context = {}) {
     { layer: 'light_minimal', pattern: /\b(light map|light basemap|minimal map)\b/ },
     { layer: 'recent_clear', pattern: /\b(recent clear|sentinel-2|sentinel 2|clear imagery)\b/ },
     { layer: 'radar_change', pattern: /\b(radar change|sentinel-1|sentinel 1|radar)\b/ },
-    { layer: 'recent_imagery', pattern: /\b(recent imagery|daily imagery|nasa imagery|viirs true color)\b/ }
+    { layer: 'active_fires', pattern: /\b(active fires?|firms|wildfire[s]? layer|fire hotspots?|thermal anomal(?:y|ies))\b/ }
   ];
   const matchedBasemap = basemapDefinitions.find((definition) => definition.pattern.test(lower));
 
@@ -1268,6 +1269,69 @@ function detectLocalMapCommand(message = '', context = {}) {
     action: hasDeselectIntent ? 'deselect_districts' : (hasSelectIntent ? 'select_districts' : 'highlight_districts'),
     criteria
   };
+}
+
+// Pure display commands are fully satisfied by mutating the map. Sending them on
+// to the AI chat only invites hallucinated commentary ("no fire data loaded"),
+// so we answer them with a short local confirmation and skip the /api/chat call.
+// Analytical actions (highlight/select/style by metric) are intentionally NOT
+// here — those benefit from an AI narrative alongside the map change.
+const PURE_DISPLAY_MAP_ACTIONS = new Set([
+  'set_base_map',
+  'set_context_overlays',
+  'clear_all_map_overlays',
+  'clear_context_overlays',
+  'clear_metric_layers',
+  'clear_metric_bubbles',
+  'clear_highlights',
+  'clear_map_annotations',
+  'clear_analysis_scope',
+  'add_marker',
+  'show_osm_layer',
+  'hide_osm_layer',
+  'remove_osm_layer',
+  'remove_all_osm'
+]);
+
+function getMapCommandConfirmation(command) {
+  if (!command || !PURE_DISPLAY_MAP_ACTIONS.has(command.action)) return null;
+
+  switch (command.action) {
+    case 'set_base_map': {
+      const layerDef = Object.values(MAP_LAYERS).find((layer) => layer.id === command.layer);
+      const layerName = layerDef?.name || command.layer;
+      const overlayNote = command.resetContextOverlays ? ' and cleared context overlays' : '';
+      return `Switched the base map to **${layerName}**${overlayNote}.`;
+    }
+    case 'set_context_overlays':
+      return 'Updated the context overlays on the map.';
+    case 'clear_all_map_overlays':
+      return 'Cleared all map overlays.';
+    case 'clear_context_overlays':
+      return 'Cleared the context overlays.';
+    case 'clear_metric_layers':
+      return 'Cleared the metric layers from the map.';
+    case 'clear_metric_bubbles':
+      return 'Cleared the proportional-symbol bubbles from the map.';
+    case 'clear_highlights':
+      return 'Cleared the district highlights.';
+    case 'clear_map_annotations':
+      return 'Cleared the map pins and annotations.';
+    case 'clear_analysis_scope':
+      return 'Cleared the analysis scope.';
+    case 'add_marker':
+      return 'Added the marker to the map.';
+    case 'show_osm_layer':
+      return `Showing the ${command.category || 'infrastructure'} layer on the map.`;
+    case 'hide_osm_layer':
+      return `Hid the ${command.category || 'infrastructure'} layer.`;
+    case 'remove_osm_layer':
+      return `Removed the ${command.category || 'infrastructure'} layer.`;
+    case 'remove_all_osm':
+      return 'Removed all OpenStreetMap infrastructure layers.';
+    default:
+      return 'Done.';
+  }
 }
 
 function getExactAdminAreaMatchesFromText(text = '', context = {}) {
@@ -1781,6 +1845,23 @@ const ChatDrawer = ({
       } else {
         lastLocalMapCommandRef.current = '';
         localMapCommandAppliedRef.current = false;
+      }
+
+      // Pure display commands (base map / overlay toggles / clears) are already
+      // fully handled by mutating the map. Answer locally and skip the AI call so
+      // it can't contradict what the user just saw happen on the map.
+      const displayConfirmation = localMapCommand && onMapCommand
+        ? getMapCommandConfirmation(localMapCommand)
+        : null;
+      if (displayConfirmation) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: displayConfirmation,
+          timestamp: Date.now()
+        }]);
+        setStreamingMessage('');
+        setLoading(false);
+        return;
       }
 
       console.time('Serializing request body');

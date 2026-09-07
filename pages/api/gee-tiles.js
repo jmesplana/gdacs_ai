@@ -207,6 +207,32 @@ function buildAccessibilityContext(ee, geometry) {
   };
 }
 
+function buildActiveFires(ee, geometry) {
+  const endDate = ee.Date(Date.now());
+  const startDate = endDate.advance(-7, 'day');
+
+  const fires = ee.ImageCollection('FIRMS')
+    .filterDate(startDate, endDate)
+    .select('T21'); // Brightness temperature (K) of the fire pixel
+
+  // Hottest detection per pixel over the window keeps the strongest signal visible.
+  let firePower = fires.max().rename('active_fires');
+
+  // Only render pixels that actually contain a detection so the rest stays transparent.
+  firePower = firePower.updateMask(firePower.gt(0));
+
+  if (geometry) firePower = firePower.clip(geometry);
+
+  return {
+    image: firePower,
+    visParams: {
+      min: 305,
+      max: 400,
+      palette: ['#fde68a', '#f59e0b', '#ea580c', '#dc2626', '#7f1d1d']
+    },
+  };
+}
+
 function buildNighttimeLights(ee, geometry, options = {}) {
   const { month = null } = options;
   const viirs = ee.ImageCollection('NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG');
@@ -251,6 +277,8 @@ function buildDataset(ee, dataset, geometry, options = {}) {
       return buildDroughtContext(ee, geometry);
     case 'accessibility_context':
       return buildAccessibilityContext(ee, geometry);
+    case 'active_fires':
+      return buildActiveFires(ee, geometry);
     case 'nighttime_lights':
       return buildNighttimeLights(ee, geometry, options);
     default:

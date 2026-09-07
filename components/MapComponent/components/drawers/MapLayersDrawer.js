@@ -164,18 +164,6 @@ const MapLayersDrawer = ({
           <span>Light Minimal</span>
         </label>
 
-        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'light_minimal_no_labels' ? '#e3f2fd' : 'transparent'}}>
-          <input
-            type="radio"
-            name="mapLayer"
-            value="light_minimal_no_labels"
-            checked={activeMapLayer === 'light_minimal_no_labels'}
-            onChange={() => handleMapLayerChange('light_minimal_no_labels')}
-            style={{marginRight: '10px'}}
-          />
-          <span>Light Minimal (No Labels)</span>
-        </label>
-
         <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'dark' ? '#e3f2fd' : 'transparent'}}>
           <input
             type="radio"
@@ -243,16 +231,16 @@ const MapLayersDrawer = ({
           <span>Radar Change (GEE)</span>
         </label>
 
-        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'recent_imagery' ? '#e3f2fd' : 'transparent'}}>
+        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'active_fires' ? '#e3f2fd' : 'transparent'}}>
           <input
             type="radio"
             name="mapLayer"
-            value="recent_imagery"
-            checked={activeMapLayer === 'recent_imagery'}
-            onChange={() => handleMapLayerChange('recent_imagery')}
+            value="active_fires"
+            checked={activeMapLayer === 'active_fires'}
+            onChange={() => handleMapLayerChange('active_fires')}
             style={{marginRight: '10px'}}
           />
-          <span>Recent Imagery (Daily)</span>
+          <span>🔥 Active Fires (GEE)</span>
         </label>
 
         <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'terrain' ? '#e3f2fd' : 'transparent'}}>
@@ -265,18 +253,6 @@ const MapLayersDrawer = ({
             style={{marginRight: '10px'}}
           />
           <span>Terrain Map</span>
-        </label>
-
-        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '4px', backgroundColor: activeMapLayer === 'toner_lite' ? '#e3f2fd' : 'transparent'}}>
-          <input
-            type="radio"
-            name="mapLayer"
-            value="toner_lite"
-            checked={activeMapLayer === 'toner_lite'}
-            onChange={() => handleMapLayerChange('toner_lite')}
-            style={{marginRight: '10px'}}
-          />
-          <span>Toner Lite</span>
         </label>
 
         {activeMapLayer === 'recent_clear' && (
@@ -305,7 +281,7 @@ const MapLayersDrawer = ({
           </div>
         )}
 
-        {activeMapLayer === 'recent_imagery' && (
+        {activeMapLayer === 'active_fires' && (
           <div style={{
             fontSize: '12px',
             color: '#555',
@@ -314,7 +290,7 @@ const MapLayersDrawer = ({
             padding: '10px',
             lineHeight: 1.5
           }}>
-            Near real-time NASA VIIRS imagery. Best for broad recent change and hazard context, not fine building-level damage.
+            NASA FIRMS active fire detections from the last 7 days over a dark basemap. Warmer, brighter points mean a stronger thermal signal. Useful for wildfire spread and active burning, but it is not a fire-perimeter product.
           </div>
         )}
 

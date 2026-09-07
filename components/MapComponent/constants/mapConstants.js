@@ -26,20 +26,20 @@ export const MAP_LAYERS = {
   LIGHT_MINIMAL: {
     id: 'light_minimal',
     name: 'Light Minimal',
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-  },
-  LIGHT_MINIMAL_NO_LABELS: {
-    id: 'light_minimal_no_labels',
-    name: 'Light Minimal (No Labels)',
-    url: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    url: withOptionalApiKey(
+      'https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png',
+      stadiaMapsApiKey
+    ),
+    attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
   },
   DARK: {
     id: 'dark',
     name: 'Dark Map',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    url: withOptionalApiKey(
+      'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
+      stadiaMapsApiKey
+    ),
+    attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
   },
   NIGHTTIME_LIGHTS: {
     id: 'nighttime_lights',
@@ -102,30 +102,20 @@ export const MAP_LAYERS = {
     attribution: '&copy; <a href="https://developers.google.com/earth-engine/datasets/catalog/Oxford_MAP_accessibility_to_healthcare_2019">Google Earth Engine</a> / Oxford MAP accessibility to healthcare',
     note: 'Shows modeled travel time to the nearest hospital or clinic. Blue means easier access, yellow to dark red means harder to reach.'
   },
-  RECENT_IMAGERY: {
-    id: 'recent_imagery',
-    name: 'Recent Imagery (Daily)',
-    type: 'wms',
-    url: 'https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi',
-    layers: 'VIIRS_SNPP_CorrectedReflectance_TrueColor',
-    format: 'image/jpeg',
-    attribution: '&copy; <a href="https://earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs">NASA GIBS</a> / VIIRS SNPP',
-    note: 'Near real-time daily imagery. Better for recent broad change than for fine-grained building-level damage.'
+  ACTIVE_FIRES: {
+    id: 'active_fires',
+    name: 'Active Fires (GEE)',
+    type: 'gee',
+    dataset: 'active_fires',
+    baseLayer: 'dark', // Hotspots read best over a dark basemap
+    attribution: '&copy; <a href="https://developers.google.com/earth-engine/datasets/catalog/FIRMS">Google Earth Engine</a> / NASA FIRMS VIIRS + MODIS',
+    note: 'NASA FIRMS active fire / thermal anomaly detections from the last 7 days. Brighter points indicate stronger thermal signal. Useful for wildfire spread, active burning, and agricultural fires. Not a fire-perimeter product.'
   },
   TERRAIN: {
     id: 'terrain',
     name: 'Terrain',
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
     attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
-  },
-  TONER_LITE: {
-    id: 'toner_lite',
-    name: 'Toner Lite',
-    url: withOptionalApiKey(
-      'https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}{r}.png',
-      stadiaMapsApiKey
-    ),
-    attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://stamen.com/" target="_blank">Stamen Design</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
   }
 };
 
