@@ -1,13 +1,5 @@
 // Map Configuration Constants
 
-function withOptionalApiKey(url, apiKey) {
-  if (!apiKey) return url;
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}api_key=${encodeURIComponent(apiKey)}`;
-}
-
-const stadiaMapsApiKey = process.env.NEXT_PUBLIC_STADIA_MAPS_API_KEY;
-
 export const ZOOM_RADIUS_CONFIG = {
   WORLD_VIEW: { maxZoom: 2, radius: 500000 },
   CONTINENTAL: { maxZoom: 4, radius: 300000 },
@@ -26,20 +18,14 @@ export const MAP_LAYERS = {
   LIGHT_MINIMAL: {
     id: 'light_minimal',
     name: 'Light Minimal',
-    url: withOptionalApiKey(
-      'https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png',
-      stadiaMapsApiKey
-    ),
-    attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
   },
   DARK: {
     id: 'dark',
     name: 'Dark Map',
-    url: withOptionalApiKey(
-      'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
-      stadiaMapsApiKey
-    ),
-    attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
   },
   NIGHTTIME_LIGHTS: {
     id: 'nighttime_lights',

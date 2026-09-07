@@ -1507,14 +1507,33 @@ function buildContextSummary(context) {
     summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     summary.push(`Admin areas indexed: ${context.adminAreas.length}`);
     summary.push(`Use this full index for questions about whether a province, district, territory, health zone, or other admin subdivision exists in the uploaded boundaries. Do not say an area is missing unless it is absent from this full index.`);
-    summary.push(`Names and aliases:`);
+    summary.push(`Each row lists the area name and, when available, its parent province and admin level. When asked which districts belong to a province, list EVERY row whose province matches — do not rely on memory or guess which places belong where.`);
+    summary.push(`Names and hierarchy:`);
+    const getIdentityValue = (area, level) => {
+      if (!Array.isArray(area.identityEntries)) return null;
+      const entry = area.identityEntries.find((item) => item && item.level === level && item.value);
+      return entry ? String(entry.value).trim() : null;
+    };
     context.adminAreas.slice(0, 1200).forEach((area, index) => {
       const aliases = Array.isArray(area.aliases)
         ? area.aliases
             .filter((alias) => alias && alias !== area.name)
             .slice(0, 8)
         : [];
-      summary.push(`${index + 1}. ${area.name}${area.region ? ` | region ${area.region}` : ''}${area.country ? ` | country ${area.country}` : ''}${aliases.length ? ` | aliases ${aliases.join(' / ')}` : ''}`);
+      // Prefer the explicit province identity from the uploaded attributes so the
+      // model can group districts by province deterministically (region is a
+      // looser, sometimes-empty fallback).
+      const province = getIdentityValue(area, 'province') || area.region || null;
+      const districtName = getIdentityValue(area, 'district');
+      const healthZone = getIdentityValue(area, 'health_zone');
+      summary.push(
+        `${index + 1}. ${area.name}` +
+        `${province ? ` | province ${province}` : ''}` +
+        `${districtName && districtName !== area.name ? ` | district ${districtName}` : ''}` +
+        `${healthZone && healthZone !== area.name ? ` | health zone ${healthZone}` : ''}` +
+        `${area.country ? ` | country ${area.country}` : ''}` +
+        `${aliases.length ? ` | aliases ${aliases.join(' / ')}` : ''}`
+      );
     });
     summary.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   }

@@ -1216,6 +1216,19 @@ function detectLocalMapCommand(message = '', context = {}) {
   if (!context?.hasDistricts || (!hasHighlightIntent && !hasSelectIntent && !hasDeselectIntent)) return null;
 
   const criteria = {};
+
+  // Resolve any specific admin area named in the message up front. When the user
+  // scopes to a place ("...within Ituri province"), that area drives the result —
+  // we must NOT also expand to "all risk levels", which would match every district
+  // in the dataset and highlight the whole country instead of just Ituri.
+  const matchedAreas = getLocalAdminAreaMatchesFromMessage(message, context);
+  // Treat the request as area-scoped if we resolved a named area, OR the phrasing
+  // explicitly scopes to a place ("within/in/inside/across ... province/territory/
+  // region/zone"). The latter guards the case where matching fails on an unusual
+  // dataset — we still must not fall back to highlighting the whole country.
+  const hasScopingPhrase = /\b(within|inside|in|across|of|for)\b[^.?!]*\b(province|territory|territories|region|zone|governorate|state|county|prefecture|district)\b/.test(lower);
+  const hasNamedAreaScope = matchedAreas.length > 0 || hasScopingPhrase;
+
   if (riskKeywords.some((keyword) => lower.includes(keyword))) {
     if (lower.includes('very high')) {
       criteria.riskLevels = ['very-high'];
@@ -1236,7 +1249,11 @@ function detectLocalMapCommand(message = '', context = {}) {
     criteria.riskLevels = ['medium'];
   }
 
-  if ((lower.includes('all') || lower.includes('entire') || lower.includes('whole')) && hasDistrictMention && hasHighlightIntent) {
+  // "all / entire / whole districts" means every risk level — but only as a
+  // dataset-wide request. If a specific area was named, the area scope wins.
+  if (!hasNamedAreaScope &&
+      (lower.includes('all') || lower.includes('entire') || lower.includes('whole')) &&
+      hasDistrictMention && hasHighlightIntent) {
     criteria.riskLevels = ['very-high', 'high', 'medium', 'low', 'none'];
   }
 
@@ -1245,7 +1262,6 @@ function detectLocalMapCommand(message = '', context = {}) {
     criteria.minEventCount = parseInt(eventMatch[1], 10);
   }
 
-  const matchedAreas = getLocalAdminAreaMatchesFromMessage(message, context);
   if (matchedAreas.length > 0) {
     criteria.ids = matchedAreas.map((area) => area.id).filter((id) => id !== undefined && id !== null);
     criteria.names = matchedAreas.map((area) => area.name || area.matchedValue).filter(Boolean);

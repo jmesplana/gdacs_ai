@@ -56,15 +56,23 @@ export const useDrawing = () => {
   }, []);
 
   const toggleAnnotationMode = useCallback(() => {
-    setDrawingEnabled(true);
     setFreehandMode(false);
-    setAnnotationMode(prev => !prev);
+    setAnnotationMode(prev => {
+      const next = !prev;
+      // Turning a mode ON enables drawing; turning the last mode OFF disables it
+      // again so districts don't stay non-interactive with no visible tool active.
+      setDrawingEnabled(next);
+      return next;
+    });
   }, []);
 
   const toggleFreehandMode = useCallback(() => {
-    setDrawingEnabled(true);
     setAnnotationMode(false);
-    setFreehandMode(prev => !prev);
+    setFreehandMode(prev => {
+      const next = !prev;
+      setDrawingEnabled(next);
+      return next;
+    });
   }, []);
 
   return {
