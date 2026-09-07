@@ -559,25 +559,37 @@ function getDistrictsMatchingRequestedNames(districts = [], requestedNames = [],
   return identityLooseMatches;
 }
 
+// District objects are stable references (loaded once from state/IndexedDB), so
+// their chat-index entry — the expensive part is the deep property walk in
+// summarizeDistrictAttributes — is computed once per district and cached.
+const adminAreaChatEntryCache = new WeakMap();
+
+function buildAdminAreaChatEntry(district, index) {
+  const cached = adminAreaChatEntryCache.get(district);
+  if (cached) return cached;
+
+  const identityEntries = getDistrictIdentityEntries(district);
+  const searchValues = Array.from(new Set([
+    ...identityEntries.map((entry) => entry.value),
+    ...getDistrictSearchValues(district)
+  ]));
+  const attributes = summarizeDistrictAttributes(district, { maxFields: 120, maxDepth: 4 });
+  const entry = {
+    id: district.id ?? index,
+    name: district.name || `Admin Area ${index + 1}`,
+    country: district.country || null,
+    region: district.region || null,
+    aliases: searchValues.slice(0, 40),
+    identityEntries: identityEntries.slice(0, 40),
+    attributes,
+    searchText: normalizeAdminSearchValue(searchValues.join(' '))
+  };
+  adminAreaChatEntryCache.set(district, entry);
+  return entry;
+}
+
 function buildAdminAreaChatIndex(districts = []) {
-  return (districts || []).map((district, index) => {
-    const identityEntries = getDistrictIdentityEntries(district);
-    const searchValues = Array.from(new Set([
-      ...identityEntries.map((entry) => entry.value),
-      ...getDistrictSearchValues(district)
-    ]));
-    const attributes = summarizeDistrictAttributes(district, { maxFields: 120, maxDepth: 4 });
-    return {
-      id: district.id ?? index,
-      name: district.name || `Admin Area ${index + 1}`,
-      country: district.country || null,
-      region: district.region || null,
-      aliases: searchValues.slice(0, 40),
-      identityEntries: identityEntries.slice(0, 40),
-      attributes,
-      searchText: normalizeAdminSearchValue(searchValues.join(' '))
-    };
-  });
+  return (districts || []).map((district, index) => buildAdminAreaChatEntry(district, index));
 }
 
 const GENERIC_ADMIN_MATCH_TERMS = new Set([
@@ -2425,6 +2437,9 @@ const MapComponent = ({
   );
   const deferredDistricts = useDeferredValue(districts);
   const deferredFacilities = useDeferredValue(facilities);
+  // Defer the chat-open flag so flipping it doesn't synchronously block the
+  // click on building the (heavy) admin-area chat index over all districts.
+  const deferredShowChatDrawer = useDeferredValue(showChatDrawer);
   const facilityImpactState = useMemo(() => {
     const keys = new Set();
 
@@ -2741,7 +2756,7 @@ const MapComponent = ({
     [deferredDistricts, visibleDisasters, visibleAcledEvents]
   );
   const shouldBuildAdminMetrics = unifiedDrawerOpen ||
-    showChatDrawer ||
+    deferredShowChatDrawer ||
     adminFillMode === ADMIN_FILL_MODES.DATASET ||
     Boolean(chatMetricBubbleField);
   const adminNumericFields = useMemo(
@@ -2759,7 +2774,7 @@ const MapComponent = ({
     [adminNumericFields, chatMetricBubbleField]
   );
   const adminMetricValueSummaries = useMemo(() => {
-    if (!showChatDrawer) return [];
+    if (!deferredShowChatDrawer) return [];
     if (!adminNumericFields.length || !deferredDistricts?.length) return [];
 
     return adminNumericFields.slice(0, 40).map((metric) => {
@@ -2788,7 +2803,7 @@ const MapComponent = ({
         truncated: values.length > 80
       };
     }).filter((summary) => summary.count > 0);
-  }, [showChatDrawer, adminNumericFields, deferredDistricts, deferredFacilities]);
+  }, [deferredShowChatDrawer, adminNumericFields, deferredDistricts, deferredFacilities]);
   useEffect(() => {
     if (adminFillMode !== ADMIN_FILL_MODES.DATASET) return;
     if (!adminNumericFields.length) return;
@@ -2917,9 +2932,32 @@ const MapComponent = ({
     [selectedAnalysisDistricts]
   );
   const adminAreaChatIndex = useMemo(
-    () => showChatDrawer ? buildAdminAreaChatIndex(deferredDistricts) : [],
-    [showChatDrawer, deferredDistricts]
+    () => deferredShowChatDrawer ? buildAdminAreaChatIndex(deferredDistricts) : [],
+    [deferredShowChatDrawer, deferredDistricts]
   );
+  // Chat-context district projections — only built while the drawer is open, and
+  // memoized so map pan/zoom re-renders don't re-scan all districts.
+  const highlightedAdminAreasForChat = useMemo(() => {
+    if (!deferredShowChatDrawer || !districts) return [];
+    const highlightedIdSet = new Set(highlightedDistricts.map((id) => String(id)));
+    return districts
+      .filter((district) => highlightedIdSet.has(String(district.id)))
+      .map((district) => ({
+        id: district.id,
+        name: district.name,
+        country: district.country,
+        region: district.region
+      }));
+  }, [deferredShowChatDrawer, districts, highlightedDistricts]);
+  const districtsForWorldPopChat = useMemo(() => {
+    if (!deferredShowChatDrawer || !districts || districts.length === 0) return null;
+    return districts.map((d) => ({
+      id: d.id,
+      name: d.name,
+      country: d.country,
+      region: d.region
+    }));
+  }, [deferredShowChatDrawer, districts]);
   const allowDistrictLabels = showDistrictLabels;
   const adminLabelMinZoom = getAdminLabelMinZoom(deferredDistricts.length);
   const displayDistricts = useMemo(() => {
@@ -4090,14 +4128,7 @@ const MapComponent = ({
           scopedAcledEvents: prioritizationBoard?.summary?.totalAcledEvents ?? filteredAcledData.length,
           totalDistricts: districts?.length || 0,
           adminAreas: adminAreaChatIndex,
-          highlightedAdminAreas: districts
-            ?.filter((district) => highlightedDistricts.map((id) => String(id)).includes(String(district.id)))
-            .map((district) => ({
-              id: district.id,
-              name: district.name,
-              country: district.country,
-              region: district.region
-            })) || [],
+          highlightedAdminAreas: highlightedAdminAreasForChat,
           adminNumericFields: adminNumericFields.map((item) => ({
             id: item.id,
             field: item.field,
@@ -4161,12 +4192,7 @@ const MapComponent = ({
           worldPopData: worldPopData, // Add WorldPop population data
           worldPopYear: worldPopLastFetch?.year || null, // Add WorldPop year
           // Send simplified districts array (just name and id) for WorldPop context formatting
-          districtsForWorldPop: districts && districts.length > 0 ? districts.map(d => ({
-            id: d.id,
-            name: d.name,
-            country: d.country,
-            region: d.region
-          })) : null,
+          districtsForWorldPop: districtsForWorldPopChat,
           // OpenStreetMap Infrastructure data
           osmData: osmData,
           prioritizationBoard: prioritizationBoard

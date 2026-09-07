@@ -2229,7 +2229,8 @@ export default function Home() {
         uploadedDistrictCount: sitrepDistrictScope.length,
         uploadedSiteCount: sitrepFacilitiesScope.length,
         districtRiskSummary: sitrepDistrictRiskSummary,
-        uploadedDataSchema: buildSitrepSchemaSummary(sitrepFacilitiesScope)
+        uploadedDataSchema: buildSitrepSchemaSummary(sitrepFacilitiesScope),
+        stream: true
       });
 
       console.log(`Sitrep request body size: ${(requestBody.length / 1024).toFixed(2)} KB`);
@@ -2242,12 +2243,59 @@ export default function Home() {
         body: requestBody,
       });
 
-      const data = await parseApiResponse(response, 'Situation report');
-      setSitrep(data.sitrep || '');
-      setSitrepTimestamp(Date.now());
-
-      // Switch to sitrep tab
+      // Switch to the sitrep tab immediately so streamed text renders as it arrives.
       setActiveTab('sitrep');
+
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('text/event-stream') && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let accumulated = '';
+        let buffer = '';
+
+        setSitrep('');
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const payload = line.slice(6).trim();
+            if (!payload) continue;
+
+            try {
+              const parsed = JSON.parse(payload);
+              if (parsed.error) {
+                throw new Error(parsed.error);
+              }
+              if (parsed.content) {
+                accumulated += parsed.content;
+                setSitrep(accumulated);
+              }
+              if (parsed.done) {
+                if (parsed.sitrep) {
+                  accumulated = parsed.sitrep;
+                  setSitrep(accumulated);
+                }
+              }
+            } catch (parseError) {
+              console.warn('Skipping malformed sitrep stream chunk:', parseError);
+            }
+          }
+        }
+
+        setSitrepTimestamp(Date.now());
+      } else {
+        // Fallback: non-streaming JSON response
+        const data = await parseApiResponse(response, 'Situation report');
+        setSitrep(data.sitrep || '');
+        setSitrepTimestamp(Date.now());
+      }
     } catch (error) {
       console.error('Error generating sitrep:', error);
       addToast('Failed to generate situation report. Please try again.', 'error');

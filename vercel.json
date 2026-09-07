@@ -17,6 +17,9 @@
     },
     "pages/api/logistics-assessment.js": {
       "maxDuration": 60
+    },
+    "pages/api/district-hazard-analysis.js": {
+      "maxDuration": 60
     }
   }
 }

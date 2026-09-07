@@ -36,7 +36,8 @@ async function handler(req, res) {
       uploadedSiteCount = null,
       districtRiskSummary = null,
       uploadedDataSchema = null,
-      includeWebSearch = true
+      includeWebSearch = true,
+      stream = false
     } = req.body;
 
     if (!impactedFacilities || !disasters) {
@@ -75,7 +76,52 @@ async function handler(req, res) {
       }
     }
 
-    // Try primary AI sitrep
+    const metadata = {
+      scopedTo: scope.summary,
+      externalContextIncluded: Boolean(recentExternalContext?.summary)
+    };
+
+    // Streaming path: pipe SitRep text to the client via SSE as it's generated,
+    // so the drawer renders progressively instead of waiting for the full report.
+    if (stream) {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.setHeader('Content-Encoding', 'none');
+      if (res.flushHeaders) res.flushHeaders();
+
+      try {
+        console.log('Generating AI situation report (streaming)...');
+        const aiSitrep = await generateAISitrep(
+          impactedFacilities, disasters, situationOverview, outbreakContext,
+          dateFilterText, statistics, acledData, osmData, worldPopData,
+          worldPopYear, districts, uploadedDataSchema, districtRiskSummary,
+          scope, recentExternalContext,
+          (delta) => {
+            res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+            if (res.flush) res.flush();
+          }
+        );
+        res.write(`data: ${JSON.stringify({ done: true, sitrep: aiSitrep, metadata })}\n\n`);
+        res.end();
+        return;
+      } catch (streamError) {
+        console.error('Error streaming AI sitrep, trying fallback:', streamError);
+        try {
+          const sitrep = await generateFallbackSitrep(impactedFacilities, disasters, situationOverview, dateFilter, scope, recentExternalContext);
+          res.write(`data: ${JSON.stringify({ done: true, sitrep, metadata, fallback: true })}\n\n`);
+          res.end();
+          return;
+        } catch (_) {
+          res.write(`data: ${JSON.stringify({ error: 'AI sitrep generation unavailable.' })}\n\n`);
+          res.end();
+          return;
+        }
+      }
+    }
+
+    // Try primary AI sitrep (non-streaming)
     try {
       console.log('Generating AI situation report using OpenAI...');
       const aiSitrep = await generateAISitrep(
@@ -98,10 +144,7 @@ async function handler(req, res) {
       console.log('Successfully generated AI sitrep');
       res.status(200).json({
         sitrep: aiSitrep,
-        metadata: {
-          scopedTo: scope.summary,
-          externalContextIncluded: Boolean(recentExternalContext?.summary)
-        }
+        metadata
       });
       return;
     } catch (aiError) {
@@ -129,7 +172,9 @@ async function handler(req, res) {
 }
 
 // Generate situation report using OpenAI
-async function generateAISitrep(impactedFacilities, disasters, situationOverview, outbreakContext = '', dateFilterText, statistics, acledData = [], osmData = null, worldPopData = {}, worldPopYear = null, districts = [], uploadedDataSchema = null, districtRiskSummary = null, scope = {}, recentExternalContext = null) {
+// When `onDelta` is provided, the completion is streamed and each text chunk is
+// passed to the callback as it arrives; the full text is still returned at the end.
+async function generateAISitrep(impactedFacilities, disasters, situationOverview, outbreakContext = '', dateFilterText, statistics, acledData = [], osmData = null, worldPopData = {}, worldPopYear = null, districts = [], uploadedDataSchema = null, districtRiskSummary = null, scope = {}, recentExternalContext = null, onDelta = null) {
   try {
     // Get current date and time
     const date = new Date().toISOString().split('T')[0];
@@ -307,7 +352,7 @@ Format your response in markdown for readability. The first line of your report 
 Keep the entire SitRep concise and actionable.
 `;
 
-    const response = await openai.responses.create({
+    const requestParams = {
       model: "gpt-4.1-mini",
       input: [
         {
@@ -319,7 +364,21 @@ Keep the entire SitRep concise and actionable.
           content: prompt
         }
       ]
-    });
+    };
+
+    if (typeof onDelta === 'function') {
+      let fullText = '';
+      const stream = await openai.responses.stream(requestParams);
+      for await (const event of stream) {
+        if (event.type === 'response.output_text.delta' && event.delta) {
+          fullText += event.delta;
+          onDelta(event.delta);
+        }
+      }
+      return fullText.trim();
+    }
+
+    const response = await openai.responses.create(requestParams);
 
     return response.output_text.trim();
   } catch (error) {

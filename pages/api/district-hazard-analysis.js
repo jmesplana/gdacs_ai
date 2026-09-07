@@ -5,6 +5,30 @@ import { PREDICTION_CONFIG } from '../../config/predictionConfig';
 const weatherCache = new Map();
 const CACHE_TTL_MS = 30 * 60 * 1000;
 const MAX_DISTRICTS_PER_REQUEST = 20;
+const WEATHER_FETCH_CONCURRENCY = 8;
+
+// Run async tasks with a bounded concurrency pool so we don't fire all
+// requests at once (Open-Meteo rate limits) but still avoid a fully serial
+// waterfall of per-district round-trips.
+async function mapWithConcurrency(items, limit, task) {
+  const results = new Array(items.length);
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await task(items[index], index);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    () => worker()
+  );
+  await Promise.all(workers);
+  return results;
+}
 let eeInitialized = false;
 let eeInitPromise = null;
 
@@ -179,138 +203,142 @@ async function fetchGeeEvidenceSummaries(districts, enabledEvidenceLayers = []) 
   const evidenceByDistrict = {};
   const warnings = [];
 
-  if (requested.has('flood_context')) {
-    try {
-      const dem = ee.Image('USGS/SRTMGL1_003');
-      const slope = ee.Terrain.slope(dem).rename('slope_deg');
-      const waterOccurrence = ee.Image('JRC/GSW1_4/GlobalSurfaceWater')
-        .select('occurrence')
-        .rename('water_occurrence');
-      const floodContext = ee.Image(1)
-        .subtract(slope.divide(20).clamp(0, 1))
-        .multiply(0.6)
-        .add(waterOccurrence.divide(100).clamp(0, 1).multiply(0.4))
-        .rename('flood_context');
-      const image = floodContext.addBands(slope).addBands(waterOccurrence);
-      const result = await getRegionStats(image, featureCollection, 90);
+  // Each evidence layer is an independent GEE reduceRegions call. Run the
+  // requested layers concurrently rather than back-to-back; each returns a
+  // list of per-district property mergers applied after all settle.
+  const mergeResult = (result, buildEntry) => {
+    (result.features || []).forEach((feature) => {
+      const props = feature.properties || {};
+      const districtId = props.districtId;
+      evidenceByDistrict[districtId] = {
+        ...(evidenceByDistrict[districtId] || {}),
+        ...buildEntry(props)
+      };
+    });
+  };
 
-      (result.features || []).forEach((feature) => {
-        const props = feature.properties || {};
-        const districtId = props.districtId;
-        evidenceByDistrict[districtId] = {
-          ...(evidenceByDistrict[districtId] || {}),
+  const layerTasks = [];
+
+  if (requested.has('flood_context')) {
+    layerTasks.push({
+      label: 'Flood',
+      run: async () => {
+        const dem = ee.Image('USGS/SRTMGL1_003');
+        const slope = ee.Terrain.slope(dem).rename('slope_deg');
+        const waterOccurrence = ee.Image('JRC/GSW1_4/GlobalSurfaceWater')
+          .select('occurrence')
+          .rename('water_occurrence');
+        const floodContext = ee.Image(1)
+          .subtract(slope.divide(20).clamp(0, 1))
+          .multiply(0.6)
+          .add(waterOccurrence.divide(100).clamp(0, 1).multiply(0.4))
+          .rename('flood_context');
+        const image = floodContext.addBands(slope).addBands(waterOccurrence);
+        const result = await getRegionStats(image, featureCollection, 90);
+        mergeResult(result, (props) => ({
           flood: {
             floodContextMean: props.flood_context,
             slopeMeanDeg: props.slope_deg,
             waterOccurrenceMeanPct: props.water_occurrence
           }
-        };
-      });
-    } catch (error) {
-      warnings.push(`Flood evidence could not be computed from GEE: ${error.message}`);
-    }
+        }));
+      }
+    });
   }
 
   if (requested.has('drought_context')) {
-    try {
-      const chirpsCollection = ee.ImageCollection('UCSB-CHG/CHIRPS/DAILY');
-      const chirpsLatest = ee.Image(chirpsCollection.sort('system:time_start', false).first());
-      const chirpsEndDate = ee.Date(chirpsLatest.get('system:time_start')).advance(1, 'day');
-      const rainStart = chirpsEndDate.advance(-30, 'day');
-      const chirpsRain = chirpsCollection
-        .filterDate(rainStart, chirpsEndDate)
-        .select('precipitation')
-        .sum()
-        .rename('rain_30d_mm');
-      const era5Collection = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR');
-      const era5Latest = ee.Image(era5Collection.sort('system:time_start', false).first());
-      const era5EndDate = ee.Date(era5Latest.get('system:time_start')).advance(1, 'day');
-      const tempStart = era5EndDate.advance(-14, 'day');
-      const era5Temp = era5Collection
-        .filterDate(tempStart, era5EndDate)
-        .select('temperature_2m')
-        .mean()
-        .subtract(273.15)
-        .rename('temp_14d_c');
-      const droughtContext = ee.Image(1)
-        .subtract(chirpsRain.divide(120).clamp(0, 1))
-        .multiply(0.65)
-        .add(era5Temp.subtract(28).divide(12).clamp(0, 1).multiply(0.35))
-        .rename('drought_context');
-      const image = droughtContext.addBands(chirpsRain).addBands(era5Temp);
-      const result = await getRegionStats(image, featureCollection, 5500);
-
-      (result.features || []).forEach((feature) => {
-        const props = feature.properties || {};
-        const districtId = props.districtId;
-        evidenceByDistrict[districtId] = {
-          ...(evidenceByDistrict[districtId] || {}),
+    layerTasks.push({
+      label: 'Drought',
+      run: async () => {
+        const chirpsCollection = ee.ImageCollection('UCSB-CHG/CHIRPS/DAILY');
+        const chirpsLatest = ee.Image(chirpsCollection.sort('system:time_start', false).first());
+        const chirpsEndDate = ee.Date(chirpsLatest.get('system:time_start')).advance(1, 'day');
+        const rainStart = chirpsEndDate.advance(-30, 'day');
+        const chirpsRain = chirpsCollection
+          .filterDate(rainStart, chirpsEndDate)
+          .select('precipitation')
+          .sum()
+          .rename('rain_30d_mm');
+        const era5Collection = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR');
+        const era5Latest = ee.Image(era5Collection.sort('system:time_start', false).first());
+        const era5EndDate = ee.Date(era5Latest.get('system:time_start')).advance(1, 'day');
+        const tempStart = era5EndDate.advance(-14, 'day');
+        const era5Temp = era5Collection
+          .filterDate(tempStart, era5EndDate)
+          .select('temperature_2m')
+          .mean()
+          .subtract(273.15)
+          .rename('temp_14d_c');
+        const droughtContext = ee.Image(1)
+          .subtract(chirpsRain.divide(120).clamp(0, 1))
+          .multiply(0.65)
+          .add(era5Temp.subtract(28).divide(12).clamp(0, 1).multiply(0.35))
+          .rename('drought_context');
+        const image = droughtContext.addBands(chirpsRain).addBands(era5Temp);
+        const result = await getRegionStats(image, featureCollection, 5500);
+        mergeResult(result, (props) => ({
           drought: {
             droughtContextMean: props.drought_context,
             rain30dMm: props.rain_30d_mm,
             temp14dC: props.temp_14d_c
           }
-        };
-      });
-    } catch (error) {
-      warnings.push(`Drought evidence could not be computed from GEE: ${error.message}`);
-    }
+        }));
+      }
+    });
   }
 
   if (requested.has('accessibility_context')) {
-    try {
-      const accessibilityMinutes = ee.Image('projects/malariaatlasproject/assets/accessibility/accessibility_to_healthcare/2019')
-        .select('accessibility')
-        .rename('travel_time_minutes');
-      const accessibilityContext = accessibilityMinutes
-        .divide(240)
-        .clamp(0, 1)
-        .rename('accessibility_context');
-      const hardToReachMask = accessibilityMinutes.gte(120).rename('hard_to_reach_share');
-      const image = accessibilityContext.addBands(accessibilityMinutes).addBands(hardToReachMask);
-      const result = await getRegionStats(image, featureCollection, 1000);
-
-      (result.features || []).forEach((feature) => {
-        const props = feature.properties || {};
-        const districtId = props.districtId;
-        evidenceByDistrict[districtId] = {
-          ...(evidenceByDistrict[districtId] || {}),
+    layerTasks.push({
+      label: 'Accessibility',
+      run: async () => {
+        const accessibilityMinutes = ee.Image('projects/malariaatlasproject/assets/accessibility/accessibility_to_healthcare/2019')
+          .select('accessibility')
+          .rename('travel_time_minutes');
+        const accessibilityContext = accessibilityMinutes
+          .divide(240)
+          .clamp(0, 1)
+          .rename('accessibility_context');
+        const hardToReachMask = accessibilityMinutes.gte(120).rename('hard_to_reach_share');
+        const image = accessibilityContext.addBands(accessibilityMinutes).addBands(hardToReachMask);
+        const result = await getRegionStats(image, featureCollection, 1000);
+        mergeResult(result, (props) => ({
           accessibility: {
             accessibilityContextMean: props.accessibility_context,
             travelTimeMinutesMean: props.travel_time_minutes,
             hardToReachShare: props.hard_to_reach_share
           }
-        };
-      });
-    } catch (error) {
-      warnings.push(`Accessibility evidence could not be computed from GEE: ${error.message}`);
-    }
+        }));
+      }
+    });
   }
 
   if (requested.has('nighttime_lights')) {
-    try {
-      const viirs = ee.ImageCollection('NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG');
-      const latest = ee.Image(viirs.sort('system:time_start', false).first());
-      const avgRad = latest.select('avg_rad').rename('night_lights_avg_rad');
-      const litMask = latest.select('avg_rad').gt(1.5).rename('night_lights_lit_mask');
-      const image = avgRad.addBands(litMask);
-      const result = await getRegionStats(image, featureCollection, 500);
-
-      (result.features || []).forEach((feature) => {
-        const props = feature.properties || {};
-        const districtId = props.districtId;
-        evidenceByDistrict[districtId] = {
-          ...(evidenceByDistrict[districtId] || {}),
+    layerTasks.push({
+      label: 'Nighttime lights',
+      run: async () => {
+        const viirs = ee.ImageCollection('NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG');
+        const latest = ee.Image(viirs.sort('system:time_start', false).first());
+        const avgRad = latest.select('avg_rad').rename('night_lights_avg_rad');
+        const litMask = latest.select('avg_rad').gt(1.5).rename('night_lights_lit_mask');
+        const image = avgRad.addBands(litMask);
+        const result = await getRegionStats(image, featureCollection, 500);
+        mergeResult(result, (props) => ({
           nighttimeLights: {
             avgRadMean: props.night_lights_avg_rad,
             litAreaShare: props.night_lights_lit_mask
           }
-        };
-      });
-    } catch (error) {
-      warnings.push(`Nighttime lights evidence could not be computed from GEE: ${error.message}`);
-    }
+        }));
+      }
+    });
   }
+
+  await Promise.all(layerTasks.map(async ({ label, run }) => {
+    try {
+      await run();
+    } catch (error) {
+      warnings.push(`${label} evidence could not be computed from GEE: ${error.message}`);
+    }
+  }));
 
   return { evidenceByDistrict, warnings };
 }
@@ -339,14 +367,13 @@ async function handler(req, res) {
   const warnings = [];
   let geeEvidenceByDistrict = {};
 
-  for (let index = 0; index < scopedDistricts.length; index += 1) {
-    const district = scopedDistricts[index];
+  await mapWithConcurrency(scopedDistricts, WEATHER_FETCH_CONCURRENCY, async (district, index) => {
     const districtId = district.id ?? index;
     const center = getDistrictCenter(district);
 
     if (!center?.latitude || !center?.longitude) {
       warnings.push(`Weather forecast unavailable for district ${district.name || districtId}: no usable center point.`);
-      continue;
+      return;
     }
 
     try {
@@ -354,7 +381,7 @@ async function handler(req, res) {
     } catch (error) {
       warnings.push(`Weather forecast unavailable for district ${district.name || districtId}: ${error.message}`);
     }
-  }
+  });
 
   try {
     const geeEvidenceResult = await fetchGeeEvidenceSummaries(scopedDistricts, enabledEvidenceLayers);

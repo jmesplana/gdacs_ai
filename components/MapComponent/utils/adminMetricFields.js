@@ -15,13 +15,29 @@ function buildMetricId(source, field) {
   return `${source}:${field}`;
 }
 
+// The deep property walk (summarizeDistrictAttributes) is expensive and this is
+// called once per district per metric — up to ~40x per district when building the
+// chat metric summaries. District objects are stable references, so cache the
+// numeric-attribute extraction per district: the walk runs once, not thousands of times.
+const districtNumericAttributeCache = new WeakMap();
+
 function getDistrictNumericAttributes(district = {}) {
-  return summarizeDistrictAttributes(district, { maxFields: 160, maxDepth: 6 })
+  if (district && typeof district === 'object') {
+    const cached = districtNumericAttributeCache.get(district);
+    if (cached) return cached;
+  }
+
+  const result = summarizeDistrictAttributes(district, { maxFields: 160, maxDepth: 6 })
     .map((attribute) => ({
       ...attribute,
       numericValue: parseMetricValue(attribute.value)
     }))
     .filter((attribute) => Number.isFinite(attribute.numericValue));
+
+  if (district && typeof district === 'object') {
+    districtNumericAttributeCache.set(district, result);
+  }
+  return result;
 }
 
 export function buildAdminMetricCatalog(rows = [], districts = []) {
