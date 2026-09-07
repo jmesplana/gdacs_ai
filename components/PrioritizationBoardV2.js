@@ -727,6 +727,31 @@ export default function PrioritizationBoardV2({
     setActiveView(scopedFacilities.length > 0 ? 'facilities' : 'districts');
   }, [scopedFacilities.length]);
 
+  // A single content signature for the inputs that actually change the board.
+  // Auto-load keys off this instead of an 11-item array of inline .length /
+  // .join proxies, so the whole pipeline re-runs only on meaningful changes.
+  const boardSignature = useMemo(() => [
+    selectedDistricts.map((district) => district.id).join('|'),
+    scopedFacilities.length,
+    scopedImpactedFacilities.length,
+    scopedDisasters.length,
+    scopedAcledData.length,
+    Object.keys(scopedWorldPop || {}).length,
+    osmData?.features?.length || 0,
+    operationType,
+    enabledEvidenceLayers.join('|')
+  ].join('::'), [
+    selectedDistricts,
+    scopedFacilities.length,
+    scopedImpactedFacilities.length,
+    scopedDisasters.length,
+    scopedAcledData.length,
+    scopedWorldPop,
+    osmData,
+    operationType,
+    enabledEvidenceLayers
+  ]);
+
   const loadBoard = async () => {
     if (!isOpen) return;
     if (selectedDistricts.length === 0) {
@@ -841,19 +866,11 @@ export default function PrioritizationBoardV2({
     if (isOpen) {
       loadBoard();
     }
-  }, [
-    isOpen,
-    selectedDistricts.length,
-    selectedDistricts.map((district) => district.id).join('|'),
-    scopedFacilities.length,
-    scopedImpactedFacilities.length,
-    scopedDisasters.length,
-    scopedAcledData.length,
-    Object.keys(scopedWorldPop || {}).length,
-    osmData?.features?.length || 0,
-    operationType,
-    enabledEvidenceLayers.join('|')
-  ]);
+    // loadBoard reads current props via closure; boardSignature captures every
+    // input that should trigger a reload. Intentionally not depending on the
+    // loadBoard identity (recreated each render) to avoid redundant runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, boardSignature]);
 
   useEffect(() => {
     if (selectedDistricts.length > 0) return;
