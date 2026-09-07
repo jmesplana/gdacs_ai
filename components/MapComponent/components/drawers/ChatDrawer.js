@@ -13,6 +13,10 @@ const CHAT_PDF_BROWSER_MAX_BYTES = 50 * 1024 * 1024;
 const CHAT_DOCUMENT_MAX_TEXT_CHARS = 60000;
 const CHAT_DOCUMENT_CHUNK_SIZE = 2200;
 const CHAT_DOCUMENT_MAX_CHUNKS = 12;
+// Upper bound on admin areas returned from a single chat resolution. Must be large
+// enough to cover every district in a province (or a whole country) — a 25-cap was
+// silently dropping ~11 of Ituri's 36 health zones when highlighting a province.
+const MAX_ADMIN_AREA_MATCHES = 500;
 
 function isDocumentAttachment(fileName = '') {
   const lowerName = fileName.toLowerCase();
@@ -764,6 +768,49 @@ function getLocalAdminAreaMatchesFromMessage(message = '', context = {}, options
     });
   };
 
+  // Parent-scope pass: "highlight districts IN Ituri" names an output level
+  // ("districts") AND a parent scope ("Ituri", a province). getRequestedAdminLevel
+  // resolves to 'district' and would then look for a district literally named
+  // Ituri — finding nothing. Instead, when a scoping phrase is present, match the
+  // parent name against EVERY identity entry (province/region/etc.) so we return
+  // all child areas whose parent is that place. This is what makes "districts in
+  // Ituri" work whether or not the user says the word "province".
+  const scopeMatch = normalizedMessage.match(/\b(?:in|within|inside|across|of|for|under)\s+(.+)$/);
+  if (scopeMatch) {
+    const scopeText = scopeMatch[1]
+      .split(/\s+/)
+      .filter((token) => token.length >= 3 && !genericAdminTokens.has(token))
+      .join(' ')
+      .trim();
+    if (scopeText.length >= 3) {
+      const parentMatches = areas
+        .map((area) => {
+          const identityValues = Array.isArray(area?.identityEntries)
+            ? area.identityEntries.map((entry) => entry.value)
+            : [];
+          const allCandidates = [area?.region, area?.country, ...identityValues].filter(Boolean);
+          const matchedCandidate = allCandidates.find((candidate) => {
+            const normalized = String(candidate).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            // Match if the scope name from the message and the identity value line
+            // up in either direction ("ituri" vs entry "Ituri", or "ituri province"
+            // vs entry "Ituri"), as whole token-runs so unrelated areas aren't swept in.
+            return normalized.length >= 3 && (
+              normalizedTextContains(scopeText, normalized) ||
+              normalizedTextContains(normalized, scopeText)
+            );
+          });
+          return matchedCandidate ? { ...area, matchedValue: String(matchedCandidate) } : null;
+        })
+        .filter(Boolean);
+
+      if (parentMatches.length > 1) {
+        return Array.from(
+          new Map(parentMatches.map((match) => [String(match.id ?? match.name), match])).values()
+        ).slice(0, MAX_ADMIN_AREA_MATCHES);
+      }
+    }
+  }
+
   if (!requestedLevel) {
     const getPrimaryCandidates = (area) => [
       area?.name,
@@ -783,7 +830,7 @@ function getLocalAdminAreaMatchesFromMessage(message = '', context = {}, options
     if (primaryExactMatches.length > 0) {
       return Array.from(
         new Map(primaryExactMatches.map((match) => [String(match.id ?? match.name), match])).values()
-      ).slice(0, 25);
+      ).slice(0, MAX_ADMIN_AREA_MATCHES);
     }
 
     const primaryLooseMatches = areas
@@ -796,7 +843,7 @@ function getLocalAdminAreaMatchesFromMessage(message = '', context = {}, options
     if (primaryLooseMatches.length > 0) {
       return Array.from(
         new Map(primaryLooseMatches.map((match) => [String(match.id ?? match.name), match])).values()
-      ).slice(0, 25);
+      ).slice(0, MAX_ADMIN_AREA_MATCHES);
     }
   }
 
@@ -847,7 +894,7 @@ function getLocalAdminAreaMatchesFromMessage(message = '', context = {}, options
       const normalized = String(match.matchedValue || match.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
       return normalized.length >= 3;
     })
-    .slice(0, 25);
+    .slice(0, MAX_ADMIN_AREA_MATCHES);
 }
 
 function getMentionedAdminAreaDetails(message = '', context = {}, maxAreas = 8) {
@@ -1215,6 +1262,30 @@ function detectLocalMapCommand(message = '', context = {}) {
   const hasDeselectIntent = hasDeselectPhrase || deselectKeywords.some((keyword) => lower.includes(keyword));
   if (!context?.hasDistricts || (!hasHighlightIntent && !hasSelectIntent && !hasDeselectIntent)) return null;
 
+  // Anaphora: "select them", "highlight those", "add the ones you listed". These
+  // refer to the district set resolved in a previous turn — NOT something the AI
+  // should re-guess (it hallucinates). Resolve from the stored last set so the
+  // action operates on exactly the real districts the user was just shown.
+  const referencesPriorSet = /\b(them|those|these|they)\b/.test(lower) ||
+    /\bthe\s+(ones?|districts?|areas?|list)\b/.test(lower) ||
+    /\b(that|the)\s+list\b/.test(lower);
+  const priorSet = context?.lastResolvedDistricts;
+  if (
+    referencesPriorSet &&
+    (hasSelectIntent || hasHighlightIntent || hasDeselectIntent) &&
+    priorSet &&
+    Array.isArray(priorSet.ids) &&
+    priorSet.ids.length > 0
+  ) {
+    return {
+      action: hasDeselectIntent ? 'deselect_districts' : (hasSelectIntent ? 'select_districts' : 'highlight_districts'),
+      criteria: {
+        ids: priorSet.ids.slice(),
+        names: Array.isArray(priorSet.names) ? priorSet.names.slice() : []
+      }
+    };
+  }
+
   const criteria = {};
 
   // Resolve any specific admin area named in the message up front. When the user
@@ -1309,7 +1380,39 @@ const PURE_DISPLAY_MAP_ACTIONS = new Set([
   'remove_all_osm'
 ]);
 
+// Deterministic district actions carry concrete ids resolved from the uploaded
+// data (a named area, an anaphoric "them", or an explicit risk/event filter). The
+// map + toast already report the real result, so the AI narrative only risks
+// contradicting it — answer locally and skip the /api/chat call for these too.
+function getDistrictActionConfirmation(command) {
+  if (!command) return null;
+  const isDistrictAction = command.action === 'select_districts' ||
+    command.action === 'deselect_districts' ||
+    command.action === 'highlight_districts';
+  if (!isDistrictAction) return null;
+
+  const ids = Array.isArray(command.criteria?.ids) ? command.criteria.ids : [];
+  const names = Array.isArray(command.criteria?.names) ? command.criteria.names : [];
+  // Only short-circuit when the set is concrete (explicit ids). Filter-only
+  // requests (risk levels, event counts) are resolved downstream in the map, so
+  // leave those to the existing toast/flow.
+  if (ids.length === 0) return null;
+
+  const verb = command.action === 'select_districts' ? 'Selected'
+    : command.action === 'deselect_districts' ? 'Deselected'
+    : 'Highlighted';
+  const count = ids.length;
+  const shown = names.slice(0, 20).join(', ');
+  const suffix = names.length > 20 ? `, and ${names.length - 20} more` : '';
+  const list = shown ? `: ${shown}${suffix}` : '';
+  const scopeNote = command.action === 'select_districts' ? ' for analysis' : '';
+  return `${verb} ${count} admin area${count === 1 ? '' : 's'}${scopeNote}${list}.`;
+}
+
 function getMapCommandConfirmation(command) {
+  const districtConfirmation = getDistrictActionConfirmation(command);
+  if (districtConfirmation) return districtConfirmation;
+
   if (!command || !PURE_DISPLAY_MAP_ACTIONS.has(command.action)) return null;
 
   switch (command.action) {
@@ -1377,7 +1480,7 @@ function getExactAdminAreaMatchesFromText(text = '', context = {}) {
   if (standaloneMatches.length > 0) {
     return Array.from(
       new Map(standaloneMatches.map((match) => [String(match.id), match])).values()
-    ).slice(0, 25);
+    ).slice(0, MAX_ADMIN_AREA_MATCHES);
   }
 
   const exactMatches = areas
@@ -1392,7 +1495,7 @@ function getExactAdminAreaMatchesFromText(text = '', context = {}) {
 
   return Array.from(
     new Map(exactMatches.map((match) => [String(match.id), match])).values()
-  ).slice(0, 25);
+  ).slice(0, MAX_ADMIN_AREA_MATCHES);
 }
 
 function getExactAdminAreaNamesFromText(text = '', context = {}) {
@@ -1758,6 +1861,10 @@ const ChatDrawer = ({
   const fileInputRef = useRef(null);
   const lastLocalMapCommandRef = useRef('');
   const localMapCommandAppliedRef = useRef(false);
+  // Remembers the real district set resolved by the previous deterministic query
+  // (e.g. "list districts in Ituri") so a follow-up "select them" operates on that
+  // exact set instead of letting the AI re-guess it.
+  const lastResolvedDistrictsRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1846,8 +1953,24 @@ const ChatDrawer = ({
       const compactContext = {
         ...compactChatContext(context, detailLevel),
         chatAttachments: compactChatAttachmentsForContext(chatAttachments),
-        mentionedAdminAreas: getMentionedAdminAreaDetails(userMessage.content, context)
+        mentionedAdminAreas: getMentionedAdminAreaDetails(userMessage.content, context),
+        // Feed the previously resolved district set in so "select them" resolves
+        // deterministically rather than falling through to the AI.
+        lastResolvedDistricts: lastResolvedDistrictsRef.current
       };
+
+      // Capture the real district set this message resolves to (deterministically,
+      // from the uploaded data) so a follow-up anaphora ("select them") can reuse
+      // it. Only overwrite when this turn actually names/scopes to areas, so a plain
+      // "select them" doesn't wipe the set it depends on.
+      const resolvedAreasThisTurn = getLocalAdminAreaMatchesFromMessage(userMessage.content, context);
+      if (resolvedAreasThisTurn.length > 0) {
+        lastResolvedDistrictsRef.current = {
+          ids: resolvedAreasThisTurn.map((area) => area.id).filter((id) => id !== undefined && id !== null),
+          names: resolvedAreasThisTurn.map((area) => area.name || area.matchedValue).filter(Boolean)
+        };
+      }
+
       const recentAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant');
       const isGoAhead = /\b(go ahead|do it|yes|please do|proceed)\b/i.test(userMessage.content);
       const localMapCommand = detectLocalMapCommand(userMessage.content, compactContext) ||

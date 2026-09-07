@@ -48,6 +48,9 @@ const tools = [
   }
 ];
 
+// Must cover every district in a province (or a whole country); a 25-cap silently
+// dropped ~11 of Ituri's 36 health zones when resolving a province highlight.
+const MAX_ADMIN_AREA_MATCHES = 500;
 const DEFAULT_CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4.1-mini';
 const WEB_SEARCH_CHAT_MODEL = process.env.OPENAI_WEB_SEARCH_MODEL || 'gpt-4o-search-preview';
 
@@ -678,6 +681,14 @@ function detectMapIntent(message, context = {}) {
     // Determine what to highlight
     const criteria = {};
 
+    // Resolve any named admin area first. When the request is scoped to a place
+    // ("...within Ituri province"), that area drives the result — we must NOT also
+    // expand to "all risk levels", which would match every district in the dataset
+    // and act on the whole country instead of just Ituri.
+    const matchedAreas = getAdminAreaMatchesFromMessage(message, context);
+    const hasScopingPhrase = /\b(within|inside|in|across|of|for)\b[^.?!]*\b(province|territory|territories|region|zone|governorate|state|county|prefecture|district)\b/.test(lowerMessage);
+    const hasNamedAreaScope = matchedAreas.length > 0 || hasScopingPhrase;
+
     // Check for risk level mentions
     if (riskKeywords.some(keyword => lowerMessage.includes(keyword))) {
       // User wants to see high risk areas
@@ -703,8 +714,10 @@ function detectMapIntent(message, context = {}) {
       criteria.riskLevels = ['medium'];
     }
 
-    // Check for "all districts" or general area questions
-    if (hasHighlightIntent &&
+    // Check for "all districts" or general area questions — but only as a
+    // dataset-wide request. If a specific area was named/scoped, that scope wins.
+    if (!hasNamedAreaScope &&
+        hasHighlightIntent &&
         (lowerMessage.includes('all') || lowerMessage.includes('entire') || lowerMessage.includes('whole')) &&
         (lowerMessage.includes('district') || lowerMessage.includes('area') || lowerMessage.includes('region'))) {
       // Show all districts regardless of risk
@@ -717,7 +730,6 @@ function detectMapIntent(message, context = {}) {
       criteria.minEventCount = parseInt(eventMatch[1]);
     }
 
-    const matchedAreas = getAdminAreaMatchesFromMessage(message, context);
     if (matchedAreas.length > 0) {
       criteria.ids = matchedAreas.map((area) => area.id).filter((id) => id !== undefined && id !== null);
       criteria.names = matchedAreas.map((area) => area.name || area.matchedValue).filter(Boolean);
@@ -1027,6 +1039,43 @@ function getAdminAreaMatchesFromMessage(message = '', context = {}) {
     'map'
   ]);
 
+  // Parent-scope pass: "highlight districts IN Ituri" names an output level AND a
+  // parent scope. Match the parent name against EVERY identity entry so we return
+  // all child areas whose parent is that place, whether or not the user said
+  // "province". Mirrors the client resolver in ChatDrawer.js.
+  const scopeMatch = normalizedMessage.match(/\b(?:in|within|inside|across|of|for|under)\s+(.+)$/);
+  if (scopeMatch) {
+    const scopeText = scopeMatch[1]
+      .split(/\s+/)
+      .filter((token) => token.length >= 3 && !genericAdminTokens.has(token))
+      .join(' ')
+      .trim();
+    if (scopeText.length >= 3) {
+      const parentMatches = areas
+        .map((area) => {
+          const identityValues = Array.isArray(area?.identityEntries)
+            ? area.identityEntries.map((entry) => entry.value)
+            : [];
+          const allCandidates = [area?.region, area?.country, ...identityValues].filter(Boolean);
+          const matchedCandidate = allCandidates.find((candidate) => {
+            const normalized = String(candidate).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            return normalized.length >= 3 && (
+              normalizedTextContains(scopeText, normalized) ||
+              normalizedTextContains(normalized, scopeText)
+            );
+          });
+          return matchedCandidate ? { ...area, matchedValue: String(matchedCandidate) } : null;
+        })
+        .filter(Boolean);
+
+      if (parentMatches.length > 1) {
+        return Array.from(
+          new Map(parentMatches.map((match) => [String(match.id ?? match.name), match])).values()
+        ).slice(0, MAX_ADMIN_AREA_MATCHES);
+      }
+    }
+  }
+
   areas.forEach((area) => {
     const identityEntries = Array.isArray(area?.identityEntries) ? area.identityEntries : [];
     const levelEntries = requestedLevel
@@ -1080,7 +1129,7 @@ function getAdminAreaMatchesFromMessage(message = '', context = {}) {
       const normalized = String(match.matchedValue || match.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
       return normalized.length >= 3;
     })
-    .slice(0, 25);
+    .slice(0, MAX_ADMIN_AREA_MATCHES);
 }
 
 function normalizedTextContains(searchText = '', term = '') {
