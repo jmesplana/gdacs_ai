@@ -163,39 +163,41 @@ const OperationalOutlook = ({
       }
 
       const filteredAcledData = scopedAcledData;
-      let districtHazardAnalysis = null;
 
-      try {
-        const districtHazardResponse = await fetch('/api/district-hazard-analysis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            districts: analysisDistricts,
-            facilities: scopedFacilities,
-            disasters: scopedDisasters,
-            acledData: filteredAcledData,
-            worldPopData: scopedWorldPopData,
-            enabledEvidenceLayers,
-            days: 7
-          })
-        });
-
-        if (districtHazardResponse.ok) {
-          districtHazardAnalysis = await districtHazardResponse.json();
-        } else {
-          console.warn('Could not fetch district hazard analysis for outlook');
-        }
-      } catch (err) {
-        console.warn('Could not fetch district hazard analysis for outlook:', err);
-      }
-
-      let nextSupportingAssessments = {
-        districtHazardAnalysis
-      };
+      // Hazard analysis and logistics assessment are independent (logistics does
+      // not depend on hazard output), so fetch them concurrently instead of
+      // serially — halving the pre-generation wait.
       const logisticsCoverage = getOsmLogisticsCoverage();
       const canAssessLogistics = scopedOsmData?.features?.length > 0 && (logisticsCoverage.roads || logisticsCoverage.fuel || logisticsCoverage.air);
 
-      if (canAssessLogistics) {
+      const districtHazardPromise = (async () => {
+        try {
+          const districtHazardResponse = await fetch('/api/district-hazard-analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              districts: analysisDistricts,
+              facilities: scopedFacilities,
+              disasters: scopedDisasters,
+              acledData: filteredAcledData,
+              worldPopData: scopedWorldPopData,
+              enabledEvidenceLayers,
+              days: 7
+            })
+          });
+
+          if (districtHazardResponse.ok) {
+            return await districtHazardResponse.json();
+          }
+          console.warn('Could not fetch district hazard analysis for outlook');
+        } catch (err) {
+          console.warn('Could not fetch district hazard analysis for outlook:', err);
+        }
+        return null;
+      })();
+
+      const logisticsPromise = (async () => {
+        if (!canAssessLogistics) return null;
         try {
           const logisticsRes = await fetch('/api/logistics-assessment', {
             method: 'POST',
@@ -211,21 +213,28 @@ const OperationalOutlook = ({
 
           if (logisticsRes.ok) {
             const logisticsPayload = await logisticsRes.json();
-            nextSupportingAssessments = {
-              ...nextSupportingAssessments,
-              logistics: logisticsPayload.data
-            };
-          } else {
-            console.warn('Could not fetch logistics assessment for outlook');
+            return logisticsPayload.data;
           }
+          console.warn('Could not fetch logistics assessment for outlook');
         } catch (err) {
           console.warn('Could not fetch logistics assessment for outlook:', err);
         }
-      }
+        return null;
+      })();
+
+      const [districtHazardAnalysis, logisticsData] = await Promise.all([
+        districtHazardPromise,
+        logisticsPromise
+      ]);
+
+      const nextSupportingAssessments = {
+        districtHazardAnalysis,
+        ...(logisticsData ? { logistics: logisticsData } : {})
+      };
 
       setSupportingAssessments(nextSupportingAssessments);
 
-      // Generate operational outlook with filtered data
+      // Generate operational outlook with filtered data (streamed)
       const response = await fetch('/api/operational-outlook', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -239,7 +248,8 @@ const OperationalOutlook = ({
           selectedDistrict: selectedDistrict ? selectedDistrict.name : null, // Signal to API if this is admin-level analysis
           worldPopData: scopedWorldPopData,
           worldPopYear: worldPopYear || null,
-          osmData: scopedOsmData || null // Include OSM infrastructure data
+          osmData: scopedOsmData || null, // Include OSM infrastructure data
+          stream: true
         })
       });
 
@@ -247,8 +257,50 @@ const OperationalOutlook = ({
         throw new Error(`Failed to generate outlook: ${response.statusText}`);
       }
 
-      const data = await response.json();
-      setOutlook(data.outlook);
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream') && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let accumulated = '';
+        let buffer = '';
+        setOutlook('');
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const payload = line.slice(6).trim();
+            if (!payload) continue;
+
+            try {
+              const parsed = JSON.parse(payload);
+              if (parsed.error) {
+                throw new Error(parsed.error);
+              }
+              if (parsed.content) {
+                accumulated += parsed.content;
+                setOutlook(accumulated);
+              }
+              if (parsed.done && parsed.outlook) {
+                accumulated = parsed.outlook;
+                setOutlook(accumulated);
+              }
+            } catch (parseError) {
+              console.warn('Skipping malformed outlook stream chunk:', parseError);
+            }
+          }
+        }
+      } else {
+        // Fallback: non-streaming JSON response
+        const data = await response.json();
+        setOutlook(data.outlook);
+      }
     } catch (err) {
       console.error('Error generating operational outlook:', err);
       setError(err.message);

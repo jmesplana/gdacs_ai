@@ -85,6 +85,7 @@ async function handler(req, res) {
     worldPopData = {},
     worldPopYear = null,
     osmData = null, // Optional: OpenStreetMap infrastructure data
+    stream = false,
   } = req.body;
 
   if (!openai) {
@@ -180,21 +181,48 @@ async function handler(req, res) {
       selectedAdmin: selectedDistrict
     });
 
-    // Generate outlook using AI
+    const contextMeta = {
+      facilitiesAnalyzed: facilities.length,
+      disastersMonitored: disasters.length,
+      securityEvents: acledData.length,
+      districtsIncluded: districts.length,
+      country: country,
+      hasWebSearch: !!webSearchResults
+    };
+
+    // Streaming path: pipe the outlook narrative to the client via SSE as it's
+    // generated so the panel renders progressively instead of after the full call.
+    if (stream) {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.setHeader('Content-Encoding', 'none');
+      if (res.flushHeaders) res.flushHeaders();
+
+      try {
+        const outlook = await generateOutlook(context, selectedDistrict, (delta) => {
+          res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+          if (res.flush) res.flush();
+        });
+        res.write(`data: ${JSON.stringify({ done: true, outlook, context: contextMeta })}\n\n`);
+        res.end();
+      } catch (streamError) {
+        console.error('Operational outlook streaming error:', streamError);
+        res.write(`data: ${JSON.stringify({ error: 'Failed to generate operational outlook' })}\n\n`);
+        res.end();
+      }
+      return;
+    }
+
+    // Generate outlook using AI (non-streaming)
     const outlook = await generateOutlook(context, selectedDistrict);
 
     return res.status(200).json({
       success: true,
       timestamp: new Date().toISOString(),
       outlook,
-      context: {
-        facilitiesAnalyzed: facilities.length,
-        disastersMonitored: disasters.length,
-        securityEvents: acledData.length,
-        districtsIncluded: districts.length,
-        country: country,
-        hasWebSearch: !!webSearchResults
-      }
+      context: contextMeta
     });
 
   } catch (error) {
@@ -742,7 +770,7 @@ function calculateDistrictRisks(districts, acledData) {
 /**
  * Generate operational outlook using AI
  */
-async function generateOutlook(context, selectedDistrict) {
+async function generateOutlook(context, selectedDistrict, onDelta = null) {
   // Determine analysis level and scope
   const isAdminLevel = !!selectedDistrict;
   const analysisScope = isAdminLevel ? `the **${selectedDistrict} admin level**` : 'the **entire operational area**';
@@ -834,7 +862,7 @@ ${context}
 
 Generate the operational outlook now:`;
 
-  const response = await openai.chat.completions.create({
+  const requestParams = {
     model: 'gpt-4o',
     messages: [
       {
@@ -848,7 +876,22 @@ Generate the operational outlook now:`;
     ],
     temperature: 0.7,
     max_tokens: 3000
-  });
+  };
+
+  if (typeof onDelta === 'function') {
+    let fullText = '';
+    const streamResponse = await openai.chat.completions.create({ ...requestParams, stream: true });
+    for await (const chunk of streamResponse) {
+      const delta = chunk.choices?.[0]?.delta?.content;
+      if (delta) {
+        fullText += delta;
+        onDelta(delta);
+      }
+    }
+    return fullText;
+  }
+
+  const response = await openai.chat.completions.create(requestParams);
 
   return response.choices[0].message.content;
 }

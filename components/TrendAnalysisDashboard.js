@@ -152,6 +152,12 @@ export default function TrendAnalysisDashboard({
         getAcledDetailMetrics
       } = await import('../lib/trendAnalysis');
 
+      // These six computations are heavy point-in-polygon scans over the full
+      // datasets. Running them back-to-back in one tick freezes the drawer on
+      // open, so yield to the event loop between each — the loading spinner
+      // paints and the UI stays interactive while they run.
+      const yieldToPaint = () => new Promise((resolve) => setTimeout(resolve, 0));
+
       // Calculate summary metrics
       const summary = getSummaryMetrics(
         selectedDistricts,
@@ -160,6 +166,7 @@ export default function TrendAnalysisDashboard({
         disasters || [],
         timeWindow
       );
+      await yieldToPaint();
 
       // Calculate ACLED trends
       const acledTrends = aggregateAcledByTime(
@@ -168,12 +175,14 @@ export default function TrendAnalysisDashboard({
         acledGranularity,
         timeWindow
       );
+      await yieldToPaint();
 
       const acledDetails = getAcledDetailMetrics(
         selectedDistricts,
         acledData || [],
         timeWindow
       );
+      await yieldToPaint();
 
       // Calculate facility risk trends
       const facilityRiskTrends = calculateFacilityRiskTrends(
@@ -181,6 +190,7 @@ export default function TrendAnalysisDashboard({
         impactedFacilities || [],
         selectedDistricts
       );
+      await yieldToPaint();
 
       // Calculate disaster trends
       const disasterTrends = aggregateDisastersByTime(
@@ -188,6 +198,7 @@ export default function TrendAnalysisDashboard({
         selectedDistricts,
         'weekly'
       );
+      await yieldToPaint();
 
       // Calculate district comparison
       const districtComparison = calculateDistrictComparison(
