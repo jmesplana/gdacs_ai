@@ -27,6 +27,7 @@ import { saveOutbreaks, loadOutbreaks, saveGdacs, loadGdacs } from '../lib/dataS
 const MapComponent = dynamic(() => import('../components/MapComponent'), {
   ssr: false,
 });
+const AppHub = dynamic(() => import('../components/platform/AppHub'), { ssr: false });
 
 const FacilityUploader = dynamic(() => import('../components/FacilityUploader'), {
   ssr: false,
@@ -551,6 +552,7 @@ export default function Home() {
   const [dateFilter, setDateFilter] = useState('30d'); // default to recent operational updates
   const [fetchError, setFetchError] = useState(null);
   const [showHelp, setShowHelp] = useState(false); // Help panel visibility
+  const [showAppHub, setShowAppHub] = useState(false);
   const [showChatDrawer, setShowChatDrawer] = useState(false); // Chat drawer visibility
   const [showPredictions, setShowPredictions] = useState(false); // Prediction dashboard visibility
   const [showOperationalOutlook, setShowOperationalOutlook] = useState(false); // Operational outlook dashboard visibility
@@ -910,6 +912,8 @@ export default function Home() {
         aiAnalysisFields,
         districtLabelField
       }
+      }).then((saved) => {
+        if (!saved) addToast('Workspace changes could not be saved on this device. Check browser storage before closing.', 'error');
       });
     }, 1200);
   }, [
@@ -3557,6 +3561,10 @@ export default function Home() {
           </div>
           </div>
         </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 16px', borderBottom: '1px solid #dae2df' }}>
+          <button onClick={() => setShowAppHub(true)} style={{ padding: '7px 14px', border: '1px solid #c6d1ce', borderRadius: '5px', background: 'white', color: '#087f6a', fontWeight: 700, cursor: 'pointer' }}>Workspace apps</button>
+        </div>
+        {showAppHub && <AppHub districts={districts} facilities={facilities} onClose={() => setShowAppHub(false)} />}
         <OperationalContextBar
           selectedAnalysisDistricts={selectedAnalysisDistricts}
           districts={districts}
