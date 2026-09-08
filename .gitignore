@@ -63,6 +63,8 @@ __pycache__/
 
 # Exceptions - allow sample/example data
 !public/sample_facilities.csv
+# Exceptions - allow distributable documentation
+!docs/*.pdf
 
 # IDE
 .vscode/
