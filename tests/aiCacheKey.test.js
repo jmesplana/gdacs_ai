@@ -49,3 +49,10 @@ test('createPrioritizationCacheKey ignores key gaps after the first five', () =>
 
   assert.equal(baseKey, extraGapKey);
 });
+
+test('cache keys distinguish geography, workspace and changed narrative inputs', () => {
+  const row = { district: 'Central', priorityScore: 50 };
+  assert.notEqual(createPrioritizationCacheKey(row, { country: 'A' }), createPrioritizationCacheKey(row, { country: 'B' }));
+  assert.notEqual(createPrioritizationCacheKey(row, { workspaceId: 'A' }), createPrioritizationCacheKey(row, { workspaceId: 'B' }));
+  assert.notEqual(createPrioritizationCacheKey(row), createPrioritizationCacheKey({ ...row, recommendedAction: 'Updated action' }));
+});

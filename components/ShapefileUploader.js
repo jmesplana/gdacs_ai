@@ -4,6 +4,7 @@ import * as shapefile from 'shapefile';
 import simplify from '@turf/simplify';
 import { feature } from '@turf/helpers';
 import proj4 from 'proj4';
+import { areaIdentity } from '../lib/planning/geography';
 
 export default function ShapefileUploader({ onDistrictsLoaded }) {
   const [loading, setLoading] = useState(false);
@@ -109,21 +110,25 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
     const population = props.POPULATION || props.Population || props.POP;
     const normalizedGeometry = normalizeBoundaryGeometry(feat.geometry);
     const simplifiedGeometry = simplifyBoundaryGeometry(normalizedGeometry, simplifyTolerance, districtName);
-    const bounds = simplifiedGeometry?.coordinates ? calculateBounds(simplifiedGeometry) : null;
+    const bounds = normalizedGeometry?.coordinates ? calculateBounds(normalizedGeometry) : null;
 
     return {
-      id: idx,
+      ...areaIdentity({ ...feat, geometry: normalizedGeometry }),
       name: districtName,
       country,
       region,
       population,
-      geometry: simplifiedGeometry,
+      geometry: normalizedGeometry,
+      renderGeometry: simplifiedGeometry,
       bounds,
       properties: props
     };
   };
 
   const finishDistrictUpload = (districts, availableFields = []) => {
+    if (new Set(districts.map((district) => district.id)).size !== districts.length) {
+      throw new Error('Duplicate area identifiers found. Upload one administrative level with unique area codes.');
+    }
     if (availableFields && availableFields.length > 0) {
       setAvailableFields(availableFields);
       setPendingData({ districts, count: districts.length, availableFields });
@@ -329,9 +334,7 @@ export default function ShapefileUploader({ onDistrictsLoaded }) {
           const [x, y] = firstCoord;
           // Check if coordinates look like UTM (large numbers)
           if (Math.abs(x) > 180 || Math.abs(y) > 90) {
-            // Assume UTM Zone 36N for Uganda (EPSG:32636)
-            sourceProjection = '+proj=utm +zone=36 +datum=WGS84 +units=m +no_defs';
-            console.log('🔍 Auto-detected UTM Zone 36N projection for Uganda');
+            throw new Error('Projected coordinates require a valid .prj file. Export this dataset as WGS84 GeoJSON or include its original projection file.');
           }
         }
       }

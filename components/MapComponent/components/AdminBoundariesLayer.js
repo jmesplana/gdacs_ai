@@ -25,7 +25,7 @@ function getRiskLabel(level) {
     case 'medium': return 'MEDIUM';
     case 'low': return 'LOW';
     case 'none':
-    default: return 'NO RISK';
+    default: return 'NO LOADED RISK SIGNAL';
   }
 }
 
@@ -248,14 +248,14 @@ function buildDatasetPopupBlock(datasetStyle, featureId) {
   const entry = datasetStyle.byDistrictId?.[featureId];
   const metric = entry?.aggregated?.[datasetStyle.metricField];
   const valueLabel = metric
-    ? formatMetricValue(metric.value, { isPercent: datasetStyle.isPercent })
+    ? formatMetricValue(metric.value, { isPercent: datasetStyle.isPercent, percentScale: metric.aggregation === 'ratio' ? 'percent' : 'auto' })
     : 'No data';
 
-  const supportingText = metric?.count > 1
-    ? `Average from ${metric.count} matched rows`
+  const supportingText = metric?.issue || (metric?.count > 1
+    ? `${metric.aggregation === 'sum' ? 'Sum' : metric.aggregation === 'ratio' ? 'Weighted coverage' : 'Average'} from ${metric.count} matched rows`
     : metric?.count === 1
       ? 'From 1 matched row'
-      : 'No uploaded row matched this admin area';
+      : 'No uploaded row matched this admin area');
 
   return `
     <div style="margin: 10px 0; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">

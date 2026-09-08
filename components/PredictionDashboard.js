@@ -1074,7 +1074,7 @@ const OutbreakPredictionView = ({ data, getRiskColor, metadata }) => {
                   {threat.disease}
                 </div>
                 <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
-                  {threat.probability}% probability
+                  Heuristic score: {threat.riskScore}/100
                 </div>
               </div>
             ))}
@@ -1108,7 +1108,7 @@ const OutbreakPredictionView = ({ data, getRiskColor, metadata }) => {
             </div>
 
             <div style={{ fontSize: '13px', color: '#64748B', marginBottom: '12px' }}>
-              <strong style={{ color: 'var(--aidstack-navy)' }}>Probability:</strong> {data.probability}%
+              <strong style={{ color: 'var(--aidstack-navy)' }}>Heuristic score:</strong> {data.riskScore}/100. Unvalidated; not an outbreak probability.
             </div>
 
             {data.peakDay && (

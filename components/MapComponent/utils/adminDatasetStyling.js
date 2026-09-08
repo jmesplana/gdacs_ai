@@ -107,11 +107,11 @@ export function isPercentLikeField(field = '', values = []) {
   return min >= 0 && max <= 1;
 }
 
-export function formatMetricValue(value, { isPercent = false } = {}) {
+export function formatMetricValue(value, { isPercent = false, percentScale = 'auto' } = {}) {
   if (!Number.isFinite(value)) return 'No data';
 
   if (isPercent) {
-    const displayValue = value <= 1 ? value * 100 : value;
+    const displayValue = percentScale === 'percent' ? value : value <= 1 ? value * 100 : value;
     return `${displayValue.toLocaleString(undefined, { maximumFractionDigits: displayValue < 10 ? 1 : 0 })}%`;
   }
 

@@ -122,6 +122,7 @@ ${JSON.stringify(compactBoardRow(row), null, 2)}
 Additional context:
 ${JSON.stringify({
   operationType: context.operationType,
+  geography: context.selectedDistricts.map(({ id, name, country, region, properties }) => ({ id, name, country, region, properties })),
   selectedAreaCount: context.selectedDistricts?.length || 0,
   facilityDataLoaded: (context.facilities?.length || 0) > 0
 }, null, 2)}

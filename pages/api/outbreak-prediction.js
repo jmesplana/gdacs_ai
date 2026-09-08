@@ -4,7 +4,7 @@ import { withRateLimit } from '../../lib/rateLimit';
  * Predicts epidemic risk based on disasters, weather, and facility damage
  */
 
-import { calculateEpidemicRisk, predictCases, PREDICTION_CONFIG } from '../../config/predictionConfig';
+import { calculateEpidemicRisk, PREDICTION_CONFIG } from '../../config/predictionConfig';
 import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
 import OpenAI from 'openai';
 
@@ -55,7 +55,7 @@ async function handler(req, res) {
 
   const forecastDays = Math.min(Math.max(1, parseInt(req.body.forecastDays) || 30), 90);
 
-  if (!latitude || !longitude) {
+  if (latitude == null || longitude == null || latitude === '' || longitude === '' || !Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude)) || Math.abs(Number(latitude)) > 90 || Math.abs(Number(longitude)) > 180) {
     return res.status(400).json({ error: 'Missing latitude or longitude' });
   }
 
@@ -92,32 +92,13 @@ async function handler(req, res) {
       const risk = calculateEpidemicRisk(disease, riskFactors);
 
       if (risk) {
-        // Predict cases over time
-        const model = PREDICTION_CONFIG.diseaseModels[disease];
-        const baselineCases = model.baselineRate * populationEstimate;
-        const casePredictions = [];
-
-        for (let day = 0; day <= forecastDays; day += 7) {
-          const prediction = predictCases(
-            baselineCases,
-            populationEstimate,
-            risk.score,
-            day,
-            risk.doublingTime
-          );
-          casePredictions.push({
-            day,
-            ...prediction,
-          });
-        }
-
         predictions[disease] = {
           disease: risk.diseaseName,
           risk: risk.level,
           confidence: risk.confidence,
-          probability: Math.round(risk.score * 100),
-          peakDay: risk.peakDay,
-          casePredictions,
+          riskScore: Math.round(risk.score * 100),
+          methodology: risk.methodology,
+          casePredictions: [],
           riskFactors: Object.keys(riskFactors).filter(k => riskFactors[k] > 0),
         };
       }
@@ -125,7 +106,7 @@ async function handler(req, res) {
 
     // Sort by risk level
     const sortedPredictions = Object.entries(predictions)
-      .sort((a, b) => b[1].probability - a[1].probability);
+      .sort((a, b) => b[1].riskScore - a[1].riskScore);
 
     // Generate AI-enhanced analysis if OpenAI available
     let aiAnalysis = null;
@@ -152,7 +133,7 @@ async function handler(req, res) {
       topThreats: sortedPredictions.slice(0, 3).map(([disease, data]) => ({
         disease,
         level: data.risk,
-        probability: data.probability,
+        riskScore: data.riskScore,
       })),
       aiAnalysis,
     });
@@ -228,7 +209,7 @@ async function generateAIAnalysis(predictions, disasters, population, vulnerable
 
   try {
     const topDiseases = predictions.slice(0, 3).map(([disease, data]) =>
-      `${data.disease}: ${data.probability}% risk (${data.risk} level)`
+      `${data.disease}: heuristic score ${data.riskScore}/100 (${data.risk} level; unvalidated, not a probability)`
     ).join('\n');
 
     const disasterContext = disasters.length > 0

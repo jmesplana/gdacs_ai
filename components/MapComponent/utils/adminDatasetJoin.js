@@ -1,4 +1,5 @@
-import { parseMetricValue } from './adminDatasetStyling';
+import { parseMetricValue } from './adminDatasetStyling.js';
+import { aggregateIndicator } from '../../../lib/planning/indicators.js';
 import { toNumber } from '../../../lib/geo/coordinates.js';
 import { isPointInGeometry } from '../../../lib/geo/geometry.js';
 
@@ -32,13 +33,25 @@ export function findContainingDistrict(row, districts = []) {
   }) || null;
 }
 
-export function buildAdminDatasetJoin(rows = [], districts = [], metricField = null) {
+const membershipCache = new WeakMap();
+
+function getMembership(rows, districts) {
+  let cached = membershipCache.get(rows);
+  if (!cached || cached.districts !== districts) {
+    cached = { districts, matches: rows.map((row) => findContainingDistrict(row, districts)) };
+    membershipCache.set(rows, cached);
+  }
+  return cached.matches;
+}
+
+export function buildAdminDatasetJoin(rows = [], districts = [], metricField = null, definition = null) {
   const byDistrictId = {};
   let matchedRows = 0;
   let unmatchedRows = 0;
 
-  rows.forEach((row) => {
-    const district = findContainingDistrict(row, districts);
+  const matches = getMembership(rows, districts);
+  rows.forEach((row, index) => {
+    const district = matches[index];
     if (!district) {
       unmatchedRows += 1;
       return;
@@ -71,9 +84,8 @@ export function buildAdminDatasetJoin(rows = [], districts = [], metricField = n
     entry.aggregated = {};
     Object.entries(entry.values).forEach(([field, values]) => {
       if (!values.length) return;
-      const sum = values.reduce((total, value) => total + value, 0);
       entry.aggregated[field] = {
-        value: sum / values.length,
+        ...aggregateIndicator(entry.rows, field, definition),
         count: values.length,
         min: Math.min(...values),
         max: Math.max(...values)

@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { getDistance } from 'geolib';
 import { getOperationType, calculateOperationSpecificScore } from '../../config/operationTypes';
 import { formatWorldPopForAI } from '../../utils/worldpopHelpers';
+import { applyEvidenceGate } from '../../lib/planning/evidence';
 
 export const config = {
   api: {
@@ -51,6 +52,7 @@ async function handler(req, res) {
         const securityResponse = await fetch(`${_baseUrl}/api/security-assessment`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(15000),
           body: JSON.stringify({
             facility,
             acledData: acledEnabled ? acledData : null,
@@ -90,6 +92,14 @@ async function handler(req, res) {
       } catch (securityError) {
         console.error('Error fetching security assessment:', securityError);
       }
+    }
+
+    applyEvidenceGate(assessment, { disasters, impacts, securityAssessment: assessment.securityAssessment, operationType, facility });
+
+    // Missing evidence is a deterministic result, not a prompt for a favorable narrative.
+    if (assessment.evidence.status === 'incomplete') {
+      return res.status(200).json({ ...assessment, operationType, operationName: opConfig.name,
+        aiRecommendations: assessment.timeline.rationale, isAIGenerated: false });
     }
 
     // Generate AI recommendations if OpenAI is available

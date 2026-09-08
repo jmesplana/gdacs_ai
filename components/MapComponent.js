@@ -2965,9 +2965,9 @@ const MapComponent = ({
 
     return deferredDistricts.map(district => ({
       ...district,
-      displayGeometry: shouldSimplifyForDisplay
+      displayGeometry: district.renderGeometry || (shouldSimplifyForDisplay
         ? simplifyGeometryCached(district.geometry || null)
-        : district.geometry
+        : district.geometry)
     }));
   }, [deferredDistricts]);
   const districtSummary = useMemo(() => {

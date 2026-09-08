@@ -93,7 +93,7 @@ export const convertFacilitiesToCSV = (facilities, columnMapping) => {
       facility[name],
       facility[latitude],
       facility[longitude],
-      ...uniqueAdditionalFields.map(field => facility[field] || '')
+      ...uniqueAdditionalFields.map(field => facility[field] ?? '')
     ];
     return row.map(escapeCSVValue).join(',');
   });
@@ -118,6 +118,7 @@ export const downloadCSV = (csvContent, filename = 'sites.csv') => {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
 
 /**

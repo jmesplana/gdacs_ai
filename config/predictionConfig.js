@@ -155,7 +155,8 @@ export function calculateEpidemicRisk(disease, factors) {
   return {
     score: normalizedScore,
     level: normalizedScore > 0.7 ? 'CRITICAL' : normalizedScore > 0.5 ? 'HIGH' : normalizedScore > 0.3 ? 'MEDIUM' : 'LOW',
-    confidence: normalizedScore > 0.6 ? 'HIGH' : normalizedScore > 0.3 ? 'MEDIUM' : 'LOW',
+    confidence: 'UNVALIDATED',
+    methodology: 'Heuristic scenario indicator; not an outbreak probability',
     peakDay: model.peakDay,
     doublingTime: model.doublingTime,
     diseaseName: model.name,
@@ -166,8 +167,11 @@ export function calculateEpidemicRisk(disease, factors) {
  * Predict epidemic cases using exponential growth model
  */
 export function predictCases(baselineCases, population, riskScore, daysAhead, doublingTime) {
+  if (![baselineCases, population, riskScore, daysAhead, doublingTime].every(Number.isFinite) || population <= 0 || baselineCases < 0 || daysAhead < 0 || doublingTime <= 0 || riskScore < 0 || riskScore > 1) {
+    return { cases: null, incidenceRate: null, attackRate: null };
+  }
   const growthRate = Math.log(2) / doublingTime;
-  const expectedCases = baselineCases * Math.exp(growthRate * daysAhead * riskScore);
+  const expectedCases = Math.min(population, baselineCases * Math.exp(growthRate * daysAhead * riskScore));
 
   return {
     cases: Math.round(expectedCases),

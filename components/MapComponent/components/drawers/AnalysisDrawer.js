@@ -576,7 +576,7 @@ const AnalysisDrawer = ({
                                      operationViability.viabilityScore >= 40 ? '#FF9800' :
                                      operationViability.viabilityScore >= 20 ? '#FFC107' : '#F44336'
                             }}>
-                              {operationViability.viabilityScore}/100
+                              {operationViability.viabilityScore == null ? 'Unknown' : `${operationViability.viabilityScore}/100`}
                             </span>
                           </div>
                           <div style={{
@@ -587,7 +587,7 @@ const AnalysisDrawer = ({
                             overflow: 'hidden'
                           }}>
                             <div style={{
-                              width: `${operationViability.viabilityScore}%`,
+                              width: `${operationViability.viabilityScore ?? 0}%`,
                               height: '100%',
                               backgroundColor: operationViability.viabilityScore >= 70 ? '#4CAF50' :
                                              operationViability.viabilityScore >= 40 ? '#FF9800' :
