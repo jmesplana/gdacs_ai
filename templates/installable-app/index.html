@@ -1,0 +1,57 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { font: 16px system-ui; color: #23332f; margin: 24px; }
+form { display: grid; gap: 16px; max-width: 650px; }
+label { display: grid; gap: 6px; }
+input, textarea, button, select { font: inherit; padding: 10px; border: 1px solid #bbcfc7; border-radius: 5px; }
+button { background: #087f6a; color: white; cursor: pointer; }
+#status { min-height: 24px; }
+</style>
+<h1>Activity planner</h1>
+<p>Create a plan for your response or campaign. Plans are saved in this workspace.</p>
+<form id="form">
+  <label>Saved plans <select id="saved"><option value="">New plan</option></select></label>
+  <label>Plan name <input id="name" required maxlength="200"></label>
+  <label>Activities <textarea id="activities" rows="8" placeholder="Activities, locations, teams and dates"></textarea></label>
+  <button id="save">Save plan</button>
+</form>
+<p id="status" role="status"></p>
+<script>
+(() => {
+  const name = document.getElementById('name');
+  const activities = document.getElementById('activities');
+  const saved = document.getElementById('saved');
+  const status = document.getElementById('status');
+  const button = document.getElementById('save');
+  let plan = null, dirty = false;
+  const mark = value => { dirty = value; aidstack.setDirty(value).catch(error => { status.textContent = error.message; }); };
+  name.oninput = activities.oninput = () => mark(true);
+  async function refresh() {
+    const rows = await aidstack.storage.listPlans();
+    saved.replaceChildren(new Option('New plan', ''));
+    rows.forEach(row => saved.add(new Option(row.name, row.id)));
+    saved.value = plan?.id || '';
+  }
+  saved.onchange = async () => {
+    if (dirty) { saved.value = plan?.id || ''; status.textContent = 'Save this draft before opening another plan.'; return; }
+    try {
+      plan = saved.value ? await aidstack.storage.loadPlan(saved.value) : null;
+      name.value = plan?.metadata.name || '';
+      activities.value = plan?.activities || '';
+      status.textContent = plan ? 'Plan opened.' : '';
+    } catch (error) { status.textContent = error.message; }
+  };
+  document.getElementById('form').onsubmit = async event => {
+    event.preventDefault();
+    button.disabled = true;
+    try {
+      plan = await aidstack.storage.savePlan({ ...(plan || {}), id: plan?.id || crypto.randomUUID(), schemaVersion: 1, metadata: { name: name.value.trim() }, activities: activities.value }, plan?.revision || 0);
+      mark(false);
+      await refresh();
+      status.textContent = 'Plan saved.';
+    } catch (error) { status.textContent = error.message; }
+    finally { button.disabled = false; }
+  };
+  refresh().catch(error => { status.textContent = error.message; });
+})();
+</script>

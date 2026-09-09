@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Download, Upload, Save, Plus, Copy, Trash2, Printer, X, ArrowLeft, ArrowRight } from 'lucide-react';
 import { OBSERVATION_FIELDS, REQUIRED_METADATA, calculatePlan, validateMetadata, validatePlan } from '../../../lib/planning/immunization';
-import { listPlans, loadPlan, savePlan } from '../../../lib/platform/appStore';
 import styles from '../../platform/Planning.module.css';
 
 const PlanningMap = dynamic(() => import('./PlanningMap'), { ssr: false });
@@ -22,7 +21,7 @@ function downloadBlob(content, name, type) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function ImmunizationPlanner({ workspaceId, districts, facilities, leaveGuard }) {
+export default function ImmunizationPlanner({ storage, workspaceId, districts, facilities, leaveGuard }) {
   const [plan, setPlan] = useState(null);
   const [metadata, setMetadata] = useState(blankMetadata);
   const [savedPlans, setSavedPlans] = useState([]);
@@ -46,7 +45,7 @@ export default function ImmunizationPlanner({ workspaceId, districts, facilities
   const result = useMemo(() => plan ? calculatePlan(plan) : null, [plan]);
   const scopedRows = useMemo(() => (result?.rows || []).filter((row) => !selectedArea || row.areaId === selectedArea).sort((a, b) => b.remaining - a.remaining), [result, selectedArea]);
 
-  useEffect(() => { listPlans(workspaceId).then(setSavedPlans).catch((err) => setError(err.message)); }, [workspaceId]);
+  useEffect(() => { storage.listPlans().then(setSavedPlans).catch((err) => setError(err.message)); }, [storage]);
   useEffect(() => {
     const guard = () => !dirty || window.confirm('Leave this draft without saving?');
     leaveGuard.current = guard;
@@ -111,15 +110,15 @@ export default function ImmunizationPlanner({ workspaceId, districts, facilities
     if (errors.length) { setError(errors.join('. ')); return; }
     setBusy('Saving'); setError('');
     try {
-      const next = await savePlan(plan, plan.revision);
-      setPlan(next); setDirty(false); setSavedPlans(await listPlans(workspaceId));
+      const next = await storage.savePlan(plan, plan.revision);
+      setPlan(next); setDirty(false); setSavedPlans(await storage.listPlans());
     } catch (err) { setError(err.message); }
     finally { setBusy(''); }
   }
   async function openSaved(id) {
     if (!id || (dirty && !window.confirm('Discard unsaved changes and open this plan?'))) return;
     setBusy('Opening plan'); setError('');
-    try { const next = await loadPlan(id, workspaceId); if (!next) throw new Error('Plan not found.'); setPlan(next); setSource(null); setValidation(null); setDirty(false); setTab('Need'); }
+    try { const next = await storage.loadPlan(id); if (!next) throw new Error('Plan not found.'); setPlan(next); setSource(null); setValidation(null); setDirty(false); setTab('Need'); }
     catch (err) { setError(err.message); }
     finally { setBusy(''); }
   }

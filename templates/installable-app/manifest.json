@@ -1,0 +1,11 @@
+{
+  "id": "activity-planner",
+  "name": "Activity planner",
+  "description": "Create and reopen activity notes for response and campaign planning.",
+  "author": "Aidstack",
+  "version": "1.0.0",
+  "platformApiVersion": 1,
+  "runtime": "iframe-v1",
+  "requiredData": [],
+  "capabilities": ["write:plans"]
+}

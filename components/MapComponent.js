@@ -1058,6 +1058,7 @@ const MapComponent = ({
   sitrep,
   sitrepTimestamp,
   showHelp,
+  onOpenApps,
   setShowHelp,
   showChatDrawer,
   setShowChatDrawer,
@@ -3132,6 +3133,7 @@ const MapComponent = ({
       />
 
       <FloatingActionButtons
+        onAppsClick={onOpenApps}
         onDataHubClick={() => openWorkflowStep('data')}
         onLayersClick={toggleMapLayersDrawer}
         onFilterClick={toggleFilterDrawer}

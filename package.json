@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "test": "node --test tests/*.test.js",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "app:validate": "node scripts/package-app.mjs"
   },
   "dependencies": {
     "@changey/react-leaflet-markercluster": "^4.0.0-rc1",

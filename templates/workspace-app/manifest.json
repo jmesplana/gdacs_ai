@@ -1,0 +1,10 @@
+{
+  "id": "example-planner",
+  "name": "Example planner",
+  "description": "A starter app demonstrating workspace-scoped plan storage.",
+  "author": "Your organization",
+  "version": "1.0.0",
+  "platformApiVersion": 1,
+  "requiredData": [],
+  "capabilities": ["write:plans"]
+}

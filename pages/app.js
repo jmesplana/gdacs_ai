@@ -3561,9 +3561,6 @@ export default function Home() {
           </div>
           </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 16px', borderBottom: '1px solid #dae2df' }}>
-          <button onClick={() => setShowAppHub(true)} style={{ padding: '7px 14px', border: '1px solid #c6d1ce', borderRadius: '5px', background: 'white', color: '#087f6a', fontWeight: 700, cursor: 'pointer' }}>Workspace apps</button>
-        </div>
         {showAppHub && <AppHub districts={districts} facilities={facilities} onClose={() => setShowAppHub(false)} />}
         <OperationalContextBar
           selectedAnalysisDistricts={selectedAnalysisDistricts}
@@ -3583,6 +3580,7 @@ export default function Home() {
         />
 
         <MapComponent
+          onOpenApps={() => setShowAppHub(true)}
           disasters={filteredDisasters}
           outbreaks={filteredOutbreaks}
           outbreakReports={outbreakReports}

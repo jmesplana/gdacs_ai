@@ -1,0 +1,10 @@
+{
+  "id": "immunization",
+  "name": "Immunization planning",
+  "description": "Plan immunization delivery, assess coverage gaps, and estimate teams and resources.",
+  "author": "Aidstack",
+  "version": "1.0.0",
+  "platformApiVersion": 1,
+  "requiredData": ["administrative-boundaries"],
+  "capabilities": ["read:boundaries", "read:sites", "write:plans", "export:plans"]
+}
