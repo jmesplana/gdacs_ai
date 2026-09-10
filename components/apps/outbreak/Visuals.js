@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {zoomView,placeLabels} from '../../../lib/outbreak/mapInteraction';
-import { zoneName, formatValue } from '../../../lib/outbreak/data';
+import { zoneName, formatValue, epiWeek } from '../../../lib/outbreak/data';
 
 export function download(name, content, type='text/plain') {
   const url=URL.createObjectURL(new Blob([content],{type}));
@@ -29,7 +29,8 @@ function exportSVG(ref,name) {
   copy.setAttribute('xmlns','http://www.w3.org/2000/svg');
   download(name,new XMLSerializer().serializeToString(copy),'image/svg+xml');
 }
-export function OutbreakMap({ geometry, rows, level, kind, unit, boundaryLevel, mines=[], events=[], hazards=[], sites=[], selected, onSelect, label, asOf, source, focusNames=[], routes=[] }) {
+export function OutbreakMap({ geometry, rows, level, kind, unit, boundaryLevel, mines=[], events=[], hazards=[], sites=[], selected, onSelect, label, asOf, source, focusNames=[], routes=[], routeDirection='outflow' }) {
+  const routeColor=routeDirection==='inflow'?'#c96a37':'#176f89';
   const ref=useRef(null),mapRef=useRef(null),drag=useRef(null),pointers=useRef(new Map()),liveView=useRef(null);
   const arrowId=useId().replace(/:/g, "");
   const [viewport,setViewport]=useState(null),[labels,setLabels]=useState('priority'),[renderScale,setRenderScale]=useState(1);
@@ -128,12 +129,12 @@ export function OutbreakMap({ geometry, rows, level, kind, unit, boundaryLevel, 
         onKeyDown={e=>{const shift={ArrowLeft:[-.12,0],ArrowRight:[.12,0],ArrowUp:[0,-.12],ArrowDown:[0,.12]}[e.key];if(shift){e.preventDefault();setViewport([view[0]+shift[0]*view[2],view[1]+shift[1]*view[3],view[2],view[3]]);}else if(['+','=','-','Home'].includes(e.key)){e.preventDefault();if(e.key==='Home')setViewport(null);else zoomBy(e.key==='-'?1.25:.8);}}}>
         <rect x="-10000" y="-10000" width="20000" height="20000" fill="#f3f6f9"/>
         {shapes.features.map(f=><path key={f.name} data-admin={f.name} d={f.path} fill={fill(values.get(f.name))} fillRule="evenodd" stroke={selected===f.name?'#113d64':'#9aaaba'} strokeWidth={selected===f.name?2:.65} vectorEffect="non-scaling-stroke"><title>{f.name}: {values.has(f.name)?`${values.get(f.name).value??'No data'} ${unit||''} (${values.get(f.name).date})`:'No matched observation'}</title></path>)}
-        <defs><marker id={arrowId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#176f89"/></marker></defs>
+        <defs><marker id={arrowId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill={routeColor}/></marker></defs>
         {routes.map((r,i)=>{
           const a=shapes.features.find(f=>f.name===r.origin)?.center,b=shapes.features.find(f=>f.name===r.destination)?.center;
           if(!a||!b||r.value===null||r.value<=0)return null;
           const dx=b[0]-a[0],dy=b[1]-a[1],cx=(a[0]+b[0])/2-dy*.22,cy=(a[1]+b[1])/2+dx*.22;
-          return <path key={i} data-mobility-route={`${r.origin} → ${r.destination}`} d={`M${a.join(',')} Q${cx},${cy} ${b.join(',')}`} fill="none" stroke="#176f89" strokeWidth={2/zoom} opacity=".8" markerEnd={`url(#${arrowId})`}><title>{r.origin} → {r.destination}: {formatValue(r.value)} {unit}. Schematic connection, not a travelled route.</title></path>;
+          return <path key={i} data-mobility-route={`${r.origin} → ${r.destination}`} d={`M${a.join(',')} Q${cx},${cy} ${b.join(',')}`} fill="none" stroke={routeColor} strokeWidth={2/zoom} opacity=".8" markerEnd={`url(#${arrowId})`}><title>{r.origin} → {r.destination}: {formatValue(r.value)} {unit}. Schematic connection, not a travelled route.</title></path>;
         })}
         {mines.filter(point).map(m=>{const [cx,cy]=shapes.project([Number(m.longitude),Number(m.latitude)]);return <circle key={m.id} cx={cx} cy={cy} r={2.3/zoom} fill="#148998" stroke="white" strokeWidth={.4/zoom}><title>{m.name} — IPIS visit {m.date}; historical observation</title></circle>;})}
         {events.filter(point).map(e=>{const [cx,cy]=shapes.project([Number(e.longitude),Number(e.latitude)]);return <path key={e.id} d={`M${cx},${cy-4/zoom}l${4/zoom},${4/zoom}l${-4/zoom},${4/zoom}l${-4/zoom},${-4/zoom}Z`} fill="#71317f" stroke="white" strokeWidth={.5/zoom}><title>ACLED: {e.date}, {e.type}; {e.fatalities??'unknown'} reported fatalities</title></path>;})}
@@ -209,5 +210,79 @@ export function TrendChart({ records, location, label, unit, kind, asOf, source 
       <text x="20" y="341" fontSize="9" fontFamily="sans-serif" fill="#597086">Source: {String(source).slice(0,145)}</text>
     </svg>
     <button type="button" onClick={()=>exportSVG(ref,'outbreak-trend.svg')}>Export chart SVG</button>
+  </div>;
+}
+
+// Validated categorical palette (light surface): confirmed / deaths / recoveries / in isolation.
+// Adjacent green↔red sit in the 6–8 ΔE CVD floor band, so each series also carries a distinct
+// dash pattern and a direct end-label — identity is never colour-alone.
+export const NATIONAL_SERIES=[
+  {match:/confirmed_cases$/,key:'cases',short:'Confirmed cases',color:'#2b6cb0',dash:''},
+  {match:/confirmed_deaths$/,key:'deaths',short:'Deaths',color:'#d13b2f',dash:'2 5'},
+  {match:/recover/,key:'recoveries',short:'Recoveries',color:'#1f8a5b',dash:'9 5'},
+  {match:/isolation|suspected/,key:'isolation',short:'In isolation',color:'#c98a1e',dash:'1 4'}
+];
+export function NationalTrendChart({ datasets, asOf, source }) {
+  const ref=useRef(null),[period,setPeriod]=useState('90'),[axis,setAxis]=useState('date'),[hoverDate,setHoverDate]=useState(null);
+  // Match available national datasets to known series; keep the fixed order, skip absent ones.
+  const series=useMemo(()=>NATIONAL_SERIES.map(def=>{
+    const dataset=datasets.find(d=>d.level==='national'&&d.status==='ready'&&def.match.test(d.metricId||d.id||''));
+    if(!dataset)return null;
+    const location=dataset.records.find(r=>r.date<=asOf)?.location;
+    const points=dataset.records.filter(r=>r.location===location&&r.date<=asOf).sort((a,b)=>a.date.localeCompare(b.date));
+    return points.length?{...def,label:dataset.label,points}:null;
+  }).filter(Boolean),[datasets,asOf]);
+  if(series.length<2)return null;
+  const allDates=[...new Set(series.flatMap(s=>s.points.map(p=>p.date)))].sort();
+  const last=allDates.at(-1),cutoff=period==='all'?allDates[0]:new Date(Date.parse(last)-(Number(period)-1)*86400000).toISOString().slice(0,10);
+  const windowed=series.map(s=>({...s,points:s.points.filter(p=>p.date>=cutoff)})).filter(s=>s.points.some(p=>p.value!==null));
+  if(!windowed.length)return null;
+  const dates=[...new Set(windowed.flatMap(s=>s.points.map(p=>p.date)))].sort();
+  const minDate=Date.parse(dates[0]),maxDate=Date.parse(dates.at(-1)),span=Math.max(86400000,maxDate-minDate);
+  const maximum=Math.max(1,...windowed.flatMap(s=>s.points.filter(p=>p.value!==null).map(p=>p.value)));
+  const magnitude=10**Math.floor(Math.log10(maximum)),max=Math.ceil(maximum/magnitude)*magnitude;
+  // Plot area: y 96–286, x 92–782. Legend occupies the band above the plot (y 58–86).
+  const PLOT_TOP=96,PLOT_BOTTOM=286;
+  const x=d=>92+(Date.parse(d)-minDate)/span*690,y=v=>PLOT_BOTTOM-v/max*(PLOT_BOTTOM-PLOT_TOP);
+  const ticks=[...new Set(Array.from({length:6},(_,i)=>Math.round((minDate+(maxDate-minDate)*i/5)/86400000)*86400000))];
+  const tickLabel=t=>axis==='epiweek'?epiWeek(new Date(t).toISOString().slice(0,10)).label.replace(/^\d{4}-/,''):new Date(t).toISOString().slice(5,10);
+  const hoverLabel=d=>axis==='epiweek'?epiWeek(d).label:d;
+  // Trend of each series across the visible window: compare first and last non-missing values.
+  // Rising is adverse for every series except recoveries, where more is better.
+  const trendOf=s=>{const known=s.points.filter(p=>p.value!==null);if(known.length<2)return {glyph:'▬',delta:null,color:'#5f7488'};const d=known.at(-1).value-known[0].value;const good=s.key==='recoveries';const adverse=d>0?!good:good;return {glyph:d>0?'▲':d<0?'▼':'▬',delta:d,color:d===0?'#5f7488':adverse?'#c43b30':'#1f8a5b'};};
+  // Connect the line across date gaps; break only where a value is actually missing (null).
+  const segmentsFor=s=>{const segs=[];let seg=[];s.points.forEach(p=>{if(p.value===null){if(seg.length)segs.push(seg);seg=[];}else seg.push([x(p.date),y(p.value)]);});if(seg.length)segs.push(seg);return segs;};
+  const nearest=frac=>{const t=minDate+frac*span;return dates.reduce((best,d)=>Math.abs(Date.parse(d)-t)<Math.abs(Date.parse(best)-t)?d:best,dates[0]);};
+  const hover=e=>{const svg=ref.current;const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const loc=pt.matrixTransform(svg.getScreenCTM().inverse());if(loc.x<92||loc.x>782){setHoverDate(null);return;}setHoverDate(nearest((loc.x-92)/690));};
+  const hx=hoverDate?x(hoverDate):0;
+  // In-SVG legend: swatch (with the series' dash) + label + latest value + coloured trend arrow.
+  const legend=windowed.map(s=>{const t=trendOf(s),latest=s.points.filter(p=>p.value!==null).at(-1);return {s,t,latest,text:`${s.short}  ${latest?formatValue(latest.value):'—'}  ${t.glyph}${t.delta!==null?` ${t.delta>0?'+':''}${formatValue(t.delta)}`:''}`};});
+  let lx=20;const legendItems=legend.map(item=>{const width=item.text.length*6.0+34;const node={...item,x:lx,width};lx+=width;return node;});
+  return <div style={{background:'white',border:'1px solid #dce5ed',borderRadius:8,padding:12,margin:'15px 0'}}>
+    <div data-print-hide="true" style={{display:'flex',gap:10,justifyContent:'flex-end',alignItems:'flex-end',flexWrap:'wrap'}}>
+      <label>X-axis<select aria-label="National trend x-axis" value={axis} onChange={e=>setAxis(e.target.value)}><option value="date">Calendar dates</option><option value="epiweek">Epi weeks</option></select></label>
+      <label>Trend window<select aria-label="National trend window" value={period} onChange={e=>setPeriod(e.target.value)}><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">Full series</option></select></label>
+    </div>
+    <svg ref={ref} viewBox="0 0 820 340" role="img" aria-label="National cumulative indicators trend" style={{width:'100%',background:'white'}} onMouseMove={hover} onMouseLeave={()=>setHoverDate(null)}>
+      <rect width="820" height="340" fill="white"/>
+      <text x="20" y="26" fontFamily="sans-serif" fontSize="18" fontWeight="bold" fill="#18334b">National indicators over time</text>
+      <text x="20" y="46" fontFamily="sans-serif" fontSize="12" fill="#597086">Reported cumulative people · through {axis==='epiweek'?epiWeek(last).label:last} · cut-off {asOf} · {axis==='epiweek'?'epi weeks (ISO-8601)':'calendar dates'} · gaps left missing</text>
+      <g aria-label="Legend">{legendItems.map(item=><g key={item.s.key}><line x1={item.x} y1="72" x2={item.x+24} y2="72" stroke={item.s.color} strokeWidth="3" strokeDasharray={item.s.dash} strokeLinecap="round"/><text x={item.x+30} y="76" fontFamily="sans-serif" fontSize="12" fill="#28435b"><tspan fontWeight="700">{item.s.short}</tspan><tspan fill="#4a6076" dx="5">{item.latest?formatValue(item.latest.value):'—'}</tspan><tspan fill={item.t.color} fontWeight="700" dx="5">{item.t.glyph}{item.t.delta!==null?` ${item.t.delta>0?'+':''}${formatValue(item.t.delta)}`:''}</tspan></text></g>)}</g>
+      <line x1="20" y1="88" x2="800" y2="88" stroke="#eef2f6" strokeWidth="1"/>
+      {[0,.25,.5,.75,1].map(n=><g key={n}><line x1="92" x2="782" y1={y(n*max)} y2={y(n*max)} stroke="#eef2f6" strokeWidth="1"/><text x="84" y={y(n*max)+4} textAnchor="end" fontSize="11" fontFamily="sans-serif" fill="#8195a6">{formatValue(Number((n*max).toPrecision(3)))}</text></g>)}
+      {hoverDate&&<line x1={hx} x2={hx} y1={PLOT_TOP} y2={PLOT_BOTTOM} stroke="#b9c9d9" strokeWidth="1" strokeDasharray="3 3"/>}
+      {windowed.map(s=>segmentsFor(s).map((seg,i)=><polyline key={`${s.key}-${i}`} points={seg.map(p=>p.join(',')).join(' ')} fill="none" stroke={s.color} strokeWidth="2.5" strokeDasharray={s.dash} strokeLinejoin="round" strokeLinecap="round"/>))}
+      {hoverDate&&windowed.map(s=>{const p=s.points.find(q=>q.date===hoverDate);return p&&p.value!==null?<circle key={s.key} cx={hx} cy={y(p.value)} r="4" fill={s.color} stroke="white" strokeWidth="1.5"/>:null;})}
+      {(()=>{
+        // Direct end-labels, de-collided vertically so converging lines stay readable.
+        const labels=windowed.map(s=>{const latest=s.points.filter(p=>p.value!==null).at(-1);return latest?{key:s.key,color:s.color,x:Math.min(788,x(latest.date)+7),y:y(latest.value)+4,text:formatValue(latest.value)}:null;}).filter(Boolean).sort((a,b)=>a.y-b.y);
+        for(let i=1;i<labels.length;i++)if(labels[i].y-labels[i-1].y<13)labels[i].y=labels[i-1].y+13;
+        return labels.map(l=><text key={l.key} x={l.x} y={l.y} fontFamily="sans-serif" fontSize="12" fontWeight="700" fill={l.color}>{l.text}</text>);
+      })()}
+      {ticks.map(t=><text key={t} x={x(new Date(t).toISOString().slice(0,10))} y={PLOT_BOTTOM+22} textAnchor="middle" fontSize="11" fontFamily="sans-serif" fill="#8195a6">{tickLabel(t)}</text>)}
+      {hoverDate&&(()=>{const rows=windowed.map(s=>({s,p:s.points.find(q=>q.date===hoverDate)})).filter(r=>r.p&&r.p.value!==null);const bw=155,bh=20+rows.length*17,bx=Math.min(650,Math.max(10,hx+10)),by=PLOT_TOP+2;return <g pointerEvents="none"><rect x={bx} y={by} width={bw} height={bh} rx="5" fill="white" stroke="#cddce7"/><text x={bx+10} y={by+15} fontSize="11" fontWeight="700" fontFamily="sans-serif" fill="#28435b">{hoverLabel(hoverDate)}</text>{rows.map((r,i)=><g key={r.s.key}><line x1={bx+10} y1={by+24+i*17-3} x2={bx+22} y2={by+24+i*17-3} stroke={r.s.color} strokeWidth="3" strokeDasharray={r.s.dash}/><text x={bx+28} y={by+24+i*17} fontSize="11" fontFamily="sans-serif" fill="#3f5468">{r.s.short}: {formatValue(r.p.value)}</text></g>)}</g>;})()}
+      <text x="20" y="322" fontSize="9" fontFamily="sans-serif" fill="#8195a6">Source: {String(source||'National reported series').slice(0,150)} · Rising cumulative totals reflect additional reports, not onset timing.</text>
+    </svg>
+    <button type="button" onClick={()=>exportSVG(ref,'national-indicators.svg')}>Export chart SVG</button>
   </div>;
 }

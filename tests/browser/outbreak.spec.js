@@ -58,6 +58,9 @@ test('upload, map, chart, evidence validation, decisions and snapshot reopen',as
   await page.getByLabel('Owner',{exact:true}).fill('Coordinator');
   await page.getByLabel('Action, rationale and decision requested').fill('Verify team availability with zone focal point.');
   await page.getByRole('button',{name:'Briefing',exact:true}).click();
+  // New leadership-facing sections: response status rollup and coordinator calls to action.
+  await expect(page.getByRole('region',{name:'Response status'}).first()).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Calls to action / decisions requested'})).toBeVisible();
   await expect(page.getByText('SDB completed: 0 burials reported for A (health_zone) on 2026-09-02.',{exact:false}).first()).toBeVisible();
   // A bogus AI reference must never replace the verified narrative.
   await page.route('**/api/outbreak-briefing',route=>route.fulfill({json:{ids:['invented']}}));
@@ -93,7 +96,7 @@ test('upload, map, chart, evidence validation, decisions and snapshot reopen',as
   await page.getByLabel('Saved snapshots').selectOption({index:1});
   await page.getByRole('button',{name:'Briefing',exact:true}).click();
   await expect(page.getByText('Reviewed by user',{exact:true})).toBeVisible();
-  await expect(page.getByText('Verify team availability with zone focal point.')).toBeVisible();
+  await expect(page.getByText('Verify team availability with zone focal point.',{exact:true})).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -161,6 +164,14 @@ test('district selection shows directional arcs and missing routes stay missing'
   await page.getByRole('button',{name:'Situation',exact:true}).click();
   await page.getByRole('combobox',{name:'District connections',exact:true}).selectOption('A');
   await expect(page.locator('[data-mobility-route="A → B"]')).toHaveCount(1);
+  // Inflow is a first-class view: switching direction re-orients the arc and recolours it.
+  const outflowStroke=await page.locator('[data-mobility-route="A → B"]').getAttribute('stroke');
+  await page.getByRole('combobox',{name:'Route direction',exact:true}).selectOption('inflow');
+  await expect(page.getByRole('img',{name:'Inflow to A map'})).toBeVisible();
+  await expect(page.locator('[data-mobility-route="B → A"]')).toHaveCount(1);
+  const inflowStroke=await page.locator('[data-mobility-route="B → A"]').getAttribute('stroke');
+  expect(inflowStroke).not.toBe(outflowStroke);
+  await page.getByRole('combobox',{name:'Route direction',exact:true}).selectOption('outflow');
   const view=page.getByRole('img',{name:'Outflow from A map'}).locator('[data-map-viewport]');
   const before=await view.getAttribute('viewBox');
   await page.getByRole('img',{name:'Outflow from A map'}).scrollIntoViewIfNeeded();
@@ -236,4 +247,40 @@ test('data coverage points to missing sources without claiming they were analyse
   await expect(coverage.getByRole('button',{name:'Open main app'}).first()).toBeVisible();
   await coverage.getByRole('button',{name:'Add data'}).last().click();
   await expect(page.getByRole('heading',{name:'Upload operational data'})).toBeVisible();
+});
+
+test('national multi-series chart shows an in-chart legend, connects weekly points and switches to epi weeks',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  // Weekly (7-day) national series with one missing value in recoveries, to prove the line
+  // connects across the weekly cadence and breaks only on the null.
+  const weekly=(id,label,base,step,gap)=>{const records=[];let v=base;for(let i=0;i<12;i++){const d=new Date(Date.parse('2026-04-20')+i*7*86400000).toISOString().slice(0,10);v+=step*7;records.push({location:'DRC',date:d,value:gap&&i===6?null:v});}return {id,metricId:id,purpose:id.includes('confirmed_cases')?'cases':'other',status:'ready',origin:'public',kind:'cumulative',unit:'people',level:'national',label,source:'Fixture national series',records};};
+  const datasets=[
+    weekly('national_cumulative_confirmed_cases','National cumulative confirmed cases',120,26,false),
+    weekly('national_cumulative_confirmed_deaths','National cumulative confirmed deaths',48,10,false),
+    weekly('national_cumulative_recovered_cases','National cumulative recoveries',20,12,true)
+  ];
+  await openOutbreak(page,areas,route=>{
+    const url=route.request().url();
+    if(url.includes('kind=indicators'))return route.fulfill({json:{datasets}});
+    if(url.includes('kind=relocations'))return route.fulfill({json:{routes:[],start:'2026-03-01',end:'2026-04-30',unit:'x',source:'f'}});
+    if(url.includes('kind=mines'))return route.fulfill({json:{data:[],url:'https://example.test/mines'}});
+    return route.fulfill({json:{products:[]}});
+  });
+  await page.getByRole('button',{name:'Data & uploads',exact:true}).click();
+  await page.getByLabel('Optional public source preset').selectOption('drc');
+  await expect(page.getByRole('region',{name:'Outbreak response'})).toContainText('National cumulative confirmed cases');
+  await page.getByRole('button',{name:'Situation',exact:true}).click();
+  const chart=page.getByRole('img',{name:'National cumulative indicators trend'});
+  await expect(chart).toBeVisible();
+  // In-chart legend names each series inside the SVG (survives export).
+  await expect(chart.getByText('Confirmed cases')).toBeVisible();
+  await expect(chart.getByText('Recoveries')).toBeVisible();
+  // Weekly points connect: each series is drawn as few polylines, not one per gap.
+  const cases=await chart.locator('polyline').count();
+  expect(cases).toBeLessThan(6);
+  // Epi-week axis relabels ticks as Wnn.
+  await page.getByRole('combobox',{name:'National trend x-axis'}).selectOption('epiweek');
+  await expect(chart.getByText(/^W\d{2}$/).first()).toBeVisible();
+  await expect(chart.getByText(/epi weeks/)).toBeVisible();
+  expect(errors).toEqual([]);
 });

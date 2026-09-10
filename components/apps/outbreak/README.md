@@ -87,6 +87,52 @@ suggested actions. Detail maps, mobility controls and observation tables live in
 an expandable area explorer. Recommendations are deterministic evidence-based
 review prompts with observation periods, and can be added to the response plan.
 
+When two or more national series are loaded (confirmed cases, deaths, recoveries,
+suspected-in-isolation), the Trends panel shows a single multi-series line chart
+on one shared scale. Each series has a fixed colour and a distinct dash pattern
+(so identity is never colour-alone; the palette is CVD-validated on the light
+surface), a direct end-label, and an in-chart legend carrying the latest value and
+a coloured trend arrow — red when the adverse direction is rising (cases, deaths,
+isolation) and green when the favourable direction is rising (recoveries). The
+line connects across reporting gaps and breaks only where a value is actually
+missing, so weekly reporting stays continuous. An x-axis toggle switches between
+calendar dates and ISO-8601 epidemiological weeks (Wnn), matching how ministries
+and Africa CDC report; a hover crosshair reads all series at a chosen point. Below
+two series it falls back to the single-series area/national trend chart.
+
+Overall-snapshot cards and the briefing narrative carry the same direction cues:
+a change is shown with an arrow and colour (adverse red, favourable green, no
+comparable basis neutral) so the trend is legible at a glance.
+
+## Response status and leadership briefing
+
+A response-status rollup summarises the response pillars (safe & dignified
+burial, community engagement/RCCE, logistics & supplies, response presence &
+capacity) from dated indicators you upload and categorise in Data & uploads.
+Pillars carry a plain status — On track / Watch / Attention / Reported — with a
+coloured left border. Ratio indicators are only computed when both a numerator
+and denominator source are present, so requests-minus-completed is never assumed
+to be a backlog: safe-burial completion needs both a "requested"/"reported" and a
+"completed" series; contact follow-up needs "followed"/"registered"; bed
+occupancy needs "occupied"/"beds", and exceeding 100% is flagged as Attention.
+Targets (e.g. 95% follow-up) are shown alongside the value. Missing values are
+never zero and no status is asserted for a pillar without loaded indicators.
+
+The Briefing opens with an optional coordinator-written Bottom line for
+decision-makers (never AI-generated), a Since last brief block that diffs the
+current situation against a saved snapshot (national confirmed change, newly
+reporting areas, per-pillar coverage change), the response-status rollup, and a
+Calls to action / decisions requested list built from Blocked and Proposed
+response-plan actions. Change indicators use a direction arrow and colour: an
+adverse move (rising cases, falling response coverage) is red, an improving move
+green, and a change with no comparable basis is shown as such — never inferred.
+
+Movement connections are shown for both directions. Outflow (teal arrows) marks
+destinations from an area to assess for onward surveillance; inflow (orange
+arrows) marks origins arriving in an area — the receiving-readiness view. The
+briefing exposes a direction selector and defaults to inflow into the focus area.
+Direction is saved in snapshots and reflected in Markdown, HTML and PDF exports.
+
 Connected public sources refresh on app opening; Refresh data checks them again.
 The registered DRC profile includes epidemiology, relocation matrices, mobility
 definitions and mining. Uploaded mobility is retained. Failed refreshes keep
