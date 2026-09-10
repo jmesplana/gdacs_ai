@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { appFrameDocument, handleAppRequest } from '../../lib/platform/appBridge';
 
-export default function InstalledAppFrame({ pkg, workspaceId, districts, facilities, storage, leaveGuard }) {
+export default function InstalledAppFrame({ pkg, workspaceId, districts, facilities, acledData = [], disasters = [], storage, leaveGuard }) {
   const frame = useRef(null);
-  const workspaceData = useRef({ districts, facilities });
-  workspaceData.current = { districts, facilities };
+  const workspaceData = useRef({ districts, facilities, acledData, disasters });
+  workspaceData.current = { districts, facilities, acledData, disasters };
   const [document, setDocument] = useState('');
   useEffect(() => {
     let channel;

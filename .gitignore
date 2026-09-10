@@ -12,6 +12,7 @@
 # next.js
 /.next/
 /.next-planning/
+/.next-outbreak/
 /test-results/
 /playwright-report/
 /out/

@@ -24,7 +24,7 @@ async function seed(page) {
   await page.goto('/app');
   await page.getByRole('button', { name: 'Workspace apps', exact: true }).click();
   await expect(page.getByText('1 admin areas', { exact: true })).toHaveCount(1);
-  await page.getByRole('button', { name: 'Install app', exact: true }).click();
+  await page.locator('article').filter({ has: page.getByRole('heading', { name: 'Immunization planning', exact: true }) }).getByRole('button', { name: 'Install app', exact: true }).click();
   await page.getByRole('button', { name: 'Open', exact: true }).click();
 }
 

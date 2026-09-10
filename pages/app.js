@@ -3561,7 +3561,7 @@ export default function Home() {
           </div>
           </div>
         </div>
-        {showAppHub && <AppHub districts={districts} facilities={facilities} onClose={() => setShowAppHub(false)} />}
+        {showAppHub && <AppHub districts={districts} facilities={facilities} acledData={acledData} disasters={disasters} onClose={() => setShowAppHub(false)} />}
         <OperationalContextBar
           selectedAnalysisDistricts={selectedAnalysisDistricts}
           districts={districts}

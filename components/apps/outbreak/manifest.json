@@ -1,0 +1,10 @@
+{
+  "id": "outbreak",
+  "name": "Outbreak Response",
+  "description": "Source-linked outbreak maps, operational dataset uploads and leadership briefings. Includes a DRC BDBV configuration.",
+  "author": "Aidstack",
+  "version": "1.0.0",
+  "platformApiVersion": 1,
+  "requiredData": [],
+  "capabilities": ["read:boundaries", "read:sites", "read:security", "read:disasters", "write:plans", "export:plans"]
+}

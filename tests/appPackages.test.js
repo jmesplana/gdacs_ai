@@ -31,6 +31,10 @@ test('bridge limits workspace reads and binds writes to the installed app scope'
   const pkg = await readAppPackage(bytes);
   const context = { manifest: pkg.manifest, workspaceId: 'bridge', districts: [{ id: 'secret' }], facilities: [{}], storage: createModuleStorage({ workspaceId: 'bridge', moduleId: pkg.manifest.id }), setDirty() {} };
   assert.deepEqual(await handleAppRequest({ method: 'workspace' }, context), { workspaceId: 'bridge', districts: [], facilities: [] });
+  const securityContext={...context,acledData:[{event_id:'e1'}],manifest:{...context.manifest,capabilities:['read:security']}};
+  assert.deepEqual((await handleAppRequest({method:'workspace'},securityContext)).acledData,[{event_id:'e1'}]);
+  assert.equal((await handleAppRequest({method:'workspace'},{...context,disasters:[{eventId:1}]})).disasters,undefined);
+  assert.deepEqual((await handleAppRequest({method:'workspace'},{...context,disasters:[{eventId:1}],manifest:{...context.manifest,capabilities:['read:disasters']}})).disasters,[{eventId:1}]);
   const record = await handleAppRequest({ method: 'savePlan', args: [{ id: 'test', metadata: { name: 'Test' } }] }, context);
   assert.equal(record.moduleId, 'activity-planner');
   await assert.rejects(handleAppRequest({ method: 'savePlan', args: [{ ...record, moduleId: 'immunization' }, 1] }, context), /another workspace/);

@@ -1,0 +1,30 @@
+import {nationalEvidence,formatValue} from '../../../lib/outbreak/data';
+import {recommendations} from '../../../lib/outbreak/overview';
+import {TrendChart,HorizontalBars} from './Visuals';
+import styles from './outbreak.module.css';
+export default function Overview({datasets,epi,security,mining,asOf,onSelect,onDecision,selectedArea,routeData}) {
+  const national=datasets.filter(d=>d.level==='national'&&d.status==='ready');
+  const facts=nationalEvidence(national,asOf);
+  const nationalTrend=national.find(d=>/^(national_)?cumulative_confirmed_cases$/.test(d.metricId||''));
+  const trend=nationalTrend||epi?.dataset;
+  const trendArea=nationalTrend?nationalTrend.records.find(r=>r.date<=asOf)?.location:epi?.zones.some(z=>z.location===selectedArea)?selectedArea:epi?.burden[0]?.location;
+  const suggestions=recommendations(epi,security,mining,routeData,asOf);
+  return <>
+    <section className={styles.panel} aria-label="Overall snapshot"><h3>Overall snapshot</h3>
+      <div className={styles.cards}>{facts.map(f=><article key={f.id}><span>{f.label}</span><strong>{formatValue(f.value)}</strong><small>Reported {f.date}</small></article>)}{!facts.length&&epi&&<article><span>Reported cases across loaded areas</span><strong>{formatValue(epi.total)}</strong><small>{epi.date} · area-level sum; national total unavailable</small></article>}{epi&&<article><span>Areas reporting cases</span><strong>{epi.affected.length}</strong><small>{epi.date} · cumulative reports, not currently active areas</small></article>}</div>
+      {!facts.length&&!epi&&<p>No case summary available yet. Connect a source in Data & uploads.</p>}
+      {epi&&<p>{epi.growth.length?`${epi.growth.filter(z=>z.delta>0).length} ${epi.growth.filter(z=>z.delta>0).length===1?'area has':'areas have'} higher reported totals than seven days earlier. A comparison is available for ${epi.growth.length} of ${epi.zones.length} reporting areas.`:'Seven-day change is unavailable: paired observations are missing.'}</p>}
+      <div className={styles.contextGrid}><article><strong>Mobility</strong><p>{routeData?`Connections observed ${routeData.start}–${routeData.end}. ${routeData.end>asOf?'After this reporting cut-off; excluded from analysis.':'Explore origins and destinations by area.'}`:'No origin–destination data loaded.'}</p></article><article><strong>Security</strong><p>{security?`${security.records.length} loaded events during ${security.start}–${security.end}. Access effects need field confirmation.`:'No security events loaded for analysis.'}</p></article><article><strong>Mining</strong><p>{mining?`${mining.matched} historical mine sites matched to the boundaries. Current activity is unverified.`:'No mining overlap available.'}</p></article></div>
+      <p className={styles.scope}>Response capacity and unmet needs require dated operational data; they cannot be inferred from case counts.</p>
+    </section>
+    <section className={styles.panel} aria-label="Trends"><h3>Trends</h3><p>{nationalTrend?'Reported national totals over time.':'Area trend: select an area below to change this chart.'} Rising cumulative totals show additional reports, not the timing of new infections.</p>
+      {trend&&trendArea?<TrendChart records={trend.records} location={trendArea} label={trend.label} unit={trend.unit} kind={trend.kind} asOf={asOf} source={trend.source||trend.url}/>:<p>A dated case series is needed to show a trend.</p>}
+    </section>
+    <section className={styles.panel} aria-label="Areas to review"><h3>Areas to review</h3><p>Compare total reported burden with the latest seven-day change. Select a bar to explore an area’s trend and movement connections.</p>
+      {epi?<><div className={styles.chartGrid}><HorizontalBars title="Most reported cases" subtitle={`Cumulative totals · ${epi.date}`} rows={epi.burden} source={epi.dataset.source||epi.dataset.url} onSelect={onSelect}/><HorizontalBars title="Largest recent increases" subtitle={`${epi.baseline}–${epi.date} · changes in reported totals`} rows={epi.growth.filter(z=>z.delta>0).map(z=>({...z,value:z.delta}))} color="#c96a37" source={epi.dataset.source||epi.dataset.url} onSelect={onSelect}/></div><p className={styles.scope}>{epi.missing} missing values and {epi.absent} previously observed areas without a record on {epi.date}. Missing comparisons are excluded.</p></>:<p>Area-level case data is needed to identify these areas.</p>}
+    </section>
+    <section className={styles.panel} aria-label="Suggested actions"><h3>Suggested actions</h3><p>Proposals based on the available evidence. Confirm conditions with the response teams before assigning resources.</p>
+      {suggestions.map(s=><article className={styles.source} key={s.title}><h4>{s.title}</h4><p><strong>Why:</strong> {s.why}</p><p>{s.action}</p><button onClick={()=>onDecision(s)}>Add to response plan</button></article>)}{!suggestions.length&&<p>There is not enough evidence to suggest area-specific actions.</p>}
+    </section>
+  </>;
+}

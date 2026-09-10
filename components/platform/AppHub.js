@@ -10,7 +10,7 @@ import styles from './Planning.module.css';
 import { readAppPackage, listAppPackages, installAppPackage, setPackageEnabled } from '../../lib/platform/appPackages';
 import InstalledAppFrame from './InstalledAppFrame';
 
-const accessLabels = { 'read:boundaries': 'Read administrative boundaries', 'read:sites': 'Read facilities', 'write:plans': 'Read and save this app’s plans', 'export:plans': 'Export plans (not supported by uploaded apps yet)' };
+const accessLabels = { 'read:boundaries': 'Read administrative boundaries', 'read:sites': 'Read facilities', 'read:security': 'Read workspace security events', 'write:plans': 'Read and save this app’s plans', 'export:plans': 'Export plans (not supported by uploaded apps yet)' };
 
 class AppBoundary extends Component {
   state = { failed: false };
@@ -20,7 +20,7 @@ class AppBoundary extends Component {
   }
 }
 
-export default function AppHub({ districts, facilities, onClose }) {
+export default function AppHub({ districts, facilities, acledData = [], disasters = [], onClose }) {
   const dialog = useRef(null);
   const workspaceId = useMemo(() => geographyKey(districts), [districts]);
   const [installed, setInstalled] = useState([]);
@@ -122,7 +122,7 @@ export default function AppHub({ districts, facilities, onClose }) {
           <button disabled={saving} onClick={confirmPackage}>Confirm installation</button>
           <button disabled={saving} onClick={() => setPendingPackage(null)}>Cancel</button>
         </section>}
-        {!districts.length && <p role="status">No administrative boundaries loaded. Add boundaries in the map workspace first.</p>}
+        {!districts.length && <p role="status">No administrative boundaries loaded. Apps without boundary requirements can still be used.</p>}
         {catalog.map((app) => {
           const missing = missingAppData(app, { districts, facilities });
           const unavailable = !APP_COMPONENTS[app.id] && !packages.some((pkg) => pkg.manifest.id === app.id);
@@ -141,7 +141,7 @@ export default function AppHub({ districts, facilities, onClose }) {
           {enabled.includes(app.id) && <p className={styles.muted}>Saved plans are retained when this app is disabled.</p>}
         </article>; })}
       </div> : <AppBoundary key={`${workspaceId}:${active}`}>
-        {activePackage ? <InstalledAppFrame pkg={activePackage} workspaceId={workspaceId} districts={districts} facilities={facilities} storage={storage} leaveGuard={leaveGuard} /> : ActiveApp ? <ActiveApp storage={activeApp.capabilities.includes('write:plans') ? storage : undefined} workspaceId={workspaceId} districts={activeApp.capabilities.includes('read:boundaries') ? districts : []} facilities={activeApp.capabilities.includes('read:sites') ? facilities : []} leaveGuard={leaveGuard} /> : <p role="alert">This app is unavailable. Return to Apps.</p>}
+        {activePackage ? <InstalledAppFrame pkg={activePackage} workspaceId={workspaceId} districts={districts} facilities={facilities} acledData={acledData} disasters={disasters} storage={storage} leaveGuard={leaveGuard} /> : ActiveApp ? <ActiveApp onOpenWorkspace={()=>requestLeave(onClose)} disasters={activeApp.capabilities.includes('read:disasters')?disasters:[]} storage={activeApp.capabilities.includes('write:plans') ? storage : undefined} workspaceId={workspaceId} districts={activeApp.capabilities.includes('read:boundaries') ? districts : []} facilities={activeApp.capabilities.includes('read:sites') ? facilities : []} acledData={activeApp.capabilities.includes('read:security') ? acledData : []} leaveGuard={leaveGuard} /> : <p role="alert">This app is unavailable. Return to Apps.</p>}
       </AppBoundary>}
     </div>
   </dialog>;
