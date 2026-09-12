@@ -1,9 +1,9 @@
 import {nationalEvidence,formatValue} from '../../../lib/outbreak/data';
-import {recommendations} from '../../../lib/outbreak/overview';
+import {recommendations,proposalSelected} from '../../../lib/outbreak/overview';
 import styles from './outbreak.module.css';
 export default function BriefSummary({epi,datasets,security,mining,routeData,hazards,asOf,highlights,sourceFor,actions=[]}) {
   const totals=nationalEvidence(datasets,asOf);
-  const suggestions=recommendations(epi,security,mining,routeData,asOf).filter(s=>!actions.some(a=>a.action?.includes(s.action))).slice(0,3);
+  const suggestions=recommendations(epi,security,mining,routeData,asOf).filter(s=>!proposalSelected(actions,s)&&!actions.some(a=>a.action?.includes(s.action))).slice(0,3);
   const largest=epi?.burden.filter(z=>z.value>0).slice(0,3)||[],growing=epi?.growth.filter(z=>z.delta>0).slice(0,3)||[];
   const source=epi?.dataset.url||epi?.dataset.source;
   return <>

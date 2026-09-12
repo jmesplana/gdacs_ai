@@ -24,3 +24,16 @@
 .trendAdverse{color:#c43b30;font-weight:700}.trendGood{color:#23785d;font-weight:700}
 .bottomLine{background:#163e59;color:white;border-radius:8px;padding:20px 22px;margin:18px 0}.bottomLine h3{color:white;margin:0 0 8px;padding:0}.bottomLine p{margin:0;font-size:15px;line-height:1.55}
 .callsList{margin:10px 0 0;padding-left:20px}.callsList li{margin:7px 0;font-size:14px}
+.keyMessage{background:#163e59;color:#fff;border-radius:8px;padding:20px 24px;margin:18px 0 24px;break-inside:avoid}
+.keyMessageHeading{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.keyMessage .keyMessageHeading h3{color:#fff;margin:0;padding:0;font-size:22px}
+.keyMessageHeading span,.keyMessage small{font-size:12px;color:#d4e5ef;display:block}
+.keyMessage p{font-size:16px;line-height:1.65;margin:12px 0}
+.keyMessageActions{display:flex;gap:10px;margin-top:14px}
+.keyMessage summary{font-size:13px;padding:4px 0}
+.keyMessage details{margin:10px 0 0}
+.keyMessage textarea{font-weight:400}
+.keyMessage details p{font-size:12px}
+.app button.selectedProposal:disabled{background:#eaf5f1;color:#195e46;border-color:#23785d;opacity:1;cursor:default}
+.proposalStatus{display:block;font-size:12px;color:#536c81;margin-top:6px}
+@media(max-width:700px){.keyMessage{padding:16px}.keyMessage p{font-size:15px}}

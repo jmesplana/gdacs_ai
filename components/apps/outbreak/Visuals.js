@@ -29,7 +29,7 @@ function exportSVG(ref,name) {
   copy.setAttribute('xmlns','http://www.w3.org/2000/svg');
   download(name,new XMLSerializer().serializeToString(copy),'image/svg+xml');
 }
-export function OutbreakMap({ geometry, rows, level, kind, unit, boundaryLevel, mines=[], events=[], hazards=[], sites=[], selected, onSelect, label, asOf, source, focusNames=[], routes=[], routeDirection='outflow' }) {
+export function OutbreakMap({ geometry, rows, level, kind, unit, boundaryLevel, mines=[], events=[], hazards=[], sites=[], selected, onSelect, label, asOf, source, focusNames=[], routes=[], routeDirection='outflow', overlayCaption='' }) {
   const routeColor=routeDirection==='inflow'?'#c96a37':'#176f89';
   const ref=useRef(null),mapRef=useRef(null),drag=useRef(null),pointers=useRef(new Map()),liveView=useRef(null);
   const arrowId=useId().replace(/:/g, "");
@@ -63,6 +63,7 @@ export function OutbreakMap({ geometry, rows, level, kind, unit, boundaryLevel, 
   },[shapes,focusNames.join('|')]);
   useEffect(()=>setViewport(null),[geometry,label]);
   const view=viewport||automatic,zoom=900/view[2];
+  const mapHeight=overlayCaption?615:590;
   liveView.current=view;
   function screenPoint(e){const p=new DOMPoint(e.clientX,e.clientY).matrixTransform(ref.current.getScreenCTM().inverse());return [p.x,p.y-66];}
   function zoomBy(factor){setViewport(zoomView(liveView.current,factor));}
@@ -71,7 +72,7 @@ export function OutbreakMap({ geometry, rows, level, kind, unit, boundaryLevel, 
     const wheel=e=>{e.preventDefault();e.stopPropagation();setViewport(zoomView(liveView.current,Math.exp(Math.max(-100,Math.min(100,e.deltaY))*.004),screenPoint(e)));};
     node.addEventListener('wheel',wheel,{passive:false});return()=>node.removeEventListener('wheel',wheel);
   },[!!shapes]);
-  useEffect(()=>{const node=ref.current;if(!node)return;const observer=new ResizeObserver(()=>{const b=node.getBoundingClientRect();setRenderScale(Math.max(.1,Math.min(b.width/900,b.height/590)));});observer.observe(node);return()=>observer.disconnect();},[!!shapes]);
+  useEffect(()=>{const node=ref.current;if(!node)return;const observer=new ResizeObserver(()=>{const b=node.getBoundingClientRect();setRenderScale(Math.max(.1,Math.min(b.width/900,b.height/mapHeight)));});observer.observe(node);return()=>observer.disconnect();},[!!shapes,mapHeight]);
   function startDrag(e){
     if(e.button!==0&&e.pointerType==='mouse')return;e.preventDefault();
     const point=screenPoint(e);pointers.current.set(e.pointerId,point);e.currentTarget.setPointerCapture(e.pointerId);
@@ -119,8 +120,8 @@ export function OutbreakMap({ geometry, rows, level, kind, unit, boundaryLevel, 
       <label>Admin labels<select aria-label={`Admin labels for ${label}`} value={labels} onChange={e=>setLabels(e.target.value)}><option value="priority">Leading areas</option><option value="all">All areas (avoid overlap)</option><option value="none">Hide labels</option></select></label>
       <span style={{fontSize:12,color:'#597086'}}>Drag to pan · scroll or pinch to zoom · arrows to pan when focused</span>
     </div>
-    <svg ref={ref} viewBox="0 0 900 590" role="img" aria-label={`${label} map`} style={{width:'100%',maxHeight:'65vh',userSelect:'none',background:'#f8fafc',border:'1px solid #dce5ed',borderRadius:8}}>
-      <title>{label} — reporting cut-off {asOf}</title><rect width="900" height="590" fill="#fff"/>
+    <svg ref={ref} viewBox={`0 0 900 ${mapHeight}`} role="img" aria-label={`${label} map`} style={{width:'100%',maxHeight:'65vh',userSelect:'none',background:'#f8fafc',border:'1px solid #dce5ed',borderRadius:8}}>
+      <title>{label} — reporting cut-off {asOf}</title><rect width="900" height={mapHeight} fill="#fff"/>
       <text x="22" y="28" fontSize="19" fontWeight="bold" fontFamily="sans-serif" fill="#18334b">{label.slice(0,78)}</text>
       <text x="22" y="50" fontSize="12" fontFamily="sans-serif" fill="#536c81">{boundaryLevel} · {kind} · {unit} · cut-off {asOf}; observation dates may differ</text>
       <svg ref={mapRef} role="group" tabIndex="0" aria-label={`Pan and zoom ${label}`} x="0" y="66" width="900" height="440" viewBox={view.join(' ')} data-map-viewport="true" style={{touchAction:'none',cursor:'grab'}}
@@ -136,8 +137,8 @@ export function OutbreakMap({ geometry, rows, level, kind, unit, boundaryLevel, 
           const dx=b[0]-a[0],dy=b[1]-a[1],cx=(a[0]+b[0])/2-dy*.22,cy=(a[1]+b[1])/2+dx*.22;
           return <path key={i} data-mobility-route={`${r.origin} → ${r.destination}`} d={`M${a.join(',')} Q${cx},${cy} ${b.join(',')}`} fill="none" stroke={routeColor} strokeWidth={2/zoom} opacity=".8" markerEnd={`url(#${arrowId})`}><title>{r.origin} → {r.destination}: {formatValue(r.value)} {unit}. Schematic connection, not a travelled route.</title></path>;
         })}
-        {mines.filter(point).map(m=>{const [cx,cy]=shapes.project([Number(m.longitude),Number(m.latitude)]);return <circle key={m.id} cx={cx} cy={cy} r={2.3/zoom} fill="#148998" stroke="white" strokeWidth={.4/zoom}><title>{m.name} — IPIS visit {m.date}; historical observation</title></circle>;})}
-        {events.filter(point).map(e=>{const [cx,cy]=shapes.project([Number(e.longitude),Number(e.latitude)]);return <path key={e.id} d={`M${cx},${cy-4/zoom}l${4/zoom},${4/zoom}l${-4/zoom},${4/zoom}l${-4/zoom},${-4/zoom}Z`} fill="#71317f" stroke="white" strokeWidth={.5/zoom}><title>ACLED: {e.date}, {e.type}; {e.fatalities??'unknown'} reported fatalities</title></path>;})}
+        {mines.filter(point).map(m=>{const [cx,cy]=shapes.project([Number(m.longitude),Number(m.latitude)]);return <circle data-ipis-site={m.id} key={m.id} cx={cx} cy={cy} r={2.3/zoom} fill="#148998" stroke="white" strokeWidth={.4/zoom}><title>{m.name} — IPIS visit {m.date}; historical observation</title></circle>;})}
+        {events.filter(point).map(e=>{const [cx,cy]=shapes.project([Number(e.longitude),Number(e.latitude)]);return <path data-acled-event={e.id} key={e.id} d={`M${cx},${cy-4/zoom}l${4/zoom},${4/zoom}l${-4/zoom},${4/zoom}l${-4/zoom},${-4/zoom}Z`} fill="#71317f" stroke="white" strokeWidth={.5/zoom}><title>ACLED: {e.date}, {e.type}; {e.fatalities??'unknown'} reported fatalities</title></path>;})}
         {hazards.filter(point).map(h=>{const [cx,cy]=shapes.project([h.longitude,h.latitude]);return <path key={h.id} d={`M${cx},${cy-5/zoom}l${5/zoom},${9/zoom}h${-10/zoom}Z`} fill="#d29100" stroke="white" strokeWidth={.6/zoom}><title>GDACS: {h.title}; published {h.date}. Alert centre, not affected footprint.</title></path>;})}
         {sites.filter(point).map((p,i)=>{const [x,y]=shapes.project([Number(p.longitude),Number(p.latitude)]);return <rect key={p.id||i} x={x-2/zoom} y={y-2/zoom} width={4/zoom} height={4/zoom} fill="#264b81"><title>{p.name||'Uploaded site'} — location only; capacity not verified</title></rect>;})}
         {visibleLabels.map(f=><g key={f.name}><line x1={f.center[0]} y1={f.center[1]} x2={f.labelX} y2={f.labelY} stroke="#718598" strokeWidth={.6/zoom} pointerEvents="none"/><text data-admin={f.name} x={f.labelX} y={f.labelY} fontFamily="sans-serif" fontSize={12/zoom/renderScale} fontWeight="600" fill="#153b55" stroke="white" strokeWidth={3/zoom/renderScale} paintOrder="stroke" textAnchor="middle">{f.name}</text></g>)}
@@ -147,6 +148,7 @@ export function OutbreakMap({ geometry, rows, level, kind, unit, boundaryLevel, 
       <rect x="191" y="520" width="12" height="12" fill="hsl(12 76% 42%)"/><text x="209" y="531" fontFamily="sans-serif" fontSize="12">Darker: larger values · max absolute value {known.length?formatValue(max):'not available'}</text>
       <text x="22" y="552" fontFamily="sans-serif" fontSize="11" fill="#536c81">{hazards.length?'Gold triangles: GDACS centres. ':''}{mines.length?'Teal dots: documented mines. ':''}{events.length?'Purple diamonds: ACLED events. ':''}{sites.length?'Blue squares: uploaded sites. ':''}Blue areas: negative changes, where present.</text>
       <text x="22" y="574" fontFamily="sans-serif" fontSize="10" fill="#536c81">Source: {String(source||'Uploaded administrative boundaries').slice(0,130)}</text>
+      {overlayCaption&&<text x="22" y="596" fontFamily="sans-serif" fontSize="11" fill="#536c81">{overlayCaption}</text>}
     </svg>
     <p style={{fontSize:12,color:"#536c81"}}>Labels are spaced to avoid overlap. Zoom in to reveal more; select an area to keep its label visible.</p>
     {level!==boundaryLevel&&<p>Map values hidden: dataset level ({level||'none'}) differs from boundary level ({boundaryLevel}).</p>}

@@ -1,8 +1,15 @@
 import { useMemo, useState } from 'react';
 import Papa from 'papaparse';
 import { LEVELS, KINDS, normalizeRows } from '../../../lib/outbreak/data';
+import {replacementSummary,importedMetricId} from '../../../lib/outbreak/imports';
 
-export default function Upload({ onImport }) {
+export default function Upload({ onImport, datasets=[] }) {
+  const [replacementId,setReplacementId]=useState('');
+  const target=datasets.find(d=>d.id===replacementId);
+  function selectTarget(id){
+    setReplacementId(id);const d=datasets.find(item=>item.id===id);
+    if(d)setMapping(m=>({...m,...d.mapping,location:d.mapping?.location||'nom',date:d.mapping?.date||'date',metric:d.mapping?.metric||d.metricId||'',label:d.label,unit:d.unit,level:d.level,kind:d.kind,purpose:/confirmed_cases$/.test(d.metricId||'')?'cases':/confirmed_deaths$/.test(d.metricId||'')?'deaths':/recover/.test(d.metricId||'')?'recoveries':/isolation/.test(d.metricId||'')?'isolation':d.purpose||'operational',category:d.category||'other',source:file||''}));
+  }
   const [file,setFile]=useState(null),[rows,setRows]=useState([]),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   const [workbook,setWorkbook]=useState(null),[sheet,setSheet]=useState('');
   const [excelTools,setExcelTools]=useState(null);
@@ -31,8 +38,9 @@ export default function Upload({ onImport }) {
         const XLSX=await import('xlsx');
         setExcelTools(XLSX);
         const book=XLSX.read(bytes,{type:'array',cellDates:false});
-        setWorkbook(book); setSheet(book.SheetNames[0]);
-        data=XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]],{raw:true,defval:''});
+        const chosen=book.SheetNames.includes(target?.sheet)?target.sheet:book.SheetNames[0];
+        setWorkbook(book); setSheet(chosen);
+        data=XLSX.utils.sheet_to_json(book.Sheets[chosen],{raw:true,defval:''});
       } else if(/\.json$/i.test(next.name)) {
         data=JSON.parse(new TextDecoder().decode(bytes));
         if(!Array.isArray(data)||data.some(r=>!r||typeof r!=='object'||Array.isArray(r))) throw new Error('JSON must be an array of flat records.');
@@ -42,31 +50,33 @@ export default function Upload({ onImport }) {
         data=parsed.data;
       } else throw new Error('Choose CSV, XLSX, XLS or JSON.');
       if(!data.length||data.length>50000) throw new Error('Upload between 1 and 50,000 rows.');
-      setRows(data);setFile(next.name);setMapping(m=>({...m,location:'',date:'',metric:'',source:next.name}));
+      setRows(data);setFile(next.name);setMapping(m=>({...m,...Object.fromEntries(['location','date','metric'].map(key=>[key,Object.hasOwn(data[0],m[key])?m[key]:''])),source:next.name}));
     } catch(e) {setError(e.message);} finally {setBusy(false);}
   }
   async function chooseSheet(name) {
     setSheet(name);setError('');
     const XLSX=await import('xlsx');
     setRows(XLSX.utils.sheet_to_json(workbook.Sheets[name],{raw:true,defval:''}));
-    setMapping(m=>({...m,location:'',date:'',metric:''}));
   }
   let preview=[],validation='';
   if(rows.length) {try{preview=normalizeRows(preparedRows,mapping,'preview');}catch(e){validation=e.message;}}
   function commit() {
     try {
       if(!mapping.source.trim())throw new Error('Source description is required.');
-      const id=`upload:${crypto.randomUUID()}`;
+      if(replacementId&&!target)throw new Error('The selected dataset is no longer available. Choose a replacement target again.');
+      const id=target?.id||`upload:${crypto.randomUUID()}`;
       const records=normalizeRows(preparedRows,mapping,id);
-      onImport({id,label:mapping.label.trim(),level:mapping.level,kind:mapping.kind,purpose:mapping.purpose,category:mapping.category,unit:mapping.unit.trim(),status:'ready',origin:'upload',source:mapping.source.trim(),file,sheet:workbook?sheet:null,sha256:hash,fetchedAt:new Date().toISOString(),records,mapping});
+      onImport({id,metricId:importedMetricId(mapping),replacesId:target?.id,label:mapping.label.trim(),level:mapping.level,kind:mapping.kind,purpose:mapping.purpose,category:mapping.category,unit:mapping.unit.trim(),status:'ready',origin:'upload',source:mapping.source.trim(),file,sheet:workbook?sheet:null,sha256:hash,fetchedAt:new Date().toISOString(),records,mapping},target?.id);
       setError('');setFile(null);setRows([]);setWorkbook(null);
     } catch(e) {setError(e.message);}
   }
   const input=(key,label)=> <label>{label}<input value={mapping[key]} maxLength={200} onChange={e=>setMapping({...mapping,[key]:e.target.value})}/></label>;
   return <section>
     <h3>Upload operational data</h3>
-    <p>Import aggregate SDB/EDS, RCCE, logistics or other numeric indicators for this outbreak. One indicator per import; repeat to map additional columns. Records stay in this browser unless you export them.</p>
+    <p>Import aggregate case reports, SDB/EDS, RCCE, logistics or other numeric indicators. Choose an existing dataset to replace its complete series, or add a separate indicator. Records stay in this browser unless you export them.</p>
     <p>Use one row per location and reporting date. Dates must be YYYY-MM-DD, numbers must use dot decimals without thousands separators. Blank / ND values remain missing. Do not upload individual patient or burial records.</p>
+    <label>Import mode<select value={replacementId} onChange={e=>selectTarget(e.target.value)}><option value="">Add separate indicator</option>{datasets.map(d=><option key={d.id} value={d.id}>Replace: {d.label} — {d.file||d.source||d.id}</option>)}</select></label>
+    {target&&<p>Replaces the complete series for {target.label}; rows absent from the new file will be removed from the current analysis. Saved snapshots stay unchanged. Public refresh will preserve this uploaded replacement.</p>}
     <label>Dataset file <input type="file" accept=".csv,.xlsx,.xls,.json" onChange={read} disabled={busy}/></label>
     {busy&&<p role="status">Reading file…</p>}{error&&<p role="alert">{error}</p>}
     {file&&<><p>{file}: {rows.length.toLocaleString()} rows</p>
@@ -75,12 +85,13 @@ export default function Upload({ onImport }) {
         <label>Geographic level<select value={mapping.level} onChange={e=>setMapping({...mapping,level:e.target.value})}>{LEVELS.map(v=><option key={v}>{v}</option>)}</select></label>
         <label>Measure type<select value={mapping.kind} onChange={e=>setMapping({...mapping,kind:e.target.value})}>{KINDS.map(v=><option key={v}>{v}</option>)}</select></label>
         <label>Dataset category<select aria-label="Dataset category" value={mapping.category} onChange={e=>setMapping({...mapping,category:e.target.value})}>{[['other','Other / unclassified'],['sdb','Safe and dignified burial'],['rcce','Community engagement / RCCE'],['logistics','Logistics and supplies'],['response','Response presence and capacity']].map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
-        <label>Analysis role<select aria-label="Analysis role" value={mapping.purpose} onChange={e=>setMapping({...mapping,purpose:e.target.value})}><option value="operational">Operational / other indicator</option><option value="cases">Confirmed cases</option><option value="deaths">Deaths</option></select></label>
+        <label>Analysis role<select aria-label="Analysis role" value={mapping.purpose} onChange={e=>setMapping({...mapping,purpose:e.target.value})}><option value="operational">Operational / other indicator</option><option value="cases">Confirmed cases</option><option value="deaths">Deaths</option><option value="recoveries">Recoveries</option><option value="isolation">Suspected cases in isolation</option></select></label>
         {input('label','Indicator label')}{input('unit','Unit (people, requests, teams…)')}{input('source','Source / reporting organization')}
       </div>
       <p>Daily = value for that date; cumulative = running total; snapshot = status on that date. No cross-location totals are inferred.</p>
       <div style={{overflowX:'auto',maxHeight:220}}><table><caption>File preview — first five rows</caption><thead><tr>{columns.slice(0,12).map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.slice(0,5).map((r,i)=><tr key={i}>{columns.slice(0,12).map(c=><td key={c}>{String(r[c]??'').slice(0,100)}</td>)}</tr>)}</tbody></table></div>
       {validation?<p role="status">{validation}</p>:<p>{preview.length} validated observations; {preview.filter(r=>r.value===null).length} missing values. No data has been imported yet.</p>}
+      {!validation&&target&&(()=>{const values=records=>records.map(({location,date,value})=>({location,date,value}));const diff=replacementSummary(values(target.records||[]),values(preview),r=>JSON.stringify([r.location,r.date]));return <p>{diff.added} observations added, {diff.changed} changed, {diff.removed} removed. New period: {preview.map(r=>r.date).sort()[0]}–{preview.map(r=>r.date).sort().at(-1)}.</p>;})()}
       <button type="button" disabled={!!validation||!mapping.source.trim()} onClick={commit}>Confirm mapped import</button>
     </>}
   </section>;

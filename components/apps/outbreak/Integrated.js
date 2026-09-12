@@ -1,5 +1,6 @@
 import { formatValue } from '../../../lib/outbreak/data';
-import { HorizontalBars, OutbreakMap } from './Visuals';
+import { HorizontalBars } from './Visuals';
+import MobilityMap from './MobilityMap';
 import styles from './outbreak.module.css';
 
 export function IntegratedCharts({ epi,mining,security,geometry,boundaryLevel,asOf,onSelect=()=>{},briefing=false }) {
@@ -25,14 +26,14 @@ export function IntegratedCharts({ epi,mining,security,geometry,boundaryLevel,as
     {security&&<p className={styles.scope}>Security window: {security.start}–{security.end}. {security.records.length} valid loaded events; {security.unmatched.length} without a unique spatial match; {security.issues.length} validation issues. Fatalities are reported estimates. A date window does not establish complete event coverage.</p>}
   </>;
 }
-export function MobilityPanel({ layers,selected,direction,onDirection,onLayer,geometry,boundaryLevel,asOf,onSelect=()=>{},briefing=false }) {
+export function MobilityPanel({ layers,selected,direction,onDirection,onLayer,geometry,boundaryLevel,asOf,onSelect=()=>{},briefing=false,overlays }) {
   const directions=[...new Set(layers.map(l=>l.direction))];
   return <div className={styles.panel}>
     <h3>Population mobility</h3>
     {!layers.length?<p>No numeric Flowminder, inflow or outflow fields detected in the uploaded GeoJSON. No movement layer has been inferred.</p>:<>
       {!briefing&&<div className={styles.controls} data-print-hide="true"><label>Movement direction<select aria-label="Movement direction" value={direction} onChange={e=>onDirection(e.target.value)}><option value="outflow" disabled={!directions.includes('outflow')}>Outflow{!directions.includes('outflow')?' — not present':''}</option><option value="inflow" disabled={!directions.includes('inflow')}>Inflow{!directions.includes('inflow')?' — not present':''}</option><option value="other" disabled={!directions.includes('other')}>Other mobility indicators</option></select></label><label>Mobility measure / observation<select aria-label="Mobility measure / observation" value={selected?.id||''} onChange={e=>onLayer(e.target.value)}>{layers.filter(l=>l.direction===direction).map(l=><option key={l.id} value={l.id}>{l.label}</option>)}</select></label></div>}
       {selected&&<><p><strong>{selected.direction==='other'?'Mobility indicator':selected.direction==='inflow'?'Inflow':'Outflow'}</strong> · {selected.date||'Date not supplied'} ({selected.dateBasis}) · {selected.unit}</p>{selected.definition&&<p><strong>Source definition:</strong> {selected.definition.window||'Documented snapshot'}{selected.definition.origins?` · cohort origins: ${selected.definition.origins}`:''}. {selected.definition.limitation} <a href={selected.definition.documentation} target="_blank" rel="noreferrer">Methodology</a></p>}<p>Values are shown exactly as supplied. A geographic indicator does not establish origin–destination routes, traveller counts or transmission.</p>
-        <OutbreakMap geometry={geometry} rows={selected.records} level={boundaryLevel} boundaryLevel={boundaryLevel} kind="mobility indicator" unit={selected.unit} mines={[]} selected="" onSelect={onSelect} label={`${selected.direction==='other'?'Mobility':selected.direction==='inflow'?'Inflow':'Outflow'} — ${selected.label}`} asOf={asOf} source={`Uploaded GeoJSON: ${selected.id}`} focusNames={selected.records.filter(r=>r.value>0).sort((a,b)=>b.value-a.value).slice(0,12).map(r=>r.location)}/>
+        <MobilityMap overlays={overlays} geometry={geometry} rows={selected.records} level={boundaryLevel} boundaryLevel={boundaryLevel} kind="mobility indicator" unit={selected.unit} selected="" onSelect={onSelect} label={`${selected.direction==='other'?'Mobility':selected.direction==='inflow'?'Inflow':'Outflow'} — ${selected.label}`} asOf={asOf} source={`Uploaded GeoJSON: ${selected.id}`} focusNames={selected.records.filter(r=>r.value>0).sort((a,b)=>b.value-a.value).slice(0,12).map(r=>r.location)}/>
         <HorizontalBars title="Leading mobility indicator values" subtitle={`${selected.date||'Undated'} · ${selected.direction} · no conversion to traveller counts`} rows={[...selected.records].sort((a,b)=>(b.value??-1)-(a.value??-1))} unit={selected.unit} color="#337fb1" source={`Uploaded GeoJSON: ${selected.id}`} onSelect={onSelect}/>
       </>}
     </>}

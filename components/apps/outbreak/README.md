@@ -7,6 +7,32 @@ available for explicit field/level matching; unmatched locations remain visible.
 
 ## Workflow
 
+### Updating data
+
+Data & uploads includes a dedicated IPIS Excel/CSV import. Map mine ID, visit date
+and WGS84 latitude/longitude; name and province are optional. Preview the eligible
+sites, unmatched boundaries and added/changed/removed counts, then replace the
+active mining source. The workbook worksheet and mappings are stored with the
+source. Full visit history and additional columns are retained in snapshots;
+each cut-off selects the latest eligible visit per mine. Older snapshots without
+visit history remain readable but cannot reconstruct visits they never stored.
+
+For cases and operational indicators, select Add separate indicator or Replace
+in Import mode. Replacement keeps the dataset ID, removes observations absent
+from the new file and preserves the old version in already-saved snapshots.
+Column mappings and worksheet are reused when present. A newly imported cumulative
+local case series becomes the active epidemiological source. Explicit roles for
+cases, deaths, recoveries and isolation populate the recognised national series.
+Missing mapped columns block import instead of becoming silent missing values.
+
+Connected refresh preserves uploaded mining data, uploaded OD data and explicitly
+replaced public indicators. Imports invalidate pending connected refresh results.
+Public connectors still use their registered source-specific URLs and schemas;
+changing source formats can be handled by mapped uploads. The public Flowminder
+adapter still assumes its documented product naming and two-month period; manual
+OD imports require explicit observation dates and units. Analysis windows and
+response-status thresholds remain the existing defaults.
+
 1. Use the DRC preset to load seven INSP public CSV feeds, or start a New outbreak
    for another country/disease and import scoped data. Recognized INSP data connects
    its registered source profile automatically. A manually selected connection is
@@ -50,6 +76,13 @@ all 14 daily observations for a location. Differenced cumulative values are
 labelled changes in reported totals, not new infections.
 
 ## Integrated priorities and mobility
+
+Every district inflow/outflow map and GeoJSON mobility map includes IPIS mining-site
+and ACLED event toggles, including Briefing and its appendix. Choices are shared
+with the geographic map and saved in snapshots. Mine visits after the reporting
+cut-off are excluded; ACLED uses the selected security window. Unavailable layers
+are disabled with an explanation. SVG and HTML/PDF visuals retain visible points,
+legends and overlay date context while excluding the interactive controls.
 
 Burden, exact seven-day cumulative changes, mining sites and security overlaps
 are ranked automatically. Focus-area cards state each selection reason. These
@@ -106,6 +139,11 @@ comparable basis neutral) so the trend is legible at a glance.
 
 ## Response status and leadership briefing
 
+Selecting a suggested action keeps the user in Situation and marks the proposal
+as selected. It creates one Proposed response-plan entry, which can be edited or
+removed later in Response & decisions. Selection persists after editing the entry
+and saving/reopening snapshots; removing the entry makes the proposal selectable again.
+
 A response-status rollup summarises the response pillars (safe & dignified
 burial, community engagement/RCCE, logistics & supplies, response presence &
 capacity) from dated indicators you upload and categorise in Data & uploads.
@@ -156,6 +194,14 @@ https://github.com/INRB-UMIE/BDBV2026-Data
 `npx playwright test tests/browser/outbreak.spec.js`
 
 ## Interaction and briefing design
+
+The Situation view opens with a key message above the data controls. A deterministic
+summary includes dated case changes and supported receiving-area, mining and access
+review prompts. These describe reported evidence, not a transmission forecast.
+Coordinators can edit the message in place or in Briefing; their saved wording takes
+precedence until cleared. The same message appears in the briefing and HTML/PDF and
+Markdown exports. Missing evidence has an explicit setup message. Coordinator text
+needs review after refreshes or scope changes; editing invalidates review status.
 
 Maps use fixed viewport coordinates for drag, pointer-centred wheel/double-click
 zoom, two-pointer pinch/pan, and keyboard arrows/+/-/Home. Labels use measured

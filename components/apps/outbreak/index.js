@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { latestPerLocation, nationalEvidence, revisionCount, dailyComparison, validateBoundaries, selectFacts, LEVELS, validDate, formatValue } from '../../../lib/outbreak/data';
 import Upload from './Upload';
+import MineUpload from './MineUpload';
+import {minesAtCutoff,mergePublicDatasets} from '../../../lib/outbreak/imports';
 import GeoImport from './GeoImport';
 import Overview from './Overview';
 import BriefSummary from './BriefSummary';
 import DataAvailability from './DataAvailability';
-import {recommendations} from '../../../lib/outbreak/overview';
+import {recommendations,proposalKey,proposalSelected} from '../../../lib/outbreak/overview';
 import {hazardContext} from '../../../lib/outbreak/context';
 import Routes, { RouteUpload } from './Routes';
 import { IntegratedCharts, MobilityPanel } from './Integrated';
@@ -13,6 +15,8 @@ import { embeddedEpidemiology, detectGeoIndicators, detectMobility, describeMobi
 import { OutbreakMap, TrendChart, download, briefingHTML, printBriefing } from './Visuals';
 import ResponseStatus from './ResponseStatus';
 import Delta from './Delta';
+import KeyMessage from './KeyMessage';
+import { keyMessage } from '../../../lib/outbreak/keyMessage';
 import { sinceLast, responseStatus } from '../../../lib/outbreak/response';
 import styles from './outbreak.module.css';
 
@@ -65,7 +69,7 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
     }catch(e){return {data:null,error:e.message};}
   },[districts,effectiveBoundaryField,effectiveProvinceField,restoredGeometry]);
   const embedded=useMemo(()=>useWorkspaceContext?embeddedEpidemiology(geography.data,boundaryLevel):[],[geography,boundaryLevel,useWorkspaceContext]);
-  const availableDatasets=useMemo(()=>[...datasets,...embedded.filter(d=>!datasets.some(source=>source.metricId===d.metricId&&source.status==='ready'))],[datasets,embedded]);
+  const availableDatasets=useMemo(()=>[...datasets,...embedded.filter(d=>!datasets.some(source=>(source.id===d.id||source.metricId&&source.metricId===d.metricId)&&source.status==='ready'))],[datasets,embedded]);
   const selected=availableDatasets.find(d=>d.id===selectedId)||availableDatasets.find(d=>d.purpose==='cases')||availableDatasets.find(d=>d.status==='ready');
   const rows=useMemo(()=>latestPerLocation(selected?.records||[],asOf),[selected,asOf]);
   const selectedLocation=location||[...rows].sort((a,b)=>(b.value??-1)-(a.value??-1))[0]?.location||'';
@@ -77,7 +81,8 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
   const index=useMemo(()=>spatialIndex(geography.data),[geography]);
   const disasterInput=restoredDisasters??(useWorkspaceContext?disasters:[]);
   const hazards=useMemo(()=>hazardContext(disasterInput,index,asOf),[disasterInput,index,asOf]);
-  const mining=useMemo(()=>geography.data?miningOverlap(mines?.data,index,asOf):null,[mines,index,geography,asOf]);
+  const eligibleMines=useMemo(()=>minesAtCutoff(mines,asOf),[mines,asOf]);
+  const mining=useMemo(()=>geography.data?miningOverlap(mines?eligibleMines:undefined,index,asOf):null,[mines,eligibleMines,index,geography,asOf]);
   const mobilityLayers=useMemo(()=>useWorkspaceContext?describeMobility(detectMobility(geography.data,asOf),flowCatalogue):[],[geography,asOf,flowCatalogue,useWorkspaceContext]);
   const geoLayers=useMemo(()=>detectGeoIndicators(geography.data,asOf),[geography,asOf]);
   const availableDirections=[...new Set(mobilityLayers.map(l=>l.direction))];
@@ -88,6 +93,7 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
   const securityEnd=securityTo||latestSecurityDate||asOf,securityStart=securityFrom||shiftDate(securityEnd,-27);
   const securityRangeError=securityStart>securityEnd||securityEnd>asOf;
   const security=useMemo(()=>securityInput.length&&!securityRangeError?securityOverlap(securityInput,index,securityStart,securityEnd):null,[securityInput,index,securityStart,securityEnd,securityRangeError]);
+  const openingMessage=keyMessage({datasets:availableDatasets,epi,mining,security,mobility:routeData,asOf,override:bottomLine});
   const integrated=useMemo(()=>integratedEvidence(epi,mining,security,selectedMobility,!!geography.data&&epi?.dataset.level===boundaryLevel),[epi,mining,security,selectedMobility,geography,boundaryLevel]);
   const evidenceSource=f=>f.source||sourceLabel(availableDatasets.find(d=>d.id===f.sourceId));
   const chooseArea=n=>{change();setLocation(n);setExplorerOpen(true);};
@@ -95,7 +101,7 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
   const mapLabel=mapMode==='growth'&&epi?'Seven-day change in reported cumulative cases':mapMode==='mining'&&mining?'Documented mining sites':mapMode==='security'&&security?'ACLED events in loaded data':selected?.label||'Administrative boundaries';
   const mapLevel=mapMode==='growth'&&epi?epi.dataset.level:mapMode==='mining'||mapMode==='security'?boundaryLevel:selected?.level;
   const mapUnit=mapMode==='mining'?'documented sites':mapMode==='security'?'reported events':selected?.unit;
-  const mapSource=mapMode==='mining'?mines?.url:mapMode==='security'?'Main-app ACLED records; uploaded boundaries':mapMode==='growth'?sourceLabel(epi?.dataset):sourceLabel(selected);
+  const mapSource=mapMode==='mining'?sourceLabel(mines):mapMode==='security'?'Main-app ACLED records; uploaded boundaries':mapMode==='growth'?sourceLabel(epi?.dataset):sourceLabel(selected);
   const facts=useMemo(()=>{
     const base=[...integrated,...nationalEvidence(availableDatasets.filter(d=>d.level==='national'),asOf)];
     if(selected&&selected.origin==='upload') rows.filter(r=>r.value!==null).slice(0,10).forEach(r=>base.push({id:`${selected.id}:${r.location}:${r.date}`,sourceId:selected.id,date:r.date,value:r.value,label:selected.label,text:`${selected.label}: ${formatValue(r.value)} ${selected.unit} reported for ${r.location} (${selected.level}) on ${r.date}.`}));
@@ -104,7 +110,8 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
   },[availableDatasets,integrated,selected,rows,asOf,comparisons]);
   const highlights=factIds.length?facts.filter(f=>factIds.includes(f.id)).sort((a,b)=>factIds.indexOf(a.id)-factIds.indexOf(b.id)):(integrated.length?integrated.filter(f=>['integrated:hotspots','integrated:growth','integrated:security-overlap','integrated:mobility'].includes(f.id)).slice(0,3):facts.slice(0,3));
   const since=useMemo(()=>sinceLast({national:nationalEvidence(availableDatasets,asOf),epi,datasets:availableDatasets},compareSnapshot,asOf),[availableDatasets,epi,compareSnapshot,asOf]);
-  const activeMines=showMines?(mines?.data||[]).filter(m=>m.date<=asOf):[];
+  const activeMines=showMines?eligibleMines:[];
+  const movementOverlays={mines:eligibleMines,events:security?.records||[],showMines,showSecurity,securityPeriod:`${securityStart}–${securityEnd}`,onMines:value=>{change();setShowMines(value);},onSecurity:value=>{change();setShowSecurity(value);}};
   const hasRegisteredMobility=mobilityLayers.some(layer=>layer.id.startsWith('flowminder_short_trips.'));
   useEffect(()=>{
     if(!hasRegisteredMobility||flowCatalogue||flowCatalogueError)return;
@@ -120,8 +127,8 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
     if(connection!=='drc'){setRefreshStatus('No live source connected. Choose a source in Data & uploads. Uploaded and main-app records cannot be refreshed without a source connection.');return;}
     const generation=++refreshGeneration.current;
     setRefreshing(true);setRefreshStatus('Checking connected sources…');
-    const uploadedMobility=routeData&&!routeData.source?.startsWith('https://raw.githubusercontent.com/INRB-UMIE/');
-    const kinds=['indicators',...(!uploadedMobility?['relocations']:[]),'mobility','mines'];
+    const uploadedMobility=routeData&&(routeData.origin==='upload'||routeData.origin!=='public'&&!routeData.source?.startsWith('https://raw.githubusercontent.com/INRB-UMIE/'));
+    const kinds=['indicators',...(!uploadedMobility?['relocations']:[]),'mobility',...(mines?.origin==='upload'?[]:['mines'])];
     const results=await Promise.allSettled(kinds.map(async kind=>{
       const response=await fetch(`/api/outbreak-data?kind=${kind}`,{signal:AbortSignal.timeout(90000)});
       const data=await response.json();
@@ -139,11 +146,11 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
         const failed=data.datasets.filter(d=>d.status!=='ready');
         failed.forEach(d=>failures.push(`${d.label}: ${d.error||'unavailable'}`));
         // Keep previously loaded values on failure and visibly identify them as unrefreshed.
-        setDatasets(old=>[...data.datasets.map(d=>d.status==='ready'?d:{...(old.find(v=>v.id===d.id)||d),refreshError:d.error||'Refresh failed'}),...old.filter(d=>d.origin!=='public')]);
+        setDatasets(old=>mergePublicDatasets(old,data.datasets));
       }
       if(kind==='relocations')setRouteData(data);
       if(kind==='mobility')setFlowCatalogue(data);
-      if(kind==='mines')setMines(data);
+      if(kind==='mines')setMines(old=>old?.origin==='upload'?old:data);
     });
     setLastChecked(new Date().toISOString());setRefreshing(false);change();
     setRefreshStatus(failures.length?`Some sources could not refresh. Previously loaded observations remain dated as before. ${failures.join(' · ')}`:'Connected sources checked. Latest available observations loaded; reporting dates may still be older than today.');
@@ -163,6 +170,7 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
     if(value==='drc')refreshConnected(value);else setRefreshStatus('Using uploaded and main-app data. No live source connected.');
   }
   async function fetchMines() {
+    if(mines?.origin==='upload'){setTab('Data & uploads');setNotice('Uploaded mining data is active. Upload a replacement below; public refresh does not overwrite it.');return;}
     setBusy('Loading IPIS');setError('');
     try{const r=await fetch('/api/outbreak-data?kind=mines');const d=await r.json();if(!r.ok)throw new Error(d.error);change();setMines(d);setShowMines(true);}catch(e){setError(e.message);}finally{setBusy('');}
   }
@@ -195,7 +203,7 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
   function briefingText() {
     const calls=[...actions.filter(a=>a.status==='Blocked').map(a=>`Unblock: ${a.action||'action'}${a.location?` (${a.location})`:''}`),...actions.filter(a=>a.status==='Proposed').map(a=>`Decision requested: ${a.action||'action'}${a.owner?` — owner ${a.owner}`:''}`)];
     return [`# ${name}`,`Status: ${reviewed?'Reviewed by user':'DRAFT — requires coordinator review'}`,`Reporting cut-off: ${asOf}. Generated: ${new Date().toISOString()}.`,
-      ...(bottomLine.trim()?['## Bottom line for decision-makers',bottomLine.trim()]:[]),
+      '## Key message',openingMessage.text,openingMessage.origin,
       ...(since&&since.lines.length?[`## Since last brief${since.priorAsOf?` (${since.priorName||'snapshot'}, ${since.priorAsOf})`:''}`,...since.lines.map(l=>`- ${l.label}: ${l.value}${typeof l.delta==='number'?` (${l.delta>=0?'+':''}${formatValue(l.delta)})`:''}${l.since?` — ${l.since}`:''}`)]:[]),
       '## Summary',...nationalEvidence(availableDatasets,asOf).map(f=>`${f.label}: ${formatValue(f.value)} (${f.date})`),...(epi?integrated.filter(f=>['integrated:hotspots','integrated:growth'].includes(f.id)):highlights).map(f=>`- ${f.text} [${evidenceSource(f)}]`),
       '## Response status',...responseStatus(availableDatasets,actions,asOf).pillars.map(p=>`- ${p.label}: ${p.loaded?`${p.level.toUpperCase()} — ${p.note}`:'No dated indicators loaded.'}`),
@@ -205,11 +213,12 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
       '## Proposed actions — entered by coordinator',...(actions.length?actions.map(a=>`- ${a.location||'Location unspecified'}: ${a.action||'Action unspecified'} | Owner: ${a.owner||'Unassigned'} | Due: ${a.due||'Unspecified'} | Resources: ${a.resources||'Unspecified'} | Status: ${a.status}`):['No actions entered.']),
       '## Data limits','National figures remain separate from sums of reported area-level values. Reporting dates may differ. Cumulative changes may include revisions. Missing data is not zero. Geographic proximity and mining sites do not establish transmission. No spread forecast is produced.',
       '## Sources',...availableDatasets.map(d=>`- ${d.label}: ${sourceLabel(d)} | ${d.status} | retrieved ${d.fetchedAt||'not available'} | SHA-256 ${d.sha256||'not available'}${d.error?` | ${d.error}`:''} | ${d.issues?.length||0} source validation issues`),
-      `- Boundaries: ${boundarySource}; join field ${effectiveBoundaryField}; level ${boundaryLevel}.`, ...(security?[`- ACLED: ${securityStart}–${securityEnd}; ${security.issues.length} validation issues; source records preserved in the evidence snapshot.`]:[]),...(mines?[`- IPIS: ${mines.url}; retrieved ${mines.fetchedAt}; SHA-256 ${mines.sha256}`]:[])].join('\n\n');
+      `- Boundaries: ${boundarySource}; join field ${effectiveBoundaryField}; level ${boundaryLevel}.`, ...(security?[`- ACLED: ${securityStart}–${securityEnd}; ${security.issues.length} validation issues; source records preserved in the evidence snapshot.`]:[]),...(mines?[`- IPIS: ${sourceLabel(mines)}; retrieved ${mines.fetchedAt}; SHA-256 ${mines.sha256}`]:[])].join('\n\n');
   }
   const updateAction=(i,key,value)=>{change();setActions(actions.map((a,n)=>i===n?{...a,[key]:value}:a));};
   return <section className={styles.app} aria-label="Outbreak response"><fieldset disabled={!!busy} className={styles.fieldset}>
     <header className={styles.header}><div><span className={styles.eyebrow}>AIDSTACK / OPERATIONAL INTELLIGENCE</span><h2>Outbreak Response</h2><p>Snapshot, trends and response planning.</p></div><div className={styles.toolbar}><button onClick={()=>refreshConnected()} disabled={refreshing||!!busy}>{refreshing?'Refreshing data…':'Refresh data'}</button><button onClick={newOutbreak} disabled={!!busy}>New outbreak</button><button onClick={save} disabled={!!busy||refreshing||!name.trim()}>Save snapshot{dirty?' *':''}</button></div></header>
+    {tab==='Situation'&&<KeyMessage message={openingMessage} asOf={asOf} reviewed={reviewed} onBriefing={()=>setTab('Briefing')} editor={<><label>Coordinator key message<textarea value={bottomLine} maxLength={800} placeholder="Leave blank to use the summary from loaded data." onChange={e=>{change();setBottomLine(e.target.value);}}/></label><p>Appears on opening and in the briefing. Review your wording after changing the reporting cut-off or refreshing data.</p>{bottomLine.trim()&&<button type="button" onClick={()=>{change();setBottomLine('');}}>Use data summary</button>}</>}/>}
     <div className={`${styles.controls} ${styles.noPrint}`}>
       <label>Outbreak / operational scope<input value={name} maxLength={180} onChange={e=>{change();setName(e.target.value);}}/></label>
       <label>Reporting cut-off<input type="date" value={asOf} onChange={e=>{if(validDate(e.target.value)){change();setAsOf(e.target.value);}}}/></label>
@@ -220,12 +229,12 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
     {error&&<p className={styles.error} role="alert">{error}</p>}{notice&&<p className={styles.notice} role="status">{notice}</p>}{busy&&<p role="status">{busy}…</p>}
     <nav className={`${styles.tabs} ${styles.noPrint}`} aria-label="Outbreak sections">{['Situation','Data & uploads','Response & decisions','Briefing'].map(t=><button key={t} aria-pressed={tab===t} onClick={()=>setTab(t)}>{t}</button>)}</nav>
     {tab==='Situation'&&<>
-      <Overview datasets={availableDatasets} epi={epi} security={security} mining={mining} asOf={asOf} routeData={routeData} selectedArea={selectedLocation} onSelect={n=>{chooseArea(n);requestAnimationFrame(()=>explorerElement.current?.scrollIntoView({behavior:'smooth',block:'start'}));}} onDecision={suggestion=>{change();setActions(old=>[...old,{id:crypto.randomUUID(),location:suggestion.areas.join(', '),owner:'',resources:'',due:'',status:'Proposed',action:`${suggestion.title}. ${suggestion.why} ${suggestion.action}`}]);setTab('Response & decisions');}}/>
+      <Overview datasets={availableDatasets} epi={epi} security={security} mining={mining} asOf={asOf} routeData={routeData} actions={actions} selectedArea={selectedLocation} onSelect={n=>{chooseArea(n);requestAnimationFrame(()=>explorerElement.current?.scrollIntoView({behavior:'smooth',block:'start'}));}} onDecision={suggestion=>{if(proposalSelected(actions,suggestion))return;change();setActions(old=>proposalSelected(old,suggestion)?old:[...old,{id:crypto.randomUUID(),proposalKey:proposalKey(suggestion),location:suggestion.areas.join(', '),owner:'',resources:'',due:'',status:'Proposed',action:`${suggestion.title}. ${suggestion.why} ${suggestion.action}`}]);}}/>
       <ResponseStatus datasets={availableDatasets} actions={actions} asOf={asOf} onData={()=>{setTab('Data & uploads');requestAnimationFrame(()=>document.getElementById('outbreak-uploads')?.scrollIntoView({behavior:'smooth'}));}}/>
       <details className={styles.panel}><summary>Data coverage — loaded sources and missing inputs</summary><DataAvailability datasets={availableDatasets} geometry={geography.data} mines={mines} securityCount={securityInput.length} disasterCount={disasterInput.length} routeData={routeData} facilities={facilities} onData={()=>{setTab('Data & uploads');requestAnimationFrame(()=>document.getElementById('outbreak-uploads')?.scrollIntoView({behavior:'smooth'}));}} onWorkspace={onOpenWorkspace} onMines={fetchMines} loading={!!busy||refreshing}/></details>
       <details ref={explorerElement} open={explorerOpen||!epi} onToggle={e=>{if(epi)setExplorerOpen(e.currentTarget.open);}} className={styles.panel}><summary>Explore an area{location?` — ${location}`:''}</summary>
       <p>Choose an area to inspect its trend, movement connections and map.</p>
-      <Routes showFocus={false} direction={routeDirection} onDirection={d=>{change();setRouteDirection(d);}} limit={routeLimit} onLimit={v=>{change();setRouteLimit(v);}} data={routeData} onLoad={fetchRoutes} loading={routeLoading} error={routeError} epi={epi} security={security} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} selected={selectedLocation} onSelect={chooseArea}/>
+      <Routes overlays={movementOverlays} showFocus={false} direction={routeDirection} onDirection={d=>{change();setRouteDirection(d);}} limit={routeLimit} onLimit={v=>{change();setRouteLimit(v);}} data={routeData} onLoad={fetchRoutes} loading={routeLoading} error={routeError} epi={epi} security={security} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} selected={selectedLocation} onSelect={chooseArea}/>
       <div className={styles.controls}><label>Explore an indicator<select value={selected?.id||''} onChange={e=>{change();setSelectedId(e.target.value);setLocation('');}}><option value="">Choose dataset</option>{availableDatasets.filter(d=>d.status==='ready').map(d=><option key={d.id} value={d.id}>{d.label} · {d.level} · {d.origin==='upload'?d.file:d.origin==='boundary'?'GeoJSON':'Source preset'}</option>)}</select></label><label>Explore a location<select value={selectedLocation} onChange={e=>{change();setLocation(e.target.value);}}>{location&&!rows.some(r=>r.location===location)&&<option value={location}>{location} — no observations</option>}{rows.map(r=><option key={r.location}>{r.location}</option>)}</select></label></div>
       {selected&&<><p>{selected.issues?.length?`${selected.issues.length} source validation issues; affected numeric cells are missing. See Data & uploads. `:''}{selected.kind} · {selected.unit} · <a href={selected.url||undefined} target="_blank" rel="noreferrer">{sourceLabel(selected)}</a></p><TrendChart records={selected.records} location={selectedLocation} label={selected.label} unit={selected.unit} kind={selected.kind} asOf={asOf} source={sourceLabel(selected)}/></>}
       <div className={styles.panel}><h3>Geographic evidence</h3>
@@ -235,14 +244,14 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
         {unmatched.length>0&&<p role="status">{unmatched.length} unmatched locations (not mapped): {unmatched.slice(0,20).map(r=>r.location).join(', ')}{unmatched.length>20?'…':''}</p>}
         <div className={styles.controls}>{hazards.events.length>0&&<label><input type="checkbox" checked={showHazards} onChange={e=>setShowHazards(e.target.checked)}/>Show recent GDACS alert centres</label>}<label>Map measure<select aria-label="Map measure" value={mapMode} onChange={e=>{change();setMapMode(e.target.value);}}><option value="indicator">Selected reported indicator</option><option value="growth" disabled={!epi}>Seven-day cumulative change</option><option value="mining" disabled={!mining}>Documented mining sites</option><option value="security" disabled={!security}>Security events</option></select></label>{security&&<label><input type="checkbox" checked={showSecurity} onChange={e=>{change();setShowSecurity(e.target.checked);}}/>Show security event locations</label>}{facilities.length>0&&<label><input type="checkbox" checked={showSites} onChange={e=>{change();setShowSites(e.target.checked);}}/>Show uploaded site locations (capacity unverified)</label>}</div>
         <OutbreakMap geometry={geography.data} rows={mapRows} level={mapLevel} kind={mapMode==='indicator'?selected?.kind:'derived indicator'} unit={mapUnit} boundaryLevel={boundaryLevel} mines={activeMines} selected={selectedLocation} onSelect={n=>{change();setLocation(n);}} label={mapLabel} asOf={asOf} source={mapSource} hazards={showHazards?hazards.events:[]} events={showSecurity?security?.records||[]:[]} sites={showSites?facilities:[]} focusNames={mapRows.filter(r=>r.value>0).sort((a,b)=>b.value-a.value).slice(0,12).map(r=>r.location)}/>
-        {<p><button disabled={!!busy} onClick={fetchMines}>{mines?'Refresh':'Load'} IPIS mining sites</button>{mines&&<label><input type="checkbox" checked={showMines} onChange={e=>{change();setShowMines(e.target.checked);}}/>Show {mines.data.length.toLocaleString()} documented mines (within map extent)</label>}</p>}
-        {mines&&<p>IPIS points use the latest visit per mine code; historical site observations do not establish present activity or infection. <a href={mines.url} target="_blank" rel="noreferrer">Source CSV</a></p>}
+        {<p><button disabled={!!busy} onClick={fetchMines}>{mines?.origin==='upload'?'Manage uploaded':mines?'Refresh':'Load'} IPIS mining sites</button>{mines&&<label><input type="checkbox" checked={showMines} onChange={e=>{change();setShowMines(e.target.checked);}}/>Show {eligibleMines.length.toLocaleString()} documented mines (within map extent)</label>}</p>}
+        {mines&&<p>IPIS points use the latest visit per mine code; historical site observations do not establish present activity or infection. {mines.url?<a href={mines.url} target="_blank" rel="noreferrer">Source CSV</a>:<span>Source: {mines.file||mines.source} · worksheet {mines.sheet||'CSV'}</span>}</p>}
       </div>
       {selected&&<div className={styles.tableWrap}><table><caption>Latest observations on or before {asOf}; no cross-location totals</caption><thead><tr><th>Location</th><th>Reported date</th><th>{selected.label} ({selected.unit})</th></tr></thead><tbody>{rows.map(r=><tr key={r.location}><td>{r.location}</td><td>{r.date}</td><td>{r.value===null?'Not reported':formatValue(r.value)}</td></tr>)}</tbody></table></div>}
       {comparisons.length>0&&<div className={styles.tableWrap}><table><caption>Comparable seven-day periods ending {asOf}. Both totals shown only when all 14 dates are reported.</caption><thead><tr><th>Location</th><th>Days reported / 14</th><th>Recent 7 days</th><th>Previous 7 days</th></tr></thead><tbody>{comparisons.map(c=><tr key={c.location}><td>{c.location}</td><td>{c.reported}/14</td><td>{c.current??'Incomplete'}</td><td>{c.previous??'Incomplete'}</td></tr>)}</tbody></table></div>}
       <details><summary>Additional comparisons and mobility indicators</summary>
       <IntegratedCharts epi={epi} mining={mining} security={security} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} onSelect={chooseArea}/>
-      <MobilityPanel layers={mobilityLayers} selected={selectedMobility} direction={direction} onDirection={d=>{change();setMovementDirection(d);setMovementField('');}} onLayer={id=>{change();setMovementField(id);}} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} onSelect={chooseArea}/>
+      <MobilityPanel overlays={movementOverlays} layers={mobilityLayers} selected={selectedMobility} direction={direction} onDirection={d=>{change();setMovementDirection(d);setMovementField('');}} onLayer={id=>{change();setMovementField(id);}} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} onSelect={chooseArea}/>
       </details></details>
     </>}
     {tab==='Data & uploads'&&<>
@@ -255,8 +264,9 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
       <div className={styles.panel}><h3>Security analysis from the main app</h3><p>{securityInput.length} ACLED records available. The default window ends at the latest valid event on or before the briefing cut-off and spans 28 days. This does not establish reporting completeness.</p><div className={styles.controls}><label>Security window start<input type="date" value={securityStart} onChange={e=>{if(validDate(e.target.value)){change();setSecurityFrom(e.target.value);}}}/></label><label>Security window end<input type="date" value={securityEnd} onChange={e=>{if(validDate(e.target.value)){change();setSecurityTo(e.target.value);}}}/></label><button onClick={()=>{change();setSecurityFrom('');setSecurityTo('');}}>Use latest recorded event window</button></div>{securityRangeError&&<p role="alert">Security dates must be ordered and must not extend beyond the briefing cut-off.</p>}{restoredSecurity&&<button onClick={()=>{change();setRestoredSecurity(null);}}>Use current main-app security records</button>}{security?.issues.length>0&&<details><summary>{security.issues.length} security validation issues</summary><ul>{security.issues.map((e,i)=><li key={i}>{e.id||`Row ${e.row}`}: {e.message}</li>)}</ul></details>}</div>
       {mobilityLayers.length>0&&<div className={styles.panel}><h3>Available Flowminder products</h3>{flowCatalogueError&&<p role="status">{flowCatalogueError} Values retain source units until definitions can be verified. <button onClick={()=>setFlowCatalogueError('')}>Retry source definitions</button></p>}{!flowCatalogue&&!flowCatalogueError&&<p>Loading source definitions…</p>}{flowCatalogue&&<><p>Definitions retrieved {flowCatalogue.fetchedAt}. GeoJSON destination indicators are separate from relocation matrices.</p><table><thead><tr><th>Available product</th><th>Format</th><th>Units</th><th>Source</th></tr></thead><tbody>{flowCatalogue.products.filter(p=>p.type==='vector'||p.product==='relocations').map(p=><tr key={p.id}><td>{p.metric}</td><td>{p.inGeoJSON?'Embedded vector':'Separate matrix — load in district connections'}</td><td>{p.unit}</td><td>{p.url&&<a href={p.url} target="_blank" rel="noreferrer">Data file</a>} · <a href={p.documentation} target="_blank" rel="noreferrer">Definitions</a></td></tr>)}</tbody></table></>}</div>}
       <div className={styles.panel}><GeoImport layers={geoLayers} level={boundaryLevel} onImport={d=>{change();setDatasets(old=>[...old,d]);setSelectedId(d.id);if(d.purpose==='cases')setEpiSource(d.id);setNotice('GeoJSON indicator mapped. Insights are available in Situation.');}}/></div>
-      <RouteUpload onImport={d=>{change();setRouteData(d);setNotice("Mobility routes imported. Open Situation to explore district connections.");}}/>
-      <div id="outbreak-uploads" className={styles.panel}><Upload onImport={d=>{change();setDatasets(old=>[...old,d]);setSelectedId(d.id);setLocation('');setNotice('Dataset imported. Open Situation to review its chart and observations.');}}/><button onClick={()=>download('sdb-template.csv','health_zone,date,requests,completed\nExample zone,2026-09-01,12,10\nExample zone,2026-09-02,8,8\n','text/csv')}>Download example SDB template</button><p>Template rows are illustrative. Replace them before importing. Requests and completions are separate indicators; their difference is not automatically a backlog.</p></div>
+      <MineUpload current={mines} asOf={asOf} index={index} onImport={d=>{refreshGeneration.current++;setRefreshing(false);setRefreshStatus('Uploaded data selected. Public refresh preserves uploaded sources.');change();setMines(d);setShowMines(true);setNotice('Uploaded mining data is active across maps and briefing. Public refresh will preserve it.');}}/>
+      <RouteUpload current={routeData} onImport={d=>{refreshGeneration.current++;setRefreshing(false);setRefreshStatus('Uploaded data selected. Public refresh preserves uploaded sources.');change();setRouteData(d);setNotice("Mobility routes imported. Open Situation to explore district connections.");}}/>
+      <div id="outbreak-uploads" className={styles.panel}><Upload datasets={availableDatasets} onImport={(d,replacedId)=>{refreshGeneration.current++;setRefreshing(false);setRefreshStatus('Uploaded data selected. Public refresh preserves uploaded sources.');change();setDatasets(old=>[d,...old.filter(item=>item.id!==d.id)]);setSelectedId(d.id);if(d.purpose==='cases'&&d.kind==='cumulative'&&d.level!=='national')setEpiSource(d.id);else if(epiSource===replacedId)setEpiSource('');setLocation('');setNotice(replacedId?'Dataset replaced. Maps, summaries and briefing now use the replacement.':'Dataset imported. Open Situation to review its chart and observations.');}}/><button onClick={()=>download('sdb-template.csv','health_zone,date,requests,completed\nExample zone,2026-09-01,12,10\nExample zone,2026-09-02,8,8\n','text/csv')}>Download example SDB template</button><p>Template rows are illustrative. Replace them before importing. Requests and completions are separate indicators; their difference is not automatically a backlog.</p></div>
     </>}
     {tab==='Response & decisions'&&<>
       <div className={styles.panel}><h3>Response presence and capacity</h3><p>Import dated presence, capacity and delivery indicators in Data & uploads. Response categories and locations come from those datasets; no province or service footprint is pre-populated.</p></div>
@@ -270,7 +280,7 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
       <p className={styles.noPrint}>AI receives only the evidence sentences below, including any selected uploaded indicator. It selects up to three sentences; it cannot add prose or numbers. Review emphasis and source suitability before sharing.</p>
       <h2>{name}</h2><p><strong>{reviewed?'Reviewed by user':'DRAFT — requires coordinator review'}</strong> · Reporting cut-off {asOf}</p>
       <label className={styles.noPrint}>Bottom line for decision-makers (your judgement — not AI-generated)<textarea value={bottomLine} maxLength={800} placeholder="One or two sentences: the trajectory and what you need from leadership." onChange={e=>{change();setBottomLine(e.target.value);}}/></label>
-      {bottomLine.trim()&&<div className={styles.bottomLine}><h3>Bottom line for decision-makers</h3><p>{bottomLine.trim()}</p></div>}
+      <KeyMessage message={openingMessage} asOf={asOf} reviewed={reviewed}/>
       {since&&since.lines.length>0&&<div className={styles.panel}><h3>Since last brief{since.priorAsOf?` (${since.priorName||'snapshot'}, ${since.priorAsOf})`:''}</h3><ul className={styles.sinceList}>{since.lines.map((l,i)=><li key={i}><strong>{l.label}</strong> {l.value} {l.delta!==undefined&&l.delta!==null&&typeof l.delta==='number'?<Delta delta={l.delta} rising={l.label.includes('confirmed')||l.label==='Reporting areas'}/>:null} {l.since?<small style={{display:'inline'}}>· {l.since}</small>:null}</li>)}</ul><small className={styles.noPrint}>Compared against a saved snapshot. Changes may include revisions and differ from onset-based incidence.</small></div>}
       <BriefSummary actions={actions} epi={epi} datasets={availableDatasets} security={security} mining={mining} routeData={routeData} hazards={hazards} asOf={asOf} highlights={highlights} sourceFor={evidenceSource}/>
       <ResponseStatus datasets={availableDatasets} actions={actions} asOf={asOf} briefing/>
@@ -278,18 +288,18 @@ export default function Outbreak({ storage, districts=[], facilities=[], acledDa
       <h3>Response plan</h3>{!actions.length?<p>No actions entered.</p>:<table><thead><tr><th>Location / action</th><th>Owner / due</th><th>Resources / status</th></tr></thead><tbody>{actions.map(a=><tr key={a.id}><td>{a.location||'Unspecified'}<p>{a.action||'Unspecified'}</p></td><td>{a.owner||'Unassigned'}<p>{a.due||'No deadline'}</p></td><td>{a.resources||'Unspecified'}<p>{a.status}</p></td></tr>)}</tbody></table>}
       <h3>Geographic overview</h3>
       {briefDataset?<OutbreakMap geometry={geography.data} rows={briefRows} level={briefDataset.level} kind={briefDataset.kind} unit={briefDataset.unit} boundaryLevel={boundaryLevel} mines={activeMines} events={security?.records||[]} hazards={hazards.events} selected={selectedLocation} onSelect={chooseArea} label={briefDataset.label} asOf={asOf} source={sourceLabel(briefDataset)} focusNames={epi?.burden.slice(0,8).map(z=>z.location)||[]}/>:!routeData?<p>Load area-level data and boundaries to show a map.</p>:null}
-      {routeData&&<><h3>Movement connections</h3><div className={`${styles.controls} ${styles.noPrint}`}><label>Mobility view<select value={briefDirection} onChange={e=>{change();setBriefDirection(e.target.value);}}><option value="inflow">Inflow — origins arriving in the focus area (receiving readiness)</option><option value="outflow">Outflow — destinations from the focus area</option></select></label></div><Routes showFocus={false} direction={briefDirection} data={routeData} epi={epi} security={security} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} selected={selectedLocation} onSelect={chooseArea} briefing/></>}
+      {routeData&&<><h3>Movement connections</h3><div className={`${styles.controls} ${styles.noPrint}`}><label>Mobility view<select value={briefDirection} onChange={e=>{change();setBriefDirection(e.target.value);}}><option value="inflow">Inflow — origins arriving in the focus area (receiving readiness)</option><option value="outflow">Outflow — destinations from the focus area</option></select></label></div><Routes overlays={movementOverlays} showFocus={false} direction={briefDirection} data={routeData} epi={epi} security={security} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} selected={selectedLocation} onSelect={chooseArea} briefing/></>}
       <label className={styles.noPrint}><input type="checkbox" checked={includeAppendix} onChange={e=>{setIncludeAppendix(e.target.checked);change();}}/>Include detailed evidence and extra maps in this briefing and exports</label>
       {includeAppendix&&<section aria-label="Evidence appendix"><h3>Evidence appendix</h3>
       {[['Epidemiological situation',f=>f.sourceId!=='acled'&&f.sourceId!=='ipis'&&f.sourceId!=='flowminder'],['Population mobility',f=>f.sourceId==='flowminder'],['Mining and operational geography',f=>f.sourceId==='ipis'],['Security and access considerations',f=>f.sourceId==='acled']].map(([title,predicate])=><section key={title}><h3>{title}</h3>{facts.filter(predicate).length?facts.filter(predicate).map(f=><p key={f.id}>{f.text}<small>Source: {evidenceSource(f)}</small></p>):<p>No validated evidence available for this section in the loaded scope.</p>}</section>)}
-      <Routes showFocus={false} direction={routeDirection} onDirection={d=>{change();setRouteDirection(d);}} limit={routeLimit} onLimit={v=>{change();setRouteLimit(v);}} data={routeData} onLoad={fetchRoutes} loading={routeLoading} error={routeError} epi={epi} security={security} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} selected={selectedLocation} onSelect={chooseArea} briefing/>
+      <Routes overlays={movementOverlays} showFocus={false} direction={routeDirection} onDirection={d=>{change();setRouteDirection(d);}} limit={routeLimit} onLimit={v=>{change();setRouteLimit(v);}} data={routeData} onLoad={fetchRoutes} loading={routeLoading} error={routeError} epi={epi} security={security} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} selected={selectedLocation} onSelect={chooseArea} briefing/>
       <IntegratedCharts epi={epi} mining={mining} security={security} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} briefing/>
-      <MobilityPanel layers={mobilityLayers} selected={selectedMobility} direction={direction} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} briefing/>
+      <MobilityPanel overlays={movementOverlays} layers={mobilityLayers} selected={selectedMobility} direction={direction} geometry={geography.data} boundaryLevel={boundaryLevel} asOf={asOf} briefing/>
       {selected&&<><TrendChart records={selected.records} location={selectedLocation} label={selected.label} unit={selected.unit} kind={selected.kind} asOf={asOf} source={sourceLabel(selected)}/><OutbreakMap geometry={geography.data} rows={rows} level={selected.level} kind={selected.kind} unit={selected.unit} boundaryLevel={boundaryLevel} mines={activeMines} selected={selectedLocation} onSelect={()=>{}} label={selected.label} asOf={asOf} source={sourceLabel(selected)}/></>}
       </section>}
 
       {includeAppendix&&<><h3>Evidence limits</h3><p>National figures remain separate from sums of reported area-level values. Reporting dates can differ. Cumulative changes may include revisions; missing data is not zero. Mining sites and movement connections do not establish transmission. No spread forecast or inferred response capacity is produced.</p></>}
-      <details data-source-register="true"><summary>Sources and data quality</summary>{security&&<p>ACLED: main-app uploaded records · window {securityStart}–{securityEnd} · {security.issues.length} validation issues · reported fatality estimates are not independently verified.</p>}{availableDatasets.map(d=><p key={d.id}>{d.label}: {d.url?<a href={d.url}>Source</a>:d.source} · {d.status} · retrieved {d.fetchedAt||'unavailable'}{d.error?` · ${d.error}`:''} · {d.issues?.length||0} source validation issues</p>)}<p>Boundaries: {boundarySource} · join field {effectiveBoundaryField} · {boundaryLevel}{geography.error?` · unavailable: ${geography.error}`:''}. {epi?epi.unmatched:unmatched.length} unmatched indicator locations.</p>{mines&&<p>IPIS: {mines.url} · retrieved {mines.fetchedAt}. Visit dates are retained per point.</p>}</details>
+      <details data-source-register="true"><summary>Sources and data quality</summary>{security&&<p>ACLED: main-app uploaded records · window {securityStart}–{securityEnd} · {security.issues.length} validation issues · reported fatality estimates are not independently verified.</p>}{availableDatasets.map(d=><p key={d.id}>{d.label}: {d.url?<a href={d.url}>Source</a>:d.source} · {d.status} · retrieved {d.fetchedAt||'unavailable'}{d.error?` · ${d.error}`:''} · {d.issues?.length||0} source validation issues</p>)}<p>Boundaries: {boundarySource} · join field {effectiveBoundaryField} · {boundaryLevel}{geography.error?` · unavailable: ${geography.error}`:''}. {epi?epi.unmatched:unmatched.length} unmatched indicator locations.</p>{mines&&<p>IPIS: {sourceLabel(mines)} · retrieved {mines.fetchedAt}. Visit dates are retained per point.</p>}</details>
       <label className={styles.noPrint}><input type="checkbox" checked={reviewed} onChange={e=>{setReviewed(e.target.checked);setDirty(true);}}/>I have reviewed this snapshot and its evidence for sharing.</label>
     </div>}
   </fieldset></section>;

@@ -1,9 +1,9 @@
 import {nationalEvidence,formatValue} from '../../../lib/outbreak/data';
-import {recommendations} from '../../../lib/outbreak/overview';
+import {recommendations,proposalSelected} from '../../../lib/outbreak/overview';
 import {TrendChart,HorizontalBars,NationalTrendChart,NATIONAL_SERIES} from './Visuals';
 import Delta from './Delta';
 import styles from './outbreak.module.css';
-export default function Overview({datasets,epi,security,mining,asOf,onSelect,onDecision,selectedArea,routeData}) {
+export default function Overview({datasets,epi,security,mining,asOf,onSelect,onDecision,selectedArea,routeData,actions=[]}) {
   const national=datasets.filter(d=>d.level==='national'&&d.status==='ready');
   const facts=nationalEvidence(national,asOf);
   const nationalTrend=national.find(d=>/^(national_)?cumulative_confirmed_cases$/.test(d.metricId||''));
@@ -25,8 +25,8 @@ export default function Overview({datasets,epi,security,mining,asOf,onSelect,onD
     <section className={styles.panel} aria-label="Areas to review"><h3>Areas to review</h3><p>Compare total reported burden with the latest seven-day change. Select a bar to explore an area’s trend and movement connections.</p>
       {epi?<><div className={styles.chartGrid}><HorizontalBars title="Most reported cases" subtitle={`Cumulative totals · ${epi.date}`} rows={epi.burden} source={epi.dataset.source||epi.dataset.url} onSelect={onSelect}/><HorizontalBars title="Largest recent increases" subtitle={`${epi.baseline}–${epi.date} · changes in reported totals`} rows={epi.growth.filter(z=>z.delta>0).map(z=>({...z,value:z.delta}))} color="#c96a37" source={epi.dataset.source||epi.dataset.url} onSelect={onSelect}/></div><p className={styles.scope}>{epi.missing} missing values and {epi.absent} previously observed areas without a record on {epi.date}. Missing comparisons are excluded.</p></>:<p>Area-level case data is needed to identify these areas.</p>}
     </section>
-    <section className={styles.panel} aria-label="Suggested actions"><h3>Suggested actions</h3><p>Proposals based on the available evidence. Confirm conditions with the response teams before assigning resources.</p>
-      {suggestions.map(s=><article className={styles.source} key={s.title}><h4>{s.title}</h4><p><strong>Why:</strong> {s.why}</p><p>{s.action}</p><button onClick={()=>onDecision(s)}>Add to response plan</button></article>)}{!suggestions.length&&<p>There is not enough evidence to suggest area-specific actions.</p>}
+    <section className={styles.panel} aria-label="Suggested actions"><h3>Suggested actions</h3><p>Select the proposals you want to take forward. Continue reviewing here, then edit or remove selections in Response & decisions. Confirm conditions with the response teams before assigning resources.</p>
+      {suggestions.map(s=>{const selected=proposalSelected(actions,s);return <article className={styles.source} key={s.title}><h4>{s.title}</h4><p><strong>Why:</strong> {s.why}</p><p>{s.action}</p><button type="button" aria-pressed={selected} disabled={selected} className={selected?styles.selectedProposal:undefined} onClick={()=>onDecision(s)}>{selected?'✓ Selected for response plan':'Add to response plan'}</button><span role="status" className={styles.proposalStatus}>{selected?'You can edit this action later in Response & decisions.':''}</span></article>;})}{!suggestions.length&&<p>There is not enough evidence to suggest area-specific actions.</p>}
     </section>
   </>;
 }
